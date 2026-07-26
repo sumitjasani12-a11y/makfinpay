@@ -83,16 +83,33 @@ export default function AgentRecharge() {
     <div className="w-full">
       <PageHeader title="Recharge Wallet" subtitle="Pay via UPI, then submit UTR + screenshot for admin verification." />
       
-      {/* Centered layout container with 20% space on sides */}
-      <div className="max-w-[950px] mx-auto px-4 mb-8">
+      {/* Centered layout container with 15% space on sides */}
+      <div className="max-w-[1100px] mx-auto px-4 mb-8">
         
         {/* Unified Card Container */}
         <div className="bg-white border border-black/5 rounded-3xl p-6 lg:p-10 shadow-lg shadow-indigo-500/5 grid lg:grid-cols-2 gap-10 items-start">
           
           {/* Left Side: Active UPI QR */}
           <div className="flex flex-col items-center w-full" data-testid="active-qr-panel">
+            {/* Header / Section Name */}
+            <div className="w-full flex items-center gap-3 border-b border-black/5 pb-4 mb-4">
+              <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                <QrCode className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-neutral-800">Active UPI QR</h3>
+              </div>
+            </div>
+
             {qr ? (
               <div className="w-full flex flex-col items-center">
+                {/* Title above QR */}
+                <div className="text-center mt-2 mb-4">
+                  <span className="text-sm font-extrabold text-neutral-700 uppercase tracking-wide">
+                    Scan QR to Pay
+                  </span>
+                </div>
+
                 {/* QR Code Container */}
                 <div className="relative border border-black/10 rounded-2xl p-4 bg-white max-w-[280px] w-full aspect-square flex items-center justify-center shadow-sm overflow-hidden transition-all hover:scale-102">
                   <img
@@ -119,14 +136,6 @@ export default function AgentRecharge() {
                     </button>
                   </div>
                 )}
-
-                {/* Footer text */}
-                <div className="text-center mt-5 space-y-1">
-                  <h4 className="text-sm font-extrabold text-neutral-800 tracking-tight">Scan QR to Pay</h4>
-                  <p className="text-xs text-neutral-400 max-w-[260px] mx-auto leading-relaxed">
-                    Scan the QR code above and complete the payment using any UPI app.
-                  </p>
-                </div>
 
                 {/* Receive breakdown */}
                 {amountValid ? (
@@ -156,6 +165,15 @@ export default function AgentRecharge() {
 
           {/* Right Side: Request Form */}
           <form onSubmit={submit} className="w-full space-y-4" data-testid="recharge-form">
+            {/* Header / Section Name */}
+            <div className="w-full flex items-center gap-3 border-b border-black/5 pb-4 mb-4">
+              <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-neutral-800">Submit recharge request</h3>
+              </div>
+            </div>
             
             {/* UTR ID */}
             <div className="space-y-1">
