@@ -123,17 +123,17 @@ export default function AgentBillPay() {
   return (
     <div>
       <PageHeader title="Credit Card Bill Payment" subtitle="A small service charge is added on top of every bill payment." />
-      <div className="grid lg:grid-cols-3 gap-6">
+      <div className="grid lg:grid-cols-12 gap-8 items-start">
         {/* Form */}
-        <div className="lg:col-span-2 mfp-card p-6">
-          <form onSubmit={submit} className="grid sm:grid-cols-2 gap-4">
-            <div className="sm:col-span-2">
-              <label className="mfp-label">Customer Name</label>
-              <input className="mfp-input" required value={f.customer_name} onChange={(e) => setF({ ...f, customer_name: e.target.value })} disabled={busy} data-testid="bill-name" />
+        <div className="lg:col-span-8 mfp-card p-6">
+          <form onSubmit={submit} className="grid sm:grid-cols-2 gap-x-6 gap-y-4">
+            <div>
+              <label className="mfp-label">Customer Owner Name</label>
+              <input className="mfp-input bg-neutral-50/50" required value={f.customer_name} onChange={(e) => setF({ ...f, customer_name: e.target.value })} disabled={busy} data-testid="bill-name" />
             </div>
             <div>
               <label className="mfp-label">Card Last 4 Digits</label>
-              <input className="mfp-input" required maxLength={4} value={f.card_last4} onChange={(e) => setF({ ...f, card_last4: e.target.value.replace(/\D/g, "") })} disabled={busy} data-testid="bill-card" />
+              <input className="mfp-input bg-neutral-50/50" required maxLength={4} value={f.card_last4} onChange={(e) => setF({ ...f, card_last4: e.target.value.replace(/\D/g, "") })} disabled={busy} data-testid="bill-card" />
             </div>
             <div>
               <label className="mfp-label">Bank / Operator</label>
@@ -141,12 +141,12 @@ export default function AgentBillPay() {
             </div>
             <div>
               <label className="mfp-label">Customer Phone</label>
-              <input className="mfp-input" required value={f.customer_phone} onChange={(e) => setF({ ...f, customer_phone: e.target.value })} disabled={busy} data-testid="bill-phone" />
+              <input className="mfp-input bg-neutral-50/50" required value={f.customer_phone} onChange={(e) => setF({ ...f, customer_phone: e.target.value })} disabled={busy} data-testid="bill-phone" />
             </div>
             <div>
               <label className="mfp-label">Bill Amount</label>
               <input
-                className={`mfp-input ${exceedsLimit ? "border-rose-400 focus:border-rose-500" : ""}`}
+                className={`mfp-input bg-neutral-50/50 ${exceedsLimit ? "border-rose-400 focus:border-rose-500" : ""}`}
                 type="number" min="1" max={maxLimit} step="0.01" required
                 value={f.amount}
                 onChange={(e) => setF({ ...f, amount: e.target.value })}
@@ -159,10 +159,10 @@ export default function AgentBillPay() {
                 </div>
               )}
             </div>
-            <div className="sm:col-span-2">
+            <div className="flex items-end pb-0.5">
               <button
                 disabled={busy || exceedsLimit}
-                className="mfp-btn-secondary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                className="mfp-btn-secondary w-full disabled:opacity-50 disabled:cursor-not-allowed py-2.5 flex items-center justify-center gap-2 h-[38px] rounded-xl text-xs font-bold"
                 data-testid="bill-submit"
               >
                 {busy
@@ -170,8 +170,8 @@ export default function AgentBillPay() {
                   : exceedsLimit
                     ? <><CreditCard className="h-4 w-4" /> Amount exceeds limit</>
                     : hasAmount
-                      ? <><CreditCard className="h-4 w-4" /> Pay {fmtMoney(total)} from Wallet</>
-                      : <><CreditCard className="h-4 w-4" /> Pay Bill from Wallet</>
+                      ? <><CreditCard className="h-4 w-4" /> Pay {fmtMoney(total)}</>
+                      : <><CreditCard className="h-4 w-4" /> Pay Bill</>
                 }
               </button>
             </div>
@@ -179,7 +179,7 @@ export default function AgentBillPay() {
         </div>
 
         {/* Wallet & Charges panel */}
-        <aside className="mfp-card p-6 bg-[#FDFCF8]">
+        <aside className="lg:col-span-4 mfp-card p-6 bg-[#FDFCF8]">
           <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-neutral-500">
             <Wallet className="h-4 w-4" /> Available Wallet
           </div>
