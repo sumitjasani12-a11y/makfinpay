@@ -17,6 +17,29 @@ export default function AdminWithdrawals() {
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [withdrawalEnabled, setWithdrawalEnabled] = useState(true);
+
+  const fetchToggles = useCallback(() => {
+    api.get("/admin/settings/recharge-limits").then((r) => {
+      setWithdrawalEnabled(r.data.withdrawal_enabled ?? true);
+    });
+  }, []);
+
+  const handleToggleWithdrawal = async (val) => {
+    setWithdrawalEnabled(val);
+    try {
+      const res = await api.get("/admin/settings/recharge-limits");
+      await api.put("/admin/settings/recharge-toggles", {
+        qr_enabled: res.data.qr_enabled ?? true,
+        recharge_enabled: res.data.recharge_enabled ?? true,
+        withdrawal_enabled: val
+      });
+      toast.success(`Agent Withdrawal requests ${val ? "Enabled" : "Disabled"}`);
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail) || "Failed to update toggle");
+      setWithdrawalEnabled(!val);
+    }
+  };
 
   const [q, setQ] = useState("");
   const debouncedQ = useDebounced(q, 350);
@@ -90,7 +113,7 @@ export default function AdminWithdrawals() {
       .finally(() => setLoading(false));
   }, [params]);
 
-  useEffect(() => { reload(); }, [reload]);
+  useEffect(() => { reload(); fetchToggles(); }, [reload, fetchToggles]);
   useEffect(() => { setPage(1); }, [status, roleFilter, range, from, to, customApplied, debouncedQ, debouncedAmt, pageSize]);
 
   const clearAll = () => {
@@ -130,7 +153,30 @@ export default function AdminWithdrawals() {
 
   return (
     <div>
-      <PageHeader title="Withdrawal Approvals" subtitle="Review withdrawal requests from agents and distributors." />
+      <PageHeader
+        title="Withdrawal Approvals"
+        subtitle="Review withdrawal requests from agents and distributors."
+        actions={
+          <div className="flex flex-wrap items-center gap-6 bg-white px-5 py-2.5 rounded-2xl border border-black/5 shadow-sm">
+            <div className="flex items-center gap-2.5">
+              <span className="text-xs font-bold text-neutral-600 uppercase tracking-wider">Withdrawal Service</span>
+              <button
+                onClick={() => handleToggleWithdrawal(!withdrawalEnabled)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  withdrawalEnabled ? "bg-[#2D6A4F]" : "bg-neutral-200"
+                }`}
+                type="button"
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    withdrawalEnabled ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        }
+      />
 
       {/* Metrics Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
