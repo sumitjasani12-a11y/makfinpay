@@ -64,76 +64,121 @@ export default function BankDetailsCard({ onSaved, highlightMissing = [] }) {
     .every((k) => (b[k] || "").toString().trim());
 
   return (
-    <form onSubmit={save} className="mfp-card p-6" data-testid="bank-details-card">
-      <div className="flex items-center gap-2 mb-1">
-        <Landmark className="h-4 w-4 text-[#1B4332]" />
-        <h3 className="text-base font-medium">Bank Details</h3>
-      </div>
-      <p className="text-sm text-neutral-500 mb-4">Required to process withdrawals.</p>
-      <div className="grid sm:grid-cols-2 gap-4">
-        {[
-          ["Account Holder", "account_holder", "text"],
-          ["Account Number", "account_number", "text"],
-          ["IFSC", "ifsc", "text"],
-          ["Bank Name", "bank_name", "text"],
-          ["Phone Number", "phone_number", "tel"],
-        ].map(([label, key, type]) => {
-          const isMissing = highlightMissing.includes(key);
-          if (key === "bank_name") {
-            return (
-              <div key={key} className={key === "phone_number" ? "sm:col-span-2" : ""}>
-                <label className="mfp-label">
-                  {label}
-                  {isMissing && <span className="ml-2 text-rose-600 text-[10px] font-semibold">MISSING</span>}
-                </label>
-                <select
-                  className={`mfp-input bg-[#FDFCF8] ${isMissing ? "border-rose-400 focus:border-rose-500" : ""}`}
-                  required
-                  value={b[key]}
-                  onChange={(e) => setB({ ...b, [key]: e.target.value })}
-                  disabled={saving || !loaded}
-                  data-testid={`bank-${key}`}
-                >
-                  <option value="">Select Bank</option>
-                  {payoutBanks.map((bk) => (
-                    <option key={bk.id || bk.name} value={bk.name}>
-                      {bk.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            );
-          }
-          return (
-            <div key={key} className={key === "phone_number" ? "sm:col-span-2" : ""}>
-              <label className="mfp-label">
-                {label}
-                {isMissing && <span className="ml-2 text-rose-600 text-[10px] font-semibold">MISSING</span>}
+    <form onSubmit={save} className="mfp-card p-6 h-full flex flex-col justify-between" data-testid="bank-details-card">
+      <div className="flex-1 flex flex-col justify-between">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Landmark className="h-4 w-4 text-[#1B4332]" />
+            <h3 className="text-base font-medium">Bank Details</h3>
+          </div>
+          <p className="text-sm text-neutral-500 mb-4">Required to process withdrawals.</p>
+          
+          <div className="grid sm:grid-cols-2 gap-4">
+            {/* Row 1 */}
+            <div>
+              <label className="mfp-label flex items-center">
+                Account Holder
+                {highlightMissing.includes("account_holder") && <span className="ml-1 text-rose-600 font-black text-sm">*</span>}
               </label>
               <input
-                className={`mfp-input ${isMissing ? "border-rose-400 focus:border-rose-500" : ""}`}
+                className={`mfp-input ${highlightMissing.includes("account_holder") ? "border-rose-400 focus:border-rose-500" : ""}`}
                 required
-                type={type}
-                inputMode={key === "phone_number" || key === "account_number" ? "numeric" : undefined}
-                maxLength={key === "phone_number" ? 13 : undefined}
-                value={b[key]}
-                onChange={(e) => setB({ ...b, [key]: e.target.value })}
+                type="text"
+                value={b.account_holder}
+                onChange={(e) => setB({ ...b, account_holder: e.target.value })}
                 disabled={saving || !loaded}
-                data-testid={`bank-${key}`}
+                data-testid="bank-account_holder"
               />
             </div>
-          );
-        })}
-        <div className="sm:col-span-2">
-          <button
-            type="submit"
-            disabled={saving || !loaded || !allFilled}
-            className="mfp-btn-primary disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
-            data-testid="bank-save"
-          >
-            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-            {saving ? "Saving…" : "Save Bank Details"}
-          </button>
+
+            <div>
+              <label className="mfp-label flex items-center">
+                Account Number
+                {highlightMissing.includes("account_number") && <span className="ml-1 text-rose-600 font-black text-sm">*</span>}
+              </label>
+              <input
+                className={`mfp-input ${highlightMissing.includes("account_number") ? "border-rose-400 focus:border-rose-500" : ""}`}
+                required
+                type="text"
+                inputMode="numeric"
+                value={b.account_number}
+                onChange={(e) => setB({ ...b, account_number: e.target.value })}
+                disabled={saving || !loaded}
+                data-testid="bank-account_number"
+              />
+            </div>
+
+            {/* Row 2 */}
+            <div>
+              <label className="mfp-label flex items-center">
+                IFSC
+                {highlightMissing.includes("ifsc") && <span className="ml-1 text-rose-600 font-black text-sm">*</span>}
+              </label>
+              <input
+                className={`mfp-input ${highlightMissing.includes("ifsc") ? "border-rose-400 focus:border-rose-500" : ""}`}
+                required
+                type="text"
+                value={b.ifsc}
+                onChange={(e) => setB({ ...b, ifsc: e.target.value })}
+                disabled={saving || !loaded}
+                data-testid="bank-ifsc"
+              />
+            </div>
+
+            <div>
+              <label className="mfp-label flex items-center">
+                Bank Name
+                {highlightMissing.includes("bank_name") && <span className="ml-1 text-rose-600 font-black text-sm">*</span>}
+              </label>
+              <select
+                className={`mfp-input bg-[#FDFCF8] ${highlightMissing.includes("bank_name") ? "border-rose-400 focus:border-rose-500" : ""}`}
+                required
+                value={b.bank_name}
+                onChange={(e) => setB({ ...b, bank_name: e.target.value })}
+                disabled={saving || !loaded}
+                data-testid="bank-bank_name"
+              >
+                <option value="">Select Bank</option>
+                {payoutBanks.map((bk) => (
+                  <option key={bk.id || bk.name} value={bk.name}>
+                    {bk.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Row 3 */}
+            <div>
+              <label className="mfp-label flex items-center">
+                Phone Number
+                {highlightMissing.includes("phone_number") && <span className="ml-1 text-rose-600 font-black text-sm">*</span>}
+              </label>
+              <input
+                className={`mfp-input ${highlightMissing.includes("phone_number") ? "border-rose-400 focus:border-rose-500" : ""}`}
+                required
+                type="tel"
+                inputMode="numeric"
+                maxLength={13}
+                value={b.phone_number}
+                onChange={(e) => setB({ ...b, phone_number: e.target.value })}
+                disabled={saving || !loaded}
+                data-testid="bank-phone_number"
+              />
+            </div>
+
+            <div className="flex items-end">
+              <button
+                type="submit"
+                disabled={saving || !loaded || !allFilled}
+                className="mfp-btn-primary disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 w-full h-[42px]"
+                data-testid="bank-save"
+              >
+                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+                {saving ? "Saving…" : "Save Bank Details"}
+              </button>
+            </div>
+
+          </div>
         </div>
       </div>
     </form>
