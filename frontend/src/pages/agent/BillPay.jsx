@@ -159,21 +159,31 @@ export default function AgentBillPay() {
                 </div>
               )}
             </div>
-            <div className="flex items-end pb-0.5">
-              <button
-                disabled={busy || exceedsLimit}
-                className="mfp-btn-secondary w-full disabled:opacity-50 disabled:cursor-not-allowed py-2.5 flex items-center justify-center gap-2 h-[38px] rounded-xl text-xs font-bold"
-                data-testid="bill-submit"
-              >
-                {busy
-                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Processing…</>
-                  : exceedsLimit
-                    ? <><CreditCard className="h-4 w-4" /> Amount exceeds limit</>
-                    : hasAmount
-                      ? <><CreditCard className="h-4 w-4" /> Pay {fmtMoney(total)}</>
-                      : <><CreditCard className="h-4 w-4" /> Pay Bill</>
-                }
-              </button>
+            <div className="flex items-end pb-0.5 w-full">
+              <div className="flex items-center gap-3 w-full">
+                <button
+                  disabled={busy || exceedsLimit}
+                  className="mfp-btn-secondary flex-1 disabled:opacity-50 disabled:cursor-not-allowed py-2.5 flex items-center justify-center gap-2 h-[38px] rounded-xl text-xs font-bold"
+                  data-testid="bill-submit"
+                >
+                  {busy
+                    ? <><Loader2 className="h-4 w-4 animate-spin" /> Processing…</>
+                    : exceedsLimit
+                      ? <><CreditCard className="h-4 w-4" /> Limit Exceeded</>
+                      : hasAmount
+                        ? <><CreditCard className="h-4 w-4" /> Pay {fmtMoney(total)}</>
+                        : <><CreditCard className="h-4 w-4" /> Pay Bill</>
+                  }
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setF({ customer_name: "", card_last4: "", operator: "", customer_phone: "", amount: "" })}
+                  disabled={busy}
+                  className="px-4 border border-black/10 hover:bg-neutral-50 text-neutral-600 h-[38px] rounded-xl text-xs font-bold transition-all"
+                >
+                  Clear
+                </button>
+              </div>
             </div>
           </form>
         </div>
