@@ -186,6 +186,7 @@ export default function AgentRecharge() {
       <DataTable
         columns={[
           { key: "amount", label: "Amount", render: (r) => fmtMoney(r.amount) },
+          { key: "charge", label: "Commission Charge", render: (r) => r.status === "approved" ? fmtMoney(r.commission_amount) : fmtMoney(r.amount * r.commission_percent / 100) },
           { key: "credit_amount", label: "Net Credit", render: (r) => r.status === "approved" ? fmtMoney(r.credit_amount) : "—" },
           { key: "utr", label: "UTR" },
           { key: "card_last4", label: "Card / Acc", render: (r) => r.card_last4 ? `XXXX ${r.card_last4}` : "—" },
