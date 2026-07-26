@@ -303,6 +303,17 @@ class ServiceChargeSlabIn(BaseModel):
     charge_amount: float
     charge_type: str = "flat"
 
+class BankEntryIn(BaseModel):
+    name: str
+    bill_pay_enabled: bool = True
+    payout_enabled: bool = True
+
+class BankUpdateIn(BaseModel):
+    name: Optional[str] = None
+    active: Optional[bool] = None
+    bill_pay_enabled: Optional[bool] = None
+    payout_enabled: Optional[bool] = None
+
 class ApprovalIn(BaseModel):
     note: Optional[str] = None
 
@@ -2118,6 +2129,65 @@ async def admin_delete_service_slab(sid: str, user=Depends(require_roles("admin"
 async def list_active_service_slabs(user=Depends(get_current_user)):
     return await db.service_charge_slabs.find({"is_deleted": False, "active": True}, {"_id": 0}).sort("min_amount", 1).to_list(100)
 
+# ---------- BANK MANAGEMENT ----------
+@api.get("/admin/banks")
+async def admin_list_banks(user=Depends(require_roles("admin"))):
+    return await db.banks.find({"is_deleted": False}, {"_id": 0}).sort("name", 1).to_list(500)
+
+@api.post("/admin/banks")
+async def admin_create_bank(body: BankEntryIn, user=Depends(require_roles("admin"))):
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(400, "Bank name cannot be empty")
+    existing = await db.banks.find_one({"name": name, "is_deleted": False})
+    if existing:
+        raise HTTPException(400, "Bank name already exists")
+    doc = {
+        "id": new_id(),
+        "name": name,
+        "active": True,
+        "bill_pay_enabled": body.bill_pay_enabled,
+        "payout_enabled": body.payout_enabled,
+        "is_deleted": False,
+        "created_at": now_iso()
+    }
+    await db.banks.insert_one(dict(doc))
+    return clean(doc)
+
+@api.patch("/admin/banks/{bid}")
+async def admin_update_bank(bid: str, body: BankUpdateIn, user=Depends(require_roles("admin"))):
+    bank = await db.banks.find_one({"id": bid})
+    if not bank:
+        raise HTTPException(404, "Bank not found")
+    upd = {}
+    if body.name is not None:
+        name = body.name.strip()
+        if not name:
+            raise HTTPException(400, "Bank name cannot be empty")
+        existing = await db.banks.find_one({"name": name, "is_deleted": False})
+        if existing and existing["id"] != bid:
+            raise HTTPException(400, "Bank name already exists")
+        upd["name"] = name
+    if body.active is not None:
+        upd["active"] = body.active
+    if body.bill_pay_enabled is not None:
+        upd["bill_pay_enabled"] = body.bill_pay_enabled
+    if body.payout_enabled is not None:
+        upd["payout_enabled"] = body.payout_enabled
+        
+    if upd:
+        await db.banks.update_one({"id": bid}, {"$set": upd})
+    return {"ok": True}
+
+@api.delete("/admin/banks/{bid}")
+async def admin_delete_bank(bid: str, user=Depends(require_roles("admin"))):
+    await db.banks.update_one({"id": bid}, {"$set": {"is_deleted": True}})
+    return {"ok": True}
+
+@api.get("/billing/banks")
+async def list_active_bill_pay_banks(user=Depends(get_current_user)):
+    return await db.banks.find({"is_deleted": False, "active": True, "bill_pay_enabled": True}, {"_id": 0}).sort("name", 1).to_list(500)
+
 # ---------- QR NAME ENTRIES ----------
 @api.get("/admin/qr-name-entries")
 async def admin_list_qr_name_entries(user=Depends(require_roles("admin"))):
@@ -2844,6 +2914,17 @@ async def _ensure_indexes() -> None:
                 created_at TIMESTAMPTZ
             )
         ''')
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS banks (
+                id VARCHAR(255) PRIMARY KEY,
+                name VARCHAR(255) UNIQUE NOT NULL,
+                active BOOLEAN DEFAULT TRUE,
+                bill_pay_enabled BOOLEAN DEFAULT TRUE,
+                payout_enabled BOOLEAN DEFAULT TRUE,
+                is_deleted BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMPTZ
+            )
+        ''')
         await conn.execute('ALTER TABLE qr_codes ADD COLUMN IF NOT EXISTS mobile_number VARCHAR(50)')
         await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS firm_name VARCHAR(255)')
         await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS firm_address TEXT')
@@ -2876,6 +2957,7 @@ async def _ensure_indexes() -> None:
     await db.ledger.create_index("user_id")
     await db.recharges.create_index("user_id")
     await db.service_charge_slabs.create_index("min_amount")
+    await db.banks.create_index("name", unique=True)
     try:
         await db.recharges.create_index(
             [("user_id", 1), ("utr", 1)],
@@ -2935,6 +3017,34 @@ async def _ensure_indexes() -> None:
             "is_deleted": False,
             "created_at": now_iso()
         })
+
+    # Seed default banks if table is empty
+    bank_count = await db.banks.count_documents({"is_deleted": False})
+    if bank_count == 0:
+        default_banks = [
+            "AU Bank Credit Card", "Axis Bank Credit Card", "BOBCARD One Credit Card",
+            "Bandhan Bank Credit Card", "Bank Of India Credit Card", "Bank of Baroda - Credit Card",
+            "CSB Bank Edge RuPay Credit Card", "CUB Credit Card", "Canara Bank Credit Card",
+            "DBS Credit Card", "DCB Bank Credit Card", "Dhanlaxmi Bank Credit Card",
+            "ESAF Bank Credit Card", "Federal Bank Credit Card", "HDFC Bank Credit Card",
+            "HDFC Bank Pixel Credit Card", "HSBC Bank Credit Card", "ICICI Bank Credit Card",
+            "IDBI Bank Credit Card", "IDFC FIRST Bank Credit Card", "IOB Credit Card",
+            "Indian Bank Credit Card", "Indian Bank One Credit Card", "Indusind Bank Credit Card",
+            "J&K Bank Credit Card", "Kotak Mahindra Bank Credit Card", "PNB Credit Card",
+            "RBL Bank Credit Card", "SBI Card", "SBM Bank (India) Credit Card",
+            "SIB One Credit Card", "Saraswat Bank Credit Card", "Suryoday SFB Credit Card",
+            "Tamilnad Mercantile Bank Credit Card", "UBI Credit Card", "Yes Bank Credit Card"
+        ]
+        for name in default_banks:
+            await db.banks.insert_one({
+                "id": new_id(),
+                "name": name,
+                "active": True,
+                "bill_pay_enabled": True,
+                "payout_enabled": True,
+                "is_deleted": False,
+                "created_at": now_iso()
+            })
 
 
 async def _seed_admin_user() -> None:

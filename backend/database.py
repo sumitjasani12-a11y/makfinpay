@@ -32,7 +32,8 @@ TABLE_COLUMNS = {
     "backups_fs.chunks": ["_id", "files_id", "n", "data"],
     "notifications": ["id", "user_id", "title", "message", "read", "created_at"],
     "fraud_flags": ["id", "user_id", "reason", "created_at"],
-    "service_charge_slabs": ["id", "min_amount", "max_amount", "charge_amount", "charge_type", "active", "is_deleted", "created_at"]
+    "service_charge_slabs": ["id", "min_amount", "max_amount", "charge_amount", "charge_type", "active", "is_deleted", "created_at"],
+    "banks": ["id", "name", "active", "bill_pay_enabled", "payout_enabled", "is_deleted", "created_at"]
 }
 
 DATETIME_COLUMNS = {

@@ -5,7 +5,6 @@ import { useDebounced } from "@/lib/hooks";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import { toast } from "sonner";
 import { Check, RotateCcw, Search, X } from "lucide-react";
-import { CREDIT_CARD_OPERATORS } from "@/lib/billing";
 
 const STATUSES = [
   { key: "all", label: "All" },
@@ -38,6 +37,7 @@ export default function AdminTransactions() {
   useEffect(() => {
     api.get("/admin/users", { params: { role: "agent" } })
       .then((r) => setAgents(Array.isArray(r.data) ? r.data : (r.data?.items || [])));
+    api.get("/billing/banks").then((r) => setBanks(r.data.map(b => b.name))).catch((e) => console.log("Failed to fetch banks:", e.message));
   }, []);
 
   const params = useMemo(() => {
@@ -87,8 +87,7 @@ export default function AdminTransactions() {
     catch (e) { toast.error(formatErr(e.response?.data?.detail)); }
   }, [reload]);
 
-  // Bank dropdown = full operator catalogue (server filters exact match, so union with current items is unnecessary).
-  const banks = useMemo(() => [...CREDIT_CARD_OPERATORS].sort(), []);
+
 
   const columns = useMemo(() => [
     { key: "user_name", label: "Agent" },

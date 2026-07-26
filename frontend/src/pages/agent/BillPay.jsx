@@ -3,14 +3,14 @@ import { api, formatErr, fmtMoney } from "@/lib/api";
 import { PageHeader } from "@/components/Shared";
 import { toast } from "sonner";
 import { CreditCard, Check, ChevronsUpDown, Wallet, Search, Loader2 } from "lucide-react";
-import { CREDIT_CARD_OPERATORS } from "@/lib/billing";
 
-function BankCombobox({ value, onChange }) {
+
+function BankCombobox({ value, onChange, options = [] }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const filtered = useMemo(
-    () => CREDIT_CARD_OPERATORS.filter((b) => b.toLowerCase().includes(search.toLowerCase())),
-    [search]
+    () => options.filter((b) => b.toLowerCase().includes(search.toLowerCase())),
+    [search, options]
   );
   return (
     <div className="relative">
@@ -68,10 +68,12 @@ export default function AgentBillPay() {
   const [f, setF] = useState({ customer_name: "", card_last4: "", operator: "", customer_phone: "", amount: "" });
   const [busy, setBusy] = useState(false);
   const [slabs, setSlabs] = useState([]);
+  const [banks, setBanks] = useState([]);
 
   useEffect(() => {
     api.get("/wallet").then((r) => setWallet(r.data));
     api.get("/billing/service-slabs").then((r) => setSlabs(r.data)).catch((e) => console.log("Failed to fetch slabs:", e.message));
+    api.get("/billing/banks").then((r) => setBanks(r.data.map(b => b.name))).catch((e) => console.log("Failed to fetch banks:", e.message));
   }, []);
 
   const billAmt = Number(f.amount) || 0;
@@ -135,7 +137,7 @@ export default function AgentBillPay() {
             </div>
             <div>
               <label className="mfp-label">Bank / Operator</label>
-              <BankCombobox value={f.operator} onChange={(v) => setF({ ...f, operator: v })} />
+              <BankCombobox value={f.operator} onChange={(v) => setF({ ...f, operator: v })} options={banks} />
             </div>
             <div>
               <label className="mfp-label">Customer Phone</label>
