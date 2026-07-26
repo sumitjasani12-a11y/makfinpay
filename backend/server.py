@@ -231,6 +231,19 @@ class QRCodeIn(BaseModel):
     label: str
     image_path: str
     upi_id: Optional[str] = None
+    mobile_number: Optional[str] = None
+
+class QRNameEntryIn(BaseModel):
+    name: str
+    color: str
+    mobile_number: str
+    upi_id: str
+    min_amount: float
+    max_amount: float
+    image_path: str
+
+class QRReorderIn(BaseModel):
+    ids: List[str]
 
 class ApprovalIn(BaseModel):
     note: Optional[str] = None
@@ -1830,6 +1843,7 @@ async def admin_create_qr(body: QRCodeIn, user=Depends(require_roles("admin"))):
         "label": body.label,
         "image_path": body.image_path,
         "upi_id": body.upi_id or "",
+        "mobile_number": body.mobile_number or "",
         "active": False,
         "is_deleted": False,
         "created_at": now_iso(),
@@ -1850,6 +1864,64 @@ async def admin_activate_qr(qid: str, user=Depends(require_roles("admin"))):
 @api.delete("/admin/qrcodes/{qid}")
 async def admin_delete_qr(qid: str, user=Depends(require_roles("admin"))):
     await db.qr_codes.update_one({"id": qid}, {"$set": {"is_deleted": True, "active": False}})
+    return {"ok": True}
+
+# ---------- QR NAME ENTRIES ----------
+@api.get("/admin/qr-name-entries")
+async def admin_list_qr_name_entries(user=Depends(require_roles("admin"))):
+    return await db.qr_name_entries.find({"is_deleted": False}, {"_id": 0}).sort("position", 1).to_list(100)
+
+@api.post("/admin/qr-name-entries")
+async def admin_create_qr_name_entry(body: QRNameEntryIn, user=Depends(require_roles("admin"))):
+    entries = await db.qr_name_entries.find({"is_deleted": False}).to_list(100)
+    max_pos = max([e.get("position", 0) for e in entries]) if entries else 0
+    doc = {
+        "id": new_id(),
+        "name": body.name,
+        "color": body.color,
+        "mobile_number": body.mobile_number,
+        "upi_id": body.upi_id,
+        "min_amount": body.min_amount,
+        "max_amount": body.max_amount,
+        "image_path": body.image_path,
+        "position": max_pos + 1,
+        "active": True,
+        "is_deleted": False,
+        "created_at": now_iso(),
+    }
+    await db.qr_name_entries.insert_one(dict(doc))
+    return clean(doc)
+
+@api.put("/admin/qr-name-entries/reorder")
+async def admin_reorder_qr_name_entries(body: QRReorderIn, user=Depends(require_roles("admin"))):
+    for idx, eid in enumerate(body.ids):
+        await db.qr_name_entries.update_one({"id": eid}, {"$set": {"position": idx + 1}})
+    return {"ok": True}
+
+@api.put("/admin/qr-name-entries/{eid}")
+async def admin_update_qr_name_entry(eid: str, body: QRNameEntryIn, user=Depends(require_roles("admin"))):
+    await db.qr_name_entries.update_one({"id": eid}, {"$set": {
+        "name": body.name,
+        "color": body.color,
+        "mobile_number": body.mobile_number,
+        "upi_id": body.upi_id,
+        "min_amount": body.min_amount,
+        "max_amount": body.max_amount,
+        "image_path": body.image_path,
+    }})
+    return {"ok": True}
+
+@api.patch("/admin/qr-name-entries/{eid}/toggle")
+async def admin_toggle_qr_name_entry(eid: str, user=Depends(require_roles("admin"))):
+    entry = await db.qr_name_entries.find_one({"id": eid}, {"_id": 0})
+    if not entry:
+        raise HTTPException(404, "Entry not found")
+    await db.qr_name_entries.update_one({"id": eid}, {"$set": {"active": not entry.get("active", True)}})
+    return {"ok": True, "active": not entry.get("active", True)}
+
+@api.delete("/admin/qr-name-entries/{eid}")
+async def admin_delete_qr_name_entry(eid: str, user=Depends(require_roles("admin"))):
+    await db.qr_name_entries.update_one({"id": eid}, {"$set": {"is_deleted": True}})
     return {"ok": True}
 
 # ---------- COMMISSION SETTINGS ----------
@@ -2491,6 +2563,24 @@ async def reset_demo_data(body: DemoResetIn, request: Request, user=Depends(requ
 
 # ---------- STARTUP ----------
 async def _ensure_indexes() -> None:
+    async with db.pool.acquire() as conn:
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS qr_name_entries (
+                id VARCHAR(255) PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                color VARCHAR(50) NOT NULL,
+                mobile_number VARCHAR(20) NOT NULL,
+                upi_id VARCHAR(255) NOT NULL,
+                min_amount NUMERIC(15, 2) DEFAULT 0,
+                max_amount NUMERIC(15, 2) DEFAULT 0,
+                image_path TEXT NOT NULL,
+                position INTEGER DEFAULT 0,
+                active BOOLEAN DEFAULT TRUE,
+                is_deleted BOOLEAN DEFAULT FALSE,
+                created_at VARCHAR(50) NOT NULL
+            )
+        ''')
+        await conn.execute('ALTER TABLE qr_codes ADD COLUMN IF NOT EXISTS mobile_number VARCHAR(50)')
     await db.users.create_index("email", unique=True)
     # drop legacy agent_code index if it exists from older schema
     try:
