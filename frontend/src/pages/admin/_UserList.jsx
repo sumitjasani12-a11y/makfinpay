@@ -14,8 +14,8 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
     password: "", 
     phone: editingUser?.phone || "", 
     address: editingUser?.address || "", 
-    aadhaar_path: editingUser?.aadhaar_path || "", 
-    pan_path: editingUser?.pan_path || "", 
+    firm_name: editingUser?.firm_name || "",
+    firm_address: editingUser?.firm_address || "",
     commission_percent: editingUser?.commission_percent || "" 
   });
   const [busy, setBusy] = useState(false);
@@ -31,26 +31,21 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
         password: "",
         phone: editingUser.phone,
         address: editingUser.address,
-        aadhaar_path: editingUser.aadhaar_path || "",
-        pan_path: editingUser.pan_path || "",
+        firm_name: editingUser.firm_name || "",
+        firm_address: editingUser.firm_address || "",
         commission_percent: editingUser.commission_percent ?? ""
       });
     } else {
-      setForm({ role, full_name: "", email: "", password: "", phone: "", address: "", aadhaar_path: "", pan_path: "", commission_percent: "" });
+      setForm({ role, full_name: "", email: "", password: "", phone: "", address: "", firm_name: "", firm_address: "", commission_percent: "" });
     }
   }, [editingUser, role]);
 
   const submit = async (e) => {
     e.preventDefault();
-    if (isAgent && !editingUser && (!form.aadhaar_path || !form.pan_path)) {
-      return toast.error("Aadhaar and PAN documents are required");
-    }
     setBusy(true);
     try {
       const body = { ...form };
-      if (isMd && form.commission_percent === "") {
-        delete body.commission_percent;
-      } else if (isMd) {
+      if ((isAgent || isMd) && form.commission_percent !== "") {
         body.commission_percent = parseFloat(form.commission_percent);
       } else {
         delete body.commission_percent;
@@ -62,63 +57,71 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
         }
         await api.put(`/admin/users/${editingUser.id}`, body);
         toast.success(`${role.replace("_", " ")} updated`);
+        onCreated();
       } else {
-        await api.post("/admin/users", body);
+        const { data } = await api.post("/admin/users", body);
         toast.success(`${role.replace("_", " ")} created`);
+        onCreated(data);
       }
-      onCreated();
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || e.message);
     } finally { setBusy(false); }
   };
+
+  const fields = [
+    { label: "Full Name", key: "full_name", type: "text", required: true },
+    { label: "Email", key: "email", type: "email", required: true },
+    { label: "Phone", key: "phone", type: "text", required: true },
+    { label: "Address", key: "address", type: "text", required: true },
+  ];
+  
+  if (isAgent) {
+    fields.push(
+      { label: "Firm Name", key: "firm_name", type: "text", required: true },
+      { label: "Firm Address", key: "firm_address", type: "text", required: true }
+    );
+  }
+  
+  if (editingUser) {
+    fields.push({ 
+      label: "Password", 
+      key: "password", 
+      type: "password", 
+      required: false,
+      placeholder: "Leave empty to keep current" 
+    });
+  }
+  
+  if (isAgent || isMd) {
+    fields.push({
+      label: isMd ? "Commission % (Optional MD Rate Override)" : "Commission % (Charges)",
+      key: "commission_percent",
+      type: "number",
+      required: false,
+      placeholder: isMd ? "Leave empty for default" : "e.g. 1.2"
+    });
+  }
+
   return (
     <form onSubmit={submit} className="mfp-card p-6 grid sm:grid-cols-2 gap-4">
-      {[
-        ["Full Name", "full_name"], ["Email", "email"], ["Password (optional if editing)", "password"],
-        ["Phone", "phone"], ["Address", "address"],
-      ].map(([l, k]) => (
-        <div key={k}>
-          <label className="mfp-label">{l}</label>
+      {fields.map((f) => (
+        <div key={f.key}>
+          <label className="mfp-label">{f.label}</label>
           <input 
             className="mfp-input" 
-            required={k !== "password" || !editingUser} 
-            type={k === "password" ? "password" : k === "email" ? "email" : "text"}
-            value={form[k]} 
-            onChange={(e) => setForm({ ...form, [k]: e.target.value })} 
-            placeholder={k === "password" && editingUser ? "Leave empty to keep current" : ""}
-            data-testid={`form-${k}`} 
+            required={f.required} 
+            type={f.type}
+            step={f.type === "number" ? "0.01" : undefined}
+            min={f.type === "number" ? "0" : undefined}
+            value={form[f.key]} 
+            onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} 
+            placeholder={f.placeholder}
+            data-testid={`form-${f.key}`} 
           />
         </div>
       ))}
-      {isAgent && (
-        <>
-          <div>
-            <label className="mfp-label">Aadhaar Card</label>
-            <FileUpload onUploaded={(p) => setForm((f) => ({ ...f, aadhaar_path: p }))} label="Upload Aadhaar Card" testid="form-aadhaar" />
-            {form.aadhaar_path && <div className="text-xs text-emerald-700 mt-1">Aadhaar Uploaded ✓</div>}
-          </div>
-          <div>
-            <label className="mfp-label">PAN Card</label>
-            <FileUpload onUploaded={(p) => setForm((f) => ({ ...f, pan_path: p }))} label="Upload PAN Card" testid="form-pan" />
-            {form.pan_path && <div className="text-xs text-emerald-700 mt-1">PAN Uploaded ✓</div>}
-          </div>
-        </>
-      )}
-      {isMd && (
-        <div>
-          <label className="mfp-label">Commission % (optional)</label>
-          <input className="mfp-input" type="number" step="0.01" min="0" value={form.commission_percent}
-            onChange={(e) => setForm({ ...form, commission_percent: e.target.value })}
-            placeholder="Leave empty to use platform default"
-            data-testid="form-commission" />
-          <div className="mt-1 text-xs text-neutral-500">This is the ADMIN&apos;S portion of every downline recharge under this MD.</div>
-        </div>
-      )}
-      {!isMd && (
-        <div className="sm:col-span-2 text-xs text-neutral-500">Commission will be auto-assigned from the platform Default %. Edit later from Commission page.</div>
-      )}
       <div className="sm:col-span-2 flex gap-2">
-        <button disabled={busy} className="mfp-btn-primary" data-testid="form-submit">
+        <button disabled={busy} className="mfp-btn-primary animate-pulse-once" data-testid="form-submit">
           <Plus className="h-4 w-4" /> {busy ? "Saving…" : editingUser ? `Update ${role.replace("_", " ")}` : `Create ${role.replace("_", " ")}`}
         </button>
         {onCancel && (
@@ -334,6 +337,7 @@ export function AdminUserList({ role }) {
   const [loading, setLoading] = useState(false);
   const [show, setShow] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [createdCreds, setCreatedCreds] = useState(null);
   const [detail, setDetail] = useState(null);
   const [exporting, setExporting] = useState(false);
   const isDistributor = role === "distributor";
@@ -433,7 +437,14 @@ export function AdminUserList({ role }) {
           <UserForm 
             role={role} 
             editingUser={editingUser} 
-            onCreated={() => { setShow(false); setEditingUser(null); reload(); }} 
+            onCreated={(data) => { 
+              setShow(false); 
+              setEditingUser(null); 
+              reload(); 
+              if (data && data.password) {
+                setCreatedCreds({ email: data.email, password: data.password });
+              }
+            }} 
             onCancel={() => { setShow(false); setEditingUser(null); }} 
           />
         </div>
@@ -569,6 +580,46 @@ export function AdminUserList({ role }) {
 
       {detail && isMd && <MdDetailModal md={detail} onClose={() => setDetail(null)} />}
       {detail && isDistributor && <DistributorDetailModal distributor={detail} onClose={() => setDetail(null)} />}
+
+      {createdCreds && (
+        <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4">
+          <div className="bg-[#FDFCF8] rounded-2xl p-6 max-w-md w-full border border-black/5 shadow-2xl" data-testid="creds-modal">
+            <h3 className="text-lg font-semibold text-neutral-800 mb-2">User Created Successfully!</h3>
+            <p className="text-xs text-neutral-500 mb-4">Please copy these credentials and share them with the user. The password will not be shown again.</p>
+            
+            <div className="space-y-3 bg-neutral-50 p-4 rounded-xl border border-neutral-100 mb-4">
+              <div>
+                <span className="text-[10px] uppercase font-semibold text-neutral-400">Email Address</span>
+                <div className="text-sm font-medium text-neutral-800 mt-0.5 break-all">{createdCreds.email}</div>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-semibold text-neutral-400">Temporary Password</span>
+                <div className="text-sm font-mono font-semibold text-emerald-700 mt-0.5 break-all bg-emerald-50/50 p-1.5 rounded-lg border border-emerald-100 flex justify-between items-center">
+                  <span>{createdCreds.password}</span>
+                  <button 
+                    type="button"
+                    className="text-xs font-semibold text-emerald-800 hover:text-emerald-950 px-2 py-1 rounded bg-emerald-100"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`Email: ${createdCreds.email}\nPassword: ${createdCreds.password}`);
+                      toast.success("Credentials copied to clipboard");
+                    }}
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <button 
+              type="button"
+              className="mfp-btn-primary w-full"
+              onClick={() => setCreatedCreds(null)}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

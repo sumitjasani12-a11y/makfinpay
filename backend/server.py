@@ -8,6 +8,7 @@ import uuid
 import logging
 import bcrypt
 import jwt
+import secrets
 import requests
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
@@ -179,6 +180,13 @@ def require_roles(*roles):
         return user
     return dep
 
+def require_approved_agent():
+    async def dep(user: dict = Depends(require_roles("agent"))):
+        if user.get("kyc_status") != "approved":
+            raise HTTPException(403, "KYC is pending or rejected. Services are locked.")
+        return user
+    return dep
+
 # ---------- MODELS ----------
 class LoginIn(BaseModel):
     email: EmailStr
@@ -188,9 +196,11 @@ class CreateUserIn(BaseModel):
     role: Literal["master_distributor", "distributor", "agent"]
     full_name: str
     email: EmailStr
-    password: str
+    password: Optional[str] = None
     phone: str
     address: str
+    firm_name: Optional[str] = None
+    firm_address: Optional[str] = None
     aadhaar_path: Optional[str] = None  # uploaded file path (required for agents)
     pan_path: Optional[str] = None      # uploaded file path (required for agents)
     commission_percent: Optional[float] = None  # for agent (markup) or MD (rate override)
@@ -204,6 +214,18 @@ class UpdateUserIn(BaseModel):
     aadhaar_path: Optional[str] = None
     pan_path: Optional[str] = None
     commission_percent: Optional[float] = None
+
+class ChangeFirstPasswordIn(BaseModel):
+    password: str
+
+class SubmitKycIn(BaseModel):
+    aadhaar_path: str
+    aadhaar_back_path: str
+    pan_path: str
+    pan_back_path: str
+    selfie_path: str
+    cheque_path: str
+    firm_front_path: str
 
 class RechargeIn(BaseModel):
     amount: float
@@ -274,13 +296,6 @@ async def login(body: LoginIn, response: Response, request: Request):
         raise HTTPException(403, "Account frozen by admin")
     if not verify_password(body.password, user["password_hash"]):
         raise HTTPException(401, "Invalid credentials")
-    # Agent KYC gate — agents cannot login unless KYC is approved
-    if user.get("role") == "agent":
-        kyc_status = user.get("kyc_status", "approved")
-        if kyc_status == "pending":
-            raise HTTPException(403, "Your account is pending KYC verification. Please contact your distributor or admin.")
-        if kyc_status == "rejected":
-            raise HTTPException(403, "Your KYC has been rejected. Please contact your distributor or admin for assistance.")
     token = create_token(user["id"], user["role"])
     response.set_cookie("access_token", token, httponly=True, secure=False, samesite="lax", max_age=86400, path="/")
     await write_audit(user["id"], "login", request=request)
@@ -294,6 +309,55 @@ async def logout(response: Response):
 @api.get("/auth/me")
 async def me(user: dict = Depends(get_current_user)):
     return user
+
+@api.post("/agent/change-first-password")
+async def change_first_password(body: ChangeFirstPasswordIn, user=Depends(require_roles("agent"))):
+    if not user.get("first_login", True):
+        raise HTTPException(400, "Password already changed")
+    hashed = hash_password(body.password)
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"password_hash": hashed, "first_login": False, "password_changed_at": now_iso()}}
+    )
+    return {"ok": True}
+
+@api.post("/agent/submit-kyc")
+async def submit_kyc(body: SubmitKycIn, user=Depends(require_roles("agent"))):
+    if user.get("kyc_status") == "approved":
+        raise HTTPException(400, "KYC is already approved")
+        
+    upd = {
+        "aadhaar_path": body.aadhaar_path,
+        "aadhaar_back_path": body.aadhaar_back_path,
+        "pan_path": body.pan_path,
+        "pan_back_path": body.pan_back_path,
+        "selfie_path": body.selfie_path,
+        "cheque_path": body.cheque_path,
+        "firm_front_path": body.firm_front_path,
+        "kyc_status": "pending",
+        "kyc_rejection_reason": ""
+    }
+    await db.users.update_one({"id": user["id"]}, {"$set": upd})
+    
+    kyc_upd = {
+        "aadhaar_path": body.aadhaar_path,
+        "aadhaar_back_path": body.aadhaar_back_path,
+        "pan_path": body.pan_path,
+        "pan_back_path": body.pan_back_path,
+        "selfie_path": body.selfie_path,
+        "cheque_path": body.cheque_path,
+        "firm_front_path": body.firm_front_path,
+        "status": "pending",
+        "rejection_reason": "",
+        "updated_at": now_iso()
+    }
+    await db.kyc.update_one({"user_id": user["id"]}, {"$set": kyc_upd})
+    return {"ok": True, "kyc_status": "pending"}
+
+@api.post("/agent/dismiss-welcome")
+async def dismiss_welcome(user=Depends(require_roles("agent"))):
+    await db.users.update_one({"id": user["id"]}, {"$set": {"welcome_shown": True}})
+    return {"ok": True}
 
 @api.post("/auth/change-password")
 async def change_password(body: ChangePasswordIn, request: Request, user: dict = Depends(get_current_user)):
@@ -461,10 +525,13 @@ async def admin_create_user(body: CreateUserIn, user=Depends(require_roles("admi
         )
         return await create_subuser(body, parent_id=None, by=user["id"], alloc=alloc,
                                     created_by_role="admin", md_id=None)
-    # Admin-created distributor/agent: 100% admin cut, no MD, no distributor markup.
+    rate = float(body.commission_percent) if body.commission_percent is not None else default_pct
+    if rate < 0:
+        raise HTTPException(400, "Commission cannot be negative")
+    alloc_type = "custom" if body.commission_percent is not None else "default"
     alloc = CommissionAllocation(
-        percent=default_pct, base=default_pct, markup=0.0, total=default_pct,
-        admin_pct=default_pct, md_pct=0.0, dist_pct=0.0, type="default",
+        percent=rate, base=rate, markup=0.0, total=rate,
+        admin_pct=rate, md_pct=0.0, dist_pct=0.0, type=alloc_type,
     )
     return await create_subuser(body, parent_id=None, by=user["id"], alloc=alloc,
                                 created_by_role="admin", md_id=None)
@@ -529,28 +596,37 @@ async def create_subuser(
     email = body.email.lower()
     if await db.users.find_one({"email": email}):
         raise HTTPException(400, "Email already exists")
-    # Agents MUST have Aadhaar + PAN uploads
-    if body.role == "agent":
-        if not body.aadhaar_path or not body.pan_path:
-            raise HTTPException(400, "Aadhaar and PAN documents are required for agent creation")
     if alloc is None:
         default_pct = await _default_commission_pct()
         alloc = CommissionAllocation(
             percent=default_pct, base=default_pct, markup=0.0,
             total=default_pct, type="default",
         )
-    # Agents start in pending KYC; distributors are auto-approved (they upload no KYC).
-    kyc_status = "pending" if body.role == "agent" else "approved"
+    
+    raw_password = body.password
+    if not raw_password:
+        raw_password = secrets.token_urlsafe(8)  # Generates a secure random 11-character password
+
+    kyc_status = "not_submitted" if body.role == "agent" else "approved"
     doc = {
         "id": new_id(),
         "role": body.role,
         "full_name": body.full_name,
         "email": email,
-        "password_hash": hash_password(body.password),
+        "password_hash": hash_password(raw_password),
         "phone": body.phone,
         "address": body.address,
-        "aadhaar_path": body.aadhaar_path or "",
-        "pan_path": body.pan_path or "",
+        "firm_name": body.firm_name or "",
+        "firm_address": body.firm_address or "",
+        "first_login": True,
+        "welcome_shown": False,
+        "aadhaar_path": "",
+        "pan_path": "",
+        "aadhaar_back_path": "",
+        "pan_back_path": "",
+        "selfie_path": "",
+        "cheque_path": "",
+        "firm_front_path": "",
         "kyc_status": kyc_status,
         "kyc_rejection_reason": "",
         "kyc_reviewed_at": None,
@@ -574,15 +650,20 @@ async def create_subuser(
     }
     await db.users.insert_one(dict(doc))
     await get_or_create_wallet(doc["id"])
-    # Auto-create the KYC review record for agents
+    
     if body.role == "agent":
         await db.kyc.update_one(
             {"user_id": doc["id"]},
             {"$set": {
                 "user_id": doc["id"],
-                "aadhaar_path": body.aadhaar_path,
-                "pan_path": body.pan_path,
-                "status": "pending",
+                "aadhaar_path": "",
+                "pan_path": "",
+                "aadhaar_back_path": "",
+                "pan_back_path": "",
+                "selfie_path": "",
+                "cheque_path": "",
+                "firm_front_path": "",
+                "status": "not_submitted",
                 "rejection_reason": "",
                 "updated_at": now_iso(),
                 "reviewed_at": None,
@@ -591,7 +672,9 @@ async def create_subuser(
             upsert=True,
         )
     await write_audit(by, f"create_{body.role}", target=doc["id"])
-    return clean(doc)
+    ret = clean(doc)
+    ret["password"] = raw_password
+    return ret
 
 async def _build_parent_name_map(parent_ids: List[str]) -> dict:
     if not parent_ids:
@@ -1371,11 +1454,13 @@ def _build_audit_query(*, action=None, from_ts=None, to_ts=None, q=None) -> dict
 # ---------- RECHARGE REQUESTS ----------
 @api.get("/agent/active-qr")
 async def active_qr(user=Depends(require_roles("agent", "distributor"))):
+    if user["role"] == "agent" and user.get("kyc_status") != "approved":
+        raise HTTPException(403, "KYC is pending or rejected. Services are locked.")
     qr = await db.qr_codes.find_one({"active": True, "is_deleted": False}, {"_id": 0})
     return qr or {}
 
 @api.post("/agent/recharges")
-async def agent_create_recharge(body: RechargeIn, user=Depends(require_roles("agent"))):
+async def agent_create_recharge(body: RechargeIn, user=Depends(require_approved_agent())):
     if body.amount is None or body.amount <= 0:
         raise HTTPException(400, "Amount must be greater than 0")
     if body.amount > 300000:
@@ -1553,7 +1638,7 @@ async def admin_reject_recharge(rid: str, body: ApprovalIn, request: Request, us
 
 # ---------- BILL PAYMENTS (Credit Card) ----------
 @api.post("/agent/bill-payments")
-async def agent_bill_payment(body: BillPaymentIn, user=Depends(require_roles("agent"))):
+async def agent_bill_payment(body: BillPaymentIn, user=Depends(require_approved_agent())):
     if body.amount <= 0:
         raise HTTPException(400, "Invalid amount")
     if body.amount > 100000:
@@ -1644,6 +1729,8 @@ async def admin_reject_transaction(tid: str, body: ApprovalIn, request: Request,
 # ---------- WITHDRAWALS ----------
 @api.post("/withdrawals")
 async def create_withdrawal(body: WithdrawalIn, user=Depends(require_roles("agent", "distributor", "master_distributor"))):
+    if user["role"] == "agent" and user.get("kyc_status") != "approved":
+        raise HTTPException(403, "KYC is pending or rejected. Services are locked.")
     if body.amount <= 0:
         raise HTTPException(400, "Invalid amount")
     bank = await db.bank_details.find_one({"user_id": user["id"]}, {"_id": 0})
@@ -1834,6 +1921,7 @@ async def admin_kyc(user=Depends(require_roles("admin"))):
     async for u in db.users.find({"id": {"$in": user_ids}},
                                   {"_id": 0, "id": 1, "full_name": 1, "email": 1, "role": 1,
                                    "phone": 1, "address": 1, "parent_id": 1,
+                                   "firm_name": 1, "firm_address": 1,
                                    "created_by_role": 1, "kyc_status": 1, "created_at": 1}):
         users_map[u["id"]] = u
         if u.get("parent_id"):
@@ -2648,6 +2736,24 @@ async def _ensure_indexes() -> None:
             )
         ''')
         await conn.execute('ALTER TABLE qr_codes ADD COLUMN IF NOT EXISTS mobile_number VARCHAR(50)')
+        await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS firm_name VARCHAR(255)')
+        await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS firm_address TEXT')
+        await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS first_login BOOLEAN DEFAULT TRUE')
+        await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS welcome_shown BOOLEAN DEFAULT FALSE')
+        await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS aadhaar_back_path TEXT')
+        await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS pan_back_path TEXT')
+        await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS selfie_path TEXT')
+        await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS cheque_path TEXT')
+        await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS firm_front_path TEXT')
+        await conn.execute('ALTER TABLE kyc ADD COLUMN IF NOT EXISTS aadhaar_back_path TEXT')
+        await conn.execute('ALTER TABLE kyc ADD COLUMN IF NOT EXISTS pan_back_path TEXT')
+        await conn.execute('ALTER TABLE kyc ADD COLUMN IF NOT EXISTS selfie_path TEXT')
+        await conn.execute('ALTER TABLE kyc ADD COLUMN IF NOT EXISTS cheque_path TEXT')
+        await conn.execute('ALTER TABLE kyc ADD COLUMN IF NOT EXISTS firm_front_path TEXT')
+        await conn.execute('ALTER TABLE users DROP CONSTRAINT IF EXISTS users_kyc_status_check')
+        await conn.execute("ALTER TABLE users ADD CONSTRAINT users_kyc_status_check CHECK (kyc_status IN ('pending', 'approved', 'rejected', 'not_submitted'))")
+        await conn.execute('ALTER TABLE kyc DROP CONSTRAINT IF EXISTS kyc_status_check')
+        await conn.execute("ALTER TABLE kyc ADD CONSTRAINT kyc_status_check CHECK (status IN ('pending', 'approved', 'rejected', 'not_submitted'))")
     await db.users.create_index("email", unique=True)
     # drop legacy agent_code index if it exists from older schema
     try:

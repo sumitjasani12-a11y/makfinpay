@@ -13,8 +13,20 @@ export default function DashboardLayout() {
   const { user, logout } = useAuth();
   const nav = useNavigate();
   const location = useLocation();
-  const items = NAV[user.role] || [];
+  let items = NAV[user.role] || [];
+  if (user.role === "agent" && (user.first_login || user.kyc_status !== "approved")) {
+    items = items.filter(it => it.to === "/agent");
+  }
   const [open, setOpen] = useState(false);
+
+  // redirect to agent main page if not fully approved/setup
+  useEffect(() => {
+    if (user.role === "agent" && (user.first_login || user.kyc_status !== "approved")) {
+      if (location.pathname !== "/agent") {
+        nav("/agent");
+      }
+    }
+  }, [user, location.pathname, nav]);
 
   // close drawer whenever route changes (mobile UX)
   useEffect(() => { setOpen(false); }, [location.pathname]);
