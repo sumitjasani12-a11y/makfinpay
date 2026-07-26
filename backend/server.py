@@ -195,6 +195,16 @@ class CreateUserIn(BaseModel):
     pan_path: Optional[str] = None      # uploaded file path (required for agents)
     commission_percent: Optional[float] = None  # for agent (markup) or MD (rate override)
 
+class UpdateUserIn(BaseModel):
+    full_name: str
+    email: EmailStr
+    password: Optional[str] = None
+    phone: str
+    address: str
+    aadhaar_path: Optional[str] = None
+    pan_path: Optional[str] = None
+    commission_percent: Optional[float] = None
+
 class RechargeIn(BaseModel):
     amount: float
     utr: str
@@ -1095,6 +1105,62 @@ async def admin_freeze(uid: str, request: Request, user=Depends(require_roles("a
     await db.users.update_one({"id": uid}, {"$set": {"frozen": not u.get("frozen", False)}})
     await write_audit(user["id"], "toggle_freeze", target=uid, request=request)
     return {"frozen": not u.get("frozen", False)}
+
+@api.put("/admin/users/{uid}")
+async def admin_update_user(uid: str, body: UpdateUserIn, user=Depends(require_roles("admin"))):
+    u = await db.users.find_one({"id": uid})
+    if not u:
+        raise HTTPException(404, "User not found")
+    
+    email = body.email.lower()
+    existing = await db.users.find_one({"email": email, "is_deleted": False})
+    if existing and existing["id"] != uid:
+        raise HTTPException(400, "Email already exists")
+        
+    upd = {
+        "full_name": body.full_name,
+        "email": email,
+        "phone": body.phone,
+        "address": body.address,
+    }
+    
+    if body.password:
+        upd["password_hash"] = hash_password(body.password)
+        
+    if u["role"] == "agent":
+        if body.aadhaar_path:
+            upd["aadhaar_path"] = body.aadhaar_path
+        if body.pan_path:
+            upd["pan_path"] = body.pan_path
+            
+        if body.aadhaar_path or body.pan_path:
+            kyc_set = {}
+            if body.aadhaar_path:
+                kyc_set["aadhaar_path"] = body.aadhaar_path
+            if body.pan_path:
+                kyc_set["pan_path"] = body.pan_path
+            kyc_set["updated_at"] = now_iso()
+            await db.kyc.update_one({"user_id": uid}, {"$set": kyc_set})
+
+    if u["role"] == "master_distributor":
+        if body.commission_percent is not None:
+            upd["commission_percent"] = body.commission_percent
+            upd["total_commission"] = body.commission_percent
+            upd["base_commission"] = body.commission_percent
+            upd["admin_pct"] = body.commission_percent
+            
+    await db.users.update_one({"id": uid}, {"$set": upd})
+    return {"ok": True}
+
+@api.delete("/admin/users/{uid}")
+async def admin_delete_user(uid: str, request: Request, user=Depends(require_roles("admin"))):
+    u = await db.users.find_one({"id": uid})
+    if not u:
+        raise HTTPException(404, "User not found")
+        
+    await db.users.update_one({"id": uid}, {"$set": {"is_deleted": True, "frozen": True}})
+    await write_audit(user["id"], "delete_user", target=uid, request=request)
+    return {"ok": True}
 
 @api.patch("/distributor/agents/{uid}/freeze")
 async def distributor_freeze(uid: str, request: Request, user=Depends(require_roles("distributor"))):

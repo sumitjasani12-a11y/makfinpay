@@ -6,14 +6,43 @@ import FileUpload from "@/components/FileUpload";
 import { toast } from "sonner";
 import { Plus, Eye, X, FileDown, Loader2, Search, RotateCcw } from "lucide-react";
 
-function UserForm({ role, onCreated }) {
-  const [form, setForm] = useState({ role, full_name: "", email: "", password: "", phone: "", address: "", aadhaar_path: "", pan_path: "", commission_percent: "" });
+function UserForm({ role, editingUser, onCreated, onCancel }) {
+  const [form, setForm] = useState({ 
+    role, 
+    full_name: editingUser?.full_name || "", 
+    email: editingUser?.email || "", 
+    password: "", 
+    phone: editingUser?.phone || "", 
+    address: editingUser?.address || "", 
+    aadhaar_path: editingUser?.aadhaar_path || "", 
+    pan_path: editingUser?.pan_path || "", 
+    commission_percent: editingUser?.commission_percent || "" 
+  });
   const [busy, setBusy] = useState(false);
   const isAgent = role === "agent";
   const isMd = role === "master_distributor";
+
+  useEffect(() => {
+    if (editingUser) {
+      setForm({
+        role,
+        full_name: editingUser.full_name,
+        email: editingUser.email,
+        password: "",
+        phone: editingUser.phone,
+        address: editingUser.address,
+        aadhaar_path: editingUser.aadhaar_path || "",
+        pan_path: editingUser.pan_path || "",
+        commission_percent: editingUser.commission_percent ?? ""
+      });
+    } else {
+      setForm({ role, full_name: "", email: "", password: "", phone: "", address: "", aadhaar_path: "", pan_path: "", commission_percent: "" });
+    }
+  }, [editingUser, role]);
+
   const submit = async (e) => {
     e.preventDefault();
-    if (isAgent && (!form.aadhaar_path || !form.pan_path)) {
+    if (isAgent && !editingUser && (!form.aadhaar_path || !form.pan_path)) {
       return toast.error("Aadhaar and PAN documents are required");
     }
     setBusy(true);
@@ -26,9 +55,18 @@ function UserForm({ role, onCreated }) {
       } else {
         delete body.commission_percent;
       }
-      const { data } = await api.post("/admin/users", body);
-      toast.success(`${role.replace("_", " ")} created`);
-      onCreated(data);
+      
+      if (editingUser) {
+        if (!body.password) {
+          delete body.password;
+        }
+        await api.put(`/admin/users/${editingUser.id}`, body);
+        toast.success(`${role.replace("_", " ")} updated`);
+      } else {
+        await api.post("/admin/users", body);
+        toast.success(`${role.replace("_", " ")} created`);
+      }
+      onCreated();
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || e.message);
     } finally { setBusy(false); }
@@ -36,13 +74,20 @@ function UserForm({ role, onCreated }) {
   return (
     <form onSubmit={submit} className="mfp-card p-6 grid sm:grid-cols-2 gap-4">
       {[
-        ["Full Name", "full_name"], ["Email", "email"], ["Password", "password"],
+        ["Full Name", "full_name"], ["Email", "email"], ["Password (optional if editing)", "password"],
         ["Phone", "phone"], ["Address", "address"],
       ].map(([l, k]) => (
         <div key={k}>
           <label className="mfp-label">{l}</label>
-          <input className="mfp-input" required type={k === "password" ? "password" : k === "email" ? "email" : "text"}
-            value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} data-testid={`form-${k}`} />
+          <input 
+            className="mfp-input" 
+            required={k !== "password" || !editingUser} 
+            type={k === "password" ? "password" : k === "email" ? "email" : "text"}
+            value={form[k]} 
+            onChange={(e) => setForm({ ...form, [k]: e.target.value })} 
+            placeholder={k === "password" && editingUser ? "Leave empty to keep current" : ""}
+            data-testid={`form-${k}`} 
+          />
         </div>
       ))}
       {isAgent && (
@@ -50,10 +95,12 @@ function UserForm({ role, onCreated }) {
           <div>
             <label className="mfp-label">Aadhaar Card</label>
             <FileUpload onUploaded={(p) => setForm((f) => ({ ...f, aadhaar_path: p }))} label="Upload Aadhaar Card" testid="form-aadhaar" />
+            {form.aadhaar_path && <div className="text-xs text-emerald-700 mt-1">Aadhaar Uploaded ✓</div>}
           </div>
           <div>
             <label className="mfp-label">PAN Card</label>
             <FileUpload onUploaded={(p) => setForm((f) => ({ ...f, pan_path: p }))} label="Upload PAN Card" testid="form-pan" />
+            {form.pan_path && <div className="text-xs text-emerald-700 mt-1">PAN Uploaded ✓</div>}
           </div>
         </>
       )}
@@ -70,10 +117,15 @@ function UserForm({ role, onCreated }) {
       {!isMd && (
         <div className="sm:col-span-2 text-xs text-neutral-500">Commission will be auto-assigned from the platform Default %. Edit later from Commission page.</div>
       )}
-      <div className="sm:col-span-2">
+      <div className="sm:col-span-2 flex gap-2">
         <button disabled={busy} className="mfp-btn-primary" data-testid="form-submit">
-          <Plus className="h-4 w-4" /> {busy ? "Creating…" : `Create ${role.replace("_", " ")}`}
+          <Plus className="h-4 w-4" /> {busy ? "Saving…" : editingUser ? `Update ${role.replace("_", " ")}` : `Create ${role.replace("_", " ")}`}
         </button>
+        {onCancel && (
+          <button type="button" onClick={onCancel} className="mfp-btn-outline">
+            Cancel
+          </button>
+        )}
       </div>
     </form>
   );
@@ -281,6 +333,7 @@ export function AdminUserList({ role }) {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [show, setShow] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
   const [detail, setDetail] = useState(null);
   const [exporting, setExporting] = useState(false);
   const isDistributor = role === "distributor";
@@ -314,6 +367,17 @@ export function AdminUserList({ role }) {
   const toggle = async (id) => {
     try { await api.patch(`/admin/users/${id}/freeze`); toast.success("Status updated"); reload(); }
     catch (e) { toast.error(formatErr(e.response?.data?.detail)); }
+  };
+
+  const delUser = async (id, name) => {
+    if (!window.confirm(`Are you sure you want to delete ${name}?`)) return;
+    try {
+      await api.delete(`/admin/users/${id}`);
+      toast.success("User deleted successfully");
+      reload();
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail) || "Failed to delete user");
+    }
   };
 
   const exportPdf = async () => {
@@ -358,13 +422,22 @@ export function AdminUserList({ role }) {
                 : <><FileDown className="h-4 w-4" /> Export PDF</>
               }
             </button>
-            <button className="mfp-btn-primary" onClick={() => setShow(!show)} data-testid="toggle-create-form">
+            <button className="mfp-btn-primary" onClick={() => { setEditingUser(null); setShow(!show); }} data-testid="toggle-create-form">
               <Plus className="h-4 w-4" /> New {roleSingular}
             </button>
           </div>
         }
       />
-      {show && <div className="mb-8"><UserForm role={role} onCreated={() => { setShow(false); reload(); }} /></div>}
+      {(show || editingUser) && (
+        <div className="mb-8">
+          <UserForm 
+            role={role} 
+            editingUser={editingUser} 
+            onCreated={() => { setShow(false); setEditingUser(null); reload(); }} 
+            onCancel={() => { setShow(false); setEditingUser(null); }} 
+          />
+        </div>
+      )}
 
       {/* Search bar */}
       <div className="mfp-card p-4 mb-6 flex flex-col sm:flex-row items-stretch sm:items-center gap-3" data-testid={`${role}-filter-bar`}>
@@ -442,15 +515,29 @@ export function AdminUserList({ role }) {
             <div className="flex gap-2">
               {(isDistributor || isMd) && (
                 <button
-                  className="mfp-btn-outline px-3 py-1.5 text-xs"
+                  className="mfp-btn-outline px-3 py-1.5 text-xs inline-flex items-center gap-1"
                   onClick={() => setDetail(r)}
                   data-testid={`view-${r.id}`}
                 >
                   <Eye className="h-3 w-3" /> View
                 </button>
               )}
+              <button 
+                className="mfp-btn-outline px-3 py-1.5 text-xs inline-flex items-center gap-1 font-semibold" 
+                onClick={() => { setShow(false); setEditingUser(r); }} 
+                data-testid={`edit-${r.id}`}
+              >
+                Edit
+              </button>
               <button className="mfp-btn-outline px-3 py-1.5 text-xs" onClick={() => toggle(r.id)} data-testid={`freeze-${r.id}`}>
                 {r.frozen ? "Unfreeze" : "Freeze"}
+              </button>
+              <button 
+                className="rounded-xl border-2 border-rose-200 text-rose-700 hover:bg-rose-50 px-3 py-1.5 text-xs font-semibold inline-flex items-center gap-1" 
+                onClick={() => delUser(r.id, r.full_name)} 
+                data-testid={`delete-${r.id}`}
+              >
+                Delete
               </button>
             </div>
           ) },
