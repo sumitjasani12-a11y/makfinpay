@@ -257,7 +257,7 @@ export default function AgentRecharge() {
                 </div>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={submit} className="space-y-4">
                 {/* UTR ID / Transaction ID */}
                 <div className="space-y-1">
                   <label className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest block">

@@ -239,16 +239,16 @@ export default function AdminQRCodes() {
         actions={
           <div className="flex flex-wrap items-center gap-6 bg-white px-5 py-2.5 rounded-2xl border border-black/5 shadow-sm">
             <div className="flex items-center gap-2.5">
-              <span className="text-[11px] font-bold text-neutral-600 uppercase tracking-wider">QR Image</span>
+              <span className="text-xs font-bold text-neutral-600 uppercase tracking-wider">QR Image</span>
               <button
                 onClick={() => handleToggleQr(!qrEnabled)}
-                className={`relative inline-flex h-5.5 w-10.5 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                   qrEnabled ? "bg-[#2D6A4F]" : "bg-neutral-200"
                 }`}
                 type="button"
               >
                 <span
-                  className={`pointer-events-none inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
                     qrEnabled ? "translate-x-5" : "translate-x-0"
                   }`}
                 />
@@ -258,16 +258,16 @@ export default function AdminQRCodes() {
             <div className="h-4 w-px bg-black/10" />
 
             <div className="flex items-center gap-2.5">
-              <span className="text-[11px] font-bold text-neutral-600 uppercase tracking-wider">Recharge Option</span>
+              <span className="text-xs font-bold text-neutral-600 uppercase tracking-wider">Recharge Option</span>
               <button
                 onClick={() => handleToggleRecharge(!rechargeEnabled)}
-                className={`relative inline-flex h-5.5 w-10.5 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                   rechargeEnabled ? "bg-[#2D6A4F]" : "bg-neutral-200"
                 }`}
                 type="button"
               >
                 <span
-                  className={`pointer-events-none inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
                     rechargeEnabled ? "translate-x-5" : "translate-x-0"
                   }`}
                 />
