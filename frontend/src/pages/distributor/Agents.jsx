@@ -135,9 +135,22 @@ export default function DistAgents() {
           { key: "frozen", label: "Status", render: (r) => <StatusBadge status={r.frozen ? "rejected" : "approved"} /> },
           { key: "created_at", label: "Created", render: (r) => fmtDate(r.created_at) },
           { key: "actions", label: "Action", render: (r) => (
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
               <button className="mfp-btn-outline px-3 py-1.5 text-xs" onClick={() => setEditing(r)} data-testid={`edit-markup-${r.id}`}><PencilLine className="h-3 w-3" /> Markup</button>
-              <button className="mfp-btn-outline px-3 py-1.5 text-xs" onClick={() => toggle(r.id)} data-testid={`dist-freeze-${r.id}`}>{r.frozen ? "Unfreeze" : "Freeze"}</button>
+              <button
+                onClick={() => toggle(r.id)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  r.frozen ? "bg-neutral-200" : "bg-[#2D6A4F]"
+                }`}
+                title={r.frozen ? "Frozen (Click to Enable)" : "Active (Click to Freeze)"}
+                data-testid={`dist-freeze-${r.id}`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    r.frozen ? "translate-x-0" : "translate-x-5"
+                  }`}
+                />
+              </button>
             </div>
           ) },
         ]}

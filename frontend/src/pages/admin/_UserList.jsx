@@ -4,7 +4,7 @@ import { useDebounced } from "@/lib/hooks";
 import { PageHeader, DataTable, StatusBadge, EmptyState } from "@/components/Shared";
 import FileUpload from "@/components/FileUpload";
 import { toast } from "sonner";
-import { Plus, Eye, X, FileDown, Loader2, Search, RotateCcw } from "lucide-react";
+import { Plus, Eye, X, FileDown, Loader2, Search, RotateCcw, Pencil, Trash2 } from "lucide-react";
 
 function UserForm({ role, editingUser, onCreated, onCancel }) {
   const [form, setForm] = useState({ 
@@ -512,32 +512,46 @@ export function AdminUserList({ role }) {
           } },
           { key: "created_at", label: "Created", render: (r) => fmtDate(r.created_at) },
           { key: "actions", label: "Action", render: (r) => (
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
               {(isDistributor || isMd) && (
                 <button
-                  className="mfp-btn-outline px-3 py-1.5 text-xs inline-flex items-center gap-1"
+                  className="p-1.5 border border-neutral-200 text-neutral-600 hover:bg-neutral-50 rounded-lg transition-colors inline-flex items-center justify-center"
                   onClick={() => setDetail(r)}
+                  title="View Details"
                   data-testid={`view-${r.id}`}
                 >
-                  <Eye className="h-3 w-3" /> View
+                  <Eye className="h-4 w-4" />
                 </button>
               )}
               <button 
-                className="mfp-btn-outline px-3 py-1.5 text-xs inline-flex items-center gap-1 font-semibold" 
+                className="p-1.5 border border-neutral-200 text-neutral-600 hover:bg-neutral-50 rounded-lg transition-colors inline-flex items-center justify-center font-semibold" 
                 onClick={() => { setShow(false); setEditingUser(r); }} 
+                title="Edit"
                 data-testid={`edit-${r.id}`}
               >
-                Edit
-              </button>
-              <button className="mfp-btn-outline px-3 py-1.5 text-xs" onClick={() => toggle(r.id)} data-testid={`freeze-${r.id}`}>
-                {r.frozen ? "Unfreeze" : "Freeze"}
+                <Pencil className="h-4 w-4" />
               </button>
               <button 
-                className="rounded-xl border-2 border-rose-200 text-rose-700 hover:bg-rose-50 px-3 py-1.5 text-xs font-semibold inline-flex items-center gap-1" 
+                className="p-1.5 border border-rose-200 text-rose-700 hover:bg-rose-50 rounded-lg transition-colors inline-flex items-center justify-center" 
                 onClick={() => delUser(r.id, r.full_name)} 
+                title="Delete"
                 data-testid={`delete-${r.id}`}
               >
-                Delete
+                <Trash2 className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => toggle(r.id)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  r.frozen ? "bg-neutral-200" : "bg-[#2D6A4F]"
+                }`}
+                title={r.frozen ? "Frozen (Click to Enable)" : "Active (Click to Freeze)"}
+                data-testid={`freeze-${r.id}`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    r.frozen ? "translate-x-0" : "translate-x-5"
+                  }`}
+                />
               </button>
             </div>
           ) },
