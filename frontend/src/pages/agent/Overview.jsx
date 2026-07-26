@@ -25,7 +25,6 @@ export default function AgentOverview() {
     aadhaar_path: "",
     aadhaar_back_path: "",
     pan_path: "",
-    pan_back_path: "",
     selfie_path: "",
     cheque_path: "",
     firm_front_path: ""
@@ -204,16 +203,6 @@ export default function AgentOverview() {
                 testid="kyc-pan-front"
               />
               {kycForm.pan_path && <div className="text-xs text-emerald-700 mt-1 font-semibold">PAN Front Uploaded ✓</div>}
-            </div>
-
-            <div>
-              <label className="mfp-label mb-2">PAN Card (Back)</label>
-              <FileUpload
-                onUploaded={(p) => setKycForm((f) => ({ ...f, pan_back_path: p }))}
-                label="Upload PAN Back"
-                testid="kyc-pan-back"
-              />
-              {kycForm.pan_back_path && <div className="text-xs text-emerald-700 mt-1 font-semibold">PAN Back Uploaded ✓</div>}
             </div>
 
             <div>

@@ -82,7 +82,6 @@ function KycDetailModal({ record, onClose, onApprove, onReject }) {
             { label: "Aadhaar Card (Front)", path: record.aadhaar_path },
             { label: "Aadhaar Card (Back)", path: record.aadhaar_back_path },
             { label: "PAN Card (Front)", path: record.pan_path },
-            { label: "PAN Card (Back)", path: record.pan_back_path },
             { label: "Selfie Photo", path: record.selfie_path },
             { label: "Cheque / Passbook", path: record.cheque_path },
             { label: "Firm Front Photo", path: record.firm_front_path, span: "sm:col-span-2" },
@@ -153,15 +152,8 @@ export default function AdminKyc() {
   const [rejecting, setRejecting] = useState(null);
 
   const reload = useCallback(
-    () => api.get("/admin/kyc").then((r) => {
-      setItems(r.data);
-      // Keep selected detail modal synchronized if open
-      if (selected) {
-        const found = r.data.find(x => x.user_id === selected.user_id);
-        if (found) setSelected(found);
-      }
-    }),
-    [selected]
+    () => api.get("/admin/kyc").then((r) => setItems(r.data)),
+    []
   );
   
   useEffect(() => { reload(); }, [reload]);

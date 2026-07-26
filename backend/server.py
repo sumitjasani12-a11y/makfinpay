@@ -222,7 +222,6 @@ class SubmitKycIn(BaseModel):
     aadhaar_path: str
     aadhaar_back_path: str
     pan_path: str
-    pan_back_path: str
     selfie_path: str
     cheque_path: str
     firm_front_path: str
@@ -330,7 +329,7 @@ async def submit_kyc(body: SubmitKycIn, user=Depends(require_roles("agent"))):
         "aadhaar_path": body.aadhaar_path,
         "aadhaar_back_path": body.aadhaar_back_path,
         "pan_path": body.pan_path,
-        "pan_back_path": body.pan_back_path,
+        "pan_back_path": "",
         "selfie_path": body.selfie_path,
         "cheque_path": body.cheque_path,
         "firm_front_path": body.firm_front_path,
@@ -343,7 +342,7 @@ async def submit_kyc(body: SubmitKycIn, user=Depends(require_roles("agent"))):
         "aadhaar_path": body.aadhaar_path,
         "aadhaar_back_path": body.aadhaar_back_path,
         "pan_path": body.pan_path,
-        "pan_back_path": body.pan_back_path,
+        "pan_back_path": "",
         "selfie_path": body.selfie_path,
         "cheque_path": body.cheque_path,
         "firm_front_path": body.firm_front_path,
