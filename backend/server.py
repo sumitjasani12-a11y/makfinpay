@@ -3096,6 +3096,7 @@ async def _ensure_indexes() -> None:
                 status VARCHAR(50) DEFAULT 'ACTIVE'
             )
         ''')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_recharges_qr_code_id ON recharges (qr_code_id)')
         await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS firm_name VARCHAR(255)')
         await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS firm_address TEXT')
         await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS first_login BOOLEAN DEFAULT TRUE')
