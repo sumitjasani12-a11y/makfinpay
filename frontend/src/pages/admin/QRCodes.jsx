@@ -5,7 +5,14 @@ import { toast } from "sonner";
 import { CheckCircle2, Trash2, Eye, RefreshCw, Upload, Tag, Phone, Link, FileText, Search, Calendar, FileSpreadsheet, FileDown } from "lucide-react";
 
 export default function AdminQRCodes() {
-  const [items, setItems] = useState([]);
+  const [items, setItems] = useState(() => {
+    try {
+      const cached = localStorage.getItem("admin_active_qr");
+      return cached ? JSON.parse(cached) : [];
+    } catch (e) {
+      return [];
+    }
+  });
   const [qrEntries, setQrEntries] = useState([]);
   
   const [label, setLabel] = useState("");
@@ -19,7 +26,12 @@ export default function AdminQRCodes() {
   const [dateFilter, setDateFilter] = useState("all");
 
   const reload = () => {
-    api.get("/admin/qrcodes").then((r) => setItems(r.data || []));
+    api.get("/admin/qrcodes?stats=true").then((r) => {
+      setItems(r.data || []);
+      try {
+        localStorage.setItem("admin_active_qr", JSON.stringify(r.data || []));
+      } catch (e) {}
+    });
     api.get("/admin/qr-name-entries").then((r) => setQrEntries(r.data || []));
     api.get("/admin/qrcodes/history").then((r) => setHistory(r.data || []));
   };

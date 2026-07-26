@@ -2198,40 +2198,41 @@ async def admin_create_qr(body: QRCodeIn, user=Depends(require_roles("admin"))):
     return clean(doc)
 
 @api.get("/admin/qrcodes")
-async def admin_list_qr(user=Depends(require_roles("admin"))):
+async def admin_list_qr(stats: bool = False, user=Depends(require_roles("admin"))):
     qrs = await db.qr_codes.find({"is_deleted": False}, {"_id": 0}).sort("created_at", -1).to_list(100)
-    async with db.pool.acquire() as conn:
-        rows = await conn.fetch("""
-            SELECT 
-                qr_code_id,
-                COALESCE(SUM(CASE WHEN status = 'approved' THEN amount END), 0) AS approved_amount,
-                COUNT(*) AS total_count,
-                COUNT(CASE WHEN status = 'pending' THEN 1 END) AS pending_count,
-                COUNT(CASE WHEN status = 'approved' THEN 1 END) AS approved_count,
-                COUNT(CASE WHEN status = 'rejected' THEN 1 END) AS rejected_count
-            FROM recharges
-            GROUP BY qr_code_id
-        """)
-        stats_map = {}
-        for r in rows:
-            if r["qr_code_id"]:
-                stats_map[str(r["qr_code_id"])] = {
-                    "approved_amount": float(r["approved_amount"]),
-                    "total_entries": r["total_count"] or 0,
-                    "pending": r["pending_count"] or 0,
-                    "approved": r["approved_count"] or 0,
-                    "rejected": r["rejected_count"] or 0
-                }
-                
-        for qr in qrs:
-            qid = qr["id"]
-            qr["stats"] = stats_map.get(qid, {
-                "approved_amount": 0.0,
-                "total_entries": 0,
-                "pending": 0,
-                "approved": 0,
-                "rejected": 0
-            })
+    if stats:
+        async with db.pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT 
+                    qr_code_id,
+                    COALESCE(SUM(CASE WHEN status = 'approved' THEN amount END), 0) AS approved_amount,
+                    COUNT(*) AS total_count,
+                    COUNT(CASE WHEN status = 'pending' THEN 1 END) AS pending_count,
+                    COUNT(CASE WHEN status = 'approved' THEN 1 END) AS approved_count,
+                    COUNT(CASE WHEN status = 'rejected' THEN 1 END) AS rejected_count
+                FROM recharges
+                GROUP BY qr_code_id
+            """)
+            stats_map = {}
+            for r in rows:
+                if r["qr_code_id"]:
+                    stats_map[str(r["qr_code_id"])] = {
+                        "approved_amount": float(r["approved_amount"]),
+                        "total_entries": r["total_count"] or 0,
+                        "pending": r["pending_count"] or 0,
+                        "approved": r["approved_count"] or 0,
+                        "rejected": r["rejected_count"] or 0
+                    }
+                    
+            for qr in qrs:
+                qid = qr["id"]
+                qr["stats"] = stats_map.get(qid, {
+                    "approved_amount": 0.0,
+                    "total_entries": 0,
+                    "pending": 0,
+                    "approved": 0,
+                    "rejected": 0
+                })
     return qrs
 
 @api.patch("/admin/qrcodes/{qid}/activate")
