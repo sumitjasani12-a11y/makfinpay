@@ -648,7 +648,7 @@ class PostgresDatabase:
 
     async def init_pool(self, dsn):
         if self.pool is None:
-            self.pool = await asyncpg.create_pool(dsn)
+            self.pool = await asyncpg.create_pool(dsn, min_size=1, max_size=5)
 
     def close(self):
         # Synchronous close helper
