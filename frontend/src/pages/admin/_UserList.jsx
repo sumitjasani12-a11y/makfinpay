@@ -210,7 +210,7 @@ function MdDetailModal({ md, onClose }) {
                         <td className="px-4 py-3 text-sm">{a.email}</td>
                         <td className="px-4 py-3 text-sm">{fmtMoney(a.wallet_balance)}</td>
                         <td className="px-4 py-3 text-sm"><span className="font-semibold text-[#1B4332]">{a.commission_percent}%</span></td>
-                        <td className="px-4 py-3 text-sm"><StatusBadge status={a.frozen ? "rejected" : (a.kyc_status && a.kyc_status !== "approved" ? a.kyc_status : "approved")} /></td>
+                        <td className="px-4 py-3 text-sm"><StatusBadge status={a.frozen ? "rejected" : (!a.kyc_status || a.kyc_status === "approved" ? "approved" : (a.kyc_status === "rejected" ? "rejected" : "pending"))} /></td>
                         <td className="px-4 py-3 text-sm">{fmtDate(a.created_at)}</td>
                       </tr>
                     ))}</tbody>
@@ -228,7 +228,7 @@ function MdDetailModal({ md, onClose }) {
                         <td className="px-4 py-3 text-sm">{a.email}</td>
                         <td className="px-4 py-3 text-sm">{fmtMoney(a.wallet_balance)}</td>
                         <td className="px-4 py-3 text-sm"><span className="font-semibold text-[#1B4332]">{a.commission_percent}%</span></td>
-                        <td className="px-4 py-3 text-sm"><StatusBadge status={a.frozen ? "rejected" : (a.kyc_status && a.kyc_status !== "approved" ? a.kyc_status : "approved")} /></td>
+                        <td className="px-4 py-3 text-sm"><StatusBadge status={a.frozen ? "rejected" : (!a.kyc_status || a.kyc_status === "approved" ? "approved" : (a.kyc_status === "rejected" ? "rejected" : "pending"))} /></td>
                         <td className="px-4 py-3 text-sm">{fmtDate(a.created_at)}</td>
                       </tr>
                     ))}</tbody>
@@ -515,11 +515,8 @@ export function AdminUserList({ role }) {
           ...(role === "agent" ? [{ key: "wallet_balance", label: "Wallet", render: (r) => fmtMoney(r.wallet_balance) }] : []),
           { key: "commission_percent", label: "Comm %", render: (r) => `${r.commission_percent ?? "—"}%` },
           { key: "status", label: "Status", render: (r) => {
-            if (r.frozen) return <StatusBadge status="rejected" />;
-            if (role === "agent" && r.kyc_status && r.kyc_status !== "approved") {
-              return <StatusBadge status={r.kyc_status === "pending" ? "pending" : "rejected"} />;
-            }
-            return <StatusBadge status="approved" />;
+            const resolved = r.frozen ? "rejected" : (!r.kyc_status || r.kyc_status === "approved" ? "approved" : (r.kyc_status === "rejected" ? "rejected" : "pending"));
+            return <StatusBadge status={resolved} />;
           } },
           { key: "created_at", label: "Created", render: (r) => fmtDate(r.created_at) },
           { key: "actions", label: "Action", render: (r) => (
