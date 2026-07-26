@@ -331,7 +331,7 @@ async def me(user: dict = Depends(get_current_user)):
     return user
 
 @api.post("/agent/change-first-password")
-async def change_first_password(body: ChangeFirstPasswordIn, user=Depends(require_roles("agent"))):
+async def change_first_password(body: ChangeFirstPasswordIn, user=Depends(require_roles("agent", "distributor", "master_distributor"))):
     if not user.get("first_login", True):
         raise HTTPException(400, "Password already changed")
     hashed = hash_password(body.password)
@@ -342,7 +342,7 @@ async def change_first_password(body: ChangeFirstPasswordIn, user=Depends(requir
     return {"ok": True}
 
 @api.post("/agent/submit-kyc")
-async def submit_kyc(body: SubmitKycIn, user=Depends(require_roles("agent"))):
+async def submit_kyc(body: SubmitKycIn, user=Depends(require_roles("agent", "distributor", "master_distributor"))):
     if user.get("kyc_status") == "approved":
         raise HTTPException(400, "KYC is already approved")
         
@@ -375,7 +375,7 @@ async def submit_kyc(body: SubmitKycIn, user=Depends(require_roles("agent"))):
     return {"ok": True, "kyc_status": "pending"}
 
 @api.post("/agent/dismiss-welcome")
-async def dismiss_welcome(user=Depends(require_roles("agent"))):
+async def dismiss_welcome(user=Depends(require_roles("agent", "distributor", "master_distributor"))):
     await db.users.update_one({"id": user["id"]}, {"$set": {"welcome_shown": True}})
     return {"ok": True}
 
