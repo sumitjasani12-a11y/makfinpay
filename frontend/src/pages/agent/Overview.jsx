@@ -174,7 +174,7 @@ export default function AgentOverview() {
         )}
 
         <form onSubmit={handleKycSubmit} className="mfp-card p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <label className="mfp-label mb-2">Aadhaar Card (Front)</label>
               <FileUpload
@@ -225,8 +225,8 @@ export default function AgentOverview() {
               {kycForm.cheque_path && <div className="text-xs text-emerald-700 mt-1 font-semibold">Cheque Uploaded ✓</div>}
             </div>
 
-            <div className="md:col-span-2">
-              <label className="mfp-label mb-2">Firm Front Photo (Shop/Business Entrance)</label>
+            <div>
+              <label className="mfp-label mb-2">Firm Front Photo (Shop/Entrance)</label>
               <FileUpload
                 onUploaded={(p) => setKycForm((f) => ({ ...f, firm_front_path: p }))}
                 label="Upload Firm Front Photo"
