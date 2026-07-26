@@ -1811,38 +1811,55 @@ async def create_withdrawal(body: WithdrawalIn, user=Depends(require_approved_an
             "Please complete all your bank details (including phone number) before requesting a withdrawal.",
         )
 
-    role = user["role"]
-    if role == "distributor":
-        available = await get_distributor_available_for_withdrawal(user["id"])
-        if body.amount > available:
-            raise HTTPException(400, f"Insufficient earnings balance. Available: ₹{available:.2f}")
-        new_balance = 0.0
-    elif role == "master_distributor":
-        available = await get_md_available_for_withdrawal(user["id"])
-        if body.amount > available:
-            raise HTTPException(400, f"Insufficient earnings balance. Available: ₹{available:.2f}")
-        new_balance = 0.0
-    else:
-        # Agent: wallet debited at request time (existing).
-        new_balance = await adjust_balance(user["id"], -body.amount)
-
-    doc = {
-        "id": new_id(),
-        "user_id": user["id"],
-        "user_name": user["full_name"],
-        "role": role,
-        "amount": body.amount,
-        "status": "pending",
-        "bank": bank,
-        "note": "",
-        "created_at": now_iso(),
-        "reviewed_at": None,
-        "reviewed_by": None,
+    clean_bank = {
+        "account_holder": bank.get("account_holder"),
+        "account_number": bank.get("account_number"),
+        "ifsc": bank.get("ifsc"),
+        "bank_name": bank.get("bank_name"),
+        "phone_number": bank.get("phone_number")
     }
-    await db.withdrawals.insert_one(dict(doc))
-    if role == "agent":
-        await ledger_entry(user["id"], "debit", body.amount, new_balance, "withdrawal_hold", doc["id"], "Withdrawal hold")
-    return clean(doc)
+
+    role = user["role"]
+    wallet_debited = False
+    new_balance = 0.0
+    try:
+        if role == "distributor":
+            available = await get_distributor_available_for_withdrawal(user["id"])
+            if body.amount > available:
+                raise HTTPException(400, f"Insufficient earnings balance. Available: ₹{available:.2f}")
+        elif role == "master_distributor":
+            available = await get_md_available_for_withdrawal(user["id"])
+            if body.amount > available:
+                raise HTTPException(400, f"Insufficient earnings balance. Available: ₹{available:.2f}")
+        else:
+            # Agent: wallet debited at request time (existing).
+            new_balance = await adjust_balance(user["id"], -body.amount)
+            wallet_debited = True
+
+        doc = {
+            "id": new_id(),
+            "user_id": user["id"],
+            "user_name": user["full_name"],
+            "role": role,
+            "amount": body.amount,
+            "status": "pending",
+            "bank": clean_bank,
+            "note": "",
+            "created_at": now_iso(),
+            "reviewed_at": None,
+            "reviewed_by": None,
+        }
+        await db.withdrawals.insert_one(dict(doc))
+        if role == "agent":
+            await ledger_entry(user["id"], "debit", body.amount, new_balance, "withdrawal_hold", doc["id"], "Withdrawal hold")
+        return clean(doc)
+    except Exception as e:
+        if role == "agent" and wallet_debited:
+            try:
+                await adjust_balance(user["id"], body.amount)
+            except Exception as refund_err:
+                logger.error(f"Failed to refund agent wallet after withdrawal failure: {refund_err}")
+        raise e
 
 @api.get("/withdrawals/mine")
 async def my_withdrawals(user=Depends(require_approved_any())):
