@@ -18,8 +18,6 @@ export default function AdminQrNameEntry() {
   const [color, setColor] = useState("Blue");
   const [mobile, setMobile] = useState("");
   const [upi, setUpi] = useState("");
-  const [minAmt, setMinAmt] = useState(0);
-  const [maxAmt, setMaxAmt] = useState(0);
   const [path, setPath] = useState("");
   
   const [search, setSearch] = useState("");
@@ -39,8 +37,8 @@ export default function AdminQrNameEntry() {
       color,
       mobile_number: mobile,
       upi_id: upi,
-      min_amount: Number(minAmt || 0),
-      max_amount: Number(maxAmt || 0),
+      min_amount: 0,
+      max_amount: 0,
       image_path: path
     };
 
@@ -64,8 +62,6 @@ export default function AdminQrNameEntry() {
     setColor("Blue");
     setMobile("");
     setUpi("");
-    setMinAmt(0);
-    setMaxAmt(0);
     setPath("");
     setEditingId(null);
   };
@@ -75,8 +71,6 @@ export default function AdminQrNameEntry() {
     setColor(item.color || "Blue");
     setMobile(item.mobile_number);
     setUpi(item.upi_id);
-    setMinAmt(item.min_amount || 0);
-    setMaxAmt(item.max_amount || 0);
     setPath(item.image_path);
     setEditingId(item.id);
   };
@@ -198,26 +192,7 @@ export default function AdminQrNameEntry() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="mfp-label font-medium">Min Amount</label>
-                  <input 
-                    className="mfp-input" 
-                    type="number"
-                    value={minAmt} 
-                    onChange={(e) => setMinAmt(e.target.value)} 
-                  />
-                </div>
-                <div>
-                  <label className="mfp-label font-medium">Max Amount</label>
-                  <input 
-                    className="mfp-input" 
-                    type="number"
-                    value={maxAmt} 
-                    onChange={(e) => setMaxAmt(e.target.value)} 
-                  />
-                </div>
-              </div>
+
 
               <div className="pt-2">
                 <FileUpload onUploaded={setPath} label="QR Image" />
@@ -306,9 +281,7 @@ export default function AdminQrNameEntry() {
                           <span>Mobile: <strong className="text-neutral-800">{item.mobile_number}</strong></span>
                           <span className="truncate">UPI: <strong className="text-neutral-800">{item.upi_id}</strong></span>
                         </div>
-                        <div className="text-[10px] text-neutral-500 mt-1">
-                          Limits: {item.min_amount} - {item.max_amount} Rs
-                        </div>
+
                       </div>
 
                       {/* Actions: Toggle switch, edit, delete */}
