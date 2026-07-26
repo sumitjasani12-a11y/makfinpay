@@ -253,6 +253,7 @@ class RechargeIn(BaseModel):
     utr: str
     card_last4: str
     screenshot_path: str  # storage path of uploaded screenshot
+    older_qr: Optional[bool] = False
 
 class BillPaymentIn(BaseModel):
     customer_name: str
@@ -1550,6 +1551,7 @@ async def agent_create_recharge(body: RechargeIn, user=Depends(require_approved_
         "qr_code_id": active_qr["id"] if active_qr else None,
         "qr_code_label": active_qr["label"] if active_qr else None,
         "screenshot_path": body.screenshot_path,
+        "older_qr": body.older_qr or False,
         "status": "pending",
         "commission_percent": user.get("commission_percent", 1.2),
         "commission_amount": 0,
@@ -3109,6 +3111,7 @@ async def _ensure_indexes() -> None:
             )
         ''')
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_recharges_qr_code_id ON recharges (qr_code_id)')
+        await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS older_qr BOOLEAN DEFAULT FALSE')
         await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS firm_name VARCHAR(255)')
         await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS firm_address TEXT')
         await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS first_login BOOLEAN DEFAULT TRUE')
