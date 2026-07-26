@@ -2356,6 +2356,10 @@ async def admin_delete_bank(bid: str, user=Depends(require_roles("admin"))):
 async def list_active_bill_pay_banks(user=Depends(get_current_user)):
     return await db.banks.find({"is_deleted": False, "active": True, "bill_pay_enabled": True}, {"_id": 0}).sort("name", 1).to_list(500)
 
+@api.get("/billing/payout-banks")
+async def list_active_payout_banks(user=Depends(get_current_user)):
+    return await db.banks.find({"is_deleted": False, "active": True, "payout_enabled": True}, {"_id": 0}).sort("name", 1).to_list(500)
+
 # ---------- QR NAME ENTRIES ----------
 @api.get("/admin/qr-name-entries")
 async def admin_list_qr_name_entries(user=Depends(require_roles("admin"))):

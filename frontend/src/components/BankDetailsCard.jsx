@@ -13,6 +13,7 @@ export default function BankDetailsCard({ onSaved, highlightMissing = [] }) {
   const [b, setB] = useState({ account_holder: "", account_number: "", ifsc: "", bank_name: "", phone_number: "" });
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [payoutBanks, setPayoutBanks] = useState([]);
 
   useEffect(() => {
     api.get("/bank").then((r) => {
@@ -25,6 +26,10 @@ export default function BankDetailsCard({ onSaved, highlightMissing = [] }) {
       });
       setLoaded(true);
     });
+
+    api.get("/billing/payout-banks")
+      .then((r) => setPayoutBanks(r.data || []))
+      .catch((e) => console.log("Failed to load payout banks:", e));
   }, []);
 
   const save = async (e) => {
@@ -74,6 +79,31 @@ export default function BankDetailsCard({ onSaved, highlightMissing = [] }) {
           ["Phone Number", "phone_number", "tel"],
         ].map(([label, key, type]) => {
           const isMissing = highlightMissing.includes(key);
+          if (key === "bank_name") {
+            return (
+              <div key={key} className={key === "phone_number" ? "sm:col-span-2" : ""}>
+                <label className="mfp-label">
+                  {label}
+                  {isMissing && <span className="ml-2 text-rose-600 text-[10px] font-semibold">MISSING</span>}
+                </label>
+                <select
+                  className={`mfp-input bg-[#FDFCF8] ${isMissing ? "border-rose-400 focus:border-rose-500" : ""}`}
+                  required
+                  value={b[key]}
+                  onChange={(e) => setB({ ...b, [key]: e.target.value })}
+                  disabled={saving || !loaded}
+                  data-testid={`bank-${key}`}
+                >
+                  <option value="">Select Bank</option>
+                  {payoutBanks.map((bk) => (
+                    <option key={bk.id || bk.name} value={bk.name}>
+                      {bk.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            );
+          }
           return (
             <div key={key} className={key === "phone_number" ? "sm:col-span-2" : ""}>
               <label className="mfp-label">
