@@ -138,8 +138,13 @@ export default function AgentRecharge() {
                   />
                 </div>
 
+                {/* Recharge Charges Badge */}
+                <div className="mt-4 inline-flex text-[10px] px-2.5 py-1 rounded-full font-extrabold bg-[#FFF8E1] text-[#F57F17] border border-[#FFE082] uppercase tracking-wider">
+                  Recharge Charges: {commPct}%
+                </div>
+
                 {/* QR Name Badge (Large, Uniform, with QrCode icon) */}
-                <div className="mt-5 w-full max-w-[280px] flex items-center justify-center gap-2 bg-[#E8F5E9] text-[#00966B] border border-[#C8E6C9] py-2.5 px-4 rounded-xl text-xs font-extrabold uppercase tracking-wide shadow-sm">
+                <div className="mt-2 w-full max-w-[280px] flex items-center justify-center gap-2 bg-[#E8F5E9] text-[#00966B] border border-[#C8E6C9] py-2.5 px-4 rounded-xl text-xs font-extrabold uppercase tracking-wide shadow-sm">
                   <QrCode className="h-4 w-4 text-[#00966B]" />
                   <span>{qr.label}</span>
                 </div>
