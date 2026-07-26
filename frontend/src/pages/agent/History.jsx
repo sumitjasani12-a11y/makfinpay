@@ -15,8 +15,7 @@ export default function AgentHistory() {
   const [loading, setLoading] = useState(false);
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [minAmt, setMinAmt] = useState("");
-  const [maxAmt, setMaxAmt] = useState("");
+  const [selectedAmount, setSelectedAmount] = useState("all");
 
   // pagination
   const [page, setPage] = useState(1);
@@ -34,9 +33,16 @@ export default function AgentHistory() {
     fetchHistory();
   }, []);
 
+  // Gather unique bill amounts from items list
+  const uniqueAmounts = useMemo(() => {
+    const amounts = items.map((item) => item.bill_amount ?? item.amount ?? 0);
+    const unique = Array.from(new Set(amounts)).filter((amt) => amt > 0);
+    return unique.sort((a, b) => b - a);
+  }, [items]);
+
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, q, minAmt, maxAmt]);
+  }, [statusFilter, q, selectedAmount]);
 
   // Client-side stats calculation
   const stats = useMemo(() => {
@@ -84,15 +90,11 @@ export default function AgentHistory() {
         (item.customer_phone || "").toLowerCase().includes(term);
 
       const itemAmt = item.bill_amount ?? item.amount ?? 0;
-      const min = minAmt ? parseFloat(minAmt) : null;
-      const max = maxAmt ? parseFloat(maxAmt) : null;
+      const matchesAmount = selectedAmount === "all" || parseFloat(selectedAmount) === itemAmt;
 
-      const matchesMin = min === null || itemAmt >= min;
-      const matchesMax = max === null || itemAmt <= max;
-
-      return matchesStatus && matchesSearch && matchesMin && matchesMax;
+      return matchesStatus && matchesSearch && matchesAmount;
     });
-  }, [items, statusFilter, q, minAmt, maxAmt]);
+  }, [items, statusFilter, q, selectedAmount]);
 
   // Client-side paginate
   const paginatedItems = useMemo(() => {
@@ -160,10 +162,10 @@ export default function AgentHistory() {
               placeholder="Search by Customer, Bank, Card Last 4, Phone..."
               className="mfp-input !pl-11 !pr-10 bg-neutral-50/50"
             />
-            {(q || statusFilter !== "all" || minAmt || maxAmt) && (
+            {(q || statusFilter !== "all" || selectedAmount !== "all") && (
               <button
                 type="button"
-                onClick={() => { setQ(""); setStatusFilter("all"); setMinAmt(""); setMaxAmt(""); }}
+                onClick={() => { setQ(""); setStatusFilter("all"); setSelectedAmount("all"); }}
                 className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-[#1B4332]"
                 title="Clear all filters"
               >
@@ -186,27 +188,19 @@ export default function AgentHistory() {
               ))}
             </select>
 
-            {/* Min Amount */}
-            <div className="w-full lg:w-28">
-              <input
-                type="number"
-                value={minAmt}
-                onChange={(e) => setMinAmt(e.target.value)}
-                placeholder="Min ₹"
-                className="mfp-input text-xs bg-neutral-50/50"
-              />
-            </div>
-
-            {/* Max Amount */}
-            <div className="w-full lg:w-28">
-              <input
-                type="number"
-                value={maxAmt}
-                onChange={(e) => setMaxAmt(e.target.value)}
-                placeholder="Max ₹"
-                className="mfp-input text-xs bg-neutral-50/50"
-              />
-            </div>
+            {/* Bill Amount Dropdown */}
+            <select
+              value={selectedAmount}
+              onChange={(e) => setSelectedAmount(e.target.value)}
+              className="mfp-input bg-[#FDFCF8] text-xs font-bold rounded-xl py-2.5 px-4 outline-none cursor-pointer border border-black/10 focus:border-[#1b4332] w-full lg:w-44"
+            >
+              <option value="all">All Amounts</option>
+              {uniqueAmounts.map((amt) => (
+                <option key={amt} value={amt}>
+                  {fmtMoney(amt)}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       </div>
