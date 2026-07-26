@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { api, formatErr, fileUrl, fmtMoney } from "@/lib/api";
 import { PageHeader, EmptyState } from "@/components/Shared";
 import { toast } from "sonner";
-import { CheckCircle2, Trash2, Eye, RefreshCw, Upload, Tag, Phone, Link, FileText } from "lucide-react";
+import { CheckCircle2, Trash2, Eye, RefreshCw, Upload, Tag, Phone, Link, FileText, Search, Calendar, FileSpreadsheet, FileDown } from "lucide-react";
 
 export default function AdminQRCodes() {
   const [items, setItems] = useState([]);
@@ -14,9 +14,14 @@ export default function AdminQRCodes() {
   const [path, setPath] = useState("");
   const [selectedEntryId, setSelectedEntryId] = useState("");
 
+  const [history, setHistory] = useState([]);
+  const [historySearch, setHistorySearch] = useState("");
+  const [dateFilter, setDateFilter] = useState("all");
+
   const reload = () => {
     api.get("/admin/qrcodes").then((r) => setItems(r.data || []));
     api.get("/admin/qr-name-entries").then((r) => setQrEntries(r.data || []));
+    api.get("/admin/qrcodes/history").then((r) => setHistory(r.data || []));
   };
 
   useEffect(() => { reload(); }, []);
@@ -78,6 +83,104 @@ export default function AdminQRCodes() {
       toast.error("Failed to delete QR");
     }
   };
+
+  const matchesDate = (isoStr) => {
+    if (dateFilter === "all") return true;
+    if (!isoStr) return false;
+    const date = new Date(isoStr);
+    const today = new Date();
+    
+    const dDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const dToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    
+    if (dateFilter === "today") {
+      return dDate.getTime() === dToday.getTime();
+    }
+    if (dateFilter === "yesterday") {
+      const yesterday = new Date(dToday);
+      yesterday.setDate(yesterday.getDate() - 1);
+      return dDate.getTime() === yesterday.getTime();
+    }
+    if (dateFilter === "this_week") {
+      const oneWeekAgo = new Date(dToday);
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      return dDate.getTime() >= oneWeekAgo.getTime();
+    }
+    if (dateFilter === "this_month") {
+      const oneMonthAgo = new Date(dToday);
+      oneMonthAgo.setDate(oneMonthAgo.getDate() - 30);
+      return dDate.getTime() >= oneMonthAgo.getTime();
+    }
+    return true;
+  };
+
+  const filteredHistory = history.filter(item => {
+    const searchLower = historySearch.toLowerCase();
+    const matchesSearch = !historySearch || 
+      item.label?.toLowerCase().includes(searchLower) ||
+      item.mobile_number?.includes(searchLower) ||
+      item.upi_id?.toLowerCase().includes(searchLower);
+    return matchesSearch && matchesDate(item.activated_at);
+  });
+
+  const formatDate = (isoStr) => {
+    if (!isoStr) return "—";
+    const d = new Date(isoStr);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${day}/${month}/${year} at ${hours}:${minutes}`;
+  };
+
+  const exportCsv = () => {
+    let headers = ["QR Name", "Status", "Entries", "Approved Amount", "Pending", "Approved", "Rejected", "Admin Revenue", "S.Dist Earnings", "Dist Earnings", "Total Profit", "QR %", "QR Profit", "Final Profit"];
+    let csvRows = [headers.join(",")];
+    filteredHistory.forEach(item => {
+      let row = [
+        `"${item.label}"`,
+        `"${item.status}"`,
+        item.entries,
+        item.approved_amount,
+        item.breakdown.pending,
+        item.breakdown.approved,
+        item.breakdown.rejected,
+        item.admin_revenue,
+        item.md_earnings,
+        item.dist_earnings,
+        item.total_profit,
+        `"${item.qr_percent}%"`,
+        item.qr_profit,
+        item.final_profit
+      ];
+      csvRows.push(row.join(","));
+    });
+    const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `qr_tracking_history_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const exportPdf = () => {
+    window.print();
+  };
+
+  const totalEntries = filteredHistory.reduce((sum, item) => sum + item.entries, 0);
+  const totalApprovedAmount = filteredHistory.reduce((sum, item) => sum + item.approved_amount, 0);
+  const totalPending = filteredHistory.reduce((sum, item) => sum + item.breakdown.pending, 0);
+  const totalApproved = filteredHistory.reduce((sum, item) => sum + item.breakdown.approved, 0);
+  const totalRejected = filteredHistory.reduce((sum, item) => sum + item.breakdown.rejected, 0);
+  const totalAdminRevenue = filteredHistory.reduce((sum, item) => sum + item.admin_revenue, 0);
+  const totalMdEarnings = filteredHistory.reduce((sum, item) => sum + item.md_earnings, 0);
+  const totalDistEarnings = filteredHistory.reduce((sum, item) => sum + item.dist_earnings, 0);
+  const totalProfit = filteredHistory.reduce((sum, item) => sum + item.total_profit, 0);
+  const totalQrProfit = filteredHistory.reduce((sum, item) => sum + item.qr_profit, 0);
+  const totalFinalProfit = filteredHistory.reduce((sum, item) => sum + item.final_profit, 0);
 
   const activeQr = items.find((i) => i.active);
 
@@ -273,6 +376,201 @@ export default function AdminQRCodes() {
           ) : (
             <div className="py-12"><EmptyState>No active QR. Select one to add.</EmptyState></div>
           )}
+        </div>
+      </div>
+
+      {/* QR Tracking History Section */}
+      <div className="mfp-card p-6 mt-8">
+        {/* Header & Controls */}
+        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 border-b border-black/5 pb-5 mb-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+              <RefreshCw className="h-5 w-5 animate-spin-slow" />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-neutral-800">QR Tracking History</h3>
+              <p className="text-xs text-neutral-400">Track performance per activation period</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Search Input */}
+            <div className="relative w-full sm:w-56">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400" />
+              <input
+                className="mfp-input !pl-9 !py-1.5 text-xs bg-neutral-50/50"
+                placeholder="Search QR..."
+                value={historySearch}
+                onChange={(e) => setHistorySearch(e.target.value)}
+              />
+            </div>
+
+            {/* Date Preset Filter */}
+            <div className="relative w-full sm:w-40">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400 pointer-events-none" />
+              <select
+                className="mfp-input !pl-9 !py-1.5 text-xs bg-white"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+              >
+                <option value="all">All Time</option>
+                <option value="today">Today</option>
+                <option value="yesterday">Yesterday</option>
+                <option value="this_week">Last 7 Days</option>
+                <option value="this_month">Last 30 Days</option>
+              </select>
+            </div>
+
+            {/* Export buttons */}
+            <button
+              onClick={exportCsv}
+              className="py-1.5 px-3 flex items-center gap-1.5 text-xs text-white bg-emerald-600 hover:bg-emerald-700 font-semibold rounded-lg shadow-sm transition-all"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" /> Excel
+            </button>
+            <button
+              onClick={exportPdf}
+              className="py-1.5 px-3 flex items-center gap-1.5 text-xs text-white bg-rose-600 hover:bg-rose-700 font-semibold rounded-lg shadow-sm transition-all"
+            >
+              <FileDown className="h-3.5 w-3.5" /> PDF
+            </button>
+          </div>
+        </div>
+
+        {/* History Table */}
+        <div className="overflow-x-auto -mx-6 px-6">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="bg-neutral-50 text-neutral-500 border-b border-black/5 text-[10px] font-bold uppercase tracking-wider">
+                <th className="text-left py-3 px-4">QR Name / Info</th>
+                <th className="text-center py-3 px-4">Status</th>
+                <th className="text-center py-3 px-4">Entries</th>
+                <th className="text-right py-3 px-4">Appr. Amount</th>
+                <th className="text-center py-3 px-4">Breakdown (P/A/R)</th>
+                <th className="text-right py-3 px-4 text-indigo-600">Admin</th>
+                <th className="text-right py-3 px-4 text-purple-600">S.Dist</th>
+                <th className="text-right py-3 px-4 text-amber-600">Dist.</th>
+                <th className="text-right py-3 px-4 text-emerald-700">Total</th>
+                <th className="text-center py-3 px-4">QR %</th>
+                <th className="text-right py-3 px-4 text-rose-600">QR Profit</th>
+                <th className="text-right py-3 px-4 text-indigo-700">Final Profit</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-black/5">
+              {filteredHistory.length === 0 ? (
+                <tr>
+                  <td colSpan={12} className="py-8 text-center text-neutral-400">
+                    No tracking records found matching the criteria.
+                  </td>
+                </tr>
+              ) : (
+                filteredHistory.map((item) => (
+                  <tr key={item.id} className="hover:bg-neutral-50/50 transition-colors">
+                    {/* QR Name / Info */}
+                    <td className="py-3 px-4">
+                      <div className="font-bold text-neutral-800 uppercase flex items-center gap-1.5 flex-wrap">
+                        {item.label}
+                      </div>
+                      <div className="text-[10px] text-neutral-400 mt-0.5 flex flex-col gap-0.5">
+                        <span>{formatDate(item.activated_at)}</span>
+                        {item.deactivated_at && <span>Closed: {formatDate(item.deactivated_at)}</span>}
+                        {item.mobile_number && <span className="text-blue-500 font-semibold">{item.mobile_number}</span>}
+                      </div>
+                    </td>
+
+                    {/* Status */}
+                    <td className="py-3 px-4 text-center">
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${
+                        item.status === 'ACTIVE' 
+                          ? 'bg-emerald-50 text-emerald-700' 
+                          : 'bg-neutral-100 text-neutral-500'
+                      }`}>
+                        {item.status}
+                      </span>
+                    </td>
+
+                    {/* Entries */}
+                    <td className="py-3 px-4 text-center font-semibold text-neutral-700 tabular-nums">
+                      {item.entries}
+                    </td>
+
+                    {/* Approved Amount */}
+                    <td className="py-3 px-4 text-right font-extrabold text-emerald-600 tabular-nums">
+                      {fmtMoney(item.approved_amount)}
+                    </td>
+
+                    {/* Breakdown */}
+                    <td className="py-3 px-4 text-center text-[11px] font-bold tabular-nums">
+                      <span className="text-amber-500">{item.breakdown.pending}</span>
+                      <span className="text-neutral-300 mx-1">/</span>
+                      <span className="text-emerald-600">{item.breakdown.approved}</span>
+                      <span className="text-neutral-300 mx-1">/</span>
+                      <span className="text-rose-500">{item.breakdown.rejected}</span>
+                    </td>
+
+                    {/* Admin Revenue */}
+                    <td className="py-3 px-4 text-right font-semibold text-indigo-600 tabular-nums">
+                      {fmtMoney(item.admin_revenue)}
+                    </td>
+
+                    {/* S.Dist Earnings */}
+                    <td className="py-3 px-4 text-right font-semibold text-purple-600 tabular-nums">
+                      {fmtMoney(item.md_earnings)}
+                    </td>
+
+                    {/* Dist Earnings */}
+                    <td className="py-3 px-4 text-right font-semibold text-amber-600 tabular-nums">
+                      {fmtMoney(item.dist_earnings)}
+                    </td>
+
+                    {/* Total Profit */}
+                    <td className="py-3 px-4 text-right font-black text-emerald-700 tabular-nums">
+                      {fmtMoney(item.total_profit)}
+                    </td>
+
+                    {/* QR % */}
+                    <td className="py-3 px-4 text-center font-bold text-neutral-500 tabular-nums">
+                      {item.qr_percent}%
+                    </td>
+
+                    {/* QR Profit */}
+                    <td className="py-3 px-4 text-right font-extrabold text-rose-600 tabular-nums">
+                      {fmtMoney(item.qr_profit)}
+                    </td>
+
+                    {/* Final Profit */}
+                    <td className="py-3 px-4 text-right font-black text-indigo-700 tabular-nums">
+                      {fmtMoney(item.final_profit)}
+                    </td>
+                  </tr>
+                ))
+              )}
+
+              {/* Summary Row */}
+              {filteredHistory.length > 0 && (
+                <tr className="bg-neutral-50/70 border-t-2 border-neutral-200 font-extrabold text-neutral-800">
+                  <td className="py-4 px-4 uppercase text-[10px] tracking-wider text-neutral-500">Summary</td>
+                  <td className="py-4 px-4 text-center">—</td>
+                  <td className="py-4 px-4 text-center tabular-nums">{totalEntries}</td>
+                  <td className="py-4 px-4 text-right text-emerald-600 tabular-nums">{fmtMoney(totalApprovedAmount)}</td>
+                  <td className="py-4 px-4 text-center text-[11px] tabular-nums">
+                    <span className="text-amber-500">{totalPending}</span>
+                    <span className="text-neutral-300 mx-1">/</span>
+                    <span className="text-emerald-600">{totalApproved}</span>
+                    <span className="text-neutral-300 mx-1">/</span>
+                    <span className="text-rose-500">{totalRejected}</span>
+                  </td>
+                  <td className="py-4 px-4 text-right text-indigo-600 tabular-nums">{fmtMoney(totalAdminRevenue)}</td>
+                  <td className="py-4 px-4 text-right text-purple-600 tabular-nums">{fmtMoney(totalMdEarnings)}</td>
+                  <td className="py-4 px-4 text-right text-amber-600 tabular-nums">{fmtMoney(totalDistEarnings)}</td>
+                  <td className="py-4 px-4 text-right text-emerald-700 tabular-nums">{fmtMoney(totalProfit)}</td>
+                  <td className="py-4 px-4 text-center">—</td>
+                  <td className="py-4 px-4 text-right text-rose-600 tabular-nums">{fmtMoney(totalQrProfit)}</td>
+                  <td className="py-4 px-4 text-right text-indigo-700 tabular-nums">{fmtMoney(totalFinalProfit)}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

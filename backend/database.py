@@ -21,7 +21,7 @@ TABLE_COLUMNS = {
     "withdrawals": ["id", "user_id", "user_name", "role", "amount", "status", "bank", "note", "created_at", "reviewed_at", "reviewed_by"],
     "kyc": ["id", "user_id", "aadhaar_path", "pan_path", "status", "rejection_reason", "updated_at", "reviewed_at", "reviewed_by", "aadhaar_back_path", "pan_back_path", "selfie_path", "cheque_path", "firm_front_path"],
     "qr_codes": ["id", "label", "image_path", "upi_id", "active", "is_deleted", "created_at", "mobile_number"],
-    "qr_name_entries": ["id", "name", "color", "mobile_number", "upi_id", "min_amount", "max_amount", "image_path", "position", "active", "is_deleted", "created_at"],
+    "qr_name_entries": ["id", "name", "color", "mobile_number", "upi_id", "min_amount", "max_amount", "image_path", "position", "active", "is_deleted", "created_at", "qr_percent"],
     "bank_details": ["id", "user_id", "account_holder", "account_number", "ifsc", "bank_name", "phone_number", "updated_at"],
     "settings": ["id", "default_percent", "updated_at"],
     "files": ["id", "storage_path", "original_filename", "content_type", "size", "uploaded_by", "is_deleted", "created_at"],

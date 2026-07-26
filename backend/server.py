@@ -293,6 +293,7 @@ class QRNameEntryIn(BaseModel):
     min_amount: float
     max_amount: float
     image_path: str
+    qr_percent: Optional[float] = 0.0
 
 class QRReorderIn(BaseModel):
     ids: List[str]
@@ -2056,6 +2057,127 @@ async def admin_reject_kyc(uid: str, body: ApprovalIn, request: Request, user=De
     return {"ok": True, "kyc_status": "rejected"}
 
 # ---------- QR CODES ----------
+async def log_qr_deactivation():
+    now = now_iso()
+    async with db.pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE qr_activation_history SET deactivated_at = $1, status = 'ARCHIVED' WHERE status = 'ACTIVE'",
+            convert_val("deactivated_at", now)
+        )
+
+async def log_qr_activation(qr_code_id: str, label: str, mobile_number: str, upi_id: str):
+    await log_qr_deactivation()
+    now = now_iso()
+    async with db.pool.acquire() as conn:
+        # Fetch matching entry from qr_name_entries to get qr_percent
+        qr_entry = await conn.fetchrow(
+            "SELECT qr_percent FROM qr_name_entries WHERE name = $1 AND is_deleted = False LIMIT 1",
+            label
+        )
+        qr_percent = float(qr_entry["qr_percent"]) if qr_entry and qr_entry["qr_percent"] is not None else 0.0
+        
+        await conn.execute(
+            """
+            INSERT INTO qr_activation_history (id, qr_code_id, label, mobile_number, upi_id, qr_percent, activated_at, status)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, 'ACTIVE')
+            """,
+            new_id(),
+            qr_code_id,
+            label,
+            mobile_number or "",
+            upi_id or "",
+            Decimal(str(qr_percent)),
+            convert_val("activated_at", now)
+        )
+
+@api.get("/admin/qrcodes/history")
+async def admin_qr_history(user=Depends(require_roles("admin"))):
+    async with db.pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM qr_activation_history ORDER BY activated_at DESC"
+        )
+        history = []
+        for r in rows:
+            qid = r["qr_code_id"]
+            activated_at = r["activated_at"]
+            deactivated_at = r["deactivated_at"]
+            
+            if deactivated_at:
+                recharges_query = """
+                    SELECT 
+                        COUNT(*) as total_entries,
+                        COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_count,
+                        COUNT(CASE WHEN status = 'approved' THEN 1 END) as approved_count,
+                        COUNT(CASE WHEN status = 'rejected' THEN 1 END) as rejected_count,
+                        COALESCE(SUM(CASE WHEN status = 'approved' THEN amount END), 0) as approved_amount,
+                        COALESCE(SUM(CASE WHEN status = 'approved' THEN admin_revenue_amount END), 0) as admin_revenue,
+                        COALESCE(SUM(CASE WHEN status = 'approved' THEN md_earnings_amount END), 0) as md_earnings,
+                        COALESCE(SUM(CASE WHEN status = 'approved' THEN distributor_earnings_amount END), 0) as dist_earnings
+                    FROM recharges
+                    WHERE qr_code_id = $1 AND created_at >= $2 AND created_at <= $3
+                """
+                stats = await conn.fetchrow(recharges_query, qid, activated_at, deactivated_at)
+            else:
+                recharges_query = """
+                    SELECT 
+                        COUNT(*) as total_entries,
+                        COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_count,
+                        COUNT(CASE WHEN status = 'approved' THEN 1 END) as approved_count,
+                        COUNT(CASE WHEN status = 'rejected' THEN 1 END) as rejected_count,
+                        COALESCE(SUM(CASE WHEN status = 'approved' THEN amount END), 0) as approved_amount,
+                        COALESCE(SUM(CASE WHEN status = 'approved' THEN admin_revenue_amount END), 0) as admin_revenue,
+                        COALESCE(SUM(CASE WHEN status = 'approved' THEN md_earnings_amount END), 0) as md_earnings,
+                        COALESCE(SUM(CASE WHEN status = 'approved' THEN distributor_earnings_amount END), 0) as dist_earnings
+                    FROM recharges
+                    WHERE qr_code_id = $1 AND created_at >= $2
+                """
+                stats = await conn.fetchrow(recharges_query, qid, activated_at)
+            
+            total_entries = stats["total_entries"] or 0
+            pending_count = stats["pending_count"] or 0
+            approved_count = stats["approved_count"] or 0
+            rejected_count = stats["rejected_count"] or 0
+            approved_amount = float(stats["approved_amount"])
+            admin_revenue = float(stats["admin_revenue"])
+            md_earnings = float(stats["md_earnings"])
+            dist_earnings = float(stats["dist_earnings"])
+            
+            # TOTAL = ADMIN commission + S.DIST commission + DIST commission
+            total_profit = admin_revenue + md_earnings + dist_earnings
+            qr_percent = float(r["qr_percent"]) if r["qr_percent"] is not None else 0.0
+            
+            # QR PROFIT = TOTAL * (QR % / 100)
+            qr_profit = total_profit * (qr_percent / 100.0)
+            
+            # FINAL PROFIT = TOTAL - QR PROFIT
+            final_profit = total_profit - qr_profit
+            
+            history.append({
+                "id": r["id"],
+                "qr_code_id": qid,
+                "label": r["label"],
+                "mobile_number": r["mobile_number"],
+                "upi_id": r["upi_id"],
+                "qr_percent": qr_percent,
+                "activated_at": activated_at.isoformat() if activated_at else None,
+                "deactivated_at": deactivated_at.isoformat() if deactivated_at else None,
+                "status": r["status"],
+                "entries": total_entries,
+                "breakdown": {
+                    "pending": pending_count,
+                    "approved": approved_count,
+                    "rejected": rejected_count
+                },
+                "approved_amount": approved_amount,
+                "admin_revenue": admin_revenue,
+                "md_earnings": md_earnings,
+                "dist_earnings": dist_earnings,
+                "total_profit": total_profit,
+                "qr_profit": qr_profit,
+                "final_profit": final_profit
+            })
+        return history
+
 @api.post("/admin/qrcodes")
 async def admin_create_qr(body: QRCodeIn, user=Depends(require_roles("admin"))):
     await db.qr_codes.update_many({}, {"$set": {"active": False}})
@@ -2070,6 +2192,7 @@ async def admin_create_qr(body: QRCodeIn, user=Depends(require_roles("admin"))):
         "created_at": now_iso(),
     }
     await db.qr_codes.insert_one(dict(doc))
+    await log_qr_activation(doc["id"], doc["label"], doc["mobile_number"], doc["upi_id"])
     return clean(doc)
 
 @api.get("/admin/qrcodes")
@@ -2100,12 +2223,19 @@ async def admin_list_qr(user=Depends(require_roles("admin"))):
 
 @api.patch("/admin/qrcodes/{qid}/activate")
 async def admin_activate_qr(qid: str, user=Depends(require_roles("admin"))):
+    qr = await db.qr_codes.find_one({"id": qid})
+    if not qr:
+        raise HTTPException(404, "QR Code not found")
     await db.qr_codes.update_many({}, {"$set": {"active": False}})
     await db.qr_codes.update_one({"id": qid}, {"$set": {"active": True}})
+    await log_qr_activation(qid, qr["label"], qr.get("mobile_number", ""), qr.get("upi_id", ""))
     return {"ok": True}
 
 @api.delete("/admin/qrcodes/{qid}")
 async def admin_delete_qr(qid: str, user=Depends(require_roles("admin"))):
+    qr = await db.qr_codes.find_one({"id": qid})
+    if qr and qr.get("active"):
+        await log_qr_deactivation()
     await db.qr_codes.update_one({"id": qid}, {"$set": {"is_deleted": True, "active": False}})
     return {"ok": True}
 
@@ -2232,6 +2362,7 @@ async def admin_create_qr_name_entry(body: QRNameEntryIn, user=Depends(require_r
         "active": True,
         "is_deleted": False,
         "created_at": now_iso(),
+        "qr_percent": body.qr_percent or 0.0,
     }
     await db.qr_name_entries.insert_one(dict(doc))
     return clean(doc)
@@ -2252,6 +2383,7 @@ async def admin_update_qr_name_entry(eid: str, body: QRNameEntryIn, user=Depends
         "min_amount": body.min_amount,
         "max_amount": body.max_amount,
         "image_path": body.image_path,
+        "qr_percent": body.qr_percent or 0.0,
     }})
     return {"ok": True}
 
@@ -2948,6 +3080,20 @@ async def _ensure_indexes() -> None:
             )
         ''')
         await conn.execute('ALTER TABLE qr_codes ADD COLUMN IF NOT EXISTS mobile_number VARCHAR(50)')
+        await conn.execute('ALTER TABLE qr_name_entries ADD COLUMN IF NOT EXISTS qr_percent NUMERIC(15, 4) DEFAULT 0')
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS qr_activation_history (
+                id VARCHAR(255) PRIMARY KEY,
+                qr_code_id VARCHAR(255) NOT NULL,
+                label VARCHAR(255) NOT NULL,
+                mobile_number VARCHAR(50),
+                upi_id VARCHAR(255),
+                qr_percent NUMERIC(15, 4) DEFAULT 0,
+                activated_at TIMESTAMPTZ NOT NULL,
+                deactivated_at TIMESTAMPTZ,
+                status VARCHAR(50) DEFAULT 'ACTIVE'
+            )
+        ''')
         await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS firm_name VARCHAR(255)')
         await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS firm_address TEXT')
         await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS first_login BOOLEAN DEFAULT TRUE')

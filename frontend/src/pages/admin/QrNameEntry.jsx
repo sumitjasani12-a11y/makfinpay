@@ -19,6 +19,7 @@ export default function AdminQrNameEntry() {
   const [mobile, setMobile] = useState("");
   const [upi, setUpi] = useState("");
   const [path, setPath] = useState("");
+  const [qrPercent, setQrPercent] = useState("");
   
   const [search, setSearch] = useState("");
   const [editingId, setEditingId] = useState(null);
@@ -39,7 +40,8 @@ export default function AdminQrNameEntry() {
       upi_id: upi,
       min_amount: 0,
       max_amount: 0,
-      image_path: path
+      image_path: path,
+      qr_percent: parseFloat(qrPercent) || 0.0
     };
 
     try {
@@ -63,6 +65,7 @@ export default function AdminQrNameEntry() {
     setMobile("");
     setUpi("");
     setPath("");
+    setQrPercent("");
     setEditingId(null);
   };
 
@@ -72,6 +75,7 @@ export default function AdminQrNameEntry() {
     setMobile(item.mobile_number);
     setUpi(item.upi_id);
     setPath(item.image_path);
+    setQrPercent(item.qr_percent !== undefined ? String(item.qr_percent) : "0");
     setEditingId(item.id);
   };
 
@@ -192,6 +196,19 @@ export default function AdminQrNameEntry() {
                 />
               </div>
 
+              <div>
+                <label className="mfp-label font-medium">QR %</label>
+                <input 
+                  className="mfp-input" 
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={qrPercent} 
+                  onChange={(e) => setQrPercent(e.target.value)} 
+                  placeholder="e.g. 0.3" 
+                />
+              </div>
+
 
 
               <div className="pt-2">
@@ -280,6 +297,7 @@ export default function AdminQrNameEntry() {
                         <div className="text-xs text-neutral-600 mt-1 flex flex-col sm:flex-row sm:gap-x-4 sm:gap-y-1">
                           <span>Mobile: <strong className="text-neutral-800">{item.mobile_number}</strong></span>
                           <span className="truncate">UPI: <strong className="text-neutral-800">{item.upi_id}</strong></span>
+                          <span>QR %: <strong className="text-neutral-800">{item.qr_percent || 0}%</strong></span>
                         </div>
 
                       </div>
