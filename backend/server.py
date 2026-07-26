@@ -2068,11 +2068,12 @@ async def log_qr_deactivation():
 async def log_qr_activation(qr_code_id: str, label: str, mobile_number: str, upi_id: str):
     await log_qr_deactivation()
     now = now_iso()
+    clean_label = label.strip()
     async with db.pool.acquire() as conn:
         # Fetch matching entry from qr_name_entries to get qr_percent
         qr_entry = await conn.fetchrow(
             "SELECT qr_percent FROM qr_name_entries WHERE name = $1 AND is_deleted = False LIMIT 1",
-            label
+            clean_label
         )
         qr_percent = float(qr_entry["qr_percent"]) if qr_entry and qr_entry["qr_percent"] is not None else 0.0
         

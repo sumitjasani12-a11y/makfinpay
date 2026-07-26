@@ -38,7 +38,8 @@ TABLE_COLUMNS = {
 
 DATETIME_COLUMNS = {
     "created_at", "updated_at", "kyc_reviewed_at", "password_changed_at", 
-    "reviewed_at", "uploadDate", "started_at", "completed_at", "restore_started_at", "restore_completed_at"
+    "reviewed_at", "uploadDate", "started_at", "completed_at", "restore_started_at", "restore_completed_at",
+    "activated_at", "deactivated_at"
 }
 
 import datetime
