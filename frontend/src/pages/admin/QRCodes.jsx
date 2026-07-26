@@ -87,26 +87,33 @@ export default function AdminQRCodes() {
       
       <div className="grid lg:grid-cols-2 gap-6 mb-8">
         {/* Left Card: Select QR Name Entry */}
-        <div className="mfp-card p-6 flex flex-col justify-between">
-          <div className="flex flex-col items-center text-center mb-6">
-            <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl mb-4">
-              <Upload className="h-6 w-6" />
+        <div className="mfp-card p-8 flex flex-col justify-center items-center">
+          <div className="max-w-xs w-full flex flex-col items-center justify-center space-y-5">
+            {/* Header: Upload New QR */}
+            <div className="flex flex-col items-center text-center">
+              <div className="relative mb-3 flex items-center justify-center">
+                {/* Glowing effect background */}
+                <div className="absolute inset-0 bg-indigo-500/20 blur-xl rounded-full w-14 h-14 animate-pulse"></div>
+                <div className="relative p-3.5 bg-gradient-to-tr from-indigo-500 to-blue-500 text-white rounded-3xl shadow-lg shadow-indigo-500/25">
+                  <Upload className="h-5 w-5" />
+                </div>
+              </div>
+              <h3 className="text-lg font-black tracking-tight text-neutral-800 bg-gradient-to-r from-neutral-800 to-neutral-500 bg-clip-text text-transparent">
+                Upload New QR
+              </h3>
+              <p className="text-[10px] leading-relaxed text-neutral-400 max-w-[220px] mt-1">
+                Enter a unique name for this QR code (e.g. PhonePe_01) to track its entries.
+              </p>
             </div>
-            <h3 className="text-lg font-bold text-neutral-800">Upload New QR</h3>
-            <p className="text-xs text-neutral-400 max-w-[280px] mt-1">
-              Enter a unique name for this QR code (e.g. PhonePe_01) to track its entries.
-            </p>
-          </div>
 
-          <div className="space-y-4">
-            {/* Select QR Entry */}
-            <div>
+            <div className="space-y-3.5 w-full">
+              {/* Select QR Entry */}
               <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-400">
-                  <FileText className="h-4 w-4" />
+                <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-neutral-400 pointer-events-none">
+                  <FileText className="h-3.5 w-3.5" />
                 </span>
                 <select
-                  className="mfp-input pl-10 bg-white"
+                  className="mfp-input !pl-9 !py-2 bg-white text-xs border border-black/10 focus:border-[#1b4332]"
                   value={selectedEntryId}
                   onChange={(e) => handleSelectEntry(e.target.value)}
                   data-testid="qr-select-entry"
@@ -117,66 +124,60 @@ export default function AdminQRCodes() {
                   ))}
                 </select>
               </div>
-            </div>
 
-            {/* QR Name */}
-            <div>
+              {/* QR Name */}
               <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-400">
-                  <Tag className="h-4 w-4" />
+                <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-neutral-400 pointer-events-none">
+                  <Tag className="h-3.5 w-3.5" />
                 </span>
                 <input
-                  className="mfp-input pl-10 bg-neutral-50/50"
+                  className="mfp-input !pl-9 !py-2 bg-neutral-50/50 text-xs border border-black/10 focus:border-[#1b4332]"
                   value={label}
                   onChange={(e) => setLabel(e.target.value)}
                   placeholder="QR Name"
                 />
               </div>
-            </div>
 
-            {/* Mobile Number */}
-            <div>
+              {/* Mobile Number */}
               <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-400">
-                  <Phone className="h-4 w-4" />
+                <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-neutral-400 pointer-events-none">
+                  <Phone className="h-3.5 w-3.5" />
                 </span>
                 <input
-                  className="mfp-input pl-10 bg-neutral-50/50"
+                  className="mfp-input !pl-9 !py-2 bg-neutral-50/50 text-xs border border-black/10 focus:border-[#1b4332]"
                   value={mobile}
                   onChange={(e) => setMobile(e.target.value)}
                   placeholder="WhatsApp Number (e.g. 919876543)"
                 />
               </div>
-            </div>
 
-            {/* UPI ID */}
-            <div>
+              {/* UPI ID */}
               <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-400">
-                  <Link className="h-4 w-4" />
+                <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-neutral-400 pointer-events-none">
+                  <Link className="h-3.5 w-3.5" />
                 </span>
                 <input
-                  className="mfp-input pl-10 bg-neutral-50/50"
+                  className="mfp-input !pl-9 !py-2 bg-neutral-50/50 text-xs border border-black/10 focus:border-[#1b4332]"
                   value={upi}
                   onChange={(e) => setUpi(e.target.value)}
                   placeholder="UPI ID"
                 />
               </div>
+
+              {path && (
+                <div className="text-[10px] text-emerald-600 font-bold pt-0.5 text-center">
+                  QR Image Loaded ✓
+                </div>
+              )}
+
+              <button 
+                className="w-full py-2.5 px-4 flex items-center justify-center gap-2 text-white text-xs font-bold rounded-xl transition-all shadow-md bg-gradient-to-r from-[#9A91FB] to-[#8075f9] hover:from-[#867bf9] hover:to-[#6f63f7] transform hover:-translate-y-0.5 active:translate-y-0" 
+                onClick={create} 
+                data-testid="qr-create"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" /> Update Now
+              </button>
             </div>
-
-            {path && (
-              <div className="text-xs text-emerald-700 font-medium pt-1 text-center">
-                QR Image Loaded ✓
-              </div>
-            )}
-
-            <button 
-              className="w-full py-3 px-4 flex items-center justify-center gap-2 text-white font-semibold rounded-2xl transition-all shadow-md bg-[#9A91FB] hover:bg-[#867bf9]" 
-              onClick={create} 
-              data-testid="qr-create"
-            >
-              <CheckCircle2 className="h-4 w-4" /> Update Now
-            </button>
           </div>
         </div>
 
