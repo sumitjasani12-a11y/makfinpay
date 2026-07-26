@@ -83,7 +83,7 @@ export function PaginationBar({ page, pageSize, total, onPageChange, onPageSizeC
         <label className="flex items-center gap-1">
           Rows per page:
           <select
-            className="mfp-input h-8 py-0 text-xs min-w-[72px]"
+            className="bg-[#FDFCF8] border border-black/10 hover:border-black/20 rounded-lg px-2 py-1 text-xs outline-none cursor-pointer min-w-[64px]"
             value={pageSize}
             onChange={(e) => onPageSizeChange(parseInt(e.target.value, 10))}
             data-testid="pagination-page-size"

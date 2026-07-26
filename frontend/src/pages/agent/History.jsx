@@ -247,7 +247,7 @@ export default function AgentHistory() {
               key: "status",
               label: "Status",
               render: (r) => (
-                <div className="flex flex-col gap-0.5">
+                <div className="flex flex-col items-start gap-0.5">
                   <StatusBadge status={r.status} />
                   {r.status === "pending" && (
                     <span className="text-[9px] font-extrabold text-amber-600 tracking-wide uppercase">
