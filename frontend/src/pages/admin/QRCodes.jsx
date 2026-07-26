@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { api, formatErr, fileUrl, fmtMoney } from "@/lib/api";
 import { PageHeader, EmptyState } from "@/components/Shared";
 import { toast } from "sonner";
-import { CheckCircle2, Trash2, Eye, RefreshCw } from "lucide-react";
+import { CheckCircle2, Trash2, Eye, RefreshCw, Upload, Tag, Phone, Link, FileText } from "lucide-react";
 
 export default function AdminQRCodes() {
   const [items, setItems] = useState([]);
@@ -87,62 +87,95 @@ export default function AdminQRCodes() {
       
       <div className="grid lg:grid-cols-2 gap-6 mb-8">
         {/* Left Card: Select QR Name Entry */}
-        <div className="mfp-card p-6">
-          <h3 className="text-lg font-medium mb-4">Select QR Name Entry</h3>
+        <div className="mfp-card p-6 flex flex-col justify-between">
+          <div className="flex flex-col items-center text-center mb-6">
+            <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl mb-4">
+              <Upload className="h-6 w-6" />
+            </div>
+            <h3 className="text-lg font-bold text-neutral-800">Upload New QR</h3>
+            <p className="text-xs text-neutral-400 max-w-[280px] mt-1">
+              Enter a unique name for this QR code (e.g. PhonePe_01) to track its entries.
+            </p>
+          </div>
+
           <div className="space-y-4">
+            {/* Select QR Entry */}
             <div>
-              <label className="mfp-label font-medium mb-1">Select QR Entry</label>
-              <select
-                className="mfp-input bg-white"
-                value={selectedEntryId}
-                onChange={(e) => handleSelectEntry(e.target.value)}
-                data-testid="qr-select-entry"
-              >
-                <option value="">-- Select QR Entry --</option>
-                {qrEntries.filter(e => e.active).map(e => (
-                  <option key={e.id} value={e.id}>{e.name} ({e.mobile_number})</option>
-                ))}
-              </select>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-400">
+                  <FileText className="h-4 w-4" />
+                </span>
+                <select
+                  className="mfp-input pl-10 bg-white"
+                  value={selectedEntryId}
+                  onChange={(e) => handleSelectEntry(e.target.value)}
+                  data-testid="qr-select-entry"
+                >
+                  <option value="">Select QR Name...</option>
+                  {qrEntries.filter(e => e.active).map(e => (
+                    <option key={e.id} value={e.id}>{e.name} ({e.mobile_number})</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
+            {/* QR Name */}
             <div>
-              <label className="mfp-label font-medium mb-1">QR Name</label>
-              <input
-                className="mfp-input bg-neutral-50/50"
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                placeholder="QR Name"
-              />
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-400">
+                  <Tag className="h-4 w-4" />
+                </span>
+                <input
+                  className="mfp-input pl-10 bg-neutral-50/50"
+                  value={label}
+                  onChange={(e) => setLabel(e.target.value)}
+                  placeholder="QR Name"
+                />
+              </div>
             </div>
 
+            {/* Mobile Number */}
             <div>
-              <label className="mfp-label font-medium mb-1">Mobile Number</label>
-              <input
-                className="mfp-input bg-neutral-50/50"
-                value={mobile}
-                onChange={(e) => setMobile(e.target.value)}
-                placeholder="Mobile Number"
-              />
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-400">
+                  <Phone className="h-4 w-4" />
+                </span>
+                <input
+                  className="mfp-input pl-10 bg-neutral-50/50"
+                  value={mobile}
+                  onChange={(e) => setMobile(e.target.value)}
+                  placeholder="WhatsApp Number (e.g. 919876543)"
+                />
+              </div>
             </div>
 
+            {/* UPI ID */}
             <div>
-              <label className="mfp-label font-medium mb-1">UPI ID</label>
-              <input
-                className="mfp-input bg-neutral-50/50"
-                value={upi}
-                onChange={(e) => setUpi(e.target.value)}
-                placeholder="UPI ID"
-              />
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-400">
+                  <Link className="h-4 w-4" />
+                </span>
+                <input
+                  className="mfp-input pl-10 bg-neutral-50/50"
+                  value={upi}
+                  onChange={(e) => setUpi(e.target.value)}
+                  placeholder="UPI ID"
+                />
+              </div>
             </div>
 
             {path && (
-              <div className="text-xs text-emerald-700 font-medium pt-1">
+              <div className="text-xs text-emerald-700 font-medium pt-1 text-center">
                 QR Image Loaded ✓
               </div>
             )}
 
-            <button className="mfp-btn-primary w-full" onClick={create} data-testid="qr-create">
-              Add QR
+            <button 
+              className="w-full py-3 px-4 flex items-center justify-center gap-2 text-white font-semibold rounded-2xl transition-all shadow-md bg-[#9A91FB] hover:bg-[#867bf9]" 
+              onClick={create} 
+              data-testid="qr-create"
+            >
+              <CheckCircle2 className="h-4 w-4" /> Update Now
             </button>
           </div>
         </div>
