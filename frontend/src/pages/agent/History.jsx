@@ -16,6 +16,8 @@ export default function AgentHistory() {
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [amtQuery, setAmtQuery] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   // pagination
   const [page, setPage] = useState(1);
@@ -35,7 +37,7 @@ export default function AgentHistory() {
 
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, q, amtQuery]);
+  }, [statusFilter, q, amtQuery, startDate, endDate]);
 
   // Client-side stats calculation
   const stats = useMemo(() => {
@@ -85,9 +87,13 @@ export default function AgentHistory() {
       const itemAmt = item.bill_amount ?? item.amount ?? 0;
       const matchesAmount = !amtQuery.trim() || String(itemAmt).includes(amtQuery.trim());
 
-      return matchesStatus && matchesSearch && matchesAmount;
+      const itemDate = item.created_at ? item.created_at.substring(0, 10) : "";
+      const matchesStart = !startDate || itemDate >= startDate;
+      const matchesEnd = !endDate || itemDate <= endDate;
+
+      return matchesStatus && matchesSearch && matchesAmount && matchesStart && matchesEnd;
     });
-  }, [items, statusFilter, q, amtQuery]);
+  }, [items, statusFilter, q, amtQuery, startDate, endDate]);
 
   // Client-side paginate
   const paginatedItems = useMemo(() => {
@@ -144,21 +150,23 @@ export default function AgentHistory() {
 
       {/* Search and Filters Tab */}
       <div className="mfp-card p-5 space-y-4 bg-white">
-        <div className="flex flex-col lg:flex-row gap-4 items-end lg:items-center">
-          <div className="relative flex-1 w-full">
+        <div className="flex flex-wrap items-end lg:items-center gap-4">
+          
+          {/* Main search text input */}
+          <div className="relative flex-1 min-w-[200px]">
             <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
               <Search className="h-4 w-4 text-neutral-400" />
             </span>
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search by Customer, Bank, Card Last 4, Phone..."
+              placeholder="Search by Customer, Bank, Card, Phone..."
               className="mfp-input !pl-11 !pr-10 bg-neutral-50/50"
             />
-            {(q || statusFilter !== "all" || amtQuery !== "") && (
+            {(q || statusFilter !== "all" || amtQuery !== "" || startDate || endDate) && (
               <button
                 type="button"
-                onClick={() => { setQ(""); setStatusFilter("all"); setAmtQuery(""); }}
+                onClick={() => { setQ(""); setStatusFilter("all"); setAmtQuery(""); setStartDate(""); setEndDate(""); }}
                 className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-[#1B4332]"
                 title="Clear all filters"
               >
@@ -166,13 +174,35 @@ export default function AgentHistory() {
               </button>
             )}
           </div>
+
+          {/* Start Date */}
+          <div className="w-full sm:w-auto">
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              placeholder="Start Date"
+              className="mfp-input text-xs bg-[#FDFCF8] border border-black/10 focus:border-[#1b4332] py-2 px-3 rounded-xl cursor-pointer w-full sm:w-36 h-[38px]"
+            />
+          </div>
+
+          {/* End Date */}
+          <div className="w-full sm:w-auto">
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              placeholder="End Date"
+              className="mfp-input text-xs bg-[#FDFCF8] border border-black/10 focus:border-[#1b4332] py-2 px-3 rounded-xl cursor-pointer w-full sm:w-36 h-[38px]"
+            />
+          </div>
           
-          <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-            {/* Status Dropdown */}
+          {/* Status Dropdown */}
+          <div className="w-full sm:w-auto">
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="mfp-input bg-[#FDFCF8] text-xs font-bold rounded-xl py-2.5 px-4 outline-none cursor-pointer border border-black/10 focus:border-[#1b4332] w-full lg:w-44"
+              className="mfp-input bg-[#FDFCF8] text-xs font-bold rounded-xl py-2 px-3 outline-none cursor-pointer border border-black/10 focus:border-[#1b4332] w-full sm:w-36 h-[38px]"
             >
               {STATUS_TABS.map((tab) => (
                 <option key={tab.key} value={tab.key}>
@@ -180,30 +210,31 @@ export default function AgentHistory() {
                 </option>
               ))}
             </select>
-
-            {/* Bill Amount Search Input */}
-            <div className="relative w-full lg:w-44">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
-                <Search className="h-3 w-3 text-neutral-400" />
-              </span>
-              <input
-                type="text"
-                value={amtQuery}
-                onChange={(e) => setAmtQuery(e.target.value.replace(/[^\d.]/g, ""))}
-                placeholder="Search Amount ₹"
-                className="mfp-input !pl-9 text-xs bg-neutral-50/50"
-              />
-              {amtQuery && (
-                <button
-                  type="button"
-                  onClick={() => setAmtQuery("")}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-[#1B4332]"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              )}
-            </div>
           </div>
+
+          {/* Bill Amount Search Input */}
+          <div className="relative w-full sm:w-auto">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+              <Search className="h-3 w-3 text-neutral-400" />
+            </span>
+            <input
+              type="text"
+              value={amtQuery}
+              onChange={(e) => setAmtQuery(e.target.value.replace(/[^\d.]/g, ""))}
+              placeholder="Search Amount ₹"
+              className="mfp-input !pl-8 text-xs bg-neutral-50/50 w-full sm:w-36 h-[38px]"
+            />
+            {amtQuery && (
+              <button
+                type="button"
+                onClick={() => setAmtQuery("")}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-[#1B4332]"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+
         </div>
       </div>
 
