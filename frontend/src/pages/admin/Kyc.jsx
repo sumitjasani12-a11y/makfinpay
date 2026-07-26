@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { api, formatErr, fmtDate, fileUrl } from "@/lib/api";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import { toast } from "sonner";
-import { Check, X, Eye, AlertCircle } from "lucide-react";
+import { Check, X, Eye, AlertCircle, Search, RotateCcw } from "lucide-react";
 
 function RejectModal({ onClose, onConfirm }) {
   const [reason, setReason] = useState("");
@@ -146,17 +146,61 @@ function KycDetailModal({ record, onClose, onApprove, onReject }) {
   );
 }
 
+
+
 export default function AdminKyc() {
   const [items, setItems] = useState([]);
   const [selected, setSelected] = useState(null);
   const [rejecting, setRejecting] = useState(null);
 
+  // filters & search & pagination state
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [q, setQ] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10); // default to 10 entries!
+
   const reload = useCallback(
-    () => api.get("/admin/kyc").then((r) => setItems(r.data)),
+    () => api.get("/admin/kyc").then((r) => setItems(r.data || [])),
     []
   );
   
   useEffect(() => { reload(); }, [reload]);
+
+  // Reset page to 1 when filters change
+  useEffect(() => { setPage(1); }, [statusFilter, q, pageSize]);
+
+  // Filter items on client-side
+  const filteredItems = useMemo(() => {
+    return items.filter((item) => {
+      // status match
+      const currentStatus = item.status || "pending";
+      if (statusFilter !== "all" && currentStatus !== statusFilter) return false;
+
+      // search match
+      if (q.trim()) {
+        const query = q.toLowerCase();
+        const agentName = (item.user?.full_name || "").toLowerCase();
+        const firmName = (item.user?.firm_name || "").toLowerCase();
+        const distributor = (item.distributor_name || "").toLowerCase();
+        const phone = (item.user?.phone || "").toLowerCase();
+        if (
+          !agentName.includes(query) &&
+          !firmName.includes(query) &&
+          !distributor.includes(query) &&
+          !phone.includes(query)
+        ) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [items, statusFilter, q]);
+
+  // Paginated items on client-side
+  const paginatedItems = useMemo(() => {
+    const startIndex = (page - 1) * pageSize;
+    return filteredItems.slice(startIndex, startIndex + pageSize);
+  }, [filteredItems, page, pageSize]);
 
   const approve = async (uid) => {
     try { 
@@ -181,9 +225,69 @@ export default function AdminKyc() {
     }
   };
 
+  const clearAll = () => {
+    setQ("");
+    setStatusFilter("all");
+    setPage(1);
+  };
+
   return (
     <div>
       <PageHeader title="KYC Review" subtitle="Review, approve, or reject agent KYC applications and firm documents." />
+
+      {/* Filters card */}
+      <div className="mfp-card p-5 mb-6 space-y-4" data-testid="kyc-filter-bar">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="relative md:col-span-2">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
+              <Search className="h-4 w-4 text-neutral-400" />
+            </span>
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search by Agent Name, Firm Name, Phone..."
+              className="mfp-input !pl-11 !pr-10"
+              data-testid="kyc-search"
+            />
+            {q && (
+              <button
+                type="button"
+                onClick={() => setQ("")}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-[#1B4332]"
+                data-testid="kyc-search-clear"
+                aria-label="Clear search"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          <div>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="mfp-input w-full"
+              data-testid="kyc-status-filter"
+            >
+              <option value="all">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+              <option value="not_submitted">Not Submitted</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-black/5">
+          <div className="text-sm text-neutral-600" data-testid="kyc-results-count">
+            Matched <span className="font-semibold">{filteredItems.length}</span> KYC records
+          </div>
+          <button onClick={clearAll} className="mfp-btn-ghost" data-testid="kyc-clear-all">
+            <RotateCcw className="h-3.5 w-3.5" /> Clear All Filters
+          </button>
+        </div>
+      </div>
+
       <DataTable
         columns={[
           { key: "agent", label: "Agent Name", render: (r) => r.user?.full_name || "—" },
@@ -206,8 +310,15 @@ export default function AdminKyc() {
             </button>
           ) },
         ]}
-        rows={items}
+        rows={paginatedItems}
         empty="No agent KYC records yet"
+        pagination={{
+          page,
+          pageSize,
+          total: filteredItems.length,
+          onPageChange: setPage,
+          onPageSizeChange: (n) => { setPageSize(n); setPage(1); },
+        }}
       />
       
       {selected && (
