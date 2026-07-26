@@ -163,7 +163,7 @@ export default function AgentBillPay() {
               <div className="flex items-center gap-3 w-full">
                 <button
                   disabled={busy || exceedsLimit}
-                  className="mfp-btn-secondary flex-1 disabled:opacity-50 disabled:cursor-not-allowed py-2.5 flex items-center justify-center gap-2 h-[38px] rounded-xl text-xs font-bold"
+                  className="mfp-btn-secondary flex-1 w-1/2 disabled:opacity-50 disabled:cursor-not-allowed py-2.5 flex items-center justify-center gap-2 h-[38px] rounded-xl text-xs font-bold"
                   data-testid="bill-submit"
                 >
                   {busy
@@ -179,7 +179,7 @@ export default function AgentBillPay() {
                   type="button"
                   onClick={() => setF({ customer_name: "", card_last4: "", operator: "", customer_phone: "", amount: "" })}
                   disabled={busy}
-                  className="px-4 border border-black/10 hover:bg-neutral-50 text-neutral-600 h-[38px] rounded-xl text-xs font-bold transition-all"
+                  className="flex-1 w-1/2 border border-black/10 hover:bg-neutral-50 text-neutral-600 h-[38px] rounded-xl text-xs font-bold transition-all flex items-center justify-center"
                 >
                   Clear
                 </button>
