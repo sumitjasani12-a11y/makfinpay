@@ -1261,7 +1261,19 @@ async def admin_delete_user(uid: str, request: Request, user=Depends(require_rol
     if not u:
         raise HTTPException(404, "User not found")
         
-    await db.users.update_one({"id": uid}, {"$set": {"is_deleted": True, "frozen": True}})
+    await db.users.delete_many({"id": uid})
+    await db.kyc.delete_many({"user_id": uid})
+    await db.wallets.delete_many({"user_id": uid})
+    await db.ledger.delete_many({"user_id": uid})
+    await db.recharges.delete_many({"user_id": uid})
+    await db.transactions.delete_many({"user_id": uid})
+    await db.withdrawals.delete_many({"user_id": uid})
+    await db.bank_details.delete_many({"user_id": uid})
+    await db.notifications.delete_many({"user_id": uid})
+    await db.fraud_flags.delete_many({"user_id": uid})
+    await db.audit_logs.delete_many({"user_id": uid})
+    await db.audit_logs.delete_many({"target": uid})
+    
     await write_audit(user["id"], "delete_user", target=uid, request=request)
     return {"ok": True}
 
