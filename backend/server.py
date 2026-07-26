@@ -1979,9 +1979,9 @@ async def admin_kyc(user=Depends(require_roles("admin"))):
 
 @api.post("/admin/kyc/{uid}/approve")
 async def admin_approve_kyc(uid: str, request: Request, user=Depends(require_roles("admin"))):
-    target = await db.users.find_one({"id": uid, "role": "agent"})
+    target = await db.users.find_one({"id": uid, "role": {"$in": ["agent", "distributor", "master_distributor"]}})
     if not target:
-        raise HTTPException(404, "Agent not found")
+        raise HTTPException(404, "User not found")
     await db.kyc.update_one(
         {"user_id": uid},
         {"$set": {"status": "approved", "rejection_reason": "",
@@ -1993,16 +1993,16 @@ async def admin_approve_kyc(uid: str, request: Request, user=Depends(require_rol
                   "kyc_reviewed_at": now_iso(), "kyc_reviewed_by": user["id"]}},
     )
     await write_audit(user["id"], "kyc_approved", target=uid,
-                      meta={"agent_id": uid, "agent_name": target.get("full_name", "")},
+                      meta={"user_id": uid, "user_name": target.get("full_name", ""), "role": target.get("role")},
                       request=request)
     return {"ok": True, "kyc_status": "approved"}
 
 
 @api.post("/admin/kyc/{uid}/reject")
 async def admin_reject_kyc(uid: str, body: ApprovalIn, request: Request, user=Depends(require_roles("admin"))):
-    target = await db.users.find_one({"id": uid, "role": "agent"})
+    target = await db.users.find_one({"id": uid, "role": {"$in": ["agent", "distributor", "master_distributor"]}})
     if not target:
-        raise HTTPException(404, "Agent not found")
+        raise HTTPException(404, "User not found")
     reason = (body.note or "").strip()
     await db.kyc.update_one(
         {"user_id": uid},
