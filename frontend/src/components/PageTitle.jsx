@@ -32,6 +32,7 @@ const ROUTE_META = {
   "/admin/withdrawals": { title: "Withdrawals | MAK FIN PAY" },
   "/admin/transactions": { title: "Transactions | MAK FIN PAY" },
   "/admin/qrcodes": { title: "QR Codes | MAK FIN PAY" },
+  "/admin/qr-name-entry": { title: "QR Name Entry | MAK FIN PAY" },
   "/admin/commission": { title: "Commission Settings | MAK FIN PAY" },
   "/admin/kyc": { title: "KYC Review | MAK FIN PAY" },
   "/admin/audit": { title: "Audit Logs | MAK FIN PAY" },

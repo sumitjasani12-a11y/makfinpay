@@ -19,6 +19,7 @@ import AdminCommission from "@/pages/admin/Commission";
 import AdminKyc from "@/pages/admin/Kyc";
 import AdminAudit from "@/pages/admin/Audit";
 import AdminBackups from "@/pages/admin/Backups";
+import AdminQrNameEntry from "@/pages/admin/QrNameEntry";
 
 import DistOverview from "@/pages/distributor/Overview";
 import DistAgents from "@/pages/distributor/Agents";
@@ -80,6 +81,7 @@ export default function App() {
             <Route path="withdrawals" element={<AdminWithdrawals />} />
             <Route path="transactions" element={<AdminTransactions />} />
             <Route path="qrcodes" element={<AdminQRCodes />} />
+            <Route path="qr-name-entry" element={<AdminQrNameEntry />} />
             <Route path="commission" element={<AdminCommission />} />
             <Route path="kyc" element={<AdminKyc />} />
             <Route path="audit" element={<AdminAudit />} />

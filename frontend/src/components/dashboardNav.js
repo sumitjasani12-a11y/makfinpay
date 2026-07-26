@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Users, UserCog, ArrowDownToLine, ArrowUpFromLine, Wallet,
   QrCode, Percent, FileCheck2, ScrollText, CreditCard, History,
-  FilePlus2, KeyRound, DatabaseBackup, Crown,
+  FilePlus2, KeyRound, DatabaseBackup, Crown, FileText,
 } from "lucide-react";
 
 /** Static navigation map per role — referenced by DashboardLayout. */
@@ -15,6 +15,7 @@ export const NAV = {
     { to: "/admin/withdrawals", label: "Withdrawals", icon: ArrowUpFromLine },
     { to: "/admin/transactions", label: "Transactions", icon: CreditCard },
     { to: "/admin/qrcodes", label: "QR Codes", icon: QrCode },
+    { to: "/admin/qr-name-entry", label: "QR Name Entry", icon: FileText },
     { to: "/admin/commission", label: "Commission", icon: Percent },
     { to: "/admin/kyc", label: "KYC Review", icon: FileCheck2 },
     { to: "/admin/audit", label: "Audit Logs", icon: ScrollText },
