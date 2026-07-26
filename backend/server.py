@@ -2201,26 +2201,37 @@ async def admin_create_qr(body: QRCodeIn, user=Depends(require_roles("admin"))):
 async def admin_list_qr(user=Depends(require_roles("admin"))):
     qrs = await db.qr_codes.find({"is_deleted": False}, {"_id": 0}).sort("created_at", -1).to_list(100)
     async with db.pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT 
+                qr_code_id,
+                COALESCE(SUM(CASE WHEN status = 'approved' THEN amount END), 0) AS approved_amount,
+                COUNT(*) AS total_count,
+                COUNT(CASE WHEN status = 'pending' THEN 1 END) AS pending_count,
+                COUNT(CASE WHEN status = 'approved' THEN 1 END) AS approved_count,
+                COUNT(CASE WHEN status = 'rejected' THEN 1 END) AS rejected_count
+            FROM recharges
+            GROUP BY qr_code_id
+        """)
+        stats_map = {}
+        for r in rows:
+            if r["qr_code_id"]:
+                stats_map[str(r["qr_code_id"])] = {
+                    "approved_amount": float(r["approved_amount"]),
+                    "total_entries": r["total_count"] or 0,
+                    "pending": r["pending_count"] or 0,
+                    "approved": r["approved_count"] or 0,
+                    "rejected": r["rejected_count"] or 0
+                }
+                
         for qr in qrs:
             qid = qr["id"]
-            approved_amount_row = await conn.fetchrow(
-                'SELECT COALESCE(SUM(amount), 0) FROM recharges WHERE qr_code_id = $1::uuid AND status = \'approved\'',
-                qid
-            )
-            approved_amount = float(approved_amount_row[0]) if approved_amount_row else 0.0
-
-            total_count = await conn.fetchval('SELECT COUNT(*) FROM recharges WHERE qr_code_id = $1::uuid', qid)
-            pending_count = await conn.fetchval('SELECT COUNT(*) FROM recharges WHERE qr_code_id = $1::uuid AND status = \'pending\'', qid)
-            approved_count = await conn.fetchval('SELECT COUNT(*) FROM recharges WHERE qr_code_id = $1::uuid AND status = \'approved\'', qid)
-            rejected_count = await conn.fetchval('SELECT COUNT(*) FROM recharges WHERE qr_code_id = $1::uuid AND status = \'rejected\'', qid)
-            
-            qr["stats"] = {
-                "approved_amount": approved_amount,
-                "total_entries": total_count or 0,
-                "pending": pending_count or 0,
-                "approved": approved_count or 0,
-                "rejected": rejected_count or 0
-            }
+            qr["stats"] = stats_map.get(qid, {
+                "approved_amount": 0.0,
+                "total_entries": 0,
+                "pending": 0,
+                "approved": 0,
+                "rejected": 0
+            })
     return qrs
 
 @api.patch("/admin/qrcodes/{qid}/activate")
