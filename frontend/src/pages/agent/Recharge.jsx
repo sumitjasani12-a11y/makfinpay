@@ -118,21 +118,22 @@ export default function AgentRecharge() {
                   />
                 </div>
 
-                {/* Checkmark Name Badge */}
-                <div className="mt-5 inline-flex items-center gap-1.5 bg-[#E8F5E9] text-[#00966B] border border-[#C8E6C9] py-1.5 px-4.5 rounded-full text-xs font-bold uppercase tracking-wide">
-                  <Check className="h-3.5 w-3.5 stroke-[3]" /> {qr.label}
+                {/* QR Name Badge (Large, Uniform, with QrCode icon) */}
+                <div className="mt-5 w-full max-w-[280px] flex items-center justify-center gap-2 bg-[#E8F5E9] text-[#00966B] border border-[#C8E6C9] py-2.5 px-4 rounded-xl text-xs font-extrabold uppercase tracking-wide shadow-sm">
+                  <QrCode className="h-4 w-4 text-[#00966B]" />
+                  <span>{qr.label}</span>
                 </div>
 
-                {/* UPI Copy Badge */}
+                {/* UPI Copy Badge (Large, Uniform, Copier Button) */}
                 {qr.upi_id && (
-                  <div className="mt-3">
+                  <div className="mt-3 w-full max-w-[280px]">
                     <button
                       type="button"
                       onClick={() => copyToClipboard(qr.upi_id)}
-                      className="inline-flex items-center gap-2 bg-[#E3F2FD] text-[#1E88E5] border border-[#BBDEFB] py-1 px-3.5 rounded-full text-[11px] font-semibold hover:bg-[#D9EBFD] active:scale-95 transition-all"
+                      className="w-full flex items-center justify-between gap-2 bg-[#E3F2FD] text-[#1E88E5] border border-[#BBDEFB] py-2.5 px-4 rounded-xl text-[11px] font-bold shadow-sm hover:bg-[#D9EBFD] active:scale-98 transition-all"
                     >
-                      <span>UPI ID: <strong>{qr.upi_id}</strong></span>
-                      <span className="text-[9px] bg-[#1E88E5] text-white px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Copy</span>
+                      <span className="truncate">UPI ID: <strong>{qr.upi_id}</strong></span>
+                      <span className="text-[9px] bg-[#1E88E5] text-white px-2 py-0.5 rounded-md font-extrabold uppercase tracking-wider flex-shrink-0">Copy</span>
                     </button>
                   </div>
                 )}
