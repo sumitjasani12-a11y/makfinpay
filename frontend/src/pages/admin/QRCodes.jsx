@@ -177,12 +177,12 @@ export default function AdminQRCodes() {
           {activeQr ? (
             <div className="grid md:grid-cols-5 gap-6">
               {/* QR Image Container (Col span 2) */}
-              <div className="md:col-span-2 flex flex-col justify-center items-center">
-                <div className="p-4 border border-black/5 bg-[#F4F3ED] rounded-2xl w-full flex items-center justify-center min-h-[220px] shadow-sm">
+              <div className="md:col-span-2 flex flex-col">
+                <div className="p-4 border border-black/5 bg-[#F4F3ED] rounded-3xl w-full h-full flex items-center justify-center shadow-sm min-h-[240px]">
                   <img 
                     src={fileUrl(activeQr.image_path)} 
                     alt="active qr" 
-                    className="mx-auto rounded-xl max-h-48 object-contain" 
+                    className="mx-auto rounded-xl max-h-56 object-contain" 
                   />
                 </div>
               </div>
