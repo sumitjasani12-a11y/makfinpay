@@ -166,15 +166,23 @@ export default function BankDetailsCard({ onSaved, highlightMissing = [] }) {
               />
             </div>
 
-            <div className="flex items-end">
+            <div className="flex items-end gap-2">
+              <button
+                type="button"
+                onClick={() => setB({ account_holder: "", account_number: "", ifsc: "", bank_name: "", phone_number: "" })}
+                disabled={saving || !loaded}
+                className="border border-black/15 text-neutral-600 hover:bg-neutral-50 bg-[#FDFCF8] flex-1 h-[42px] py-0 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+              >
+                Clear
+              </button>
               <button
                 type="submit"
                 disabled={saving || !loaded || !allFilled}
-                className="mfp-btn-primary disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 w-full h-[42px]"
+                className="mfp-btn-primary flex-1 h-[42px] py-0 text-xs font-bold rounded-xl inline-flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 data-testid="bank-save"
               >
-                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-                {saving ? "Saving…" : "Save Bank Details"}
+                {saving && <Loader2 className="h-3 w-3 animate-spin" />}
+                {saving ? "Saving…" : "Save"}
               </button>
             </div>
 
