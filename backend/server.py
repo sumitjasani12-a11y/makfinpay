@@ -2074,7 +2074,29 @@ async def admin_create_qr(body: QRCodeIn, user=Depends(require_roles("admin"))):
 
 @api.get("/admin/qrcodes")
 async def admin_list_qr(user=Depends(require_roles("admin"))):
-    return await db.qr_codes.find({"is_deleted": False}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    qrs = await db.qr_codes.find({"is_deleted": False}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    async with db.pool.acquire() as conn:
+        for qr in qrs:
+            qid = qr["id"]
+            approved_amount_row = await conn.fetchrow(
+                'SELECT COALESCE(SUM(amount), 0) FROM recharges WHERE qr_code_id = $1 AND status = \'approved\'',
+                qid
+            )
+            approved_amount = float(approved_amount_row[0]) if approved_amount_row else 0.0
+
+            total_count = await conn.fetchval('SELECT COUNT(*) FROM recharges WHERE qr_code_id = $1', qid)
+            pending_count = await conn.fetchval('SELECT COUNT(*) FROM recharges WHERE qr_code_id = $1 AND status = \'pending\'', qid)
+            approved_count = await conn.fetchval('SELECT COUNT(*) FROM recharges WHERE qr_code_id = $1 AND status = \'approved\'', qid)
+            rejected_count = await conn.fetchval('SELECT COUNT(*) FROM recharges WHERE qr_code_id = $1 AND status = \'rejected\'', qid)
+            
+            qr["stats"] = {
+                "approved_amount": approved_amount,
+                "total_entries": total_count or 0,
+                "pending": pending_count or 0,
+                "approved": approved_count or 0,
+                "rejected": rejected_count or 0
+            }
+    return qrs
 
 @api.patch("/admin/qrcodes/{qid}/activate")
 async def admin_activate_qr(qid: str, user=Depends(require_roles("admin"))):
