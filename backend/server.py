@@ -13,6 +13,7 @@ import requests
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Literal
+from decimal import Decimal
 import gzip
 import io
 import re
@@ -21,7 +22,7 @@ import json as _json
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-from database import DuplicateKeyError, AsyncIOMotorGridFSBucket, AsyncIOMotorClient
+from database import DuplicateKeyError, AsyncIOMotorGridFSBucket, AsyncIOMotorClient, convert_val
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, UploadFile, File, Form, Header, Query
 from fastapi.responses import Response as FastResponse
 from starlette.middleware.cors import CORSMiddleware
