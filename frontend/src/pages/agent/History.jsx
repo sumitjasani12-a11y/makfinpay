@@ -15,6 +15,8 @@ export default function AgentHistory() {
   const [loading, setLoading] = useState(false);
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [minAmt, setMinAmt] = useState("");
+  const [maxAmt, setMaxAmt] = useState("");
 
   // pagination
   const [page, setPage] = useState(1);
@@ -34,7 +36,7 @@ export default function AgentHistory() {
 
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, q]);
+  }, [statusFilter, q, minAmt, maxAmt]);
 
   // Client-side stats calculation
   const stats = useMemo(() => {
@@ -80,9 +82,17 @@ export default function AgentHistory() {
         (item.operator || "").toLowerCase().includes(term) ||
         (item.card_last4 || "").toLowerCase().includes(term) ||
         (item.customer_phone || "").toLowerCase().includes(term);
-      return matchesStatus && matchesSearch;
+
+      const itemAmt = item.bill_amount ?? item.amount ?? 0;
+      const min = minAmt ? parseFloat(minAmt) : null;
+      const max = maxAmt ? parseFloat(maxAmt) : null;
+
+      const matchesMin = min === null || itemAmt >= min;
+      const matchesMax = max === null || itemAmt <= max;
+
+      return matchesStatus && matchesSearch && matchesMin && matchesMax;
     });
-  }, [items, statusFilter, q]);
+  }, [items, statusFilter, q, minAmt, maxAmt]);
 
   // Client-side paginate
   const paginatedItems = useMemo(() => {
@@ -139,41 +149,64 @@ export default function AgentHistory() {
 
       {/* Search and Filters Tab */}
       <div className="mfp-card p-5 space-y-4 bg-white">
-        <div className="flex flex-col lg:flex-row gap-4">
-          <div className="relative flex-1">
+        <div className="flex flex-col lg:flex-row gap-4 items-end lg:items-center">
+          <div className="relative flex-1 w-full">
             <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
               <Search className="h-4 w-4 text-neutral-400" />
             </span>
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search by Customer Name, Bank, Card Last 4 digits, Customer Phone..."
+              placeholder="Search by Customer, Bank, Card Last 4, Phone..."
               className="mfp-input !pl-11 !pr-10 bg-neutral-50/50"
             />
-            {q && (
+            {(q || statusFilter !== "all" || minAmt || maxAmt) && (
               <button
                 type="button"
-                onClick={() => setQ("")}
+                onClick={() => { setQ(""); setStatusFilter("all"); setMinAmt(""); setMaxAmt(""); }}
                 className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-[#1B4332]"
+                title="Clear all filters"
               >
                 <X className="h-4 w-4" />
               </button>
             )}
           </div>
-          <div className="flex gap-2 self-start lg:self-auto flex-wrap">
-            {STATUS_TABS.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setStatusFilter(tab.key)}
-                className={`rounded-xl px-4 py-2 text-xs font-bold transition-all shadow-sm ${
-                  statusFilter === tab.key
-                    ? "bg-[#1B4332] text-white"
-                    : "bg-[#FDFCF8] text-neutral-700 border border-black/5 hover:bg-[#F4F3ED]"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+          
+          <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+            {/* Status Dropdown */}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="mfp-input bg-[#FDFCF8] text-xs font-bold rounded-xl py-2.5 px-4 outline-none cursor-pointer border border-black/10 focus:border-[#1b4332] w-full lg:w-44"
+            >
+              {STATUS_TABS.map((tab) => (
+                <option key={tab.key} value={tab.key}>
+                  {tab.label}
+                </option>
+              ))}
+            </select>
+
+            {/* Min Amount */}
+            <div className="w-full lg:w-28">
+              <input
+                type="number"
+                value={minAmt}
+                onChange={(e) => setMinAmt(e.target.value)}
+                placeholder="Min ₹"
+                className="mfp-input text-xs bg-neutral-50/50"
+              />
+            </div>
+
+            {/* Max Amount */}
+            <div className="w-full lg:w-28">
+              <input
+                type="number"
+                value={maxAmt}
+                onChange={(e) => setMaxAmt(e.target.value)}
+                placeholder="Max ₹"
+                className="mfp-input text-xs bg-neutral-50/50"
+              />
+            </div>
           </div>
         </div>
       </div>
