@@ -18,6 +18,7 @@ export default function AdminTransactions() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [agents, setAgents] = useState([]);
+  const [banks, setBanks] = useState([]);
 
   // filter state
   const [q, setQ] = useState("");
