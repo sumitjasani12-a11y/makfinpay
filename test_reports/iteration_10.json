@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 10 — Backup & Restore data-integrity fix validated end-to-end. Built /app/backend/tests/test_backup_restore.py (8 tests, all PASS in 31s) covering: dynamic collection enumeration (future-proof — proven by injecting a brand-new collection BEFORE backup and seeing it captured), file binary capture (SHA256-verified base64 round-trip in payload['files']), end-to-end file restore (upload PNG → backup → delete files-collection doc → /api/files returns 404 → restore → /api/files returns SAME bytes, SHA256 match), partial-restore detection (tampered manifest with file_count+999 → HTTP 409 'verification FAILED' + safety_backup_id), safety backup is itself version=2 with manifest, restore does NOT delete pre-existing backups (BACKUP_EXCLUDED_COLLECTIONS protects 'backups' collection), single _create_backup function used by both manual and daily job. UI smoke test: login as Super Admin → /admin/backups → created manual snapshot 'ui-smoke-iter10' → clicked Restore on a backup → pre-restore safety snapshot auto-created at top of history.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_backup_restore.py",
+    "/app/test_reports/pytest/backup_restore.xml"
+  ],
+  "action_items": [
+    "Prior iteration regression test files (test_recharge_idempotency.py, test_agent_recharge_validation.py, test_billpay_tier_boundary.py, test_distributor_withdrawal_bug.py) ERROR at setup because their fixtures expect users test_dist_2a03f52a@x.com / test_agent_46a8e0d6@x.com that were wiped in iteration_9 (Erase Demo Data test). This is preexisting test-infra debt, NOT a regression from the backup fix. To restore green regression coverage, re-seed those users (or refactor those tests to create their own ephemeral users in setUp).",
+    "Optional polish: extend payload['files'] entries with an sha256 field so restore can verify byte-equality per file (today the manifest only counts files, not their hashes). Not blocking — defense in depth."
+  ],
+  "critical_code_review_comments": [
+    "_dump_db_to_gz_bytes correctly uses bson.json_util for BSON-safe serialization — preserves ObjectId, datetime, Binary in nested fields.",
+    "BACKUP_EXCLUDED_COLLECTIONS is a SET (not allowlist) — new app collections are automatically included. Verified empirically with test_future_collection_iter10.",
+    "_create_backup is the sole backup writer — manual (line 1997), restore safety (lines 2028, 2061), and _daily_backup_job (line 1907) all call the same function. No drift possible.",
+    "Restore re-uploads file binaries via put_object BEFORE returning, then verifies counts. HTTP 409 path includes safety_backup_id so admin can roll back.",
+    "Minor: file_fetch_errors are logged into the manifest at backup time but the restore-side mismatch check only compares restored vs manifest['file_count'], so if a backup is taken while a file is missing from storage, the count will already be consistent and no warning surfaces at restore. Acceptable but worth a future enhancement to expose manifest['file_fetch_errors'] in the UI.",
+    "server.py is now 2114 lines — exceeds 700-line threshold from code-review guidelines. Suggest splitting backup module into /app/backend/modules/backup.py in a future iteration."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_backup_restore.py (new)"
+  ],
+  "success_rate": {"backend": "100% (8/8 backup tests)", "frontend": "100% (admin Backups page loads, create + restore work, safety backup auto-created)"},
+  "test_credentials": "Super Admin makfinpay@gmail.com / Riyaz@1212 — works. Agent test_agent_46a8e0d6@x.com / TestPass@123 from review_request DOES NOT exist (wiped in iteration_9, per /app/memory/test_credentials.md). The backup tests used Super Admin for uploads instead, which exercises the identical code path because /api/uploads accepts any authenticated user.",
+  "seed_data_creation": "Test injects and drops a 1-doc collection 'test_future_collection_iter10' for the future-proof enumeration assertion (cleaned up in finally block). Test uploads a 67-byte PNG via /api/uploads as Super Admin — the files-collection row is removed by the restore tests themselves (restore re-inserts everything).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backup/restore is hardened and verified at iteration_10. Key insight: pytest CLI must inject REACT_APP_BACKEND_URL because /app pytest sessions don't auto-source frontend/.env. Use: `REACT_APP_BACKEND_URL=https://fintech-bill-pay.preview.emergentagent.com python -m pytest ...`. The four older regression test files have hard-coded test_dist/test_agent emails that no longer exist post-iteration_9 — they need re-seeding before they can run green.",
+  "rca of the issue": "Original bug had 3 root causes: (1) BACKUP_INCLUDED_COLLECTIONS was a hardcoded allowlist — any new collection added later was silently dropped at backup time; (2) the 'files' collection holds object-storage POINTERS only, so backing up just the docs left zero binary content captured (after Reset Demo Data + Restore the storage_path entries pointed at deleted blobs); (3) restore reported success even when collections/files were short. Fix in server.py L1693-1858 replaces the allowlist with a dynamic enumeration via db.list_collection_names() minus an EXCLUDED set, switches to bson.json_util for BSON-safe ser/de, fetches every file via get_object(storage_path) and base64-encodes into payload['files'], adds a manifest with per-collection counts + file_count, and verifies on restore — raising HTTP 409 with safety_backup_id on any mismatch. End-to-end SHA256 round-trip on a real PNG file proves byte equivalence (test_upload_backup_delete_restore_returns_same_bytes)."
+}

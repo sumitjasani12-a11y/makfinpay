@@ -1,0 +1,12 @@
+# MAK FIN PAY
+
+> MAK FIN PAY is an India-based digital utility payment platform for agent-led bill collection, mobile/DTH recharges and credit card bill payments, with a 3-tier (Admin / Distributor / Agent) wallet and commission system.
+
+## About
+
+- [Home](https://makfinpay.com/): Landing page with services overview and platform information.
+- [Login](https://makfinpay.com/login): Operator portal sign-in for admins, distributors and agents.
+
+## Public Pages
+
+Only the landing page and the login page are publicly accessible. All dashboard routes (/admin, /distributor, /agent) require authentication and are excluded from crawling.

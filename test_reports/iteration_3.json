@@ -1,0 +1,41 @@
+{
+  "summary": "KYC overhaul E2E regression — backend + frontend. 45/45 pytest cases pass (11 new in test_kyc_overhaul.py + 34 carried-over legacy after KYC-aware updates). All 11 backend KYC scenarios from the review request verified end-to-end against the public ingress: missing-docs 400, pending-create 201 + auto-kyc record, distributor 400 for missing docs, pending agent login -> 403 with exact message, approve writes to both db.kyc + db.users + audit 'kyc_approved' + agent can login, reject writes both + persists reason + audit 'kyc_rejected' + login 403 'rejected', /admin/kyc shape (user_id/aadhaar_path/pan_path/status/user{full_name,phone,address}/distributor_name/submitted_at; agents only), pending_kyc_count in /admin/stats/financial cross-checks with len(pending /admin/kyc rows), pre-existing agents (kyc_status=approved & empty aadhaar_path) still approved, /api/kyc and /api/kyc/mine return 404/405, distributor-created agent shows distributor_name (not 'Admin'). Frontend (Playwright): admin login OK, kpi-pending-kyc visible & navigates to /admin/kyc, KYC Review sidebar item present, /admin/agents shows Aadhaar/PAN FileUpload dropboxes — submitting without uploads shows 'Aadhaar and PAN documents are required' toast, /admin/kyc table columns exactly [Agent Name, Distributor, Phone, Address, Aadhaar, PAN, Status, Submitted, Action], inline amber login-kyc-error renders for pending agent with exact backend message. /app/frontend/src/pages/agent/Kyc.jsx is deleted; AgentKyc no longer in App.js; dashboardNav.js has no agent KYC entry.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_kyc_overhaul.py",
+    "/app/backend/tests/test_makfinpay_no_agent_code.py",
+    "/app/backend/tests/test_refactor_regression.py",
+    "/app/test_reports/pytest/kyc_overhaul.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "create_subuser correctly gates body.aadhaar_path/pan_path for role='agent' and auto-upserts a /admin/kyc record on creation. Clean.",
+    "Login KYC gate at server.py:218-223 reads kyc_status with default 'approved', so pre-existing agents (no field) and migrated ones both login. Verified against live admin/users listing.",
+    "_migrate_kyc_status() runs in @app.on_event('startup') — works but FastAPI startup events are deprecated; consider migrating to lifespan handlers (already noted in iteration_2).",
+    "/admin/kyc enrichment trusts user.kyc_status as the source of truth and overwrites it.status — good, prevents drift between db.users and db.kyc.",
+    "pending_kyc_count uses db.users.count_documents (correct authoritative source).",
+    "server.py is now 1374 lines — KYC adds ~80 lines; the split-into-routers recommendation from iteration_2 remains valid.",
+    "Audit endpoint is /admin/audit-logs (not /admin/audit) — legacy tests needed adjustment; consider documenting the contract."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_kyc_overhaul.py (NEW — 11 tests covering the full KYC overhaul contract)",
+    "/app/backend/tests/test_makfinpay_no_agent_code.py (added aadhaar_path/pan_path to admin + distributor agent-create bodies; test_agent_login now approves KYC first as the contract requires)",
+    "/app/backend/tests/test_refactor_regression.py (added aadhaar_path/pan_path to both admin- and distributor-created agent payloads)"
+  ],
+  "success_rate": {"backend": "100% (45/45)", "frontend": "100% (6/6 KYC-flow UI checks)"},
+  "test_credentials": "Admin: makfinpay@gmail.com / Riyaz@1212 (matches /app/memory/test_credentials.md)",
+  "seed_data_creation": "Per-run TEST_kyc_dist_<sfx>@, TEST_kyc_admin_agent_<sfx>@, TEST_pending_agent_<sfx>@, TEST_approve_agent_<sfx>@, TEST_reject_agent_<sfx>@, TEST_kyc_dist_agent_<sfx>@, TEST_no_docs_<sfx>@, TEST_dist_no_docs_<sfx>@, plus one ui_pending_<sfx>@example.com from the browser test. No delete API for users — distributors/agents persist (frozen=False).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run: ADMIN_PASSWORD='Riyaz@1212' MONGO_URL='mongodb://localhost:27017' DB_NAME='makfinpay_db' pytest /app/backend/tests/ -v. Three suites exist now: test_kyc_overhaul.py (KYC-specific), test_makfinpay_no_agent_code.py (full flow), test_refactor_regression.py (refactor regression). All idempotent. The KYC contract is: agents require aadhaar_path+pan_path at create; backend stores any string (uploaded file path) — tests use '/uploads/test_aadhaar.pdf' style strings without actually uploading. Login is gated for kyc_status='pending'/'rejected'. Approval/rejection endpoints update BOTH db.kyc and db.users.kyc_status and write to db.audit_logs (action='kyc_approved' or 'kyc_rejected', target=uid). The audit endpoint is /admin/audit-logs (not /admin/audit). Distributor-created agents need approval by admin before they can login (test_makfinpay_no_agent_code.test_agent_login was updated to perform the approval step).",
+  "rca of the issue": "No production bugs found. Two legacy test suites were failing because they pre-dated the KYC overhaul and were creating agents without aadhaar_path/pan_path (which now correctly returns 400) and then trying to log in (which now correctly returns 403 for pending KYC). Both were updated to satisfy the new contract; they exercise unchanged business flows after the KYC step."
+}

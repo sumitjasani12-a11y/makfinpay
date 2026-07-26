@@ -1,0 +1,3552 @@
+from dotenv import load_dotenv
+from pathlib import Path
+ROOT_DIR = Path(__file__).parent
+load_dotenv(ROOT_DIR / ".env")
+
+import os
+import uuid
+import logging
+import bcrypt
+import jwt
+import requests
+from dataclasses import dataclass
+from datetime import datetime, timezone, timedelta
+from typing import Optional, List, Literal
+import gzip
+import io
+import re
+import asyncio
+import json as _json
+
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+from database import DuplicateKeyError, AsyncIOMotorGridFSBucket, AsyncIOMotorClient
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, UploadFile, File, Form, Header, Query
+from fastapi.responses import Response as FastResponse
+from starlette.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field, EmailStr
+
+# ---------- CONFIG ----------
+JWT_SECRET = os.environ["JWT_SECRET"]
+JWT_ALGO = "HS256"
+ADMIN_EMAIL = os.environ["ADMIN_EMAIL"].lower()
+ADMIN_PASSWORD = os.environ["ADMIN_PASSWORD"]
+APP_NAME = os.environ.get("APP_NAME", "makfinpay")
+EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
+STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
+
+from database import PostgresDatabase
+db = PostgresDatabase()
+client = db
+
+app = FastAPI(title="MAK FIN PAY API")
+api = APIRouter(prefix="/api")
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("makfinpay")
+
+# ---------- STORAGE ----------
+storage_key: Optional[str] = None
+
+def init_storage():
+    global storage_key
+    if storage_key:
+        return storage_key
+    if not EMERGENT_KEY:
+        return None
+    try:
+        r = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_KEY}, timeout=30)
+        r.raise_for_status()
+        storage_key = r.json()["storage_key"]
+        return storage_key
+    except Exception as e:
+        logger.error(f"Storage init failed: {e}")
+        return None
+
+def put_object(path: str, data: bytes, content_type: str):
+    supabase_url = os.environ.get("SUPABASE_URL")
+    supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    supabase_bucket = os.environ.get("SUPABASE_STORAGE_BUCKET", "uploads")
+    
+    if supabase_url and supabase_key:
+        url = f"{supabase_url}/storage/v1/object/{supabase_bucket}/{path}"
+        headers = {
+            "Authorization": f"Bearer {supabase_key}",
+            "Content-Type": content_type,
+            "x-upsert": "true"
+        }
+        r = requests.post(url, headers=headers, data=data, timeout=120)
+        r.raise_for_status()
+        return {"path": path, "size": len(data)}
+        
+    k = init_storage()
+    if not k:
+        raise HTTPException(500, "Storage not initialized")
+    r = requests.put(
+        f"{STORAGE_URL}/objects/{path}",
+        headers={"X-Storage-Key": k, "Content-Type": content_type},
+        data=data, timeout=120
+    )
+    r.raise_for_status()
+    return r.json()
+
+def get_object(path: str):
+    supabase_url = os.environ.get("SUPABASE_URL")
+    supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    supabase_bucket = os.environ.get("SUPABASE_STORAGE_BUCKET", "uploads")
+    
+    if supabase_url and supabase_key:
+        url = f"{supabase_url}/storage/v1/object/authenticated/{supabase_bucket}/{path}"
+        headers = {
+            "Authorization": f"Bearer {supabase_key}"
+        }
+        r = requests.get(url, headers=headers, timeout=60)
+        r.raise_for_status()
+        return r.content, r.headers.get("Content-Type", "application/octet-stream")
+        
+    k = init_storage()
+    if not k:
+        raise HTTPException(500, "Storage not initialized")
+    r = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": k}, timeout=60)
+    r.raise_for_status()
+    return r.content, r.headers.get("Content-Type", "application/octet-stream")
+
+# ---------- HELPERS ----------
+def hash_password(pw: str) -> str:
+    return bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
+
+def verify_password(pw: str, hashed: str) -> bool:
+    try:
+        return bcrypt.checkpw(pw.encode(), hashed.encode())
+    except Exception:
+        return False
+
+def create_token(user_id: str, role: str, minutes: int = 60 * 24) -> str:
+    payload = {"sub": user_id, "role": role, "exp": datetime.now(timezone.utc) + timedelta(minutes=minutes), "type": "access"}
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
+
+def now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+def new_id() -> str:
+    return str(uuid.uuid4())
+
+def clean(doc: dict) -> dict:
+    if doc and "_id" in doc:
+        doc = {k: v for k, v in doc.items() if k != "_id"}
+    if doc:
+        doc.pop("password_hash", None)
+    return doc
+
+async def write_audit(user_id: str, action: str, target: str = "", meta: Optional[dict] = None, request: Optional[Request] = None):
+    await db.audit_logs.insert_one({
+        "id": new_id(),
+        "user_id": user_id,
+        "action": action,
+        "target": target,
+        "meta": meta or {},
+        "ip": request.client.host if request and request.client else "",
+        "created_at": now_iso(),
+    })
+
+# ---------- AUTH ----------
+async def get_current_user(request: Request) -> dict:
+    token = request.cookies.get("access_token")
+    if not token:
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            token = auth[7:]
+    if not token:
+        raise HTTPException(401, "Not authenticated")
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(401, "Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(401, "Invalid token")
+    user = await db.users.find_one({"id": payload["sub"]}, {"_id": 0})
+    if not user:
+        raise HTTPException(401, "User not found")
+    if user.get("frozen"):
+        raise HTTPException(403, "Account frozen")
+    user.pop("password_hash", None)
+    return user
+
+def require_roles(*roles):
+    async def dep(user: dict = Depends(get_current_user)):
+        if user["role"] not in roles:
+            raise HTTPException(403, "Forbidden")
+        return user
+    return dep
+
+# ---------- MODELS ----------
+class LoginIn(BaseModel):
+    email: EmailStr
+    password: str
+
+class CreateUserIn(BaseModel):
+    role: Literal["master_distributor", "distributor", "agent"]
+    full_name: str
+    email: EmailStr
+    password: str
+    phone: str
+    address: str
+    aadhaar_path: Optional[str] = None  # uploaded file path (required for agents)
+    pan_path: Optional[str] = None      # uploaded file path (required for agents)
+    commission_percent: Optional[float] = None  # for agent (markup) or MD (rate override)
+
+class RechargeIn(BaseModel):
+    amount: float
+    utr: str
+    card_last4: str
+    screenshot_path: str  # storage path of uploaded screenshot
+
+class BillPaymentIn(BaseModel):
+    customer_name: str
+    card_last4: str
+    operator: str
+    customer_phone: str
+    amount: float
+
+class WithdrawalIn(BaseModel):
+    amount: float
+
+class BankIn(BaseModel):
+    account_holder: str
+    account_number: str
+    ifsc: str
+    bank_name: str
+    phone_number: str
+
+class CommissionSettingsIn(BaseModel):
+    default_percent: float
+
+class CommissionUpdateIn(BaseModel):
+    commission_percent: float
+
+class MarkupUpdateIn(BaseModel):
+    markup_percent: float
+
+class QRCodeIn(BaseModel):
+    label: str
+    image_path: str
+    upi_id: Optional[str] = None
+
+class ApprovalIn(BaseModel):
+    note: Optional[str] = None
+
+class ChangePasswordIn(BaseModel):
+    current_password: str
+    new_password: str
+    confirm_password: str
+
+# ---------- AUTH ROUTES ----------
+@api.post("/auth/login")
+async def login(body: LoginIn, response: Response, request: Request):
+    email = body.email.lower()
+    user = await db.users.find_one({"email": email})
+    if not user:
+        raise HTTPException(401, "Invalid credentials")
+    if user.get("frozen"):
+        raise HTTPException(403, "Account frozen by admin")
+    if not verify_password(body.password, user["password_hash"]):
+        raise HTTPException(401, "Invalid credentials")
+    # Agent KYC gate — agents cannot login unless KYC is approved
+    if user.get("role") == "agent":
+        kyc_status = user.get("kyc_status", "approved")
+        if kyc_status == "pending":
+            raise HTTPException(403, "Your account is pending KYC verification. Please contact your distributor or admin.")
+        if kyc_status == "rejected":
+            raise HTTPException(403, "Your KYC has been rejected. Please contact your distributor or admin for assistance.")
+    token = create_token(user["id"], user["role"])
+    response.set_cookie("access_token", token, httponly=True, secure=False, samesite="lax", max_age=86400, path="/")
+    await write_audit(user["id"], "login", request=request)
+    return {"token": token, "user": clean(user)}
+
+@api.post("/auth/logout")
+async def logout(response: Response):
+    response.delete_cookie("access_token", path="/")
+    return {"ok": True}
+
+@api.get("/auth/me")
+async def me(user: dict = Depends(get_current_user)):
+    return user
+
+@api.post("/auth/change-password")
+async def change_password(body: ChangePasswordIn, request: Request, user: dict = Depends(get_current_user)):
+    # ---- Rate limit: max 5 attempts per user per hour ----
+    one_hour_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+    recent = await db.audit_logs.count_documents({
+        "user_id": user["id"],
+        "action": "password_change",
+        "created_at": {"$gte": one_hour_ago},
+    })
+    if recent >= 5:
+        await write_audit(user["id"], "password_change", target=user["id"],
+                          meta={"status": "FAILED", "reason": "rate_limited", "role": user["role"]}, request=request)
+        raise HTTPException(429, "Too many attempts. Try again later.")
+
+    # Re-fetch with password_hash since get_current_user strips it
+    db_user = await db.users.find_one({"id": user["id"]})
+    if not db_user:
+        raise HTTPException(404, "User not found")
+
+    # ---- STEP 1: validate current password ----
+    if not verify_password(body.current_password, db_user["password_hash"]):
+        await write_audit(user["id"], "password_change", target=user["id"],
+                          meta={"status": "FAILED", "reason": "wrong_current_password", "role": user["role"]}, request=request)
+        raise HTTPException(400, "Current password is incorrect")
+
+    # ---- STEP 2: validate new password ----
+    if not body.new_password or len(body.new_password) < 8:
+        await write_audit(user["id"], "password_change", target=user["id"],
+                          meta={"status": "FAILED", "reason": "new_password_too_short", "role": user["role"]}, request=request)
+        raise HTTPException(400, "New password must be at least 8 characters long")
+
+    if verify_password(body.new_password, db_user["password_hash"]):
+        await write_audit(user["id"], "password_change", target=user["id"],
+                          meta={"status": "FAILED", "reason": "same_as_current", "role": user["role"]}, request=request)
+        raise HTTPException(400, "New password must be different from current password")
+
+    # ---- STEP 3: confirm password match ----
+    if body.new_password != body.confirm_password:
+        await write_audit(user["id"], "password_change", target=user["id"],
+                          meta={"status": "FAILED", "reason": "confirm_mismatch", "role": user["role"]}, request=request)
+        raise HTTPException(400, "Passwords do not match")
+
+    # ---- STEP 4: update password ----
+    new_hash = hash_password(body.new_password)
+    await db.users.update_one({"id": user["id"]}, {"$set": {"password_hash": new_hash, "password_changed_at": now_iso()}})
+    await write_audit(user["id"], "password_change", target=user["id"],
+                      meta={"status": "SUCCESS", "role": user["role"]}, request=request)
+    return {"ok": True, "message": "Password updated successfully"}
+
+# ---------- UPLOADS ----------
+@api.post("/uploads")
+async def upload_file(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    ext = (file.filename.rsplit(".", 1)[-1] if "." in file.filename else "bin").lower()
+    path = f"{APP_NAME}/uploads/{user['id']}/{new_id()}.{ext}"
+    data = await file.read()
+    content_type = file.content_type or "application/octet-stream"
+    result = put_object(path, data, content_type)
+    await db.files.insert_one({
+        "id": new_id(),
+        "storage_path": result["path"],
+        "original_filename": file.filename,
+        "content_type": content_type,
+        "size": result.get("size", len(data)),
+        "uploaded_by": user["id"],
+        "is_deleted": False,
+        "created_at": now_iso(),
+    })
+    return {"path": result["path"], "size": result.get("size", len(data))}
+
+@api.get("/files/{path:path}")
+async def serve_file(path: str, auth: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization[7:]
+    elif auth:
+        token = auth
+    if not token:
+        raise HTTPException(401, "Auth required")
+    try:
+        jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+    except Exception:
+        raise HTTPException(401, "Invalid token")
+    rec = await db.files.find_one({"storage_path": path, "is_deleted": False}, {"_id": 0})
+    if not rec:
+        raise HTTPException(404, "File not found")
+    data, ct = get_object(path)
+    return FastResponse(content=data, media_type=rec.get("content_type", ct))
+
+# ---------- LEDGER + WALLET HELPERS ----------
+async def get_or_create_wallet(user_id: str) -> dict:
+    w = await db.wallets.find_one({"user_id": user_id}, {"_id": 0})
+    if not w:
+        w = {"id": new_id(), "user_id": user_id, "balance": 0.0, "created_at": now_iso()}
+        await db.wallets.insert_one(dict(w))
+    return w
+
+async def ledger_entry(user_id: str, kind: str, amount: float, balance_after: float, ref_type: str = "", ref_id: str = "", note: str = ""):
+    await db.ledger.insert_one({
+        "id": new_id(),
+        "user_id": user_id,
+        "kind": kind,  # credit | debit | refund | adjustment
+        "amount": amount,
+        "balance_after": balance_after,
+        "ref_type": ref_type,
+        "ref_id": ref_id,
+        "note": note,
+        "created_at": now_iso(),
+    })
+
+async def adjust_balance(user_id: str, delta: float) -> float:
+    w = await get_or_create_wallet(user_id)
+    new_balance = round(w["balance"] + delta, 2)
+    if new_balance < 0:
+        raise HTTPException(400, "Insufficient wallet balance")
+    await db.wallets.update_one({"user_id": user_id}, {"$set": {"balance": new_balance, "updated_at": now_iso()}})
+    return new_balance
+
+# ---------- ADMIN: USERS ----------
+@dataclass
+class CommissionAllocation:
+    """Bundle of commission fields applied when creating a distributor/agent/master_distributor.
+
+    New 3-way split fields (canonical):
+        admin_pct: Admin's cut for downline recharges of this user.
+        md_pct:    Master Distributor's cut (0 if user is not under an MD).
+        dist_pct:  Distributor's cut (0 if user is a distributor / MD / has no distributor parent).
+
+    Legacy fields (backwards-compat with existing snapshot readers):
+        base:   base_commission — the direct parent's rate at creation time (= admin_pct + md_pct).
+        markup: markup_commission — the markup that goes to the direct parent (= dist_pct for
+                distributor-created agent, = md_pct for md-created distributor/direct-agent,
+                = 0 for admin-created).
+        total:  admin_pct + md_pct + dist_pct — same as `commission_percent`.
+        percent: legacy alias of total.
+        type:   "default" | "custom"
+    """
+    percent: float
+    base: float
+    markup: float
+    total: float
+    admin_pct: float = 0.0
+    md_pct: float = 0.0
+    dist_pct: float = 0.0
+    type: str = "default"
+
+
+async def _default_commission_pct() -> float:
+    settings = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {"default_percent": 1.2}
+    return float(settings.get("default_percent", 1.2))
+
+
+@api.post("/admin/users")
+async def admin_create_user(body: CreateUserIn, user=Depends(require_roles("admin"))):
+    default_pct = await _default_commission_pct()
+    # Admin-created MD: commission_percent (if supplied) overrides default; markup fields all 0.
+    if body.role == "master_distributor":
+        rate = float(body.commission_percent) if body.commission_percent is not None else default_pct
+        if rate < 0:
+            raise HTTPException(400, "Commission cannot be negative")
+        alloc_type = "custom" if body.commission_percent is not None else "default"
+        alloc = CommissionAllocation(
+            percent=rate, base=rate, markup=0.0, total=rate,
+            admin_pct=rate, md_pct=0.0, dist_pct=0.0, type=alloc_type,
+        )
+        return await create_subuser(body, parent_id=None, by=user["id"], alloc=alloc,
+                                    created_by_role="admin", md_id=None)
+    # Admin-created distributor/agent: 100% admin cut, no MD, no distributor markup.
+    alloc = CommissionAllocation(
+        percent=default_pct, base=default_pct, markup=0.0, total=default_pct,
+        admin_pct=default_pct, md_pct=0.0, dist_pct=0.0, type="default",
+    )
+    return await create_subuser(body, parent_id=None, by=user["id"], alloc=alloc,
+                                created_by_role="admin", md_id=None)
+
+
+@api.post("/master-distributor/users")
+async def md_create_subuser(body: CreateUserIn, user=Depends(require_roles("master_distributor"))):
+    if body.role not in ("distributor", "agent"):
+        raise HTTPException(400, "Master Distributor can only create distributors or agents")
+    md_markup = float(body.commission_percent) if body.commission_percent is not None else 0.0
+    if md_markup < 0:
+        raise HTTPException(400, "Markup cannot be negative")
+    md_rate = float(user.get("commission_percent") or 0.0)
+    if body.role == "distributor":
+        # Distributor under MD: admin_pct=md_rate, md_pct=md_markup, dist_pct=0.
+        total = round(md_rate + md_markup, 4)
+        alloc = CommissionAllocation(
+            percent=total, base=md_rate, markup=md_markup, total=total,
+            admin_pct=md_rate, md_pct=md_markup, dist_pct=0.0, type="custom",
+        )
+        return await create_subuser(body, parent_id=user["id"], by=user["id"], alloc=alloc,
+                                    created_by_role="master_distributor", md_id=user["id"])
+    # Direct agent under MD: admin_pct=md_rate, md_pct=md_markup, dist_pct=0.
+    total = round(md_rate + md_markup, 4)
+    alloc = CommissionAllocation(
+        percent=total, base=md_rate, markup=md_markup, total=total,
+        admin_pct=md_rate, md_pct=md_markup, dist_pct=0.0, type="custom",
+    )
+    return await create_subuser(body, parent_id=user["id"], by=user["id"], alloc=alloc,
+                                created_by_role="master_distributor", md_id=user["id"])
+
+
+@api.post("/distributor/agents")
+async def distributor_create_agent(body: CreateUserIn, user=Depends(require_roles("distributor"))):
+    if body.role != "agent":
+        raise HTTPException(400, "Distributor can only create agents")
+    dist_markup = float(body.commission_percent) if body.commission_percent is not None else 0.0
+    if dist_markup < 0:
+        raise HTTPException(400, "Markup cannot be negative")
+    # Inherit distributor's own admin_pct + md_pct as the agent's admin+md portion.
+    d_admin_pct = float(user.get("admin_pct", user.get("base_commission", 0.0)) or 0.0)
+    d_md_pct = float(user.get("md_pct", 0.0) or 0.0)
+    md_id = user.get("md_id")  # inherit MD chain if any
+    base = round(d_admin_pct + d_md_pct, 4)  # distributor's own rate (= what goes to admin + MD)
+    total = round(base + dist_markup, 4)
+    alloc = CommissionAllocation(
+        percent=total, base=base, markup=dist_markup, total=total,
+        admin_pct=d_admin_pct, md_pct=d_md_pct, dist_pct=dist_markup, type="custom",
+    )
+    return await create_subuser(body, parent_id=user["id"], by=user["id"], alloc=alloc,
+                                created_by_role="distributor", md_id=md_id)
+
+
+async def create_subuser(
+    body: CreateUserIn,
+    parent_id: Optional[str],
+    by: str,
+    alloc: Optional[CommissionAllocation] = None,
+    created_by_role: str = "admin",
+    md_id: Optional[str] = None,
+) -> dict:
+    email = body.email.lower()
+    if await db.users.find_one({"email": email}):
+        raise HTTPException(400, "Email already exists")
+    # Agents MUST have Aadhaar + PAN uploads
+    if body.role == "agent":
+        if not body.aadhaar_path or not body.pan_path:
+            raise HTTPException(400, "Aadhaar and PAN documents are required for agent creation")
+    if alloc is None:
+        default_pct = await _default_commission_pct()
+        alloc = CommissionAllocation(
+            percent=default_pct, base=default_pct, markup=0.0,
+            total=default_pct, type="default",
+        )
+    # Agents start in pending KYC; distributors are auto-approved (they upload no KYC).
+    kyc_status = "pending" if body.role == "agent" else "approved"
+    doc = {
+        "id": new_id(),
+        "role": body.role,
+        "full_name": body.full_name,
+        "email": email,
+        "password_hash": hash_password(body.password),
+        "phone": body.phone,
+        "address": body.address,
+        "aadhaar_path": body.aadhaar_path or "",
+        "pan_path": body.pan_path or "",
+        "kyc_status": kyc_status,
+        "kyc_rejection_reason": "",
+        "kyc_reviewed_at": None,
+        "kyc_reviewed_by": None,
+        "parent_id": parent_id,
+        "md_id": md_id,
+        "commission_percent": alloc.total,
+        "base_commission": alloc.base,
+        "markup_commission": alloc.markup,
+        "total_commission": alloc.total,
+        "admin_pct": alloc.admin_pct,
+        "md_pct": alloc.md_pct,
+        "dist_pct": alloc.dist_pct,
+        "commission_type": alloc.type,
+        "created_by_role": created_by_role,
+        "created_by_id": by,
+        "frozen": False,
+        "is_deleted": False,
+        "created_at": now_iso(),
+        "created_by": by,
+    }
+    await db.users.insert_one(dict(doc))
+    await get_or_create_wallet(doc["id"])
+    # Auto-create the KYC review record for agents
+    if body.role == "agent":
+        await db.kyc.update_one(
+            {"user_id": doc["id"]},
+            {"$set": {
+                "user_id": doc["id"],
+                "aadhaar_path": body.aadhaar_path,
+                "pan_path": body.pan_path,
+                "status": "pending",
+                "rejection_reason": "",
+                "updated_at": now_iso(),
+                "reviewed_at": None,
+                "reviewed_by": None,
+            }},
+            upsert=True,
+        )
+    await write_audit(by, f"create_{body.role}", target=doc["id"])
+    return clean(doc)
+
+async def _build_parent_name_map(parent_ids: List[str]) -> dict:
+    if not parent_ids:
+        return {}
+    pm = {}
+    async for p in db.users.find({"id": {"$in": parent_ids}}, {"_id": 0, "id": 1, "full_name": 1}):
+        pm[p["id"]] = p.get("full_name", "")
+    return pm
+
+
+async def _withdrawals_sum_for(user_id: str, statuses: List[str]) -> float:
+    """Sum of withdrawal amounts for a single user in the given statuses."""
+    agg = await db.withdrawals.aggregate([
+        {"$match": {"user_id": user_id, "status": {"$in": statuses}}},
+        {"$group": {"_id": None, "total": {"$sum": "$amount"}}},
+    ]).to_list(1)
+    return round(agg[0]["total"], 2) if agg else 0.0
+
+
+async def _withdrawals_sum_batch(user_ids: List[str], statuses: List[str]) -> dict:
+    """Batch sum withdrawals by user_id for the given statuses → {user_id: total}."""
+    if not user_ids:
+        return {}
+    cursor = db.withdrawals.aggregate([
+        {"$match": {"user_id": {"$in": user_ids}, "status": {"$in": statuses}}},
+        {"$group": {"_id": "$user_id", "total": {"$sum": "$amount"}}},
+    ])
+    out: dict = {}
+    async for row in cursor:
+        out[row["_id"]] = round(row.get("total") or 0, 2)
+    return out
+
+
+async def _distributor_lifetime_earnings(dist_id: str) -> float:
+    """Lifetime IMMUTABLE earnings for a distributor (snapshot sum, before withdrawals)."""
+    agg = await db.recharges.aggregate([
+        {"$match": {"status": "approved", "distributor_id": dist_id}},
+        {"$group": {"_id": None, "total": {"$sum": "$distributor_earnings_amount"}}},
+    ]).to_list(1)
+    return round(agg[0]["total"], 2) if agg else 0.0
+
+
+async def _distributor_earnings_for(dist_id: str, dist_base_pct: float = 0.0) -> float:
+    """Distributor LIVE earnings balance = lifetime snapshot sum − approved withdrawals.
+    This is the single source of truth displayed everywhere (admin tables, distributor
+    overview, withdrawal page). `dist_base_pct` kept for signature compat.
+    """
+    lifetime = await _distributor_lifetime_earnings(dist_id)
+    paid_out = await _withdrawals_sum_for(dist_id, ["approved"])
+    return round(lifetime - paid_out, 2)
+
+
+async def get_distributor_available_for_withdrawal(dist_id: str) -> float:
+    """Amount a distributor can request to withdraw RIGHT NOW = lifetime − approved − pending.
+    Pending requests are reserved so a distributor cannot double-spend earnings while
+    one request is still awaiting admin review.
+    """
+    lifetime = await _distributor_lifetime_earnings(dist_id)
+    reserved = await _withdrawals_sum_for(dist_id, ["approved", "pending"])
+    return round(lifetime - reserved, 2)
+
+
+async def _wallet_balances_for(user_ids: List[str]) -> dict:
+    """Batch-fetch wallet balances for a list of user ids → {user_id: balance}."""
+    if not user_ids:
+        return {}
+    out: dict = {}
+    async for w in db.wallets.find(
+        {"user_id": {"$in": user_ids}},
+        {"_id": 0, "user_id": 1, "balance": 1},
+    ):
+        out[w["user_id"]] = w.get("balance", 0)
+    return out
+
+
+async def _distributor_earnings_batch(dist_ids: List[str]) -> dict:
+    """Batch the per-distributor LIVE earnings balance = lifetime snapshot − approved withdrawals.
+    Returns the same number that `_distributor_earnings_for` returns, but in one shot.
+    """
+    if not dist_ids:
+        return {}
+    cursor = db.recharges.aggregate([
+        {"$match": {"status": "approved", "distributor_id": {"$in": dist_ids}}},
+        {"$group": {"_id": "$distributor_id", "total": {"$sum": "$distributor_earnings_amount"}}},
+    ])
+    lifetime: dict = {}
+    async for row in cursor:
+        lifetime[row["_id"]] = round(row.get("total") or 0, 2)
+    paid_out = await _withdrawals_sum_batch(dist_ids, ["approved"])
+    out: dict = {}
+    for did in dist_ids:
+        out[did] = round(lifetime.get(did, 0.0) - paid_out.get(did, 0.0), 2)
+    return out
+
+
+async def _md_lifetime_earnings(md_id: str) -> float:
+    """Lifetime IMMUTABLE MD earnings — sum of md_earnings_amount across all approved recharges
+    where md_id snapshot matches. Independent of any current commission % (snapshots are frozen)."""
+    agg = await db.recharges.aggregate([
+        {"$match": {"status": "approved", "md_id": md_id}},
+        {"$group": {"_id": None, "total": {"$sum": "$md_earnings_amount"}}},
+    ]).to_list(1)
+    return round(agg[0]["total"], 2) if agg else 0.0
+
+
+async def _md_earnings_for(md_id: str) -> float:
+    """MD LIVE earnings balance = lifetime snapshot sum − approved withdrawals.
+    Single source of truth for every MD balance display location."""
+    lifetime = await _md_lifetime_earnings(md_id)
+    paid_out = await _withdrawals_sum_for(md_id, ["approved"])
+    return round(lifetime - paid_out, 2)
+
+
+async def _md_earnings_batch(md_ids: List[str]) -> dict:
+    """Batch version of `_md_earnings_for` — {md_id: live_balance}."""
+    if not md_ids:
+        return {}
+    cursor = db.recharges.aggregate([
+        {"$match": {"status": "approved", "md_id": {"$in": md_ids}}},
+        {"$group": {"_id": "$md_id", "total": {"$sum": "$md_earnings_amount"}}},
+    ])
+    lifetime: dict = {}
+    async for row in cursor:
+        lifetime[row["_id"]] = round(row.get("total") or 0, 2)
+    paid_out = await _withdrawals_sum_batch(md_ids, ["approved"])
+    out: dict = {}
+    for mid in md_ids:
+        out[mid] = round(lifetime.get(mid, 0.0) - paid_out.get(mid, 0.0), 2)
+    return out
+
+
+async def get_md_available_for_withdrawal(md_id: str) -> float:
+    """Amount an MD can request to withdraw RIGHT NOW = lifetime − approved − pending.
+    Pending requests are reserved so an MD cannot double-spend earnings while one request
+    is still awaiting admin review."""
+    lifetime = await _md_lifetime_earnings(md_id)
+    reserved = await _withdrawals_sum_for(md_id, ["approved", "pending"])
+    return round(lifetime - reserved, 2)
+
+
+@api.get("/admin/exports/{role}.pdf")
+async def export_users_pdf(role: str, user=Depends(require_roles("admin"))):
+    """Stream a PDF report of every master_distributor, distributor OR agent in the
+    system. Same live data source as the on-screen table (`admin_list_users`)
+    so the numbers cannot drift. Runs in a threadpool so the FastAPI event loop
+    stays responsive while reportlab renders."""
+    if role not in ("master_distributor", "distributor", "agent"):
+        raise HTTPException(404, "Unknown export")
+
+    q = {"is_deleted": False, "role": role}
+    items = await db.users.find(q, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(None)
+    parent_ids = list({it.get("parent_id") for it in items if it.get("parent_id")})
+    md_ids_map = list({it.get("md_id") for it in items if it.get("md_id")})
+    parent_map = await _build_parent_name_map(list({*parent_ids, *md_ids_map}))
+    wallets_map = await _wallet_balances_for([it["id"] for it in items])
+    dist_ids = [it["id"] for it in items] if role == "distributor" else []
+    earnings_map = await _distributor_earnings_batch(dist_ids)
+    md_ids_for_earn = [it["id"] for it in items] if role == "master_distributor" else []
+    md_earnings_map = await _md_earnings_batch(md_ids_for_earn)
+    for it in items:
+        it["wallet_balance"] = wallets_map.get(it["id"], 0)
+        if role == "agent":
+            it["creator_name"] = parent_map.get(it.get("parent_id"), "Admin") if it.get("parent_id") else "Admin"
+        if role == "distributor":
+            it["earnings"] = earnings_map.get(it["id"], 0.0)
+            it["creator_name"] = parent_map.get(it.get("md_id"), "Admin") if it.get("md_id") else "Admin"
+        if role == "master_distributor":
+            it["earnings"] = md_earnings_map.get(it["id"], 0.0)
+
+    def _row_status(u: dict) -> str:
+        if u.get("frozen"):
+            return "Frozen"
+        if role == "agent":
+            k = u.get("kyc_status")
+            if k and k != "approved":
+                return "Pending" if k == "pending" else "Rejected"
+        return "Approved"
+
+    from starlette.responses import StreamingResponse
+    from starlette.concurrency import run_in_threadpool
+
+    pdf_bytes = await run_in_threadpool(_render_users_pdf, role, items, _row_status)
+    fname_role = {"master_distributor": "Master_Distributors", "distributor": "Distributors", "agent": "Agents"}[role]
+    fname = f"MAK_FIN_PAY_{fname_role}_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
+def _render_users_pdf(role: str, items: list, status_fn) -> bytes:
+    """Render the users-export PDF synchronously with reportlab. Runs in a
+    threadpool via `run_in_threadpool`, so the event loop is not blocked.
+    Landscape A4, branded header, striped table, page numbers in footer.
+    Text wraps via Paragraph cells so long emails/names don't overflow.
+    Uses DejaVu Sans (bundled TTF) throughout so the Indian Rupee ₹ (U+20B9)
+    and other Unicode glyphs render correctly."""
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.units import mm
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+    )
+
+    # Register bundled DejaVu Sans (regular + bold). Both include ₹ glyph
+    # (U+20B9). Idempotent — pdfmetrics keeps a global registry.
+    fonts_dir = Path(__file__).resolve().parent / "fonts"
+    if "DejaVuSans" not in pdfmetrics.getRegisteredFontNames():
+        pdfmetrics.registerFont(TTFont("DejaVuSans", str(fonts_dir / "DejaVuSans.ttf")))
+        pdfmetrics.registerFont(TTFont("DejaVuSans-Bold", str(fonts_dir / "DejaVuSans-Bold.ttf")))
+        pdfmetrics.registerFontFamily(
+            "DejaVuSans", normal="DejaVuSans", bold="DejaVuSans-Bold",
+        )
+    FONT = "DejaVuSans"
+    FONT_BOLD = "DejaVuSans-Bold"
+
+    is_dist = role == "distributor"
+    is_md = role == "master_distributor"
+    ist = timezone(timedelta(hours=5, minutes=30))
+    generated = datetime.now(ist).strftime("%-d %b %Y, %-I:%M %p IST")
+    section_title = ("Master Distributors Report" if is_md
+                     else "Distributors Report" if is_dist
+                     else "Agents Report")
+    total_label = ("Total Master Distributors" if is_md
+                   else "Total Distributors" if is_dist
+                   else "Total Agents")
+
+    styles = getSampleStyleSheet()
+    cell_style = ParagraphStyle(
+        "cell", parent=styles["BodyText"], fontName=FONT, fontSize=8, leading=10,
+    )
+    cell_bold_white = ParagraphStyle(
+        "cellBW", parent=cell_style, fontName=FONT_BOLD, textColor=colors.white,
+    )
+
+    def P(text, style=cell_style):
+        text = "" if text is None else str(text)
+        # Escape reportlab paragraph markup
+        text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        return Paragraph(text, style)
+
+    # Header + table columns per role
+    if is_md:
+        header_row = ["Name", "Email", "Phone", "Earnings", "Comm %", "Distributors", "Agents", "Status", "Created"]
+        col_widths = [40*mm, 55*mm, 28*mm, 26*mm, 18*mm, 22*mm, 18*mm, 22*mm, 30*mm]
+    elif is_dist:
+        header_row = ["Name", "Email", "Phone", "Created By", "Earnings", "Comm %", "Status", "Created"]
+        col_widths = [40*mm, 55*mm, 28*mm, 30*mm, 26*mm, 18*mm, 22*mm, 30*mm]
+    else:
+        header_row = ["Name", "Email", "Phone", "Distributor", "Wallet", "Comm %", "Status", "Created"]
+        col_widths = [38*mm, 55*mm, 28*mm, 35*mm, 25*mm, 18*mm, 22*mm, 28*mm]
+
+    # Body rows
+    data_rows = [[P(h, cell_bold_white) for h in header_row]]
+    for u in items:
+        if is_md:
+            row = [
+                P(u.get("full_name")),
+                P(u.get("email")),
+                P(u.get("phone") or "—"),
+                P(f"\u20B9{float(u.get('earnings') or 0):,.2f}"),
+                P(f"{u.get('commission_percent') if u.get('commission_percent') is not None else '—'}%"),
+                P(str(u.get("distributors_count") or 0)),
+                P(str(u.get("agents_count") or 0)),
+                P(status_fn(u)),
+                P(_fmt_ist(u.get("created_at"))),
+            ]
+        elif is_dist:
+            row = [
+                P(u.get("full_name")),
+                P(u.get("email")),
+                P(u.get("phone") or "—"),
+                P(u.get("creator_name") or "Admin"),
+                P(f"\u20B9{float(u.get('earnings') or 0):,.2f}"),
+                P(f"{u.get('commission_percent') if u.get('commission_percent') is not None else '—'}%"),
+                P(status_fn(u)),
+                P(_fmt_ist(u.get("created_at"))),
+            ]
+        else:
+            row = [
+                P(u.get("full_name")),
+                P(u.get("email")),
+                P(u.get("phone") or "—"),
+                P(u.get("creator_name") or "Admin"),
+                P(f"\u20B9{float(u.get('wallet_balance') or 0):,.2f}"),
+                P(f"{u.get('commission_percent') if u.get('commission_percent') is not None else '—'}%"),
+                P(status_fn(u)),
+                P(_fmt_ist(u.get("created_at"))),
+            ]
+        data_rows.append(row)
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf,
+        pagesize=landscape(A4),
+        leftMargin=15*mm, rightMargin=15*mm, topMargin=20*mm, bottomMargin=18*mm,
+        title=f"MAK FIN PAY — {section_title}",
+        author="MAK FIN PAY",
+    )
+
+    # Header block (repeats on every page via onLaterPages)
+    title_style = ParagraphStyle(
+        "title", parent=styles["Title"], fontName=FONT_BOLD, fontSize=16,
+        textColor=colors.HexColor("#1B4332"), spaceAfter=2,
+    )
+    subtitle_style = ParagraphStyle(
+        "sub", parent=styles["Heading3"], fontName=FONT_BOLD, fontSize=11,
+        textColor=colors.HexColor("#1B4332"),
+    )
+    meta_style = ParagraphStyle(
+        "meta", parent=styles["Normal"], fontName=FONT, fontSize=9, textColor=colors.grey,
+    )
+
+    story = [
+        Paragraph("MAK FIN PAY", title_style),
+        Paragraph(section_title, subtitle_style),
+        Paragraph(f"Generated: {generated} · {total_label}: {len(items)}", meta_style),
+        Spacer(1, 6),
+    ]
+
+    # Table
+    tbl = Table(data_rows, colWidths=col_widths, repeatRows=1)
+    tbl.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1B4332")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), FONT_BOLD),
+        ("FONTSIZE", (0, 0), (-1, 0), 8.5),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
+        ("TOPPADDING", (0, 0), (-1, 0), 6),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.HexColor("#FDFCF8"), colors.HexColor("#F4F3ED")]),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#0C1F17")),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 1), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 1), (-1, -1), 4),
+        ("FONTNAME", (0, 1), (-1, -1), FONT),
+    ]))
+    story.append(tbl)
+
+    def _draw_footer(canvas, doc_):
+        canvas.saveState()
+        page_num = canvas.getPageNumber()
+        canvas.setFont(FONT, 8)
+        canvas.setFillColor(colors.grey)
+        canvas.drawString(15*mm, 10*mm, "MAK FIN PAY · Confidential")
+        canvas.drawRightString(landscape(A4)[0] - 15*mm, 10*mm, f"Page {page_num}")
+        canvas.restoreState()
+
+    doc.build(story, onFirstPage=_draw_footer, onLaterPages=_draw_footer)
+    return buf.getvalue()
+
+
+def _fmt_ist(iso_ts: Optional[str]) -> str:
+    if not iso_ts:
+        return "—"
+    try:
+        dt = datetime.fromisoformat(iso_ts.replace("Z", "+00:00"))
+        ist = timezone(timedelta(hours=5, minutes=30))
+        return dt.astimezone(ist).strftime("%-d %b %Y, %-I:%M %p")
+    except Exception:
+        return iso_ts
+
+
+@api.get("/admin/users")
+async def admin_list_users(
+    role: Optional[str] = None,
+    q: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 50,
+    paginated: bool = False,
+    user=Depends(require_roles("admin")),
+):
+    query: dict = {"is_deleted": False}
+    if role:
+        query["role"] = role
+    if q:
+        needle = _escape_regex(q.strip())
+        if needle:
+            query["$or"] = [
+                {"full_name": {"$regex": needle, "$options": "i"}},
+                {"email":     {"$regex": needle, "$options": "i"}},
+                {"phone":     {"$regex": needle, "$options": "i"}},
+            ]
+
+    if paginated:
+        page = max(1, page); page_size = max(1, min(200, page_size))
+        total = await db.users.count_documents(query)
+        items = await db.users.find(query, {"_id": 0, "password_hash": 0}).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
+    else:
+        items = await db.users.find(query, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(None)
+        total = len(items)
+
+    parent_ids = list({it.get("parent_id") for it in items if it.get("parent_id")})
+    md_ids_for_map = list({it.get("md_id") for it in items if it.get("md_id")})
+    parent_map = await _build_parent_name_map(list({*parent_ids, *md_ids_for_map}))
+    wallets_map = await _wallet_balances_for([it["id"] for it in items])
+    distributor_ids = [it["id"] for it in items if it.get("role") == "distributor"]
+    earnings_map = await _distributor_earnings_batch(distributor_ids)
+    md_ids = [it["id"] for it in items if it.get("role") == "master_distributor"]
+    md_earnings_map = await _md_earnings_batch(md_ids)
+
+    # For MD rows, also count their downstream users (distributors + agents).
+    md_dist_counts: dict = {}
+    md_agent_counts: dict = {}
+    if md_ids:
+        async for row in db.users.aggregate([
+            {"$match": {"md_id": {"$in": md_ids}, "role": "distributor", "is_deleted": False}},
+            {"$group": {"_id": "$md_id", "n": {"$sum": 1}}},
+        ]):
+            md_dist_counts[row["_id"]] = row["n"]
+        async for row in db.users.aggregate([
+            {"$match": {"md_id": {"$in": md_ids}, "role": "agent", "is_deleted": False}},
+            {"$group": {"_id": "$md_id", "n": {"$sum": 1}}},
+        ]):
+            md_agent_counts[row["_id"]] = row["n"]
+
+    for it in items:
+        it["wallet_balance"] = wallets_map.get(it["id"], 0)
+        if it.get("role") == "agent":
+            cb = it.get("created_by_role")
+            if cb == "distributor":
+                it["creator_name"] = parent_map.get(it.get("parent_id"), "—")
+            elif cb == "master_distributor":
+                it["creator_name"] = parent_map.get(it.get("parent_id"), "—")
+            else:
+                it["creator_name"] = "Admin"
+        if it.get("role") == "distributor":
+            it["earnings"] = earnings_map.get(it["id"], 0.0)
+            # "Created By" — MD name if md_id set, else Admin.
+            it["creator_name"] = parent_map.get(it.get("md_id"), "Admin") if it.get("md_id") else "Admin"
+        if it.get("role") == "master_distributor":
+            it["earnings"] = md_earnings_map.get(it["id"], 0.0)
+            it["distributors_count"] = md_dist_counts.get(it["id"], 0)
+            it["agents_count"] = md_agent_counts.get(it["id"], 0)
+
+    if paginated:
+        return {"items": items, "total": total, "page": page, "page_size": page_size}
+    return items
+
+@api.get("/admin/distributors/{uid}/agents")
+async def admin_distributor_agents(uid: str, user=Depends(require_roles("admin"))):
+    dist = await db.users.find_one({"id": uid, "role": "distributor"}, {"_id": 0, "password_hash": 0})
+    if not dist:
+        raise HTTPException(404, "Distributor not found")
+    agents = await db.users.find(
+        {"parent_id": uid, "role": "agent", "is_deleted": False},
+        {"_id": 0, "password_hash": 0}
+    ).sort("created_at", -1).to_list(1000)
+    wallets_map = await _wallet_balances_for([a["id"] for a in agents])
+    for a in agents:
+        a["wallet_balance"] = wallets_map.get(a["id"], 0)
+    return {"distributor": dist, "agents": agents}
+
+
+@api.get("/admin/master-distributors/{uid}/downline")
+async def admin_md_downline(uid: str, user=Depends(require_roles("admin"))):
+    """Return the full downline of a Master Distributor: their distributors +
+    all agents (via their distributors + direct MD-created agents)."""
+    md = await db.users.find_one({"id": uid, "role": "master_distributor"}, {"_id": 0, "password_hash": 0})
+    if not md:
+        raise HTTPException(404, "Master Distributor not found")
+    distributors = await db.users.find(
+        {"md_id": uid, "role": "distributor", "is_deleted": False},
+        {"_id": 0, "password_hash": 0}
+    ).sort("created_at", -1).to_list(None)
+    direct_agents = await db.users.find(
+        {"md_id": uid, "role": "agent", "created_by_role": "master_distributor", "is_deleted": False},
+        {"_id": 0, "password_hash": 0}
+    ).sort("created_at", -1).to_list(None)
+    dist_ids = [d["id"] for d in distributors]
+    dist_agents = await db.users.find(
+        {"parent_id": {"$in": dist_ids}, "role": "agent", "is_deleted": False},
+        {"_id": 0, "password_hash": 0}
+    ).sort("created_at", -1).to_list(None) if dist_ids else []
+
+    dist_earnings = await _distributor_earnings_batch(dist_ids)
+    all_agent_ids = [a["id"] for a in direct_agents + dist_agents]
+    wallets_map = await _wallet_balances_for(all_agent_ids)
+    for d in distributors:
+        d["earnings"] = dist_earnings.get(d["id"], 0.0)
+    for a in direct_agents + dist_agents:
+        a["wallet_balance"] = wallets_map.get(a["id"], 0)
+
+    md["earnings"] = await _md_earnings_for(uid)
+    return {
+        "master_distributor": md,
+        "distributors": distributors,
+        "direct_agents": direct_agents,
+        "distributor_agents": dist_agents,
+    }
+
+@api.get("/admin/users/{uid}")
+async def admin_user_detail(uid: str, user=Depends(require_roles("admin"))):
+    u = await db.users.find_one({"id": uid}, {"_id": 0, "password_hash": 0})
+    if not u:
+        raise HTTPException(404, "Not found")
+    w = await db.wallets.find_one({"user_id": uid}, {"_id": 0}) or {"balance": 0}
+    txns = await db.transactions.find({"user_id": uid}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return {"user": u, "wallet": w, "transactions": txns}
+
+@api.patch("/admin/users/{uid}/freeze")
+async def admin_freeze(uid: str, request: Request, user=Depends(require_roles("admin"))):
+    u = await db.users.find_one({"id": uid})
+    if not u:
+        raise HTTPException(404, "Not found")
+    await db.users.update_one({"id": uid}, {"$set": {"frozen": not u.get("frozen", False)}})
+    await write_audit(user["id"], "toggle_freeze", target=uid, request=request)
+    return {"frozen": not u.get("frozen", False)}
+
+@api.patch("/distributor/agents/{uid}/freeze")
+async def distributor_freeze(uid: str, request: Request, user=Depends(require_roles("distributor"))):
+    u = await db.users.find_one({"id": uid, "parent_id": user["id"]})
+    if not u:
+        raise HTTPException(404, "Not found")
+    await db.users.update_one({"id": uid}, {"$set": {"frozen": not u.get("frozen", False)}})
+    await write_audit(user["id"], "toggle_freeze", target=uid, request=request)
+    return {"frozen": not u.get("frozen", False)}
+
+@api.get("/distributor/agents")
+async def distributor_list_agents(user=Depends(require_roles("distributor"))):
+    items = await db.users.find({"parent_id": user["id"], "is_deleted": False}, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(1000)
+    wallets_map = await _wallet_balances_for([it["id"] for it in items])
+    for it in items:
+        it["wallet_balance"] = wallets_map.get(it["id"], 0)
+    return items
+
+
+# ---------- MASTER DISTRIBUTOR PANEL ----------
+@api.get("/master-distributor/distributors")
+async def md_list_distributors(user=Depends(require_roles("master_distributor"))):
+    """List all distributors created by this MD, enriched with earnings."""
+    items = await db.users.find(
+        {"md_id": user["id"], "role": "distributor", "is_deleted": False},
+        {"_id": 0, "password_hash": 0}
+    ).sort("created_at", -1).to_list(None)
+    earnings_map = await _distributor_earnings_batch([it["id"] for it in items])
+    for it in items:
+        it["earnings"] = earnings_map.get(it["id"], 0.0)
+    return items
+
+
+@api.get("/master-distributor/agents")
+async def md_list_agents(user=Depends(require_roles("master_distributor"))):
+    """List EVERY agent in this MD's downline (via distributors + direct)."""
+    items = await db.users.find(
+        {"md_id": user["id"], "role": "agent", "is_deleted": False},
+        {"_id": 0, "password_hash": 0}
+    ).sort("created_at", -1).to_list(None)
+    wallets_map = await _wallet_balances_for([it["id"] for it in items])
+    # Build parent-name map (parent is either MD themselves or a distributor).
+    parent_ids = list({it.get("parent_id") for it in items if it.get("parent_id")})
+    parent_map = await _build_parent_name_map(parent_ids)
+    for it in items:
+        it["wallet_balance"] = wallets_map.get(it["id"], 0)
+        if it.get("created_by_role") == "master_distributor":
+            it["creator_name"] = "Direct"
+        else:
+            it["creator_name"] = parent_map.get(it.get("parent_id"), "—")
+    return items
+
+
+@api.get("/master-distributor/recharges")
+async def md_list_downline_recharges(user=Depends(require_roles("master_distributor"))):
+    """Read-only view of recharges from every agent in the MD's downline."""
+    agent_ids = [u["id"] async for u in db.users.find(
+        {"md_id": user["id"], "role": "agent"}, {"_id": 0, "id": 1}
+    )]
+    if not agent_ids:
+        return []
+    return await db.recharges.find({"user_id": {"$in": agent_ids}}, {"_id": 0}).sort("created_at", -1).to_list(None)
+
+
+@api.get("/master-distributor/stats")
+async def md_stats(user=Depends(require_roles("master_distributor"))):
+    md_id = user["id"]
+    distributors_count = await db.users.count_documents({"md_id": md_id, "role": "distributor", "is_deleted": False})
+    agents_count = await db.users.count_documents({"md_id": md_id, "role": "agent", "is_deleted": False})
+    agent_ids = [u["id"] async for u in db.users.find({"md_id": md_id, "role": "agent"}, {"_id": 0, "id": 1})]
+    pending_recharges = await db.recharges.count_documents({"user_id": {"$in": agent_ids}, "status": "pending"}) if agent_ids else 0
+    approved_recharges = await db.recharges.count_documents({"md_id": md_id, "status": "approved"})
+    earnings = await _md_earnings_for(md_id)
+    available_for_withdrawal = await get_md_available_for_withdrawal(md_id)
+    return {
+        "distributors": distributors_count,
+        "agents": agents_count,
+        "pending_recharges": pending_recharges,
+        "approved_recharges": approved_recharges,
+        "earnings": earnings,
+        "available_for_withdrawal": available_for_withdrawal,
+    }
+
+
+@api.patch("/master-distributor/users/{uid}/freeze")
+async def md_freeze(uid: str, request: Request, user=Depends(require_roles("master_distributor"))):
+    """MD can freeze/unfreeze users in their OWN downline only."""
+    u = await db.users.find_one({"id": uid, "md_id": user["id"]})
+    if not u:
+        raise HTTPException(404, "Not found in your downline")
+    await db.users.update_one({"id": uid}, {"$set": {"frozen": not u.get("frozen", False)}})
+    await write_audit(user["id"], "toggle_freeze", target=uid, request=request)
+    return {"frozen": not u.get("frozen", False)}
+
+
+# ---------- WALLET ----------
+@api.get("/wallet")
+async def my_wallet(user=Depends(get_current_user)):
+    if user["role"] == "admin":
+        return {"balance": 0}
+    w = await get_or_create_wallet(user["id"])
+    return w
+
+@api.get("/wallet/ledger")
+async def my_ledger(user=Depends(get_current_user)):
+    items = await db.ledger.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return items
+
+# ---------- LIST FILTER HELPERS (server-side pagination) ----------
+def _escape_regex(s: str) -> str:
+    return re.escape(s)
+
+
+def _add_created_at_range(query: dict, from_ts: Optional[str], to_ts: Optional[str]) -> None:
+    """Apply an [from_ts, to_ts) range filter on the `created_at` field (ISO string compare)."""
+    if not (from_ts or to_ts):
+        return
+    rng: dict = {}
+    if from_ts:
+        rng["$gte"] = from_ts
+    if to_ts:
+        rng["$lt"] = to_ts
+    query["created_at"] = rng
+
+
+def _build_recharge_query(*, status=None, agent_id=None, qr_code_id=None,
+                           from_ts=None, to_ts=None, q=None) -> dict:
+    query: dict = {}
+    if status and status != "all":
+        query["status"] = status
+    if agent_id and agent_id != "all":
+        query["user_id"] = agent_id
+    if qr_code_id and qr_code_id != "all":
+        query["qr_code_id"] = qr_code_id
+    _add_created_at_range(query, from_ts, to_ts)
+    if q:
+        needle = _escape_regex(q.strip())
+        if needle:
+            query["$or"] = [
+                {"user_name": {"$regex": needle, "$options": "i"}},
+                {"utr": {"$regex": needle, "$options": "i"}},
+                {"card_last4": {"$regex": needle, "$options": "i"}},
+            ]
+    return query
+
+
+def _build_transaction_query(*, status=None, agent_id=None, operator=None,
+                              from_ts=None, to_ts=None, q=None) -> dict:
+    query: dict = {}
+    if status and status != "all":
+        query["status"] = status
+    if agent_id and agent_id != "all":
+        query["user_id"] = agent_id
+    if operator and operator != "all":
+        query["operator"] = operator
+    _add_created_at_range(query, from_ts, to_ts)
+    if q:
+        needle = _escape_regex(q.strip())
+        if needle:
+            query["$or"] = [
+                {"user_name": {"$regex": needle, "$options": "i"}},
+                {"customer_name": {"$regex": needle, "$options": "i"}},
+                {"customer_phone": {"$regex": needle, "$options": "i"}},
+                {"operator": {"$regex": needle, "$options": "i"}},
+                {"card_last4": {"$regex": needle, "$options": "i"}},
+            ]
+    return query
+
+
+def _build_withdrawal_query(*, status=None, role_filter=None,
+                             from_ts=None, to_ts=None, q=None) -> dict:
+    query: dict = {}
+    if status and status != "all":
+        query["status"] = status
+    if role_filter and role_filter != "all":
+        query["role"] = role_filter
+    _add_created_at_range(query, from_ts, to_ts)
+    if q:
+        needle = _escape_regex(q.strip())
+        if needle:
+            query["$or"] = [
+                {"user_name": {"$regex": needle, "$options": "i"}},
+                {"bank.account_holder": {"$regex": needle, "$options": "i"}},
+                {"bank.account_number": {"$regex": needle, "$options": "i"}},
+                {"bank.ifsc": {"$regex": needle, "$options": "i"}},
+                {"bank.bank_name": {"$regex": needle, "$options": "i"}},
+                {"bank.phone_number": {"$regex": needle, "$options": "i"}},
+            ]
+    return query
+
+
+def _build_audit_query(*, action=None, from_ts=None, to_ts=None, q=None) -> dict:
+    query: dict = {}
+    if action and action != "all":
+        query["action"] = action
+    _add_created_at_range(query, from_ts, to_ts)
+    if q:
+        needle = _escape_regex(q.strip())
+        if needle:
+            query["$or"] = [
+                {"action": {"$regex": needle, "$options": "i"}},
+                {"target": {"$regex": needle, "$options": "i"}},
+                {"ip": {"$regex": needle, "$options": "i"}},
+            ]
+    return query
+
+
+# ---------- RECHARGE REQUESTS ----------
+@api.get("/agent/active-qr")
+async def active_qr(user=Depends(require_roles("agent", "distributor"))):
+    qr = await db.qr_codes.find_one({"active": True, "is_deleted": False}, {"_id": 0})
+    return qr or {}
+
+@api.post("/agent/recharges")
+async def agent_create_recharge(body: RechargeIn, user=Depends(require_roles("agent"))):
+    if body.amount is None or body.amount <= 0:
+        raise HTTPException(400, "Amount must be greater than 0")
+    if body.amount > 300000:
+        raise HTTPException(400, "Maximum recharge amount is ₹3,00,000")
+    utr = (body.utr or "").strip()
+    if not utr:
+        raise HTTPException(400, "UTR / Reference is required")
+    if not utr.isdigit():
+        raise HTTPException(400, "UTR must contain only digits")
+    if len(utr) != 12:
+        raise HTTPException(400, "UTR must be exactly 12 digits")
+    if not body.card_last4 or not body.card_last4.isdigit() or len(body.card_last4) != 4:
+        raise HTTPException(400, "Please enter exactly 4 digits")
+
+    # Idempotency guard — reject duplicate UTR for the same agent if a prior
+    # pending/approved recharge with that UTR already exists. Rejected recharges
+    # do NOT block re-submission (admin may have asked the agent to retry).
+    duplicate = await db.recharges.find_one(
+        {"user_id": user["id"], "utr": utr, "status": {"$in": ["pending", "approved"]}},
+        {"_id": 0, "id": 1},
+    )
+    if duplicate:
+        raise HTTPException(
+            409,
+            "This UTR has already been submitted. If you believe this is an error, please contact the admin.",
+        )
+
+    active_qr = await db.qr_codes.find_one({"active": True, "is_deleted": False}, {"_id": 0})
+    doc = {
+        "id": new_id(),
+        "user_id": user["id"],
+        "user_name": user["full_name"],
+        "amount": body.amount,
+        "utr": utr,
+        "card_last4": body.card_last4,
+        "qr_code_id": active_qr["id"] if active_qr else None,
+        "qr_code_label": active_qr["label"] if active_qr else None,
+        "screenshot_path": body.screenshot_path,
+        "status": "pending",
+        "commission_percent": user.get("commission_percent", 1.2),
+        "commission_amount": 0,
+        "credit_amount": 0,
+        "note": "",
+        "created_at": now_iso(),
+        "reviewed_at": None,
+        "reviewed_by": None,
+    }
+    try:
+        await db.recharges.insert_one(dict(doc))
+    except DuplicateKeyError:
+        # Race-condition safety net: two parallel POSTs both passed the
+        # application-level check; the partial unique index catches the loser.
+        raise HTTPException(
+            409,
+            "This UTR has already been submitted. If you believe this is an error, please contact the admin.",
+        )
+    return clean(doc)
+
+@api.get("/agent/recharges")
+async def agent_list_recharges(user=Depends(require_roles("agent"))):
+    return await db.recharges.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(500)
+
+@api.get("/admin/recharges")
+async def admin_list_recharges(
+    status: Optional[str] = None,
+    agent_id: Optional[str] = None,
+    qr_code_id: Optional[str] = None,
+    from_ts: Optional[str] = None,
+    to_ts: Optional[str] = None,
+    q: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 50,
+    paginated: bool = False,
+    user=Depends(require_roles("admin")),
+):
+    query = _build_recharge_query(status=status, agent_id=agent_id, qr_code_id=qr_code_id,
+                                   from_ts=from_ts, to_ts=to_ts, q=q)
+    if paginated:
+        page = max(1, page); page_size = max(1, min(200, page_size))
+        total = await db.recharges.count_documents(query)
+        items = await db.recharges.find(query, {"_id": 0}).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
+        return {"items": items, "total": total, "page": page, "page_size": page_size}
+    # Legacy caller (no pagination requested) — full list, no cap.
+    return await db.recharges.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
+
+@api.get("/distributor/recharges")
+async def distributor_list_recharges(user=Depends(require_roles("distributor"))):
+    agent_ids = [u["id"] async for u in db.users.find({"parent_id": user["id"]}, {"_id": 0, "id": 1})]
+    return await db.recharges.find({"user_id": {"$in": agent_ids}}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+
+@api.post("/admin/recharges/{rid}/approve")
+async def admin_approve_recharge(rid: str, body: ApprovalIn, request: Request, user=Depends(require_roles("admin"))):
+    r = await db.recharges.find_one({"id": rid})
+    if not r:
+        raise HTTPException(404, "Not found")
+    if r["status"] != "pending":
+        raise HTTPException(400, "Already processed")
+
+    # ---- Snapshot live commission state into the recharge record (one-way write) ----
+    agent = await db.users.find_one({"id": r["user_id"]},
+                                     {"_id": 0, "id": 1, "parent_id": 1, "md_id": 1,
+                                      "created_by_role": 1,
+                                      "base_commission": 1, "markup_commission": 1,
+                                      "total_commission": 1, "commission_percent": 1,
+                                      "admin_pct": 1, "md_pct": 1, "dist_pct": 1})
+
+    # Prefer new canonical 3-way fields if present; fall back to legacy fields.
+    admin_pct = agent.get("admin_pct")
+    md_pct = agent.get("md_pct")
+    dist_pct = agent.get("dist_pct")
+    total_pct = float(agent.get("total_commission", agent.get("commission_percent", 0.0)) or 0.0)
+    if admin_pct is None or md_pct is None or dist_pct is None:
+        # Legacy record (no MD chain): admin_pct = base_commission, dist_pct = markup, md_pct = 0.
+        legacy_base = float(agent.get("base_commission") or 0.0)
+        legacy_markup = float(agent.get("markup_commission") or 0.0)
+        admin_pct = legacy_base
+        md_pct = 0.0
+        dist_pct = legacy_markup
+    admin_pct = float(admin_pct); md_pct = float(md_pct); dist_pct = float(dist_pct)
+
+    # References (nullable):
+    # - distributor_id set only when the agent was created by a distributor (existing behaviour extended).
+    # - md_id set when the agent is under an MD (via distributor or directly).
+    parent_id = agent.get("parent_id")
+    md_id_snapshot = agent.get("md_id")
+    distributor_id = parent_id if (agent.get("created_by_role") == "distributor" and parent_id) else None
+
+    gross = float(r["amount"])
+    total_commission_amount = round(gross * total_pct / 100.0, 2)
+    admin_revenue_amount    = round(gross * admin_pct / 100.0, 2)
+    md_earnings_amount      = round(gross * md_pct / 100.0, 2)
+    # Force distributor amount so admin + md + dist == total exactly (no float drift).
+    distributor_earnings_amount = round(total_commission_amount - admin_revenue_amount - md_earnings_amount, 2)
+    net_credit_amount = round(gross - total_commission_amount, 2)
+
+    new_balance = await adjust_balance(r["user_id"], net_credit_amount)
+    await db.recharges.update_one({"id": rid}, {"$set": {
+        "status": "approved",
+        # Legacy fields kept for backward compat:
+        "commission_amount": total_commission_amount,
+        "credit_amount": net_credit_amount,
+        # Immutable snapshot — never recomputed once written:
+        "agent_id": r["user_id"],
+        "distributor_id": distributor_id,
+        "md_id": md_id_snapshot,
+        "gross_amount": gross,
+        "commission_percent_used": total_pct,
+        "admin_commission_percent": admin_pct,
+        "md_commission_percent": md_pct,
+        "distributor_markup_percent": dist_pct,
+        "total_commission_amount": total_commission_amount,
+        "admin_revenue_amount": admin_revenue_amount,
+        "md_earnings_amount": md_earnings_amount,
+        "distributor_earnings_amount": distributor_earnings_amount,
+        "net_credit_amount": net_credit_amount,
+        "note": body.note or "",
+        "reviewed_at": now_iso(),
+        "reviewed_by": user["id"],
+    }})
+    await ledger_entry(r["user_id"], "credit", net_credit_amount, new_balance, "recharge", rid,
+                       f"Recharge approved (gross {gross}, commission {total_commission_amount})")
+    await write_audit(user["id"], "approve_recharge", target=rid, request=request)
+    return {"ok": True}
+
+@api.post("/admin/recharges/{rid}/reject")
+async def admin_reject_recharge(rid: str, body: ApprovalIn, request: Request, user=Depends(require_roles("admin"))):
+    r = await db.recharges.find_one({"id": rid})
+    if not r:
+        raise HTTPException(404, "Not found")
+    if r["status"] != "pending":
+        raise HTTPException(400, "Already processed")
+    await db.recharges.update_one({"id": rid}, {"$set": {"status": "rejected", "note": body.note or "", "reviewed_at": now_iso(), "reviewed_by": user["id"]}})
+    await write_audit(user["id"], "reject_recharge", target=rid, request=request)
+    return {"ok": True}
+
+# ---------- BILL PAYMENTS (Credit Card) ----------
+@api.post("/agent/bill-payments")
+async def agent_bill_payment(body: BillPaymentIn, user=Depends(require_roles("agent"))):
+    if body.amount <= 0:
+        raise HTTPException(400, "Invalid amount")
+    if body.amount > 100000:
+        raise HTTPException(400, "Bill amount cannot exceed ₹1,00,000")
+    service_charge = 15.0 if body.amount <= 50000 else 25.0
+    total_amount = round(body.amount + service_charge, 2)
+    w = await get_or_create_wallet(user["id"])
+    if w["balance"] < total_amount:
+        raise HTTPException(400, "Insufficient wallet balance")
+    new_balance = await adjust_balance(user["id"], -total_amount)
+    tx = {
+        "id": new_id(),
+        "user_id": user["id"],
+        "user_name": user["full_name"],
+        "type": "credit_card",
+        "customer_name": body.customer_name,
+        "card_last4": body.card_last4,
+        "operator": body.operator,
+        "customer_phone": body.customer_phone,
+        "bill_amount": round(body.amount, 2),
+        "service_charge": service_charge,
+        "total_amount": total_amount,
+        "amount": total_amount,
+        "status": "pending",
+        "created_at": now_iso(),
+        "reviewed_at": None,
+        "reviewed_by": None,
+    }
+    await db.transactions.insert_one(dict(tx))
+    await ledger_entry(
+        user["id"], "debit", total_amount, new_balance, "bill_payment_hold", tx["id"],
+        f"Bill: ₹{body.amount:.2f} + Charge: ₹{service_charge:.2f} — {body.operator} ****{body.card_last4}"
+    )
+    return clean(tx)
+
+@api.get("/agent/transactions")
+async def agent_transactions(user=Depends(require_roles("agent"))):
+    return await db.transactions.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(500)
+
+@api.get("/admin/transactions")
+async def admin_transactions(
+    status: Optional[str] = None,
+    agent_id: Optional[str] = None,
+    operator: Optional[str] = None,
+    from_ts: Optional[str] = None,
+    to_ts: Optional[str] = None,
+    q: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 50,
+    paginated: bool = False,
+    user=Depends(require_roles("admin")),
+):
+    query = _build_transaction_query(status=status, agent_id=agent_id, operator=operator,
+                                      from_ts=from_ts, to_ts=to_ts, q=q)
+    if paginated:
+        page = max(1, page); page_size = max(1, min(200, page_size))
+        total = await db.transactions.count_documents(query)
+        items = await db.transactions.find(query, {"_id": 0}).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
+        return {"items": items, "total": total, "page": page, "page_size": page_size}
+    return await db.transactions.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
+
+@api.post("/admin/transactions/{tid}/approve")
+async def admin_approve_transaction(tid: str, body: ApprovalIn, request: Request, user=Depends(require_roles("admin"))):
+    t = await db.transactions.find_one({"id": tid})
+    if not t:
+        raise HTTPException(404, "Not found")
+    if t["status"] != "pending":
+        raise HTTPException(400, "Only pending transactions can be marked success")
+    await db.transactions.update_one({"id": tid}, {"$set": {"status": "success", "note": body.note or "", "reviewed_by": user["id"], "reviewed_at": now_iso()}})
+    wallet = await get_or_create_wallet(t["user_id"])
+    await ledger_entry(t["user_id"], "adjustment", 0, wallet["balance"], "bill_payment_success", tid, "Payment confirmed by Admin")
+    await write_audit(user["id"], "transaction_approved", target=tid, meta={"amount": t["amount"]}, request=request)
+    return {"ok": True}
+
+@api.post("/admin/transactions/{tid}/reject")
+async def admin_reject_transaction(tid: str, body: ApprovalIn, request: Request, user=Depends(require_roles("admin"))):
+    t = await db.transactions.find_one({"id": tid})
+    if not t:
+        raise HTTPException(404, "Not found")
+    if t["status"] not in ("pending", "success"):
+        raise HTTPException(400, "Only pending or success transactions can be reversed")
+    new_balance = await adjust_balance(t["user_id"], t["amount"])
+    await db.transactions.update_one({"id": tid}, {"$set": {"status": "reversed", "note": body.note or "", "reviewed_by": user["id"], "reviewed_at": now_iso()}})
+    await ledger_entry(t["user_id"], "refund", t["amount"], new_balance, "bill_payment_reversal", tid, "Payment reversed by Admin")
+    await write_audit(user["id"], "transaction_reversed", target=tid, meta={"amount": t["amount"]}, request=request)
+    return {"ok": True}
+
+# ---------- WITHDRAWALS ----------
+@api.post("/withdrawals")
+async def create_withdrawal(body: WithdrawalIn, user=Depends(require_roles("agent", "distributor", "master_distributor"))):
+    if body.amount <= 0:
+        raise HTTPException(400, "Invalid amount")
+    bank = await db.bank_details.find_one({"user_id": user["id"]}, {"_id": 0})
+    missing = _bank_missing_fields(bank)
+    if missing:
+        raise HTTPException(
+            400,
+            "Please complete all your bank details (including phone number) before requesting a withdrawal.",
+        )
+
+    role = user["role"]
+    if role == "distributor":
+        available = await get_distributor_available_for_withdrawal(user["id"])
+        if body.amount > available:
+            raise HTTPException(400, f"Insufficient earnings balance. Available: ₹{available:.2f}")
+        new_balance = 0.0
+    elif role == "master_distributor":
+        available = await get_md_available_for_withdrawal(user["id"])
+        if body.amount > available:
+            raise HTTPException(400, f"Insufficient earnings balance. Available: ₹{available:.2f}")
+        new_balance = 0.0
+    else:
+        # Agent: wallet debited at request time (existing).
+        new_balance = await adjust_balance(user["id"], -body.amount)
+
+    doc = {
+        "id": new_id(),
+        "user_id": user["id"],
+        "user_name": user["full_name"],
+        "role": role,
+        "amount": body.amount,
+        "status": "pending",
+        "bank": bank,
+        "note": "",
+        "created_at": now_iso(),
+        "reviewed_at": None,
+        "reviewed_by": None,
+    }
+    await db.withdrawals.insert_one(dict(doc))
+    if role == "agent":
+        await ledger_entry(user["id"], "debit", body.amount, new_balance, "withdrawal_hold", doc["id"], "Withdrawal hold")
+    return clean(doc)
+
+@api.get("/withdrawals/mine")
+async def my_withdrawals(user=Depends(require_roles("agent", "distributor", "master_distributor"))):
+    return await db.withdrawals.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(500)
+
+@api.get("/admin/withdrawals")
+async def admin_withdrawals(
+    status: Optional[str] = None,
+    role_filter: Optional[str] = None,
+    from_ts: Optional[str] = None,
+    to_ts: Optional[str] = None,
+    q: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 50,
+    paginated: bool = False,
+    user=Depends(require_roles("admin")),
+):
+    query = _build_withdrawal_query(status=status, role_filter=role_filter,
+                                     from_ts=from_ts, to_ts=to_ts, q=q)
+    if paginated:
+        page = max(1, page); page_size = max(1, min(200, page_size))
+        total = await db.withdrawals.count_documents(query)
+        items = await db.withdrawals.find(query, {"_id": 0}).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
+        return {"items": items, "total": total, "page": page, "page_size": page_size}
+    return await db.withdrawals.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
+
+@api.post("/admin/withdrawals/{wid}/approve")
+async def admin_approve_withdrawal(wid: str, body: ApprovalIn, request: Request, user=Depends(require_roles("admin"))):
+    w = await db.withdrawals.find_one({"id": wid})
+    if not w:
+        raise HTTPException(404, "Not found")
+    if w["status"] != "pending":
+        raise HTTPException(400, "Already processed")
+
+    role = w.get("role")
+    if role == "distributor":
+        lifetime = await _distributor_lifetime_earnings(w["user_id"])
+        already_paid = await _withdrawals_sum_for(w["user_id"], ["approved"])
+        live_balance = round(lifetime - already_paid, 2)
+        if w["amount"] > live_balance:
+            raise HTTPException(400, f"Cannot approve — distributor's live earnings balance is ₹{live_balance:.2f}")
+        await db.withdrawals.update_one({"id": wid}, {"$set": {"status": "approved", "note": body.note or "", "reviewed_at": now_iso(), "reviewed_by": user["id"]}})
+    elif role == "master_distributor":
+        lifetime = await _md_lifetime_earnings(w["user_id"])
+        already_paid = await _withdrawals_sum_for(w["user_id"], ["approved"])
+        live_balance = round(lifetime - already_paid, 2)
+        if w["amount"] > live_balance:
+            raise HTTPException(400, f"Cannot approve — master distributor's live earnings balance is ₹{live_balance:.2f}")
+        await db.withdrawals.update_one({"id": wid}, {"$set": {"status": "approved", "note": body.note or "", "reviewed_at": now_iso(), "reviewed_by": user["id"]}})
+    else:
+        await db.withdrawals.update_one({"id": wid}, {"$set": {"status": "approved", "note": body.note or "", "reviewed_at": now_iso(), "reviewed_by": user["id"]}})
+        wallet = await get_or_create_wallet(w["user_id"])
+        await ledger_entry(w["user_id"], "adjustment", 0, wallet["balance"], "withdrawal_paid", wid, "Withdrawal approved & paid")
+
+    await write_audit(user["id"], "approve_withdrawal", target=wid, request=request)
+    return {"ok": True}
+
+@api.post("/admin/withdrawals/{wid}/reject")
+async def admin_reject_withdrawal(wid: str, body: ApprovalIn, request: Request, user=Depends(require_roles("admin"))):
+    w = await db.withdrawals.find_one({"id": wid})
+    if not w:
+        raise HTTPException(404, "Not found")
+    if w["status"] != "pending":
+        raise HTTPException(400, "Already processed")
+
+    role = w.get("role")
+    if role in ("distributor", "master_distributor"):
+        # No wallet was debited — just flip status, pending reservation released.
+        await db.withdrawals.update_one({"id": wid}, {"$set": {"status": "rejected", "note": body.note or "", "reviewed_at": now_iso(), "reviewed_by": user["id"]}})
+    else:
+        new_balance = await adjust_balance(w["user_id"], w["amount"])
+        await db.withdrawals.update_one({"id": wid}, {"$set": {"status": "rejected", "note": body.note or "", "reviewed_at": now_iso(), "reviewed_by": user["id"]}})
+        await ledger_entry(w["user_id"], "refund", w["amount"], new_balance, "withdrawal_refund", wid, "Withdrawal rejected - refunded")
+
+    await write_audit(user["id"], "reject_withdrawal", target=wid, request=request)
+    return {"ok": True}
+
+REQUIRED_BANK_FIELDS = ("account_holder", "account_number", "ifsc", "bank_name", "phone_number")
+
+
+def _bank_missing_fields(bank: Optional[dict]) -> list:
+    """Return the list of required bank fields that are missing/empty/invalid.
+    Applies to legacy records saved before Phone Number was added — any such
+    record will show `phone_number` as missing here."""
+    if not bank:
+        return list(REQUIRED_BANK_FIELDS)
+    missing: list = []
+    for f in REQUIRED_BANK_FIELDS:
+        v = (bank.get(f) or "")
+        if isinstance(v, str):
+            v = v.strip()
+        if not v:
+            missing.append(f)
+    # Phone-format check — must be exactly 10 digits (matches save-time rule).
+    phone = str(bank.get("phone_number") or "").strip()
+    if phone and (not phone.isdigit() or len(phone) != 10) and "phone_number" not in missing:
+        missing.append("phone_number")
+    return missing
+
+
+# ---------- BANK DETAILS ----------
+@api.post("/bank")
+async def save_bank(body: BankIn, user=Depends(require_roles("agent", "distributor", "master_distributor"))):
+    # Require every field non-empty after trimming.
+    for f in ("account_holder", "account_number", "ifsc", "bank_name"):
+        if not (getattr(body, f) or "").strip():
+            raise HTTPException(400, f"{f.replace('_', ' ').title()} is required")
+    # Phone Number validation — Indian mobile. Accept optional +91 prefix,
+    # normalise to 10 digits digits-only for consistent storage.
+    phone = (body.phone_number or "").strip().replace(" ", "").replace("-", "")
+    if phone.startswith("+91"):
+        phone = phone[3:]
+    elif phone.startswith("91") and len(phone) == 12:
+        phone = phone[2:]
+    if not phone.isdigit() or len(phone) != 10:
+        raise HTTPException(400, "Phone Number must be exactly 10 digits")
+    doc = {
+        "account_holder": body.account_holder.strip(),
+        "account_number": body.account_number.strip(),
+        "ifsc": body.ifsc.strip(),
+        "bank_name": body.bank_name.strip(),
+        "phone_number": phone,
+        "user_id": user["id"],
+        "updated_at": now_iso(),
+    }
+    await db.bank_details.update_one({"user_id": user["id"]}, {"$set": doc}, upsert=True)
+    return doc
+
+@api.get("/bank")
+async def get_bank(user=Depends(require_roles("agent", "distributor", "master_distributor"))):
+    bank = await db.bank_details.find_one({"user_id": user["id"]}, {"_id": 0}) or {}
+    missing = _bank_missing_fields(bank if bank else None)
+    return {**bank, "missing_fields": missing, "is_complete": not missing}
+
+# ---------- KYC ----------
+@api.get("/admin/kyc")
+async def admin_kyc(user=Depends(require_roles("admin"))):
+    """List every agent's KYC record with full details for review.
+    Joined with the agent (name/phone/address) and the creating distributor.
+    """
+    items = await db.kyc.find({}, {"_id": 0}).sort("updated_at", -1).to_list(2000)
+    # Build lookup maps in one shot
+    user_ids = [it["user_id"] for it in items]
+    users_map: dict = {}
+    parent_ids: set = set()
+    async for u in db.users.find({"id": {"$in": user_ids}},
+                                  {"_id": 0, "id": 1, "full_name": 1, "email": 1, "role": 1,
+                                   "phone": 1, "address": 1, "parent_id": 1,
+                                   "created_by_role": 1, "kyc_status": 1, "created_at": 1}):
+        users_map[u["id"]] = u
+        if u.get("parent_id"):
+            parent_ids.add(u["parent_id"])
+    dist_map: dict = {}
+    if parent_ids:
+        async for d in db.users.find({"id": {"$in": list(parent_ids)}}, {"_id": 0, "id": 1, "full_name": 1}):
+            dist_map[d["id"]] = d.get("full_name", "")
+    enriched = []
+    for it in items:
+        u = users_map.get(it["user_id"], {})
+        if u.get("role") != "agent":
+            continue  # only agents have reviewable KYC now
+        it["user"] = u
+        it["distributor_name"] = (
+            dist_map.get(u.get("parent_id"), "")
+            if u.get("created_by_role") == "distributor" else "Admin"
+        )
+        # Prefer the agent's authoritative kyc_status (kept in sync below)
+        it["status"] = u.get("kyc_status", it.get("status", "pending"))
+        it["submitted_at"] = u.get("created_at") or it.get("updated_at")
+        enriched.append(it)
+    return enriched
+
+
+@api.post("/admin/kyc/{uid}/approve")
+async def admin_approve_kyc(uid: str, request: Request, user=Depends(require_roles("admin"))):
+    target = await db.users.find_one({"id": uid, "role": "agent"})
+    if not target:
+        raise HTTPException(404, "Agent not found")
+    await db.kyc.update_one(
+        {"user_id": uid},
+        {"$set": {"status": "approved", "rejection_reason": "",
+                  "reviewed_at": now_iso(), "reviewed_by": user["id"]}},
+    )
+    await db.users.update_one(
+        {"id": uid},
+        {"$set": {"kyc_status": "approved", "kyc_rejection_reason": "",
+                  "kyc_reviewed_at": now_iso(), "kyc_reviewed_by": user["id"]}},
+    )
+    await write_audit(user["id"], "kyc_approved", target=uid,
+                      meta={"agent_id": uid, "agent_name": target.get("full_name", "")},
+                      request=request)
+    return {"ok": True, "kyc_status": "approved"}
+
+
+@api.post("/admin/kyc/{uid}/reject")
+async def admin_reject_kyc(uid: str, body: ApprovalIn, request: Request, user=Depends(require_roles("admin"))):
+    target = await db.users.find_one({"id": uid, "role": "agent"})
+    if not target:
+        raise HTTPException(404, "Agent not found")
+    reason = (body.note or "").strip()
+    await db.kyc.update_one(
+        {"user_id": uid},
+        {"$set": {"status": "rejected", "rejection_reason": reason,
+                  "reviewed_at": now_iso(), "reviewed_by": user["id"]}},
+    )
+    await db.users.update_one(
+        {"id": uid},
+        {"$set": {"kyc_status": "rejected", "kyc_rejection_reason": reason,
+                  "kyc_reviewed_at": now_iso(), "kyc_reviewed_by": user["id"]}},
+    )
+    await write_audit(user["id"], "kyc_rejected", target=uid,
+                      meta={"agent_id": uid, "agent_name": target.get("full_name", ""), "reason": reason},
+                      request=request)
+    return {"ok": True, "kyc_status": "rejected"}
+
+# ---------- QR CODES ----------
+@api.post("/admin/qrcodes")
+async def admin_create_qr(body: QRCodeIn, user=Depends(require_roles("admin"))):
+    doc = {
+        "id": new_id(),
+        "label": body.label,
+        "image_path": body.image_path,
+        "upi_id": body.upi_id or "",
+        "active": False,
+        "is_deleted": False,
+        "created_at": now_iso(),
+    }
+    await db.qr_codes.insert_one(dict(doc))
+    return clean(doc)
+
+@api.get("/admin/qrcodes")
+async def admin_list_qr(user=Depends(require_roles("admin"))):
+    return await db.qr_codes.find({"is_deleted": False}, {"_id": 0}).sort("created_at", -1).to_list(100)
+
+@api.patch("/admin/qrcodes/{qid}/activate")
+async def admin_activate_qr(qid: str, user=Depends(require_roles("admin"))):
+    await db.qr_codes.update_many({}, {"$set": {"active": False}})
+    await db.qr_codes.update_one({"id": qid}, {"$set": {"active": True}})
+    return {"ok": True}
+
+@api.delete("/admin/qrcodes/{qid}")
+async def admin_delete_qr(qid: str, user=Depends(require_roles("admin"))):
+    await db.qr_codes.update_one({"id": qid}, {"$set": {"is_deleted": True, "active": False}})
+    return {"ok": True}
+
+# ---------- COMMISSION SETTINGS ----------
+@api.get("/admin/settings/commission")
+async def get_commission(user=Depends(require_roles("admin"))):
+    s = await db.settings.find_one({"id": "commission"}, {"_id": 0})
+    if not s:
+        return {"id": "commission", "default_percent": 1.2}
+    return {"id": "commission", "default_percent": s.get("default_percent", 1.2)}
+
+@api.put("/admin/settings/commission")
+async def set_commission(body: CommissionSettingsIn, request: Request, user=Depends(require_roles("admin"))):
+    if body.default_percent < 0:
+        raise HTTPException(400, "Default commission cannot be negative")
+    new_default = round(float(body.default_percent), 4)
+    prev = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    old_default = float(prev.get("default_percent", 1.2))
+    doc = {"id": "commission", "default_percent": new_default, "updated_at": now_iso()}
+    await db.settings.update_one({"id": "commission"}, {"$set": doc}, upsert=True)
+
+    # 1) Update default-mode Master Distributors: their commission_percent + admin_pct = new_default.
+    default_md_ids = [u["id"] async for u in db.users.find({"role": "master_distributor", "commission_type": "default"}, {"_id": 0, "id": 1})]
+    md_update = {
+        "commission_percent": new_default,
+        "base_commission": new_default,
+        "total_commission": new_default,
+        "admin_pct": new_default,
+    }
+    md_res = await db.users.update_many({"role": "master_distributor", "commission_type": "default"}, {"$set": md_update})
+
+    # 2) Update default-mode admin-created distributors (legacy path unchanged).
+    default_dist_ids = [u["id"] async for u in db.users.find({"role": "distributor", "commission_type": "default", "md_id": None}, {"_id": 0, "id": 1})]
+    update_set = {
+        "commission_percent": new_default,
+        "base_commission": new_default,
+        "total_commission": new_default,
+        "markup_commission": 0.0,
+        "admin_pct": new_default,
+        "md_pct": 0.0,
+        "dist_pct": 0.0,
+    }
+    d_res = await db.users.update_many({"role": "distributor", "commission_type": "default", "md_id": None}, {"$set": update_set})
+
+    # 3) Update admin-created default-mode agents (legacy path unchanged).
+    a_res = await db.users.update_many({"role": "agent", "created_by_role": "admin", "commission_type": "default"}, {"$set": update_set})
+
+    total_updated = md_res.modified_count + d_res.modified_count + a_res.modified_count
+
+    # 4) Cascade agents under each affected admin-created distributor (legacy).
+    cascaded_agents = 0
+    for did in default_dist_ids:
+        cascaded_agents += await cascade_distributor_agents(did, new_default, user["id"],
+                                                            old_distributor_pct=old_default,
+                                                            reason="default_commission_cascade", request=request)
+
+    # 5) Cascade the whole downstream under each affected MD (their downline needs admin_pct refreshed).
+    md_downline_updated = 0
+    for mid in default_md_ids:
+        md_downline_updated += await cascade_md_downstream(mid, new_default, user["id"],
+                                                           reason="default_commission_cascade_md",
+                                                           request=request)
+
+    await write_audit(user["id"], "default_commission_changed", target="settings",
+                      meta={"old": old_default, "new": new_default,
+                            "records_updated": total_updated,
+                            "agents_cascaded": cascaded_agents,
+                            "md_downline_updated": md_downline_updated},
+                      request=request)
+    if total_updated > 0:
+        await write_audit(user["id"], "default_commission_bulk_update", target="settings",
+                          meta={"new": new_default,
+                                "master_distributors_updated": md_res.modified_count,
+                                "distributors_updated": d_res.modified_count,
+                                "agents_updated": a_res.modified_count,
+                                "agents_cascaded": cascaded_agents,
+                                "md_downline_updated": md_downline_updated},
+                          request=request)
+    return {**doc, "records_updated": total_updated, "agents_cascaded": cascaded_agents, "md_downline_updated": md_downline_updated}
+
+@api.get("/settings/commission-public")
+async def public_commission(user: dict = Depends(get_current_user)):
+    s = await db.settings.find_one({"id": "commission"}, {"_id": 0})
+    return {"default_percent": (s or {}).get("default_percent", 1.2)}
+
+# --- Cascade helper: recompute all agents under a distributor ---
+async def cascade_distributor_agents(distributor_id: str, new_distributor_pct: float, actor_id: str,
+                                     old_distributor_pct: Optional[float] = None,
+                                     reason: str = "", request: Optional[Request] = None) -> int:
+    """Atomically recompute base_commission and total_commission for every
+    distributor-created agent under `distributor_id`. Markup is preserved.
+    Returns the number of agents updated.
+    """
+    pipeline = [{
+        "$set": {
+            "base_commission": new_distributor_pct,
+            "total_commission": {"$add": [new_distributor_pct, {"$ifNull": ["$markup_commission", 0]}]},
+            "commission_percent": {"$add": [new_distributor_pct, {"$ifNull": ["$markup_commission", 0]}]},
+        }
+    }]
+    res = await db.users.update_many(
+        {"role": "agent", "created_by_role": "distributor", "parent_id": distributor_id},
+        pipeline,
+    )
+    n = res.modified_count
+    if n > 0:
+        await write_audit(actor_id, "agent_commission_cascade_update", target=distributor_id,
+                          meta={"distributor_id": distributor_id,
+                                "old_distributor_pct": old_distributor_pct,
+                                "new_distributor_pct": new_distributor_pct,
+                                "agents_updated": n, "reason": reason},
+                          request=request)
+    # Also refresh admin_pct + dist_pct on those agents (best-effort — matches recharge snapshot needs).
+    dist = await db.users.find_one({"id": distributor_id}, {"_id": 0, "admin_pct": 1, "md_pct": 1})
+    if dist:
+        await db.users.update_many(
+            {"role": "agent", "created_by_role": "distributor", "parent_id": distributor_id},
+            [{"$set": {
+                "admin_pct": float(dist.get("admin_pct", new_distributor_pct)),
+                "md_pct":    float(dist.get("md_pct", 0.0)),
+                "dist_pct":  {"$ifNull": ["$markup_commission", 0]},
+            }}],
+        )
+    return n
+
+
+async def cascade_md_downstream(md_id: str, new_md_pct: float, actor_id: str,
+                                 reason: str = "", request: Optional[Request] = None) -> int:
+    """Recompute every user in the MD's downline so their admin_pct = new_md_pct.
+    Existing markup values (md_pct on distributor / direct agent; dist_pct on
+    distributor-created agent) are preserved. Returns total records touched.
+    Cascades affect FUTURE recharges only — history is immutable."""
+    touched = 0
+    # 1) Distributors under this MD: base = new_md_pct; total = new_md_pct + md_pct.
+    dist_pipeline = [{
+        "$set": {
+            "admin_pct": new_md_pct,
+            "base_commission": new_md_pct,
+            "commission_percent": {"$add": [new_md_pct, {"$ifNull": ["$md_pct", 0]}]},
+            "total_commission":   {"$add": [new_md_pct, {"$ifNull": ["$md_pct", 0]}]},
+        }
+    }]
+    d_res = await db.users.update_many({"role": "distributor", "md_id": md_id}, dist_pipeline)
+    touched += d_res.modified_count
+
+    # 2) Direct MD agents.
+    da_pipeline = [{
+        "$set": {
+            "admin_pct": new_md_pct,
+            "base_commission": new_md_pct,
+            "commission_percent": {"$add": [new_md_pct, {"$ifNull": ["$md_pct", 0]}]},
+            "total_commission":   {"$add": [new_md_pct, {"$ifNull": ["$md_pct", 0]}]},
+        }
+    }]
+    da_res = await db.users.update_many(
+        {"role": "agent", "created_by_role": "master_distributor", "md_id": md_id},
+        da_pipeline,
+    )
+    touched += da_res.modified_count
+
+    # 3) Agents under each of this MD's distributors (inherit distributor's md_pct).
+    async for did_doc in db.users.find({"role": "distributor", "md_id": md_id}, {"_id": 0, "id": 1, "md_pct": 1}):
+        did = did_doc["id"]
+        d_md_pct = float(did_doc.get("md_pct", 0.0))
+        base_new = round(new_md_pct + d_md_pct, 4)
+        agent_pipe = [{
+            "$set": {
+                "admin_pct": new_md_pct,
+                "md_pct":    d_md_pct,
+                "base_commission": base_new,
+                "commission_percent": {"$add": [base_new, {"$ifNull": ["$markup_commission", 0]}]},
+                "total_commission":   {"$add": [base_new, {"$ifNull": ["$markup_commission", 0]}]},
+                "dist_pct": {"$ifNull": ["$markup_commission", 0]},
+            }
+        }]
+        a2 = await db.users.update_many({"role": "agent", "created_by_role": "distributor", "parent_id": did}, agent_pipe)
+        touched += a2.modified_count
+
+    if touched > 0:
+        await write_audit(actor_id, "md_downstream_cascade", target=md_id,
+                          meta={"md_id": md_id, "new_md_pct": new_md_pct,
+                                "records_updated": touched, "reason": reason},
+                          request=request)
+    return touched
+
+# --- Edit commission endpoints ---
+@api.patch("/admin/users/{uid}/commission")
+async def admin_update_commission(uid: str, body: CommissionUpdateIn, request: Request, user=Depends(require_roles("admin"))):
+    if body.commission_percent < 0:
+        raise HTTPException(400, "Commission cannot be negative")
+    target = await db.users.find_one({"id": uid})
+    if not target:
+        raise HTTPException(404, "User not found")
+    if target["role"] == "agent" and target.get("created_by_role") == "distributor":
+        raise HTTPException(403, "Distributor-created agents can only be edited by their distributor")
+    if target["role"] == "agent" and target.get("created_by_role") == "master_distributor":
+        raise HTTPException(403, "MD-created agents can only be edited by their master distributor")
+    if target["role"] not in ("master_distributor", "distributor", "agent"):
+        raise HTTPException(400, "Only master distributors / distributors / admin-created agents are editable here")
+    if target["role"] == "distributor" and target.get("md_id"):
+        raise HTTPException(403, "MD-managed distributors can only be edited by their master distributor")
+    new_pct = round(float(body.commission_percent), 4)
+    old_pct = float(target.get("commission_percent", 0))
+    was_default = target.get("commission_type") == "default"
+    if target["role"] == "master_distributor":
+        updates = {
+            "commission_percent": new_pct,
+            "base_commission": new_pct,
+            "total_commission": new_pct,
+            "admin_pct": new_pct,
+            "commission_type": "custom",
+        }
+    else:
+        updates = {
+            "commission_percent": new_pct,
+            "base_commission": new_pct,
+            "markup_commission": 0.0,
+            "total_commission": new_pct,
+            "admin_pct": new_pct,
+            "md_pct": 0.0,
+            "dist_pct": 0.0,
+            "commission_type": "custom",
+        }
+    await db.users.update_one({"id": uid}, {"$set": updates})
+    event = "commission_set_to_custom" if was_default else "commission_custom_edited"
+    await write_audit(user["id"], event, target=uid,
+                      meta={"role": target["role"], "old": old_pct, "new": new_pct, "by_role": "admin"},
+                      request=request)
+    if target["role"] == "distributor":
+        await cascade_distributor_agents(uid, new_pct, user["id"],
+                                         old_distributor_pct=old_pct,
+                                         reason=event, request=request)
+    if target["role"] == "master_distributor":
+        await cascade_md_downstream(uid, new_pct, user["id"], reason=event, request=request)
+    return {"ok": True, "commission_percent": new_pct, "commission_type": "custom"}
+
+@api.patch("/admin/users/{uid}/commission/reset")
+async def admin_reset_commission(uid: str, request: Request, user=Depends(require_roles("admin"))):
+    target = await db.users.find_one({"id": uid})
+    if not target:
+        raise HTTPException(404, "User not found")
+    if target["role"] == "agent" and target.get("created_by_role") == "distributor":
+        raise HTTPException(403, "Distributor-created agents can only be edited by their distributor")
+    if target["role"] == "agent" and target.get("created_by_role") == "master_distributor":
+        raise HTTPException(403, "MD-created agents can only be edited by their master distributor")
+    if target["role"] not in ("master_distributor", "distributor", "agent"):
+        raise HTTPException(400, "Only master distributors / distributors / admin-created agents are resettable here")
+    if target["role"] == "distributor" and target.get("md_id"):
+        raise HTTPException(403, "MD-managed distributors can only be edited by their master distributor")
+    settings = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {"default_percent": 1.2}
+    default_pct = round(float(settings.get("default_percent", 1.2)), 4)
+    old_pct = float(target.get("commission_percent", 0))
+    if target["role"] == "master_distributor":
+        updates = {
+            "commission_percent": default_pct,
+            "base_commission": default_pct,
+            "total_commission": default_pct,
+            "admin_pct": default_pct,
+            "commission_type": "default",
+        }
+    else:
+        updates = {
+            "commission_percent": default_pct,
+            "base_commission": default_pct,
+            "markup_commission": 0.0,
+            "total_commission": default_pct,
+            "admin_pct": default_pct,
+            "md_pct": 0.0,
+            "dist_pct": 0.0,
+            "commission_type": "default",
+        }
+    await db.users.update_one({"id": uid}, {"$set": updates})
+    await write_audit(user["id"], "commission_reset_to_default", target=uid,
+                      meta={"role": target["role"], "previous_custom": old_pct, "new": default_pct, "by_role": "admin"},
+                      request=request)
+    if target["role"] == "distributor":
+        await cascade_distributor_agents(uid, default_pct, user["id"],
+                                         old_distributor_pct=old_pct,
+                                         reason="commission_reset_to_default", request=request)
+    if target["role"] == "master_distributor":
+        await cascade_md_downstream(uid, default_pct, user["id"],
+                                     reason="commission_reset_to_default", request=request)
+    return {"ok": True, "commission_percent": default_pct, "commission_type": "default"}
+
+@api.patch("/distributor/agents/{uid}/markup")
+async def distributor_update_markup(uid: str, body: MarkupUpdateIn, request: Request, user=Depends(require_roles("distributor"))):
+    if body.markup_percent < 0:
+        raise HTTPException(400, "Markup cannot be negative")
+    target = await db.users.find_one({"id": uid, "parent_id": user["id"], "role": "agent"})
+    if not target:
+        raise HTTPException(404, "Agent not found")
+    d_admin_pct = float(user.get("admin_pct", user.get("base_commission", 0.0)) or 0.0)
+    d_md_pct = float(user.get("md_pct", 0.0) or 0.0)
+    base = round(d_admin_pct + d_md_pct, 4)
+    new_markup = round(float(body.markup_percent), 4)
+    new_total = round(base + new_markup, 4)
+    old_total = float(target.get("commission_percent", 0))
+    await db.users.update_one({"id": uid}, {"$set": {
+        "base_commission": base,
+        "markup_commission": new_markup,
+        "total_commission": new_total,
+        "commission_percent": new_total,
+        "admin_pct": d_admin_pct,
+        "md_pct": d_md_pct,
+        "dist_pct": new_markup,
+    }})
+    await write_audit(user["id"], "commission_updated", target=uid,
+                      meta={"role": "agent", "old": old_total, "new": new_total,
+                            "markup": new_markup, "base": base, "by_role": "distributor"},
+                      request=request)
+    return {"ok": True, "base_commission": base, "markup_commission": new_markup, "total_commission": new_total}
+
+
+@api.patch("/master-distributor/users/{uid}/markup")
+async def md_update_markup(uid: str, body: MarkupUpdateIn, request: Request, user=Depends(require_roles("master_distributor"))):
+    """MD sets/updates the md_markup on one of their distributors or direct agents.
+    Cascades to that user's downstream (agents under a distributor) so future
+    recharges use the new rate. History untouched."""
+    if body.markup_percent < 0:
+        raise HTTPException(400, "Markup cannot be negative")
+    target = await db.users.find_one({"id": uid, "md_id": user["id"]})
+    if not target or target["role"] not in ("distributor", "agent"):
+        raise HTTPException(404, "User not found in your downline")
+    if target["role"] == "agent" and target.get("created_by_role") != "master_distributor":
+        raise HTTPException(400, "This agent is under a distributor — the distributor manages its markup")
+    md_rate = float(user.get("commission_percent") or 0.0)
+    new_md_markup = round(float(body.markup_percent), 4)
+    if target["role"] == "distributor":
+        new_total = round(md_rate + new_md_markup, 4)
+        old_total = float(target.get("commission_percent", 0))
+        await db.users.update_one({"id": uid}, {"$set": {
+            "admin_pct": md_rate,
+            "md_pct": new_md_markup,
+            "dist_pct": 0.0,
+            "base_commission": md_rate,
+            "markup_commission": new_md_markup,
+            "total_commission": new_total,
+            "commission_percent": new_total,
+        }})
+        # Cascade agents under this distributor.
+        await cascade_distributor_agents(uid, new_total, user["id"],
+                                         old_distributor_pct=old_total,
+                                         reason="md_markup_updated", request=request)
+    else:
+        # Direct MD agent — no downstream.
+        new_total = round(md_rate + new_md_markup, 4)
+        await db.users.update_one({"id": uid}, {"$set": {
+            "admin_pct": md_rate,
+            "md_pct": new_md_markup,
+            "dist_pct": 0.0,
+            "base_commission": md_rate,
+            "markup_commission": new_md_markup,
+            "total_commission": new_total,
+            "commission_percent": new_total,
+        }})
+    await write_audit(user["id"], "md_markup_updated", target=uid,
+                      meta={"role": target["role"], "md_markup": new_md_markup, "new_total": new_total},
+                      request=request)
+    return {"ok": True, "md_markup": new_md_markup, "total_commission": new_total}
+
+# ---------- AUDIT ----------
+@api.get("/admin/audit-logs")
+async def admin_audit(
+    action: Optional[str] = None,
+    from_ts: Optional[str] = None,
+    to_ts: Optional[str] = None,
+    q: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 50,
+    paginated: bool = False,
+    user=Depends(require_roles("admin")),
+):
+    query = _build_audit_query(action=action, from_ts=from_ts, to_ts=to_ts, q=q)
+    if paginated:
+        page = max(1, page); page_size = max(1, min(200, page_size))
+        total = await db.audit_logs.count_documents(query)
+        items = await db.audit_logs.find(query, {"_id": 0}).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
+    else:
+        items = await db.audit_logs.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
+        total = len(items)
+    user_ids = list({it["user_id"] for it in items if it.get("user_id")})
+    actor_map: dict = {}
+    if user_ids:
+        async for u in db.users.find({"id": {"$in": user_ids}},
+                                      {"_id": 0, "id": 1, "full_name": 1, "role": 1}):
+            actor_map[u["id"]] = {"full_name": u.get("full_name"), "role": u.get("role")}
+    for it in items:
+        it["actor"] = actor_map.get(it.get("user_id"))
+    if paginated:
+        return {"items": items, "total": total, "page": page, "page_size": page_size}
+    return items
+
+# ---------- DASHBOARDS / STATS ----------
+def _resolve_range(range_key: str, from_date: Optional[str], to_date: Optional[str]):
+    """Return (start_iso, end_iso) or (None, None) for lifetime."""
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    if range_key == "today":
+        return today_start.isoformat(), (today_start + timedelta(days=1)).isoformat()
+    if range_key == "yesterday":
+        y = today_start - timedelta(days=1)
+        return y.isoformat(), today_start.isoformat()
+    if range_key == "last7":
+        return (today_start - timedelta(days=7)).isoformat(), (today_start + timedelta(days=1)).isoformat()
+    if range_key == "last30":
+        return (today_start - timedelta(days=30)).isoformat(), (today_start + timedelta(days=1)).isoformat()
+    if range_key == "custom":
+        if not from_date or not to_date:
+            raise HTTPException(400, "Custom range requires 'from' and 'to' dates")
+        try:
+            fd = datetime.fromisoformat(from_date).replace(tzinfo=timezone.utc, hour=0, minute=0, second=0, microsecond=0)
+            td = datetime.fromisoformat(to_date).replace(tzinfo=timezone.utc, hour=0, minute=0, second=0, microsecond=0)
+        except Exception:
+            raise HTTPException(400, "Invalid date format. Use YYYY-MM-DD")
+        if fd > td:
+            raise HTTPException(400, "From date cannot be after To date")
+        return fd.isoformat(), (td + timedelta(days=1)).isoformat()
+    # lifetime
+    return None, None
+
+async def _recharge_revenue_breakdown(date_match: dict) -> dict:
+    """Reads IMMUTABLE per-recharge snapshots (admin_revenue_amount / md_earnings_amount /
+    distributor_earnings_amount). Past totals are NEVER affected by current commission % changes.
+    Extended integrity rule: admin_revenue + md_earnings + distributor_earnings = total_revenue."""
+    rev_match = {"status": "approved", **date_match}
+    agg = await db.recharges.aggregate([
+        {"$match": rev_match},
+        {"$group": {
+            "_id": None,
+            "recharge_approved":  {"$sum": "$amount"},
+            "total_revenue":      {"$sum": "$total_commission_amount"},
+            "admin_revenue":      {"$sum": "$admin_revenue_amount"},
+            "md_earnings":        {"$sum": {"$ifNull": ["$md_earnings_amount", 0]}},
+            "distributor_earnings": {"$sum": "$distributor_earnings_amount"},
+        }},
+    ]).to_list(1)
+    if not agg:
+        return {"recharge_approved": 0.0, "total_revenue": 0.0, "admin_revenue": 0.0,
+                "md_earnings": 0.0, "distributor_earnings": 0.0}
+    a = agg[0]
+    return {
+        "recharge_approved":    round(a.get("recharge_approved") or 0, 2),
+        "total_revenue":        round(a.get("total_revenue") or 0, 2),
+        "admin_revenue":        round(a.get("admin_revenue") or 0, 2),
+        "md_earnings":          round(a.get("md_earnings") or 0, 2),
+        "distributor_earnings": round(a.get("distributor_earnings") or 0, 2),
+    }
+
+
+async def _transaction_metrics(date_match: dict) -> dict:
+    """Aggregates successful bill payments: volume, count and service-charge revenue."""
+    txn_match = {"status": "success", **date_match}
+    txn_agg = await db.transactions.aggregate([
+        {"$match": txn_match},
+        {"$group": {
+            "_id": None,
+            "vol_bill": {"$sum": {"$ifNull": ["$bill_amount", "$amount"]}},
+            "count": {"$sum": 1},
+            "charges": {"$sum": {"$ifNull": ["$service_charge", 0]}},
+        }}
+    ]).to_list(1)
+    if not txn_agg:
+        return {"total_txn_amount": 0, "total_txn_count": 0, "transaction_revenue": 0}
+    return {
+        "total_txn_amount": txn_agg[0]["vol_bill"],
+        "total_txn_count": txn_agg[0]["count"],
+        "transaction_revenue": txn_agg[0]["charges"],
+    }
+
+
+async def _total_wallet_balance() -> float:
+    agg = await db.wallets.aggregate([{"$group": {"_id": None, "total": {"$sum": "$balance"}}}]).to_list(1)
+    return agg[0]["total"] if agg else 0
+
+
+@api.get("/admin/stats/financial")
+async def admin_stats_financial(
+    range: str = Query("today"),
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date: Optional[str] = Query(None, alias="to"),
+    user=Depends(require_roles("admin")),
+):
+    start, end = _resolve_range(range, from_date, to_date)
+    date_match = {"created_at": {"$gte": start, "$lt": end}} if start and end else {}
+
+    rev = await _recharge_revenue_breakdown(date_match)
+    txn = await _transaction_metrics(date_match)
+    total_wallet = await _total_wallet_balance()  # always lifetime, never filtered
+    # Total live distributor earnings across all distributors — always Lifetime,
+    # NEVER date-filtered (same behaviour as Total Wallet Balance). Uses the
+    # existing `_distributor_earnings_batch` single-source-of-truth helper so
+    # the platform-wide sum can never diverge from the per-distributor pages.
+    dist_ids = [u["id"] async for u in db.users.find({"role": "distributor", "is_deleted": False}, {"_id": 0, "id": 1})]
+    earnings_map = await _distributor_earnings_batch(dist_ids)
+    total_distributor_earnings = round(sum(earnings_map.values()), 2)
+    md_ids = [u["id"] async for u in db.users.find({"role": "master_distributor", "is_deleted": False}, {"_id": 0, "id": 1})]
+    md_earnings_map = await _md_earnings_batch(md_ids)
+    total_md_earnings = round(sum(md_earnings_map.values()), 2)
+    pending_kyc_count = await db.users.count_documents({"role": "agent", "kyc_status": "pending"})
+
+    # Approved withdrawals in range, broken down by role.
+    wd_match = {"status": "approved"}
+    if start and end:
+        wd_match["reviewed_at"] = {"$gte": start, "$lt": end}
+    wd_agg = await db.withdrawals.aggregate([
+        {"$match": wd_match},
+        {"$group": {"_id": "$role", "total": {"$sum": "$amount"}}},
+    ]).to_list(None)
+    agent_wd = 0.0
+    dist_wd = 0.0
+    md_wd = 0.0
+    for row in wd_agg:
+        if row["_id"] == "agent":
+            agent_wd = float(row.get("total") or 0)
+        elif row["_id"] == "distributor":
+            dist_wd = float(row.get("total") or 0)
+        elif row["_id"] == "master_distributor":
+            md_wd = float(row.get("total") or 0)
+    total_wd = agent_wd + dist_wd + md_wd
+
+    return {
+        "range": range,
+        "from": start, "to": end,
+        "total_revenue": round(rev["total_revenue"], 2),
+        "admin_revenue": rev["admin_revenue"],
+        "md_earnings": rev["md_earnings"],
+        "distributor_earnings": rev["distributor_earnings"],
+        "recharge_approved": rev["recharge_approved"],
+        "total_wallet": round(total_wallet, 2),
+        "total_distributor_earnings": total_distributor_earnings,
+        "total_md_earnings": total_md_earnings,
+        "total_txn_amount": round(txn["total_txn_amount"], 2),
+        "total_txn_count": txn["total_txn_count"],
+        "transaction_revenue": round(txn["transaction_revenue"], 2),
+        "pending_kyc_count": pending_kyc_count,
+        "total_withdrawals_approved": round(total_wd, 2),
+        "agent_withdrawals_approved": round(agent_wd, 2),
+        "distributor_withdrawals_approved": round(dist_wd, 2),
+        "md_withdrawals_approved": round(md_wd, 2),
+    }
+
+@api.get("/admin/stats")
+async def admin_stats(user=Depends(require_roles("admin"))):
+    total_agents = await db.users.count_documents({"role": "agent", "is_deleted": False})
+    total_distributors = await db.users.count_documents({"role": "distributor", "is_deleted": False})
+    total_master_distributors = await db.users.count_documents({"role": "master_distributor", "is_deleted": False})
+    pending_recharges = await db.recharges.count_documents({"status": "pending"})
+    pending_withdrawals = await db.withdrawals.count_documents({"status": "pending"})
+    pending_transactions = await db.transactions.count_documents({"status": "pending"})
+    # aggregate wallet total
+    agg = await db.wallets.aggregate([{"$group": {"_id": None, "total": {"$sum": "$balance"}}}]).to_list(1)
+    total_wallet = agg[0]["total"] if agg else 0
+    rev_agg = await db.recharges.aggregate([{"$match": {"status": "approved"}}, {"$group": {"_id": None, "total": {"$sum": "$commission_amount"}}}]).to_list(1)
+    total_revenue = rev_agg[0]["total"] if rev_agg else 0
+    txn_agg = await db.transactions.aggregate([{"$match": {"status": "success"}}, {"$group": {"_id": None, "total": {"$sum": "$amount"}, "count": {"$sum": 1}}}]).to_list(1)
+    total_txn_amount = txn_agg[0]["total"] if txn_agg else 0
+    total_txn_count = txn_agg[0]["count"] if txn_agg else 0
+    return {
+        "total_agents": total_agents,
+        "total_distributors": total_distributors,
+        "total_master_distributors": total_master_distributors,
+        "pending_recharges": pending_recharges,
+        "pending_withdrawals": pending_withdrawals,
+        "pending_transactions": pending_transactions,
+        "total_wallet": round(total_wallet, 2),
+        "total_revenue": round(total_revenue, 2),
+        "total_txn_amount": round(total_txn_amount, 2),
+        "total_txn_count": total_txn_count,
+    }
+
+@api.get("/distributor/stats")
+async def distributor_stats(user=Depends(require_roles("distributor"))):
+    agents = await db.users.count_documents({"parent_id": user["id"], "is_deleted": False})
+    agent_ids = [u["id"] async for u in db.users.find({"parent_id": user["id"]}, {"_id": 0, "id": 1})]
+    pending_recharges = await db.recharges.count_documents({"user_id": {"$in": agent_ids}, "status": "pending"})
+    # IMMUTABLE earnings: read snapshot column straight off approved recharge docs
+    earnings = await _distributor_earnings_for(user["id"])
+    available_for_withdrawal = await get_distributor_available_for_withdrawal(user["id"])
+    approved_recharges = await db.recharges.count_documents({"distributor_id": user["id"], "status": "approved"})
+    return {
+        "agents": agents,
+        "pending_recharges": pending_recharges,
+        "earnings": earnings,
+        "available_for_withdrawal": available_for_withdrawal,
+        "approved_recharges": approved_recharges,
+    }
+
+
+# ---------- DANGER ZONE: DEMO DATA RESET ----------
+class DemoResetIn(BaseModel):
+    confirm: str  # must equal "RESET"
+
+
+@api.post("/admin/system/reset-demo-data")
+async def reset_demo_data(body: DemoResetIn, request: Request, user=Depends(require_roles("admin"))):
+    """Selectively wipe transactional/user data while preserving the super-admin,
+    commission settings and QR codes. Only the seeded super-admin
+    (ADMIN_EMAIL) may invoke this. Mandatory typed confirmation = 'RESET'.
+    """
+    # Super-admin gate — only the bootstrap admin account can perform this destructive op
+    if user.get("email", "").lower() != ADMIN_EMAIL.lower():
+        raise HTTPException(403, "Only the Super Admin can perform demo data reset")
+    if body.confirm != "RESET":
+        raise HTTPException(400, "Typed confirmation does not match. Type RESET (uppercase) to confirm.")
+
+    qr_paths = [q["image_path"] async for q in db.qr_codes.find({}, {"_id": 0, "image_path": 1}) if q.get("image_path")]
+
+    async def safe_delete(coll, query=None):
+        try:
+            r = await coll.delete_many(query or {})
+            return r.deleted_count
+        except Exception as exc:
+            logger.warning(f"reset_demo_data: delete_many failed on {coll.name}: {exc}")
+            return 0
+
+    deleted = {
+        "ledger":        await safe_delete(db.ledger),
+        "transactions":  await safe_delete(db.transactions),
+        "recharges":     await safe_delete(db.recharges),
+        "withdrawals":   await safe_delete(db.withdrawals),
+        "kyc":           await safe_delete(db.kyc),
+        "bank_details":  await safe_delete(db.bank_details),
+        "audit_logs":    await safe_delete(db.audit_logs),
+        "notifications": await safe_delete(db.notifications),
+        "fraud_flags":   await safe_delete(db.fraud_flags),
+        "files":         await safe_delete(db.files, {"storage_path": {"$nin": qr_paths}}),
+        "wallets":       await safe_delete(db.wallets, {"user_id": {"$ne": user["id"]}}),
+        "users":         await safe_delete(db.users, {"role": {"$in": ["master_distributor", "distributor", "agent"]}}),
+    }
+
+    # Make sure every QR record is visible again (per spec: keep all QR codes)
+    await db.qr_codes.update_many({}, {"$set": {"is_deleted": False}})
+
+    # Reseed the audit trail with a single marker entry
+    await write_audit(user["id"], "demo_data_reset",
+                      meta={"deleted": deleted, "qr_paths_kept": len(qr_paths)},
+                      request=request)
+
+    return {"ok": True, "deleted": deleted, "qr_paths_kept": len(qr_paths)}
+
+# ---------- STARTUP ----------
+async def _ensure_indexes() -> None:
+    await db.users.create_index("email", unique=True)
+    # drop legacy agent_code index if it exists from older schema
+    try:
+        existing_indexes = await db.users.index_information()
+        for idx_name in list(existing_indexes.keys()):
+            if "agent_code" in idx_name:
+                await db.users.drop_index(idx_name)
+    except Exception as e:
+        logger.warning(f"Index cleanup skipped: {e}")
+    await db.wallets.create_index("user_id", unique=True)
+    await db.ledger.create_index("user_id")
+    await db.recharges.create_index("user_id")
+    try:
+        await db.recharges.create_index(
+            [("user_id", 1), ("utr", 1)],
+            unique=True,
+            partialFilterExpression={"status": {"$in": ["pending", "approved"]}},
+            name="uniq_user_utr_active",
+        )
+    except DuplicateKeyError as e:
+        # Legacy duplicate (agent_id, utr) pairs exist from before the
+        # idempotency guard was added. The application-level duplicate check
+        # in POST /api/agent/recharges still prevents new duplicates; the
+        # partial unique index is only a race-condition safety net.
+        logger.warning(
+            f"Skipped uniq_user_utr_active index due to legacy duplicates: {e}"
+        )
+    await db.transactions.create_index("user_id")
+    await db.withdrawals.create_index("user_id")
+    # Indexes to keep server-side pagination (sort by created_at desc + optional
+    # status filter) fast even as these collections grow into six figures.
+    await db.recharges.create_index([("created_at", -1)])
+    await db.recharges.create_index([("status", 1), ("created_at", -1)])
+    await db.recharges.create_index([("user_id", 1), ("created_at", -1)])
+    await db.recharges.create_index([("qr_code_id", 1), ("created_at", -1)])
+    await db.transactions.create_index([("created_at", -1)])
+    await db.transactions.create_index([("status", 1), ("created_at", -1)])
+    await db.transactions.create_index([("user_id", 1), ("created_at", -1)])
+    await db.transactions.create_index([("operator", 1), ("created_at", -1)])
+    await db.withdrawals.create_index([("created_at", -1)])
+    await db.withdrawals.create_index([("status", 1), ("created_at", -1)])
+    await db.withdrawals.create_index([("role", 1), ("created_at", -1)])
+    await db.audit_logs.create_index([("created_at", -1)])
+    await db.audit_logs.create_index([("action", 1), ("created_at", -1)])
+    await db.users.create_index([("role", 1), ("is_deleted", 1), ("created_at", -1)])
+    await db.users.create_index([("md_id", 1), ("role", 1), ("is_deleted", 1), ("created_at", -1)])
+    await db.recharges.create_index([("md_id", 1), ("status", 1), ("created_at", -1)])
+
+
+async def _seed_admin_user() -> None:
+    existing = await db.users.find_one({"email": ADMIN_EMAIL})
+    if not existing:
+        await db.users.insert_one({
+            "id": new_id(),
+            "role": "admin",
+            "full_name": "Super Admin",
+            "email": ADMIN_EMAIL,
+            "password_hash": hash_password(ADMIN_PASSWORD),
+            "phone": "",
+            "address": "",
+            "frozen": False,
+            "is_deleted": False,
+            "created_at": now_iso(),
+        })
+        logger.info(f"Seeded admin: {ADMIN_EMAIL}")
+        return
+    updates = {}
+    if not verify_password(ADMIN_PASSWORD, existing["password_hash"]):
+        updates["password_hash"] = hash_password(ADMIN_PASSWORD)
+    if existing.get("frozen"):
+        updates["frozen"] = False
+    if "agent_code" in existing:
+        await db.users.update_one({"email": ADMIN_EMAIL}, {"$unset": {"agent_code": ""}})
+    if updates:
+        await db.users.update_one({"email": ADMIN_EMAIL}, {"$set": updates})
+
+
+async def _ensure_commission_settings() -> None:
+    if not await db.settings.find_one({"id": "commission"}):
+        await db.settings.insert_one({"id": "commission", "default_percent": 1.2, "updated_at": now_iso()})
+    else:
+        # strip legacy min/max if present
+        await db.settings.update_one({"id": "commission"}, {"$unset": {"min_percent": "", "max_percent": ""}})
+
+
+def _build_commission_migration(user: dict, default_pct: float, parent_pct: Optional[float]) -> dict:
+    """Compute base/markup/total/type for a legacy user that lacks the new commission fields."""
+    current = float(user.get("commission_percent", default_pct))
+    if user.get("role") == "distributor":
+        return {
+            "base_commission": current,
+            "markup_commission": 0.0,
+            "total_commission": current,
+            "commission_type": "default" if abs(current - default_pct) < 1e-9 else "custom",
+            "created_by_role": "admin",
+        }
+    # agent
+    if parent_pct is not None:
+        markup = max(0.0, round(current - parent_pct, 4))
+        return {
+            "base_commission": parent_pct,
+            "markup_commission": markup,
+            "total_commission": current,
+            "commission_type": "custom",
+            "created_by_role": "distributor",
+        }
+    return {
+        "base_commission": current,
+        "markup_commission": 0.0,
+        "total_commission": current,
+        "commission_type": "default" if abs(current - default_pct) < 1e-9 else "custom",
+        "created_by_role": "admin",
+    }
+
+
+async def _migrate_commission_schema() -> None:
+    """Backfill base/markup/total_commission on legacy users.
+    Bounded server-side: only fetches users that haven't already been migrated,
+    and only the fields needed to compute the update. Idempotent on every restart."""
+    settings = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {"default_percent": 1.2}
+    default_pct = float(settings.get("default_percent", 1.2))
+    query = {
+        "role": {"$in": ["distributor", "agent"]},
+        "$or": [
+            {"total_commission": {"$exists": False}},
+            {"base_commission":  {"$exists": False}},
+        ],
+    }
+    projection = {"_id": 0, "id": 1, "role": 1, "parent_id": 1, "commission_percent": 1}
+    async for u in db.users.find(query, projection):
+        parent_pct = None
+        if u.get("role") == "agent" and u.get("parent_id"):
+            parent = await db.users.find_one({"id": u["parent_id"]}, {"_id": 0, "commission_percent": 1})
+            parent_pct = float(parent.get("commission_percent", default_pct)) if parent else default_pct
+        updates = _build_commission_migration(u, default_pct, parent_pct)
+        await db.users.update_one({"id": u["id"]}, {"$set": updates})
+
+
+@app.on_event("startup")
+async def startup():
+    await db.init_pool(os.environ["SUPABASE_POSTGRES_URI"])
+    init_storage()
+    await _ensure_indexes()
+    await _seed_admin_user()
+    await _ensure_commission_settings()
+    await _migrate_commission_schema()
+    await _migrate_kyc_status()
+    await _migrate_recharge_revenue_snapshot()
+    await _ensure_backup_settings()
+    _ensure_backup_scheduler()
+
+
+async def _migrate_kyc_status() -> None:
+    """Existing agents without `kyc_status` are treated as already-approved
+    so the new gate does not lock out users who were active before this release.
+    """
+    await db.users.update_many(
+        {"role": "agent", "kyc_status": {"$exists": False}},
+        {"$set": {"kyc_status": "approved", "kyc_rejection_reason": "",
+                  "kyc_reviewed_at": None, "kyc_reviewed_by": None}},
+    )
+    # Distributors don't have KYC — mark them approved so the field exists
+    await db.users.update_many(
+        {"role": "distributor", "kyc_status": {"$exists": False}},
+        {"$set": {"kyc_status": "approved"}},
+    )
+
+
+async def _migrate_recharge_revenue_snapshot() -> None:
+    """Backfill the IMMUTABLE earnings split fields on every approved recharge
+    that pre-dates the snapshot feature. Uses the agent's CURRENT base/markup
+    split as an estimate (marked `estimated: true`). Total is preserved exactly.
+    """
+    cursor = db.recharges.find(
+        {"status": "approved", "distributor_earnings_amount": {"$exists": False}},
+        {"_id": 0, "id": 1, "user_id": 1, "amount": 1, "commission_amount": 1,
+         "credit_amount": 1, "commission_percent": 1},
+    )
+    async for r in cursor:
+        user_id = r.get("user_id")
+        if not user_id:
+            continue
+        agent = await db.users.find_one(
+            {"id": user_id},
+            {"_id": 0, "parent_id": 1, "base_commission": 1, "markup_commission": 1,
+             "total_commission": 1, "commission_percent": 1},
+        ) or {}
+        gross = float(r.get("amount") or 0)
+        stored_total = float(r.get("commission_amount") or 0)
+        # Estimate the split ratio from current agent settings
+        cur_base   = float(agent.get("base_commission") or 0.0)
+        cur_markup = float(agent.get("markup_commission") or 0.0)
+        cur_total  = cur_base + cur_markup
+        if cur_total > 0:
+            admin_share = round(stored_total * (cur_base / cur_total), 2)
+        else:
+            admin_share = stored_total
+        dist_share = round(stored_total - admin_share, 2)
+        # Distributor_id only set if this agent has a parent + positive markup historically
+        dist_id = agent.get("parent_id") if cur_markup > 0 and agent.get("parent_id") else None
+        await db.recharges.update_one({"id": r["id"]}, {"$set": {
+            "agent_id": user_id,
+            "distributor_id": dist_id,
+            "gross_amount": gross,
+            "commission_percent_used": float(r.get("commission_percent") or cur_total),
+            "admin_commission_percent": cur_base,
+            "distributor_markup_percent": cur_markup,
+            "total_commission_amount": stored_total,
+            "admin_revenue_amount": admin_share,
+            "distributor_earnings_amount": dist_share,
+            "net_credit_amount": float(r.get("credit_amount") or (gross - stored_total)),
+            "estimated": True,
+        }})
+
+
+
+    """Existing agents without `kyc_status` are treated as already-approved
+    so the new gate does not lock out users who were active before this release.
+    """
+    await db.users.update_many(
+        {"role": "agent", "kyc_status": {"$exists": False}},
+        {"$set": {"kyc_status": "approved", "kyc_rejection_reason": "",
+                  "kyc_reviewed_at": None, "kyc_reviewed_by": None}},
+    )
+    # Distributors don't have KYC — mark them approved so the field exists
+    await db.users.update_many(
+        {"role": "distributor", "kyc_status": {"$exists": False}},
+        {"$set": {"kyc_status": "approved"}},
+    )
+
+@app.on_event("shutdown")
+async def shutdown():
+    client.close()
+
+# ---------- BACKUP & RESTORE ----------
+# Backup goal: capture EVERY collection (enumerated dynamically) + EVERY uploaded
+# file binary at the exact moment of snapshot. Restore must produce a state that
+# is byte-for-byte equivalent to the snapshot, with a post-restore manifest
+# verification so partial restores can never silently report success.
+#
+# Excluded from app-data backup (these are metadata about the backup system itself
+# or system collections; including them would create a chicken-and-egg loop on
+# restore and could destroy other backups):
+#   - backups                  (metadata index for backup bundles)
+#   - backup_settings          (toggle + retention config)
+#   - backups_fs.files         (GridFS file metadata for the backup bucket)
+#   - backups_fs.chunks        (GridFS binary chunks for the backup bucket)
+#   - any collection named system.*
+BACKUP_EXCLUDED_COLLECTIONS = {
+    "backups", "backup_settings", "backups_fs.files", "backups_fs.chunks",
+}
+DEFAULT_RETENTION_DAYS = 30
+
+_gridfs: Optional[AsyncIOMotorGridFSBucket] = None
+
+
+def _gfs() -> AsyncIOMotorGridFSBucket:
+    global _gridfs
+    if _gridfs is None:
+        _gridfs = AsyncIOMotorGridFSBucket(db, bucket_name="backups_fs")
+    return _gridfs
+
+
+async def _app_collection_names() -> list:
+    """Enumerate every collection in the database that belongs to the application,
+    filtering out backup-system + Mongo system collections. Done dynamically so
+    any collection added in the future is included automatically."""
+    names = await db.list_collection_names()
+    out = []
+    for n in names:
+        if n in BACKUP_EXCLUDED_COLLECTIONS:
+            continue
+        if n.startswith("system."):
+            continue
+        out.append(n)
+    return sorted(out)
+
+
+async def _dump_db_to_gz_bytes() -> bytes:
+    """LEGACY v2 path. Retained for tests / small backups that still want a sync
+    in-memory blob. New backups go through `_run_backup_job` (streaming + async)
+    via `_create_backup`. Kept identical to v2 spec so existing v2 backups remain
+    restorable by `_restore_v2_blob`."""
+    import base64
+    from bson import json_util
+
+    collection_payload: dict = {}
+    collection_counts: dict = {}
+    for name in await _app_collection_names():
+        docs = await db[name].find({}).to_list(None)
+        for d in docs:
+            d.pop("_id", None)
+        collection_payload[name] = docs
+        collection_counts[name] = len(docs)
+
+    files_payload: list = []
+    file_fetch_errors: list = []
+    file_records = await db.files.find({"is_deleted": {"$ne": True}}, {"_id": 0}).to_list(None) if "files" in collection_payload else []
+    for rec in file_records:
+        sp = rec.get("storage_path")
+        if not sp:
+            continue
+        try:
+            blob, ctype = get_object(sp)
+            files_payload.append({
+                "storage_path": sp,
+                "content_type": ctype or rec.get("content_type") or "application/octet-stream",
+                "size": len(blob),
+                "data_b64": base64.b64encode(blob).decode("ascii"),
+            })
+        except Exception as exc:
+            file_fetch_errors.append({"storage_path": sp, "error": str(exc)})
+            logger.warning(f"Backup: failed to fetch file {sp}: {exc}")
+
+    payload = {
+        "version": 2,
+        "created_at": now_iso(),
+        "manifest": {
+            "collection_doc_counts": collection_counts,
+            "total_documents": sum(collection_counts.values()),
+            "file_count": len(files_payload),
+            "file_total_bytes": sum(f["size"] for f in files_payload),
+            "file_fetch_errors": file_fetch_errors,
+        },
+        "collections": collection_payload,
+        "files": files_payload,
+    }
+    raw = json_util.dumps(payload).encode("utf-8")
+    return gzip.compress(raw)
+
+
+# ---------- STREAMING BACKUP (v3) ----------
+# Backup is written incrementally as a NEWLINE-DELIMITED JSON stream, gzipped
+# in independent ~1MB plaintext blocks. Each gzip block is appended directly
+# to the GridFS upload stream. Multiple concatenated gzip members are part of
+# the gzip spec (RFC 1952) and are read transparently by gzip.GzipFile / gzip.open.
+#
+# Stream record types (one JSON object per line):
+#   {"t":"header","version":3,"created_at":"..."}
+#   {"t":"doc","c":"<collection_name>","d":<bson.json_util doc>}
+#   {"t":"file","p":"<storage_path>","ct":"<content_type>","sz":N,"b":"<base64>"}
+#   {"t":"manifest","collection_doc_counts":{...},"total_documents":N,
+#                   "file_count":F,"file_total_bytes":B}
+#
+# Peak memory ~= (1 MB plaintext buffer) + (size of one uploaded file).
+
+COLLECTION_BATCH = 500
+GZIP_FLUSH_BYTES = 1 * 1024 * 1024  # flush every ~1MB plaintext to GridFS
+
+
+class _StreamingGzipUploader:
+    """Append-only stream that gzip-compresses plaintext bytes in 1MB blocks
+    and writes each compressed block to a Motor GridFS upload stream. Bounded
+    peak memory: one flush buffer at a time."""
+    def __init__(self, upload_stream):
+        self._upload = upload_stream
+        self._buf = bytearray()
+        self.compressed_bytes = 0
+
+    async def write_line(self, payload: dict) -> None:
+        from bson import json_util
+        line = (json_util.dumps(payload) + "\n").encode("utf-8")
+        self._buf.extend(line)
+        if len(self._buf) >= GZIP_FLUSH_BYTES:
+            await self._flush_block()
+
+    async def _flush_block(self) -> None:
+        if not self._buf:
+            return
+        block = gzip.compress(bytes(self._buf), compresslevel=6)
+        await self._upload.write(block)
+        self.compressed_bytes += len(block)
+        self._buf = bytearray()
+
+    async def close(self) -> None:
+        await self._flush_block()
+
+
+async def _run_backup_job(backup_id: str) -> None:
+    """Background coroutine that produces a v3 streaming backup and updates the
+    backup record's status from `in_progress` → `completed` (or `failed`)."""
+    import base64
+    from bson import json_util  # noqa: F401
+
+    rec = await db.backups.find_one({"id": backup_id}, {"_id": 0})
+    if not rec:
+        return
+    label = rec.get("label") or "Backup"
+    kind = rec.get("kind") or "manual"
+
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S")
+    filename = f"makfinpay_backup_{ts}.json.gz"
+    upload = _gfs().open_upload_stream(filename, metadata={"label": label, "kind": kind, "version": 3})
+    writer = _StreamingGzipUploader(upload)
+
+    collection_counts: dict = {}
+    file_count = 0
+    file_total_bytes = 0
+    file_errors: list = []
+
+    try:
+        await writer.write_line({"t": "header", "version": 3, "created_at": now_iso()})
+
+        # 1) Collections — cursor + per-doc streaming (no list materialisation).
+        coll_names = await _app_collection_names()
+        for name in coll_names:
+            count = 0
+            cursor = db[name].find({}).batch_size(COLLECTION_BATCH)
+            async for d in cursor:
+                d.pop("_id", None)
+                await writer.write_line({"t": "doc", "c": name, "d": d})
+                count += 1
+            collection_counts[name] = count
+
+        # 2) File binaries — one file at a time (bounded by single-file size).
+        if "files" in coll_names:
+            async for fr in db.files.find({"is_deleted": {"$ne": True}}, {"_id": 0}).batch_size(100):
+                sp = fr.get("storage_path")
+                if not sp:
+                    continue
+                try:
+                    blob, ctype = get_object(sp)
+                except Exception as exc:
+                    file_errors.append({"storage_path": sp, "error": str(exc)})
+                    logger.warning(f"Backup {backup_id}: file fetch failed {sp}: {exc}")
+                    continue
+                await writer.write_line({
+                    "t": "file",
+                    "p": sp,
+                    "ct": ctype or fr.get("content_type") or "application/octet-stream",
+                    "sz": len(blob),
+                    "b": base64.b64encode(blob).decode("ascii"),
+                })
+                file_count += 1
+                file_total_bytes += len(blob)
+                # immediately free the in-memory blob
+                del blob
+
+        # 3) Manifest — always last line.
+        manifest = {
+            "collection_doc_counts": collection_counts,
+            "total_documents": sum(collection_counts.values()),
+            "file_count": file_count,
+            "file_total_bytes": file_total_bytes,
+            "file_fetch_errors": file_errors,
+        }
+        await writer.write_line({"t": "manifest", **manifest})
+
+        await writer.close()
+        await upload.close()
+
+        await db.backups.update_one(
+            {"id": backup_id},
+            {"$set": {
+                "status": "completed",
+                "gridfs_id": str(upload._id),
+                "filename": filename,
+                "size_bytes": writer.compressed_bytes,
+                "manifest": manifest,
+                "completed_at": now_iso(),
+                "error": None,
+            }},
+        )
+        logger.info(
+            f"Backup {backup_id} completed: {filename} "
+            f"({writer.compressed_bytes} bytes, {sum(collection_counts.values())} docs, {file_count} files)"
+        )
+    except Exception as exc:
+        # Clean up the partial GridFS artifact if any
+        try:
+            await upload.abort()
+        except Exception:
+            pass
+        await db.backups.update_one(
+            {"id": backup_id},
+            {"$set": {"status": "failed", "error": str(exc), "completed_at": now_iso()}},
+        )
+        logger.error(f"Backup {backup_id} FAILED: {exc}")
+
+
+async def _create_backup(label: str, kind: str, created_by: str) -> dict:
+    """Returns a backup record in `in_progress` status IMMEDIATELY and spawns
+    the actual streaming work as a background asyncio task. HTTP 202 semantics:
+    callers do not block on the snapshot, so Cloudflare cannot time out."""
+    rec = {
+        "id": new_id(),
+        "gridfs_id": None,
+        "filename": None,
+        "label": label,
+        "kind": kind,           # "manual" | "automatic" | "pre-restore-safety"
+        "size_bytes": 0,
+        "status": "in_progress",
+        "manifest": None,
+        "error": None,
+        "started_at": now_iso(),
+        "completed_at": None,
+        "created_at": now_iso(),
+        "created_by": created_by,
+        "version": 3,
+    }
+    await db.backups.insert_one(dict(rec))
+    asyncio.create_task(_run_backup_job(rec["id"]))
+    return clean(rec)
+
+
+async def _restore_from_gz_bytes(blob: bytes) -> dict:
+    """Version-aware restore. Supports v2 (single in-memory JSON blob) and v3
+    (NDJSON streaming format). v3 spills via a temp file so peak RAM stays
+    bounded by one batch + one file. Returns a verification report; the calling
+    endpoint converts a mismatched/failed restore into HTTP 409 with details."""
+    import base64
+    import tempfile
+    from bson import json_util
+
+    # Sniff the format. v3's first decompressed line is a JSON header
+    # `{"t":"header","version":3,...}`. v2 decompresses to a single big JSON object.
+    head = b""
+    try:
+        with gzip.GzipFile(fileobj=io.BytesIO(blob)) as gz:
+            head = gz.read(64)
+    except Exception as exc:
+        raise HTTPException(400, f"Invalid backup file format: {exc}")
+    is_v3 = head.startswith(b'{"t"') or head.startswith(b'{"t":"header"')
+
+    if not is_v3:
+        return await _restore_v2_blob(blob)
+
+    # v3 streaming restore via temp file
+    with tempfile.NamedTemporaryFile() as tf:
+        tf.write(blob)
+        tf.flush()
+        tf.seek(0)
+        return await _restore_v3_stream(tf.name)
+
+
+async def _restore_v2_blob(blob: bytes) -> dict:
+    """Legacy v2 restore — kept for backups created before the streaming rewrite."""
+    import base64
+    from bson import json_util
+
+    try:
+        raw = gzip.decompress(blob)
+        payload = json_util.loads(raw.decode("utf-8"))
+    except Exception as exc:
+        raise HTTPException(400, f"Invalid backup file format: {exc}")
+    if not isinstance(payload, dict) or "collections" not in payload:
+        raise HTTPException(400, "Invalid backup file format")
+
+    manifest = payload.get("manifest") or {}
+    expected_counts = manifest.get("collection_doc_counts") or {}
+    expected_files = manifest.get("file_count")
+
+    restored_counts: dict = {}
+    for name, docs in (payload.get("collections") or {}).items():
+        if name in BACKUP_EXCLUDED_COLLECTIONS or name.startswith("system."):
+            continue
+        if docs:
+            for d in docs:
+                d.pop("_id", None)
+        await db[name].delete_many({})
+        if docs:
+            await db[name].insert_many(docs)
+        restored_counts[name] = len(docs or [])
+
+    file_errors: list = []
+    files_restored = 0
+    for f in payload.get("files") or []:
+        try:
+            data = base64.b64decode(f["data_b64"])
+            put_object(f["storage_path"], data, f.get("content_type") or "application/octet-stream")
+            files_restored += 1
+        except Exception as exc:
+            file_errors.append({"storage_path": f.get("storage_path"), "error": str(exc)})
+
+    mismatches: list = []
+    if expected_counts:
+        for name, expected in expected_counts.items():
+            got = restored_counts.get(name)
+            if got is None or got != expected:
+                mismatches.append({"collection": name, "expected": expected, "restored": got})
+    if expected_files is not None and files_restored != expected_files:
+        mismatches.append({"files": True, "expected": expected_files, "restored": files_restored})
+
+    return {
+        "version": payload.get("version", 1),
+        "summary": restored_counts,
+        "files_restored": files_restored,
+        "file_errors": file_errors,
+        "verified": len(mismatches) == 0 and len(file_errors) == 0,
+        "mismatches": mismatches,
+    }
+
+
+async def _restore_v3_stream(path: str) -> dict:
+    """Streaming v3 restore — reads NDJSON lines from a gzip file on disk,
+    inserts collection docs in batches, and uploads files one at a time to
+    object storage. Memory bounded by one batch + one file."""
+    import base64
+    from bson import json_util
+
+    coll_buffers: dict = {}  # name -> list[doc] (flushes at COLLECTION_BATCH)
+    cleared: set = set()     # collections whose contents have been delete_many'd
+    restored_counts: dict = {}
+    files_restored = 0
+    file_errors: list = []
+    manifest: dict = {}
+
+    async def flush_buffer(name: str) -> None:
+        buf = coll_buffers.get(name)
+        if not buf:
+            return
+        await db[name].insert_many(buf)
+        restored_counts[name] = restored_counts.get(name, 0) + len(buf)
+        coll_buffers[name] = []
+
+    with gzip.open(path, "rb") as gz:
+        for raw_line in gz:
+            if not raw_line.strip():
+                continue
+            rec = json_util.loads(raw_line.decode("utf-8"))
+            t = rec.get("t")
+            if t == "header":
+                continue
+            if t == "doc":
+                name = rec["c"]
+                if name in BACKUP_EXCLUDED_COLLECTIONS or name.startswith("system."):
+                    continue
+                if name not in cleared:
+                    await db[name].delete_many({})
+                    cleared.add(name)
+                    restored_counts[name] = 0
+                    coll_buffers[name] = []
+                d = rec["d"]
+                if isinstance(d, dict):
+                    d.pop("_id", None)
+                coll_buffers[name].append(d)
+                if len(coll_buffers[name]) >= COLLECTION_BATCH:
+                    await flush_buffer(name)
+            elif t == "file":
+                sp = rec.get("p")
+                try:
+                    data = base64.b64decode(rec["b"])
+                    put_object(sp, data, rec.get("ct") or "application/octet-stream")
+                    files_restored += 1
+                except Exception as exc:
+                    file_errors.append({"storage_path": sp, "error": str(exc)})
+            elif t == "manifest":
+                manifest = {k: v for k, v in rec.items() if k != "t"}
+
+    # Drain any remaining buffered docs
+    for name in list(coll_buffers.keys()):
+        await flush_buffer(name)
+
+    # Verification — pre-populate restored_counts with 0 for every collection the
+    # manifest expects, so a collection that legitimately has 0 documents in the
+    # backup (no 'doc' lines emitted) doesn't trigger a false-positive mismatch.
+    expected_counts = (manifest or {}).get("collection_doc_counts") or {}
+    for name in expected_counts:
+        restored_counts.setdefault(name, 0)
+        # Also clear any expected-zero collection that we never touched, so the
+        # restored state matches the snapshot exactly.
+        if expected_counts[name] == 0 and name not in cleared and name not in BACKUP_EXCLUDED_COLLECTIONS and not name.startswith("system."):
+            await db[name].delete_many({})
+    expected_files = (manifest or {}).get("file_count")
+    mismatches: list = []
+    for name, expected in expected_counts.items():
+        got = restored_counts.get(name)
+        if got is None or got != expected:
+            mismatches.append({"collection": name, "expected": expected, "restored": got})
+    if expected_files is not None and files_restored != expected_files:
+        mismatches.append({"files": True, "expected": expected_files, "restored": files_restored})
+
+    return {
+        "version": 3,
+        "summary": restored_counts,
+        "files_restored": files_restored,
+        "file_errors": file_errors,
+        "verified": len(mismatches) == 0 and len(file_errors) == 0,
+        "mismatches": mismatches,
+    }
+
+
+async def _create_backup_sync(label: str, kind: str, created_by: str) -> dict:
+    """Synchronous (blocking) full-capture path. Retained for the existing
+    safety-backup-before-restore step where we WANT to wait for completion
+    before the restore proceeds, and for tests that need a finished backup
+    inline. Uses the v2 in-memory dumper so the safety backup is fully
+    materialised by the time this function returns."""
+    blob = await _dump_db_to_gz_bytes()
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S")
+    filename = f"makfinpay_backup_{ts}.json.gz"
+    gridfs_id = await _gfs().upload_from_stream(filename, blob, metadata={"label": label, "kind": kind})
+    doc = {
+        "id": new_id(),
+        "gridfs_id": str(gridfs_id),
+        "filename": filename,
+        "label": label,
+        "kind": kind,
+        "size_bytes": len(blob),
+        "status": "completed",
+        "manifest": None,
+        "error": None,
+        "started_at": now_iso(),
+        "completed_at": now_iso(),
+        "created_at": now_iso(),
+        "created_by": created_by,
+        "version": 2,
+    }
+    await db.backups.insert_one(dict(doc))
+    return clean(doc)
+
+
+async def _retention_cleanup() -> int:
+    settings = await db.backup_settings.find_one({"id": "config"}, {"_id": 0}) or {}
+    days = int(settings.get("retention_days") or DEFAULT_RETENTION_DAYS)
+    if days <= 0:
+        return 0  # "Forever"
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    deleted = 0
+    async for b in db.backups.find({"kind": "automatic", "created_at": {"$lt": cutoff}}):
+        try:
+            await _gfs().delete(b["gridfs_id"] if isinstance(b["gridfs_id"], (bytes, bytearray)) else __import__("bson").ObjectId(b["gridfs_id"]))
+        except Exception:
+            pass
+        await db.backups.delete_one({"id": b["id"]})
+        deleted += 1
+    return deleted
+
+
+# --- scheduler ---
+_scheduler: Optional[AsyncIOScheduler] = None
+
+
+async def _daily_backup_job():
+    settings = await db.backup_settings.find_one({"id": "config"}, {"_id": 0}) or {}
+    if settings.get("enabled") is False:
+        return
+    # Daily job runs OUTSIDE the HTTP request — no Cloudflare timeout to worry
+    # about. Use the same streaming pipeline, but await it inline so retention
+    # cleanup runs only after a successful completion.
+    rec = {
+        "id": new_id(), "gridfs_id": None, "filename": None,
+        "label": "Daily Backup", "kind": "automatic",
+        "size_bytes": 0, "status": "in_progress", "manifest": None, "error": None,
+        "started_at": now_iso(), "completed_at": None,
+        "created_at": now_iso(), "created_by": "system", "version": 3,
+    }
+    await db.backups.insert_one(dict(rec))
+    try:
+        await _run_backup_job(rec["id"])
+        await _retention_cleanup()
+        logger.info("Daily backup created and retention cleanup ran")
+    except Exception as exc:
+        logger.error(f"Daily backup failed: {exc}")
+
+
+def _ensure_backup_scheduler():
+    global _scheduler
+    if _scheduler:
+        return
+    _scheduler = AsyncIOScheduler(timezone="Asia/Kolkata")
+    _scheduler.add_job(_daily_backup_job, CronTrigger(hour=0, minute=0), id="daily_backup", replace_existing=True)
+    _scheduler.start()
+    logger.info("Backup scheduler started (00:00 Asia/Kolkata daily)")
+
+
+async def _ensure_backup_settings():
+    if not await db.backup_settings.find_one({"id": "config"}):
+        await db.backup_settings.insert_one({
+            "id": "config", "enabled": True,
+            "retention_days": DEFAULT_RETENTION_DAYS, "updated_at": now_iso(),
+        })
+
+
+def _require_super_admin(user: dict):
+    if user.get("email", "").lower() != ADMIN_EMAIL.lower():
+        raise HTTPException(403, "Only the Super Admin can manage backups")
+
+
+# --- request models ---
+class BackupCreateIn(BaseModel):
+    label: Optional[str] = None
+
+
+class BackupSettingsIn(BaseModel):
+    enabled: bool
+    retention_days: int  # 7, 14, 30, 60, or 0 for "Forever"
+
+
+class BackupRestoreIn(BaseModel):
+    confirm: str
+
+
+# --- endpoints ---
+@api.get("/admin/backups")
+async def list_backups(user=Depends(require_roles("admin"))):
+    _require_super_admin(user)
+    items = await db.backups.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    creator_ids = list({b["created_by"] for b in items if b.get("created_by") and b["created_by"] != "system"})
+    name_map = {}
+    if creator_ids:
+        async for u in db.users.find({"id": {"$in": creator_ids}}, {"_id": 0, "id": 1, "full_name": 1}):
+            name_map[u["id"]] = u.get("full_name", "")
+    for b in items:
+        b["created_by_name"] = "System" if b.get("created_by") == "system" else name_map.get(b.get("created_by"), "Admin")
+    return items
+
+
+@api.get("/admin/backups/settings")
+async def get_backup_settings(user=Depends(require_roles("admin"))):
+    _require_super_admin(user)
+    await _ensure_backup_settings()
+    s = await db.backup_settings.find_one({"id": "config"}, {"_id": 0})
+    last = await db.backups.find_one({"kind": "automatic"}, {"_id": 0, "created_at": 1}, sort=[("created_at", -1)])
+    # Next 00:00 IST after now
+    ist = timezone(timedelta(hours=5, minutes=30))
+    now_ist = datetime.now(ist)
+    next_run = (now_ist.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)).isoformat()
+    return {**s, "last_automatic_at": last["created_at"] if last else None, "next_scheduled_at": next_run}
+
+
+@api.put("/admin/backups/settings")
+async def update_backup_settings(body: BackupSettingsIn, request: Request, user=Depends(require_roles("admin"))):
+    _require_super_admin(user)
+    if body.retention_days not in (0, 7, 14, 30, 60):
+        raise HTTPException(400, "retention_days must be 0, 7, 14, 30, or 60")
+    await db.backup_settings.update_one(
+        {"id": "config"},
+        {"$set": {"enabled": body.enabled, "retention_days": body.retention_days, "updated_at": now_iso()}},
+        upsert=True,
+    )
+    await write_audit(user["id"], "backup_settings_updated", meta=body.model_dump(), request=request)
+    return {"ok": True}
+
+
+# ---------- BACKGROUND RESTORE JOB ----------
+async def _run_restore_job(backup_id: str, source: str, raw_blob: Optional[bytes],
+                            user_id: str, original_filename: Optional[str] = None) -> None:
+    """Background coroutine that creates the safety backup, runs the streaming
+    restore, then writes the result back to db.backups[{id: backup_id}] under
+    restore_status / restore_result / restore_error / restore_safety_backup_id."""
+    from bson import ObjectId
+    safety_rec = {
+        "id": new_id(), "gridfs_id": None, "filename": None,
+        "label": f"Pre-restore safety ({source})",
+        "kind": "pre-restore-safety",
+        "size_bytes": 0, "status": "in_progress", "manifest": None, "error": None,
+        "started_at": now_iso(), "completed_at": None,
+        "created_at": now_iso(), "created_by": user_id, "version": 3,
+    }
+    await db.backups.insert_one(dict(safety_rec))
+    # 1) Safety backup — same streaming pipeline, awaited inline.
+    try:
+        await _run_backup_job(safety_rec["id"])
+    except Exception as exc:
+        await db.backups.update_one({"id": backup_id}, {"$set": {
+            "restore_status": "failed",
+            "restore_error": f"Safety backup failed: {exc}",
+            "restore_completed_at": now_iso(),
+            "restore_safety_backup_id": safety_rec["id"],
+        }})
+        return
+
+    # 2) Run the restore.
+    try:
+        if raw_blob is None:
+            # source == backup_id from history
+            b = await db.backups.find_one({"id": backup_id}, {"_id": 0})
+            stream = await _gfs().open_download_stream(ObjectId(b["gridfs_id"]))
+            raw_blob = await stream.read()
+        result = await _restore_from_gz_bytes(raw_blob)
+    except Exception as exc:
+        await db.backups.update_one({"id": backup_id}, {"$set": {
+            "restore_status": "failed",
+            "restore_error": str(exc),
+            "restore_completed_at": now_iso(),
+            "restore_safety_backup_id": safety_rec["id"],
+        }})
+        return
+
+    await db.backups.update_one({"id": backup_id}, {"$set": {
+        "restore_status": "completed" if result.get("verified") else "failed",
+        "restore_error": None if result.get("verified") else f"Verification FAILED. "
+            f"Mismatches: {result.get('mismatches')}. File errors: {result.get('file_errors')}",
+        "restore_completed_at": now_iso(),
+        "restore_safety_backup_id": safety_rec["id"],
+        "restore_result": result,
+    }})
+
+
+@api.post("/admin/backups")
+async def create_manual_backup(body: BackupCreateIn, request: Request, user=Depends(require_roles("admin"))):
+    _require_super_admin(user)
+    label = (body.label or "").strip() or "Manual Backup"
+    doc = await _create_backup(label, "manual", user["id"])  # returns in_progress + spawns task
+    await write_audit(user["id"], "backup_created", target=doc["id"], meta={"label": label, "kind": "manual"}, request=request)
+    return Response(
+        content=_json.dumps(doc),
+        status_code=202,
+        media_type="application/json",
+    )
+
+
+@api.get("/admin/backups/{bid}/status")
+async def get_backup_status(bid: str, user=Depends(require_roles("admin"))):
+    """Lightweight status endpoint for frontend polling."""
+    _require_super_admin(user)
+    b = await db.backups.find_one(
+        {"id": bid},
+        {"_id": 0, "id": 1, "status": 1, "error": 1, "size_bytes": 1,
+         "manifest": 1, "completed_at": 1,
+         "restore_status": 1, "restore_error": 1, "restore_safety_backup_id": 1,
+         "restore_completed_at": 1, "restore_result": 1},
+    )
+    if not b:
+        raise HTTPException(404, "Backup not found")
+    return b
+
+
+@api.get("/admin/backups/{bid}/download")
+async def download_backup(bid: str, user=Depends(require_roles("admin"))):
+    _require_super_admin(user)
+    b = await db.backups.find_one({"id": bid}, {"_id": 0})
+    if not b:
+        raise HTTPException(404, "Backup not found")
+    if b.get("status") != "completed":
+        raise HTTPException(409, f"Backup is not ready (status: {b.get('status')})")
+    from bson import ObjectId
+    stream = await _gfs().open_download_stream(ObjectId(b["gridfs_id"]))
+    # Stream the GridFS bytes directly through Starlette's StreamingResponse
+    # so we never load the whole backup into Python memory at download time.
+    from starlette.responses import StreamingResponse
+
+    async def gridfs_iter():
+        async for chunk in stream:
+            yield chunk
+
+    await write_audit(user["id"], "backup_downloaded", target=bid)
+    return StreamingResponse(
+        gridfs_iter(),
+        media_type="application/gzip",
+        headers={"Content-Disposition": f'attachment; filename="{b["filename"]}"'},
+    )
+
+
+@api.post("/admin/backups/{bid}/restore")
+async def restore_backup(bid: str, body: BackupRestoreIn, request: Request, user=Depends(require_roles("admin"))):
+    _require_super_admin(user)
+    if body.confirm != "RESTORE":
+        raise HTTPException(400, "Type RESTORE (uppercase) to confirm")
+    b = await db.backups.find_one({"id": bid}, {"_id": 0})
+    if not b:
+        raise HTTPException(404, "Backup not found")
+    if b.get("status") != "completed":
+        raise HTTPException(409, f"Backup is not ready to restore (status: {b.get('status')})")
+    if b.get("restore_status") == "in_progress":
+        raise HTTPException(409, "A restore is already in progress for this backup")
+
+    # Mark restore as in_progress and kick off the background job.
+    await db.backups.update_one({"id": bid}, {"$set": {
+        "restore_status": "in_progress",
+        "restore_started_at": now_iso(),
+        "restore_completed_at": None,
+        "restore_error": None,
+        "restore_safety_backup_id": None,
+        "restore_result": None,
+    }})
+    asyncio.create_task(_run_restore_job(bid, b.get("filename") or bid, None, user["id"]))
+    await write_audit(user["id"], "backup_restore_started", target=bid, request=request)
+
+    return Response(
+        content=_json.dumps({"ok": True, "status": "in_progress", "backup_id": bid}),
+        status_code=202,
+        media_type="application/json",
+    )
+
+
+@api.post("/admin/backups/restore-upload")
+async def restore_from_upload(request: Request, file: UploadFile = File(...),
+                              confirm: str = Form(...),
+                              user=Depends(require_roles("admin"))):
+    _require_super_admin(user)
+    if confirm != "RESTORE":
+        raise HTTPException(400, "Type RESTORE (uppercase) to confirm")
+    blob = await file.read()
+    if file.filename.endswith(".json") and not blob[:2] == b"\x1f\x8b":
+        blob = gzip.compress(blob)
+
+    # Park the uploaded blob in a synthetic backup record so the same async
+    # restore pipeline applies. The record is marked status="completed" with
+    # a gridfs_id pointing at the uploaded bundle so subsequent UI polling on
+    # `restore_status` works identically to history-based restores.
+    from bson import ObjectId  # noqa: F401
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S")
+    fname = f"makfinpay_uploaded_{ts}.json.gz"
+    gridfs_id = await _gfs().upload_from_stream(fname, blob, metadata={"label": file.filename, "kind": "upload"})
+    rec = {
+        "id": new_id(),
+        "gridfs_id": str(gridfs_id),
+        "filename": fname,
+        "label": file.filename or "Uploaded restore",
+        "kind": "upload",
+        "size_bytes": len(blob),
+        "status": "completed",
+        "manifest": None,
+        "error": None,
+        "started_at": now_iso(),
+        "completed_at": now_iso(),
+        "created_at": now_iso(),
+        "created_by": user["id"],
+        "version": 2,
+        "restore_status": "in_progress",
+        "restore_started_at": now_iso(),
+    }
+    await db.backups.insert_one(dict(rec))
+    asyncio.create_task(_run_restore_job(rec["id"], file.filename or "upload", blob, user["id"]))
+    await write_audit(user["id"], "backup_restore_started", target=rec["id"],
+                      meta={"filename": file.filename}, request=request)
+    return Response(
+        content=_json.dumps({"ok": True, "status": "in_progress", "backup_id": rec["id"]}),
+        status_code=202,
+        media_type="application/json",
+    )
+
+
+@api.delete("/admin/backups/{bid}")
+async def delete_backup(bid: str, request: Request, user=Depends(require_roles("admin"))):
+    _require_super_admin(user)
+    b = await db.backups.find_one({"id": bid}, {"_id": 0})
+    if not b:
+        raise HTTPException(404, "Backup not found")
+    if b.get("status") == "in_progress" or b.get("restore_status") == "in_progress":
+        raise HTTPException(409, "Backup is in progress and cannot be deleted")
+    # Never delete the only remaining backup
+    total = await db.backups.count_documents({})
+    if total <= 1:
+        raise HTTPException(400, "Cannot delete the only remaining backup")
+    from bson import ObjectId
+    try:
+        await _gfs().delete(ObjectId(b["gridfs_id"]))
+    except Exception:
+        pass
+    await db.backups.delete_one({"id": bid})
+    await write_audit(user["id"], "backup_deleted", target=bid, request=request)
+    return {"ok": True}
+
+
+app.include_router(api)
+
+_cors_origins_env = os.environ.get("CORS_ORIGINS", "*").strip()
+CORS_ORIGINS = ["*"] if _cors_origins_env == "*" else [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)

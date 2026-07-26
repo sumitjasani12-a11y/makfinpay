@@ -1,0 +1,2 @@
+/* component-level styles intentionally minimal; rely on Tailwind + index.css tokens */
+.App { min-height: 100vh; }

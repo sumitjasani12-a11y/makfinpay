@@ -1,0 +1,30 @@
+{
+  "summary": "Iteration 18 verified end-to-end. Backend: 14/14 pytest cases pass covering field shape, cross-check with /api/admin/users?role=distributor per-row earnings, direct-mongo formula parity, date-filter invariance (today/yesterday/last7/last30/lifetime + custom 1900 + custom 2999), frozen distributor inclusion, kyc_status=rejected distributor inclusion, approved withdrawal subtraction (₹1000 earnings − ₹300 withdrawal = ₹700 delta), all 12 legacy fields still present, iter-17 withdrawal math still holds (total = agent + distributor), total_wallet still ignores range, and auth guard. Frontend: Playwright login as Super Admin → /admin passed all 8 assertions — card renders with data-testid=kpi-total-distributor-earnings, label 'Total Distributor Earnings', hint 'All time • Live balance', ₹4,308.06 matches backend, positioned exactly at grid index 4 (immediately after 'Total Wallet Balance' at idx 3), grid contains 7 cards in expected order [Total Revenue, Transaction Revenue, Recharge Approved, Total Wallet Balance, Total Distributor Earnings, Bill Payments, Withdrawals], visual parity with Total Wallet Balance card (same .mfp-kpi + same amount classes), and ₹4,308.06 remains INVARIANT across every date-filter toggle including custom 1900-01-01→1900-12-31 while the Withdrawals card correctly falls to ₹0 in that range (confirming TDE mirrors Total Wallet Balance's exception behaviour).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_total_distributor_earnings.py",
+    "/app/test_reports/pytest/total_distributor_earnings.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py L1618: `db.users.find({'role':'distributor'}, ...)` does NOT filter `is_deleted: False`, while /api/admin/users?role=distributor (L774) does. On this DB there are no soft-deleted distributors so the two sums match, but if a distributor is ever soft-deleted their earnings would still be included in total_distributor_earnings but NOT in the per-row admin/users sum — a silent divergence. Recommend adding `is_deleted: False` (or explicitly `{ 'is_deleted': { '$ne': True } }`) to the distributor id lookup on L1618 to preserve single-source-of-truth invariant.",
+    "server.py L1618 also runs a full-collection scan and materializes all distributor ids into a Python list (async generator + list comprehension). For a platform with thousands of distributors this becomes O(N) memory + a second round-trip inside _distributor_earnings_batch. Consider inlining the recharge/withdrawal aggregation as one pipeline that groups over `db.users` LEFT-JOINed to recharges/withdrawals via `$lookup`, or at minimum project only {id:1} (currently done — good).",
+    "Shared.jsx Kpi component: mixing kebab-case `data-testid` with the standard-props signature via `\"data-testid\": testid` string key is fine but non-idiomatic. Consider renaming the prop to `testId` (camelCase) or accepting `...rest` and spreading, so future authors don't stumble.",
+    "Overview.jsx still has two hand-rolled .mfp-kpi blocks (Total Revenue at L119-126 and Withdrawals at L132-139) that duplicate Kpi component structure with sub-lines. iter-17 note stands — a KpiAccent wrapper would DRY these. Not blocking."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_total_distributor_earnings.py (new)"
+  ],
+  "success_rate": { "backend": "100% (14/14)", "frontend": "100% (all 8 UI assertions pass)" },
+  "test_credentials": "Super Admin: makfinpay@gmail.com / Riyaz@1212 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Test fixture inserts synthetic users/recharges/withdrawals directly via pymongo with IT18TDE_ prefix; module-scope teardown deletes all IT18TDE_-prefixed docs. Per-test try/finally also cleans up. No residual data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Live baseline: total_distributor_earnings=4308.06 across all date ranges. Invariance is guaranteed at the backend layer (L1613-1620 in server.py: dist_ids fetch + _distributor_earnings_batch runs UNCONDITIONALLY of the resolved date_match). The direct-mongo computation test can be used as a regression check going forward — it re-derives the value from raw collections and compares against the endpoint. The soft-deleted-distributor caveat mentioned in critical_code_review_comments is a latent divergence; add a test that inserts a soft-deleted distributor with lifetime earnings if you want to lock this behaviour in either direction.",
+  "rca_of_the_issue": "N/A — feature-completeness verification. Feature works precisely as specified: (1) new aggregation reuses _distributor_earnings_batch (single source of truth vs Distributor Overview / Withdrawal / Admin Distributors table); (2) invariance to date filter is guaranteed by construction (the dist_ids fetch and earnings batch never see start/end); (3) frozen and rejected distributors are included because there is no status filter on the distributor id lookup; (4) UI card uses the shared Kpi component (extended in Shared.jsx to forward data-testid) so visual parity with Total Wallet Balance is exact — verified by DOM class comparison."
+}

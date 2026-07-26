@@ -1,0 +1,40 @@
+{
+  "summary": "Backend-only regression for MAK FIN PAY after complete removal of agent_code system. 22/22 pytest tests passed (100%). Verified email+password-only login for all roles, no agent_code in any response/audit/index, full wallet lifecycle (recharge approve -> credit, bill payment debit, admin reject refund, withdrawal create + reject refund), admin stats, and MongoDB users collection now has only _id_ and email_1 indexes (legacy agent_code index dropped).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/admin/users", "issue": "Email is silently lowercased on create but no client-facing note; could surprise UI if it stores casing locally. Cosmetic only."},
+      {"endpoint": "GET /api/wallet", "issue": "For admin role returns {'balance': 0} (plain dict) while for others returns full wallet doc — inconsistent response shape."},
+      {"endpoint": "CORS middleware", "issue": "allow_origins=['*'] with allow_credentials=False — login cookie won't be accepted by browsers cross-origin; frontend works via Bearer token so functional, but cookie-based auth is effectively dead. Consider explicit origins + allow_credentials=True if cookies are needed."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_makfinpay_no_agent_code.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Optional) Normalize /api/wallet response shape between admin and non-admin roles.",
+    "(Optional) Tighten CORS if cookie-based auth is to be relied upon."
+  ],
+  "critical_code_review_comments": [
+    "server.py is ~770 lines and combines auth, uploads, wallet, recharge, bill payment, withdrawal, KYC, QR, settings, audit and stats — split into routers/modules for maintainability before it grows further.",
+    "Bcrypt hash format verified ($2b$) via successful login. Good.",
+    "Startup correctly drops legacy agent_code* indexes and $unsets agent_code on existing admin doc — confirmed.",
+    "seed_admin is idempotent and re-hashes password if it changed — matches playbook expectation.",
+    "No brute-force lockout implemented (playbook expects lockout after 5 failed logins). Not in scope for this iteration but noted.",
+    "set_cookie uses secure=False — fine for preview but should be True in production.",
+    "distributor_create_agent: commission validated against admin min/max — good. But create_subuser fallback can still set commission outside range when called by admin without explicit value (admin path bypasses range check). Consider validating uniformly.",
+    "@app.on_event('startup'/'shutdown') is deprecated in FastAPI — should migrate to lifespan handlers."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_makfinpay_no_agent_code.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "N/A (skipped per request)"},
+  "test_credentials": "Admin: makfinpay@gmail.com / Riyaz@1212. TEST_ prefixed distributors/agents auto-created and cleaned up in teardown.",
+  "seed_data_creation": "Per-run TEST_dist_<suffix>@example.com and TEST_agent_dist_<suffix>@example.com created and torn down via session fixture (delete_many on regex ^TEST_).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Re-use /app/backend/tests/test_makfinpay_no_agent_code.py as the regression suite. It is fully idempotent (unique suffix per run + teardown). Run: pytest /app/backend/tests/test_makfinpay_no_agent_code.py -v. Confirms agent_code removal end-to-end, full wallet/recharge/bill/withdrawal flow, audit, stats, and Mongo indexes.",
+  "rca of the issue": "N/A — no failing functionality. One initial test assertion failed because backend (correctly) lowercases emails; test was updated to compare case-insensitively."
+}

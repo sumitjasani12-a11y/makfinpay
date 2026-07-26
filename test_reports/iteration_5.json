@@ -1,0 +1,34 @@
+{
+  "summary": "Verified the Distributor Withdrawal Blocked bug fix end-to-end. 14/14 pytest cases passed exercising: distributor /stats new field `available_for_withdrawal`, agent vs distributor branching in POST /api/withdrawals, distributor 400 with 'Insufficient earnings balance' (never 'wallet'), admin approve drops earnings everywhere (distributor /stats + admin /users row), admin reject releases the pending reservation without touching earnings, agent regression (wallet debits immediately, unchanged on approve). 9/9 Playwright UI assertions confirmed the SAME ₹70.00 live earnings appear in all four UX surfaces: Distributor Overview KPI, Withdrawal page 'AVAILABLE EARNINGS' chip, Admin Distributors table EARNINGS column, Admin View modal Earnings card. Toast on over-withdraw renders 'Insufficient earnings balance. Available: ₹70.00'.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_distributor_withdrawal_bug.py",
+    "/app/test_reports/pytest/distributor_withdrawal.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now 1927 lines — still well over the 700-line guideline. Withdrawals + recharges + distributor stats should live in their own routers.",
+    "GET /api/admin/users/{uid} does NOT include the live `earnings` value; only the list endpoint does. The 'View' modal in _UserList.jsx currently works only because it reuses the row prop from /admin/users. If a future refactor switches the modal to call /admin/users/{uid}, the Earnings card will silently fall back to ₹0 (`distributor.earnings ?? 0`). Recommend adding `earnings` to the detail endpoint for symmetry.",
+    "Distributor withdrawal reject path (server.py:922-924) is correct — flips status only, no wallet ledger entry, so available_for_withdrawal naturally restores via re-aggregation. Verified.",
+    "Approve path re-checks live balance (server.py:896-903) and refuses if insufficient at approval-time — good defensive double-check.",
+    "get_distributor_available_for_withdrawal subtracts both 'approved' and 'pending' from lifetime so a distributor cannot double-spend; verified via the chip decreasing on pending creation."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_distributor_withdrawal_bug.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Admin: makfinpay@gmail.com / Riyaz@1212; Distributor: test_dist_2a03f52a@x.com / TestPass@123; Agent: test_agent_46a8e0d6@x.com / TestPass@123 (agent password discovered/confirmed during this iteration — recommend updating /app/memory/test_credentials.md).",
+  "seed_data_creation": "Used existing seeded distributor + agent. The test mutates state (withdrawals are created + admin-approved during the run). Current state after this iteration: test_dist_2a03f52a earnings=₹70.00, available_for_withdrawal=₹70.00 (started at ₹170, two ₹50 admin-approved withdrawals during reruns of test_g). test_agent_46a8e0d6 wallet=₹10675 (two ₹25 approved during reruns). Multiple Rejected ₹1 entries also exist in the withdrawals table from test_f.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Bug fix is complete and verified. Re-running test_distributor_withdrawal_bug.py is idempotent as long as the distributor still has ≥ ₹51 available_for_withdrawal (each full run consumes ~₹50 via the approve path). If available drops below that, manually seed earnings by: (1) login as admin, (2) approve more agent recharges so distributor_earnings_amount snapshots accumulate, or (3) call POST /api/admin/system/reset-demo-data and start over. The agent regression assertions rely on /api/wallet returning a positive balance for test_agent_46a8e0d6@x.com (currently ₹10675).",
+  "rca of the issue": "Original bug: POST /api/withdrawals always called adjust_balance(user_id, -amount) on the wallets collection. For distributors wallets.balance is always 0 because distributors do not transact — their earnings live on the recharges collection via the immutable `distributor_earnings_amount` snapshot. The fix branches by role: distributors validate against `get_distributor_available_for_withdrawal = lifetime − approved − pending`; agents keep wallet adjust_balance. Approve/Reject branches similarly skip the wallet ledger for distributor role. Frontend _Withdrawal.jsx now picks the source (distributor /stats vs /wallet) using useAuth().user.role. All four earnings render points (Overview KPI, Withdrawal chip, Admin table col, Admin modal card) read from the same `_distributor_earnings_for` / `_distributor_earnings_batch` helpers, ensuring perfect sync."
+}

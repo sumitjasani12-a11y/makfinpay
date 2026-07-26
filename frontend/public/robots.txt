@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /distributor
+Disallow: /agent
+
+Sitemap: https://makfinpay.com/sitemap.xml

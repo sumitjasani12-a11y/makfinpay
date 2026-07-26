@@ -1,0 +1,34 @@
+{
+  "summary": "Tested POST /api/admin/system/reset-demo-data backend + Admin Overview Danger Zone frontend. 5/5 pytest cases passed (validation 422 on missing confirm, 400 on lowercase 'reset', 403 super-admin gate with directly-inserted secondary admin, 401 unauthenticated, full seed→reset→verify flow with users/financial/QR/commission/audit assertions). 12/12 Playwright UI assertions passed (danger zone only on Overview, modal contents, kept-items list, RESET-only confirm enablement, lowercase/mixed/garbage stay disabled, cancel closes, full reset→success→3s redirect→zeroed KPIs).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_reset_demo_data.py",
+    "/app/test_reports/pytest/reset_demo_data.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is 1427 lines — exceeds the 700-line guideline. Recommend splitting into routers (auth, admin, recharges, transactions, wallet, admin_system) for maintainability.",
+    "reset_demo_data correctly excludes admin user/wallet and un-soft-deletes QR codes. Good use of safe_delete with per-collection exception logging.",
+    "Frontend DangerZone.jsx: window.location.reload() after nav('/admin') is fine but redundant — nav alone would re-fetch via useEffect. The reload ensures auth/user context refresh, which is acceptable.",
+    "Super-admin gate uses ADMIN_EMAIL.lower() comparison — correct since user emails are stored lowercase on login/seed.",
+    "audit_logs is wiped during the same reset and then a single 'demo_data_reset' entry is written — this is consistent with spec but means there is no history of prior resets."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_reset_demo_data.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Admin: makfinpay@gmail.com / Riyaz@1212 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Test creates ephemeral TEST_dist_<hex>@x.com distributor + TEST_agent_<hex>@x.com agent + test_secondadmin_<hex>@x.com admin (inserted directly via pymongo). All are wiped by the reset action itself; the secondary admin is also cleaned in fixture teardown. The current preview DB is now in a fully reset/clean state.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Reset Demo Data backend + frontend fully verified. The reset endpoint correctly preserves admin user, admin wallet, commission settings (default_percent=1.2) and all QR codes (un-soft-deletes them). Audit log retains only the new 'demo_data_reset' entry with meta.deleted dict and user_id=admin id. UI flow: Overview → Danger Zone → modal → type RESET → success state → ~3s setTimeout → nav('/admin') + window.location.reload() → zeroed dashboard. Pytest file at /app/backend/tests/test_reset_demo_data.py is regression-ready; it seeds its own distributor+agent so it can be re-run any time. The DB is currently empty after the last test run.",
+  "rca of the issue": "N/A — no issues found."
+}

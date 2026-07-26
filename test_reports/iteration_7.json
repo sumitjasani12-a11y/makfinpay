@@ -1,0 +1,33 @@
+{
+  "summary": "Agent Recharge validation rules (max ₹3,00,000 + UTR=12-digit) fully tested on both backend and frontend. 15/15 backend pytest cases passed. Frontend UX verified end-to-end including E2E submission. Distributor withdrawal P0 regression check passed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_agent_recharge_validation.py",
+    "/app/test_reports/pytest/agent_recharge_validation.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py POST /api/agent/recharges (lines 655-691): validation order is well-structured — amount>0 → amount<=300000 → utr strip → utr non-empty → utr.isdigit() → utr len==12. Embedded-spaces case correctly falls into 'must contain only digits' branch (since after strip, the inner spaces remain non-digit chars). Confirmed exact error strings match spec.",
+    "Recharge.jsx (line 38): UTR onChange uses /\\D/g + slice(0,12) which is paste-safe and handles all non-digit char cases on the frontend. Confirmed visually that pasting '1234 5678 9012' yields '123456789012'.",
+    "Recharge.jsx: 'amountTooHigh && amt !== 0' shows the — placeholder only for amt>0 invalid (>max). When amount=0, neither breakdown is shown — slightly inconsistent (spec says 'Net Credit preview shows — when amount is invalid (zero or above max)'). Currently 0 hides the entire panel rather than showing —. LOW priority; spec also says 'until amount is valid' implying disabled submit which is correct.",
+    "Backend approval endpoint returns only {'ok': true} without the full updated document — clients who call this expecting the row back must re-fetch. Minor inconsistency but not a regression — admin UI already re-fetches list."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_agent_recharge_validation.py (NEW)"
+  ],
+  "success_rate": {"backend": "100% (15/15)", "frontend": "100% (all flows verified)"},
+  "test_credentials": "Agent: test_agent_46a8e0d6@x.com / TestPass@123; Distributor: test_dist_2a03f52a@x.com / TestPass@123; Admin: makfinpay@gmail.com / Riyaz@1212",
+  "seed_data_creation": "Created 6+ pending recharges (utr 111111111111, 222222222222, 333333333333, 444444444444, 555555555555, 987654321098) and approved one ₹50,000 recharge (utr 555555555555) for ledger snapshot regression. Agent wallet credited ₹48,750 (commission 1250 @ 2.5%).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend test file /app/backend/tests/test_agent_recharge_validation.py exercises every spec edge case (amount 1/300000/300001/0/-100; UTR empty/whitespace/11/13/alphanumeric/embedded-spaces/12-digit-valid/leading-trailing-whitespace-trimmed) plus admin approve regression. Tests are isolated and idempotent — can re-run safely. Test agent has growing wallet balance from approved recharges. To extend: add a test for /api/admin/recharges/{rid}/reject to ensure rejection still works and does not credit wallet.",
+  "rca of the issue": "N/A — feature works as designed. Both frontend (paste-safe digit strip, inline errors at data-testid='recharge-amount-error' and 'recharge-utr-error', submit button disabled with opacity-50 cursor-not-allowed) and backend (exact spec error strings, top-level whitespace trim, isdigit check before length check) enforce the rules. No bypass possible — direct curl with amount=300001 returns 400 'Maximum recharge amount is ₹3,00,000'; curl with utr='12345abc9012' returns 400 'UTR must contain only digits'."
+}

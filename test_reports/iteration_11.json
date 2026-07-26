@@ -1,0 +1,57 @@
+{
+  "summary": "Iteration 11 — Async + Streaming Backup/Restore tested end-to-end via new pytest suite (/app/backend/tests/test_backup_restore_v3.py, 11 tests). 8 PASS, 3 FAIL — two of which are caused by a SINGLE backend bug in _restore_v3_stream. Frontend behaviour is correct (POST 202 → 'Creating backup…' button → 'In progress' badge → 'Completed' badge with toast fires once, all within ~5s). Async pattern proven: POST /api/admin/backups returns 202 in <500ms. NDJSON v3 format verified — header on line 1, manifest on last line, doc/file records in between. Tampered-bundle restore correctly transitions restore_status to 'failed' with restore_safety_backup_id populated. Daily scheduler still awaits _run_backup_job inline. Refused-on-in_progress works for download + restore (409). DELETE on in_progress incorrectly returns 200.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "_restore_v3_stream (POST /api/admin/backups/{id}/restore)",
+        "issue": "Restore of any v3 backup that contains an EMPTY collection (collection_doc_counts[X] == 0) fails verification. _restore_v3_stream only initialises restored_counts[name] when it encounters a 'doc' record for that name. When the manifest says expected=0 docs, no doc lines exist, the name is never added to restored_counts, the verification compares expected=0 vs restored=None and logs a mismatch, so restore_status flips to 'failed'. Reproduces 100% in this preview environment because bank_details / kyc / ledger / recharges / transactions / wallets / withdrawals are empty. Files ARE restored on disk and collections ARE cleared correctly, but the user sees 'Restore failed' and gets misleading restore_error. This wipes out the iteration_10 SHA256 round-trip invariant in practice. Fix: either (a) pre-populate restored_counts[name]=0 for every name in manifest['collection_doc_counts'] before the verify step, OR (b) compare `(restored_counts.get(name) or 0) != expected` in the mismatch loop.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "DELETE /api/admin/backups/{bid}",
+        "issue": "Spec says 'Download / Restore / Delete are REFUSED on a backup whose status != completed (HTTP 409)'. Download and Restore correctly raise 409, but delete_backup() in server.py:2477-2494 lacks the status check and returns 200 on an in_progress backup. Add: `if b.get('status') == 'in_progress': raise HTTPException(409, 'Backup is not ready to delete')`."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_backup_restore_v3.py",
+    "/app/test_reports/pytest/backup_restore_v3.xml"
+  ],
+  "action_items": [
+    "P0 — Fix _restore_v3_stream empty-collection verification bug (see backend_issues.critical). One-line fix: in server.py around line 2110, before the verification block insert `for name in expected_counts: restored_counts.setdefault(name, 0)`. Re-run pytest backend/tests/test_backup_restore_v3.py — all 11 should pass.",
+    "P2 — Add `if b.get('status') == 'in_progress': raise HTTPException(409, ...)` to delete_backup() in server.py:2477.",
+    "Optional: server.py is 2509 lines — well past the 700-line code-review threshold. Backup logic (~750 lines) is a natural module split candidate: /app/backend/modules/backup.py.",
+    "Clean up TEST_-labelled backup rows polluting the Backups page after the fix is verified."
+  ],
+  "critical_code_review_comments": [
+    "_run_backup_job streaming design is sound: 1MB plaintext flush window + concatenated gzip members (RFC 1952) + GridFS chunk-wise upload. Peak memory bounded by one block + one file blob. Good.",
+    "BUG: _restore_v3_stream verification path drops collections that have zero docs in the backup. expected=0 vs restored=None triggers a mismatch. This is a regression from iteration_10's v2 behaviour where the collection was always touched (delete_many even on empty).",
+    "_create_backup correctly returns IMMEDIATELY (HTTP 202) and schedules asyncio.create_task; spec compliance verified via test_post_returns_202_immediately (POST completes in <500ms in practice).",
+    "_daily_backup_job correctly awaits _run_backup_job inline (no fire-and-forget) so retention_cleanup only runs after a successful streaming backup. Verified by source-grep test.",
+    "Download endpoint correctly uses Starlette StreamingResponse iterating GridFS chunks — no full-blob materialisation in download path.",
+    "_create_backup_sync is retained but unused except by legacy v2 in-memory dumper for tampered-bundle test path. Consider deleting or commenting as 'kept for tests'.",
+    "Restore-upload endpoint stores tampered/uploaded bundle in GridFS first (good — uniform pipeline) but creates a synthetic backup row with kind='upload' and status='completed' which then shows in the Backup History table polluting the admin UI. Consider hiding kind='upload' rows from the listing.",
+    "CORS allow_credentials=False but spec includes 'CORS allows credentials with explicit origins' for auth — not a regression introduced this iteration, just noting.",
+    "server.py is now 2509 lines."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_backup_restore_v3.py (new — 11 tests covering async + streaming v3)"
+  ],
+  "success_rate": {
+    "backend": "73% (8/11 — 2 failures collapse to 1 root cause)",
+    "frontend": "100% (manual create + status polling + toast verified)"
+  },
+  "test_credentials": "Super Admin makfinpay@gmail.com / Riyaz@1212 — works.",
+  "seed_data_creation": "Tests use TEST_ prefix on labels (TEST_async-test, TEST_bg-complete, TEST_download-ok, TEST_ndjson-format, TEST_file-roundtrip, TEST_restore-track, TEST_ui-iter11). Tampered restore-upload test creates a synthetic v2 bundle (no real files). One 67-byte PNG uploaded via /api/uploads as super admin. NOTE: several TEST_-labelled rows now show 'Restore failed' status in the admin UI because of the bug above — these will clear themselves after the fix and a re-run.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "After the empty-collection fix in _restore_v3_stream, re-run: REACT_APP_BACKEND_URL=https://fintech-bill-pay.preview.emergentagent.com python -m pytest /app/backend/tests/test_backup_restore_v3.py -v. All 11 tests should pass. The DELETE-on-in_progress check is a 1-line add; test_download_restore_delete_409_on_in_progress validates it. Old iteration_10 file /app/backend/tests/test_backup_restore.py is OBSOLETE — its TestBackupBasics still passes but its file-binary-restore and tampered-restore tests assume synchronous restore (HTTP 200) and will fail against the new async API. The v3 suite supersedes it.",
+  "rca of the issue": "ROOT CAUSE — _restore_v3_stream (server.py L2053-2131) only allocates restored_counts[name] inside the `if name not in cleared:` branch, which is only entered when a 'doc' line for that collection is encountered in the NDJSON stream. For collections that exist but have 0 documents (extremely common — e.g. bank_details/wallets/withdrawals in a fresh env), no 'doc' line ever appears, so restored_counts[name] stays unset. The verify-loop then compares expected_counts[name]=0 against restored_counts.get(name)=None, treats None != 0, appends a mismatch, and reports verified=False. End-user impact: every restore on the current preview environment is marked 'Restore failed' even though the actual restore work (files re-uploaded, collections cleared) completed successfully. Reproduction: tests TestFileBinaryRoundTrip and TestRestoreStatusTracking both fail with `Mismatches: [{'collection': 'bank_details', 'expected': 0, 'restored': None}, ...]`. Mitigation: add `for name in expected_counts: restored_counts.setdefault(name, 0)` before the verification block at server.py:2114, OR change the comparison to `(restored_counts.get(name) or 0) != expected`."
+}

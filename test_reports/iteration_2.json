@@ -1,0 +1,47 @@
+{
+  "summary": "Refactor regression for MAK FIN PAY (CODE QUALITY only — no business changes intended). 34/34 backend pytest cases pass. Verified: admin login (Bearer token), admin_stats_financial across all 6 date ranges (today/yesterday/7d/30d/lifetime/custom) with invariant total_revenue == admin_revenue + distributor_earnings, admin-created distributor gets commission_type='default' & default percent, admin-created agent has creator_name='Admin' in listing, distributor-created agent base+markup math + commission_type='custom', GET /admin/distributors/{id}/agents returns {distributor, agents}, commission cascade to default-mode distributors AND admin-created default-mode agents on default-percent change, full recharge approve → wallet credit → ledger flow, bill payment (pending status, wallet debited by bill+service_charge), admin reject refund, withdrawal create+reject refund, audit logs, MongoDB indexes. Frontend smoke: Landing renders all 8 service cards with NEW stable test-ids (service-card-mobile/electricity/dth/broadband/water/gas/fastag/creditcard), Why/Vision/Mission/Benefits/Values/Contact sections visible, nav login navigates to /login, admin login reaches /admin, sidebar shows all 11 nav items (Overview, Distributors, Agents, Recharge Approvals, Withdrawals, Transactions, QR Codes, Commission, KYC Review, Audit Logs, Change Password).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /admin/users", "issue": "Admin POST /admin/users IGNORES body.commission_percent — distributor/agent always created with platform default. If admin needs to set custom commission at creation, this must be done via the PATCH commission endpoints after creation. Behaviour is consistent but undocumented; consider validating/honoring input or returning 400 when provided."},
+      {"endpoint": "POST /distributor/agents", "issue": "Distributor body.commission_percent is interpreted as MARKUP (added on top of distributor base), not as total commission. Frontend/API contract should be documented to avoid confusion."},
+      {"endpoint": "GET /wallet", "issue": "Inherited from iteration_1 — admin role returns {'balance': 0} (plain dict) while others return full wallet doc."},
+      {"endpoint": "CORS middleware", "issue": "Inherited from iteration_1 — allow_origins=['*'] with allow_credentials=False (cookie-based auth ineffective cross-origin)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_makfinpay_no_agent_code.py",
+    "/app/backend/tests/test_refactor_regression.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Optional) Decide whether admin POST /admin/users should accept commission_percent at creation time or return 400 if provided.",
+    "(Optional) Document distributor/agents commission_percent semantics (markup, not total) — perhaps rename body field to markup_percent for clarity.",
+    "(Optional) Normalise /api/wallet response shape between admin and non-admin roles (carry-over)."
+  ],
+  "critical_code_review_comments": [
+    "CommissionAllocation dataclass + create_subuser refactor is clean; admin path now always uses default and distributor path treats input as markup — both consistent.",
+    "_build_parent_name_map / _distributor_earnings_for / _build_commission_migration / _recharge_revenue_breakdown / _transaction_metrics extraction is correct; total_revenue == admin_revenue + distributor_earnings invariant holds across all ranges.",
+    "Cascade on commission settings update correctly updates default-mode distributors AND admin-created default-mode agents (verified).",
+    "server.py still ~1276 lines — should be split into routers (auth, users, recharge, billing, withdrawals, qr, settings, audit, stats) in a future pass.",
+    "@app.on_event('startup'/'shutdown') still in use — FastAPI deprecated, migrate to lifespan handlers.",
+    "No brute-force lockout (playbook expects after 5 fails) — not in scope but noted.",
+    "Landing service-card data-testid migration to stable IDs verified — all 8 ids present."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_makfinpay_no_agent_code.py (added card_last4 to recharge body; updated wallet credit assertion to compute commission dynamically from current platform default; updated bill-payment test to expect status='pending' and assert debit equals bill+service_charge; stripped quotes from MONGO_URL/DB_NAME env vars)",
+    "/app/backend/tests/test_refactor_regression.py (NEW — refactor-specific regression suite covering financial KPI ranges, commission_type/creator_name, distributor markup math, admin /distributors/{id}/agents shape, commission cascade)"
+  ],
+  "success_rate": {"backend": "100% (34/34)", "frontend": "100% (smoke — landing, login, sidebar, logout)"},
+  "test_credentials": "Admin: makfinpay@gmail.com / Riyaz@1212. TEST_ and TEST_rf_ prefixed users created and cleaned up.",
+  "seed_data_creation": "Per-run TEST_dist_<suffix>@example.com, TEST_agent_admin_<suffix>@example.com, TEST_agent_dist_<suffix>@example.com (legacy suite) and TEST_rf_dist_<suffix>@example.com, TEST_rf_agent_admin_<suffix>@example.com, TEST_rf_agent_dist_<suffix>@example.com (refactor suite). Default commission also restored to original at teardown of refactor suite.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run: ADMIN_PASSWORD='Riyaz@1212' MONGO_URL='mongodb://localhost:27017' DB_NAME='makfinpay_db' pytest /app/backend/tests/ -v. Two suites: test_makfinpay_no_agent_code.py (full flow regression) and test_refactor_regression.py (refactor-specific). Both are idempotent. The refactor suite restores default commission to original at end. Note: distributor POST /distributor/agents treats commission_percent as MARKUP (added to distributor base); admin POST /admin/users IGNORES commission_percent and always uses platform default. Frontend Landing service cards now use data-testid='service-card-{mobile|electricity|dth|broadband|water|gas|fastag|creditcard}' — verified.",
+  "rca of the issue": "No production bugs found. Two pre-existing legacy test assertions (expecting fixed 985 wallet balance and bill-payment status='success') were corrected to match current API contract (dynamic commission calc + status='pending'); these were stale assertions, not refactor regressions — the underlying behaviour in distributor_create_agent (markup semantics) and agent_bill_payment (pending status + service_charge debit) is unchanged from pre-refactor server.py per git history."
+}

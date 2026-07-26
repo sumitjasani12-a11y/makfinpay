@@ -1,0 +1,51 @@
+{
+  "summary": "Iteration 15 full-stack regression on: (1) bank details relocation to right column of withdrawal page, (2) mandatory 10-digit phone_number field in bank, (3) admin withdrawal approvals table with per-bank-field columns. Backend: 11/11 pytest passed. Frontend: sidebar cleanup, two-column layout, phone validation UX, warning banner, admin columns + overflow-x scroll all verified.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_bank_phone_withdrawal.py",
+    "/app/test_reports/pytest/bank_phone_withdrawal.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is ~1400+ lines — nearing the 700-line refactor threshold. Consider splitting into routers (auth.py, bank.py, withdrawals.py, admin.py, kyc.py, etc.) for maintainability.",
+    "BankDetailsCard client-side validation uses .slice(-10) which silently truncates; would be nicer UX to error out early on long inputs — but server enforces exact 10 so functionally correct.",
+    "PageTitle.jsx cleanup is complete — no leftover /agent/bank or /distributor/bank entries."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "100%", "frontend": "100%" },
+  "test_credentials": "Super Admin: makfinpay@gmail.com / Riyaz@1212. Test users created during run (TEST_/UITEST_ prefix) can be reused: UITEST_agent_ef4d65@x.com, UITEST_dist_nobank_13eaf4@x.com, UITEST_dist_bank_0e8549@x.com — all password TestPass@123.",
+  "seed_data_creation": "Backend fixtures create fresh TEST_dist_/TEST_agent_/TEST_nobank_/TEST_dist2_/TEST_agent2_ users per session. Frontend UI test created 3 UITEST_ users (distributor no-bank, distributor with-bank, KYC-approved agent). Also created 1 test QR-code (test-qr) and activated it (only if none active).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Column headers in admin withdrawals render UPPERCASE via CSS text-transform in the DataTable component, so string-compare must .toLowerCase() or match case-insensitive. Old bank data (Deraiya Aman) without phone_number correctly shows '—' in Phone column (verified visually). Old /agent/bank and /distributor/bank routes redirect to '/' via <Route path='*' /> catch-all — effectively 404-equivalent. The active QR-code test-qr was left active; if next iter needs a different active QR, activate a different one.",
+  "detailed_findings": {
+    "backend_pytest": {
+      "test_valid_10_digit": "PASS — POST /api/bank with 9876543210 → 200, GET returns 9876543210",
+      "test_plus91_prefix_stripped": "PASS — +919876543210 stored as 9876543210",
+      "test_91_prefix_no_plus_stripped": "PASS — 919876543210 stored as 9876543210",
+      "test_invalid_phone_rejects_400": "PASS × 5 (12345, 15 digits, '', 'abc1234567', '   ') — all return 400 'Phone Number must be exactly 10 digits'",
+      "test_snapshot_frozen_after_bank_edit": "PASS — withdrawal.bank frozen after editing bank; admin sees historical phone",
+      "test_400_when_no_bank": "PASS — POST /api/withdrawals without bank returns 400 'Add bank details first'",
+      "test_distributor_bank_and_withdrawal": "PASS — distributor bank saved, withdrawal snapshotted phone_number, role=distributor"
+    },
+    "frontend_ui": {
+      "agent_sidebar": "no 'Bank Details' — items: Wallet, Recharge Wallet, Credit Card Bill, Transaction History, Wallet Ledger, Withdrawal, Change Password ✔",
+      "distributor_sidebar": "no 'Bank Details' — items: Overview, My Agents, Recharge Activity, Withdrawal, Change Password ✔",
+      "old_bank_routes": "/agent/bank + /distributor/bank both redirect to / (catch-all) ✔",
+      "two_column_layout": "Parent grid has class 'grid lg:grid-cols-2 gap-6 mb-8 items-start' — matches spec ✔",
+      "test_ids_present": "All 10 required test-ids visible: withdraw-form, withdraw-amount, withdraw-submit, bank-details-card, bank-account_holder, bank-account_number, bank-ifsc, bank-bank_name, bank-phone_number, bank-save ✔",
+      "invalid_phone_toast": "Toast: 'Phone Number must be exactly 10 digits' ✔",
+      "valid_phone_save": "Toast: 'Bank details saved' ✔; warning disappears; submit button re-enables ✔",
+      "prefill_on_reload": "Reload shows account_holder='Ho', phone_number='9876543210' — pre-fill works ✔",
+      "admin_columns": "Requester, Role, Amount, Account Holder, Account Number, IFSC, Bank Name, Phone, Status, Requested, Action (case-insensitive match) ✔",
+      "overflow_wrapper": "overflow-x-auto ancestor detected ✔",
+      "old_rows_missing_phone": "Deraiya Aman legacy withdrawals show '—' in Phone column, no crash ✔",
+      "distributor_available_earnings": "Balance chip label reads 'AVAILABLE EARNINGS ₹0.00' on distributor page ✔"
+    }
+  }
+}

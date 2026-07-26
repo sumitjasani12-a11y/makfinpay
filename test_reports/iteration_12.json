@@ -1,0 +1,41 @@
+{
+  "summary": "Iteration 12 — Re-verified both fixes from iteration_11. RESULT: 11/11 (100%) v3 backup/restore tests PASS in 28.88s. Both critical fixes are in place and working correctly: (1) P0 — _restore_v3_stream now pre-populates restored_counts[name]=0 for every name in manifest['collection_doc_counts'] and also calls delete_many({}) on expected-zero collections that were never touched (server.py:2113-2122). TestFileBinaryRoundTrip and TestRestoreStatusTracking both PASS, confirming verified=true and the SHA256 byte-equivalence invariant from iteration_10 holds end-to-end under the new async/streaming pipeline. (2) P2 — DELETE /api/admin/backups/{bid} now returns HTTP 409 when status=='in_progress' OR restore_status=='in_progress' (server.py:2491-2492). test_download_restore_delete_409_on_in_progress PASSES.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_backup_restore_v3.py",
+    "/app/test_reports/pytest/backup_restore_v3_iter12.xml"
+  ],
+  "action_items": [
+    "Optional cleanup — Old test file /app/backend/tests/test_backup_restore.py is OBSOLETE (assumes sync HTTP 200; now async HTTP 202). 5/8 of its tests fail purely on the status-code assertion. Either delete it or rewrite its create-backup/restore helpers to poll the 202 flow like test_backup_restore_v3.py does. The v3 suite already covers everything it tested. Recommendation: delete to avoid confusing future test runs.",
+    "Optional cleanup — Several regression-test files (test_distributor_withdrawal_bug.py, test_billpay_tier_boundary.py, test_agent_recharge_validation.py, test_recharge_idempotency.py) rely on hard-coded test user accounts (e.g. test_agent_46a8e0d6@x.com) that were wiped during prior backup/restore cycles. Setup fixtures fail with 401 before any assertion runs — these are STALE SEED DATA issues, not app regressions. Either re-seed via /api/admin/users or make the fixtures self-provisioning.",
+    "Optional refactor — server.py is now 2519 lines, still well past the 700-line code-review threshold. Backup module (~770 lines) is a clear candidate to move into /app/backend/modules/backup.py."
+  ],
+  "critical_code_review_comments": [
+    "Iteration_11 P0 fix in server.py:2113-2122 is CORRECT and DEFENSIVE: belt-and-braces approach uses BOTH restored_counts.setdefault(name, 0) AND delete_many({}) for expected-zero collections not otherwise touched. This means restored state matches the snapshot exactly even if the live DB had stray rows in an expected-empty collection.",
+    "Iteration_11 P2 fix in server.py:2491-2492 correctly checks BOTH status=='in_progress' AND restore_status=='in_progress', covering the symmetric in-progress case (backup is fine but a restore is using it).",
+    "_restore_v3_stream is now self-consistent: every collection named in manifest['collection_doc_counts'] is guaranteed to be in restored_counts before verification, and every expected-zero collection is guaranteed to have been emptied. No more false-positive 'failed' restores in clean environments.",
+    "Daily scheduler still awaits _run_backup_job inline — confirmed by source-grep test (TestDailySchedulerWiring::test_daily_job_awaits_run_backup_job PASSES).",
+    "NDJSON v3 format invariant verified: header on line 1, manifest on last line, doc/file records in between (TestNdjsonV3Format::test_bundle_is_newline_delimited_v3 PASSES).",
+    "POST /api/admin/backups returns 202 in under 500ms — async pattern intact (TestAsyncBackupResponse::test_post_returns_202_immediately PASSES).",
+    "TestRestoreStatusTracking now confirms restore_status transitions in_progress → completed with restore_result.verified=true (was 'failed' in iteration_11)."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (11/11 v3 tests PASS)",
+    "frontend": "100% (not retested this iteration per request — already verified in iteration_11)"
+  },
+  "test_credentials": "Super Admin makfinpay@gmail.com / Riyaz@1212 — works.",
+  "seed_data_creation": "Tests use TEST_ prefix on labels (TEST_async-test, TEST_bg-complete, TEST_download-ok, TEST_ndjson-format, TEST_409-test, TEST_file-roundtrip, TEST_restore-track, TEST_tampered, TEST_iter12). One 64-byte PNG uploaded via /api/uploads for the SHA256 round-trip test. After this iteration's run, all TEST_ backups now show 'completed' status (not 'Restore failed' as in iteration_11) — the iteration_11 leftovers are also superseded by clean rows.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iteration_12 closed out the v3 backup/restore epic — both critical fixes from iteration_11 verified and all 11 v3 tests now green. Old /app/backend/tests/test_backup_restore.py is OBSOLETE; do not run it. Use /app/backend/tests/test_backup_restore_v3.py for any future backup/restore regression checks. Note: the older regression suites (test_distributor_withdrawal_bug.py, test_billpay_tier_boundary.py, test_agent_recharge_validation.py, test_recharge_idempotency.py) now fail at setup due to stale test-user accounts being wiped by repeated backup/restore cycles — these are seed-data issues, not app regressions, and need fixture re-seeding before they'll run again. server.py is 2519 lines; backup module is the natural split candidate (~770 lines).",
+  "rca of the issue": "N/A for this iteration — re-verification only. Iteration_11 RCA: _restore_v3_stream only allocated restored_counts[name] inside the per-doc branch, so collections with zero docs (manifest expected=0) were never added to restored_counts; verify-loop compared expected_counts[name]=0 vs restored_counts.get(name)=None, treated None != 0, and marked restore as failed. Iteration_12 confirms the fix (lines 2113-2122) closes this hole and additionally calls delete_many({}) on expected-empty collections so the restored DB matches the snapshot exactly. Verified by green TestFileBinaryRoundTrip and TestRestoreStatusTracking."
+}

@@ -1,0 +1,195 @@
+{
+  "theme": "light",
+  "archetype": "Organic & Earthy",
+  "domain_context": "B2B/B2B2C Fintech Web App (Admin, Distributor, Agent) + Marketing Landing Page",
+  "design_philosophy": "Break away from the typical 'tech-bro' dark mode and harsh neon blues. Use organic, grounded colors (Warm Sand, Forest Green, Terracotta) to evoke trust, stability, and calm for agents handling financial transactions all day. Emphasize clarity and operational efficiency in dashboards, and high emotional impact on the marketing page.",
+  "colors": {
+    "background": {
+      "default": "#FDFCF8",
+      "surface": "#F4F3ED",
+      "glass": "rgba(253, 252, 248, 0.7)"
+    },
+    "primary": {
+      "DEFAULT": "#1B4332",
+      "foreground": "#FFFFFF",
+      "hover": "#2D6A4F"
+    },
+    "secondary": {
+      "DEFAULT": "#CC5500",
+      "foreground": "#FFFFFF",
+      "hover": "#A64500"
+    },
+    "accent": {
+      "DEFAULT": "#E8E5D7",
+      "foreground": "#1B4332",
+      "hover": "#D8D4C2"
+    },
+    "neutral": {
+      "50": "#FAFAFA",
+      "100": "#F4F4F5",
+      "200": "#E4E4E7",
+      "300": "#D4D4D8",
+      "400": "#A1A1AA",
+      "500": "#71717A",
+      "600": "#52525B",
+      "700": "#3F3F46",
+      "800": "#27272A",
+      "900": "#18181B",
+      "950": "#09090B"
+    },
+    "border": {
+      "default": "rgba(27, 67, 50, 0.1)",
+      "strong": "rgba(27, 67, 50, 0.2)"
+    },
+    "status": {
+      "success": "#2D6A4F",
+      "warning": "#D97706",
+      "destructive": "#991B1B",
+      "info": "#0369A1"
+    }
+  },
+  "typography": {
+    "fonts": {
+      "headings": "Outfit, sans-serif",
+      "body": "Manrope, sans-serif",
+      "mono": "JetBrains Mono, monospace"
+    },
+    "scales": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl tracking-tight leading-none font-medium",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl tracking-tight leading-tight font-medium",
+      "h3": "text-xl sm:text-2xl tracking-tight leading-snug font-medium",
+      "h4": "text-lg sm:text-xl font-medium",
+      "body": "text-base leading-relaxed",
+      "small": "text-sm leading-normal",
+      "overline": "text-xs uppercase tracking-[0.2em] font-semibold text-neutral-500"
+    },
+    "rules": [
+      "Headings NEVER use Inter, Roboto, or standard UI fonts.",
+      "Headlines (Size > 32px) MUST use tight letter spacing (tracking-tight or tracking-tighter).",
+      "Avoid 'Bold' for headers; rely on 'Medium' or 'SemiBold' with large sizes, or 'Light' for elegance.",
+      "Never center-align large blocks of text; only center short hero headlines if perfectly balanced."
+    ]
+  },
+  "layout_and_spacing": {
+    "spacing_scale": {
+      "tight": "gap-4 p-4",
+      "standard": "gap-8 p-8",
+      "generous": "gap-12 p-12 lg:p-16",
+      "massive": "gap-24 py-24 lg:py-32"
+    },
+    "grid_modes": {
+      "marketing_tetris": {
+        "description": "Asymmetrical BENTO grid for landing page features.",
+        "classes": "grid grid-cols-1 md:grid-cols-8 lg:grid-cols-12 gap-8 md:gap-12",
+        "spans": [
+          "col-span-full md:col-span-8 row-span-2",
+          "col-span-4 row-span-1",
+          "col-span-4 row-span-2"
+        ]
+      },
+      "dashboard_control_room": {
+        "description": "Dense, exact grid for Admin/Distributor/Agent data dashboards.",
+        "classes": "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6",
+        "rules": "Every pixel must be utilized. Use h-full on children to ensure they stretch. No jagged bottoms."
+      }
+    },
+    "container": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
+    "radii": {
+      "card": "rounded-2xl",
+      "button": "rounded-xl",
+      "input": "rounded-xl",
+      "badge": "rounded-full"
+    }
+  },
+  "surfaces_and_micro_themes": {
+    "header": {
+      "style": "Glassmorphism (The 'Crystal' Variant)",
+      "classes": "bg-[#FDFCF8]/80 backdrop-blur-xl border-b border-black/5 sticky top-0 z-50",
+      "rules": "Must not be completely transparent. Ensures readability when scrolling over content."
+    },
+    "dashboard_cards": {
+      "style": "Neumorphism (The 'Tactile' Variant) - Modified for Crispness",
+      "classes": "bg-[#FDFCF8] border border-black/5 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]",
+      "hover": "hover:-translate-y-1 hover:shadow-[0_12px_24px_-8px_rgba(0,0,0,0.1)] transition-all duration-300",
+      "rules": "Mix soft ambient shadows with sharp 1px borders. Never gray-on-gray text."
+    },
+    "marketing_cards": {
+      "style": "Grid Borders (The 'Technical' Look) or Solid Block",
+      "classes": "bg-[#F4F3ED] border border-black/5",
+      "rules": "For feature lists or steps, use large padding (p-8 or p-12)."
+    }
+  },
+  "component_strategies": {
+    "buttons": {
+      "primary": "bg-primary text-white hover:bg-primary-hover shadow-sm",
+      "secondary": "bg-secondary text-white hover:bg-secondary-hover shadow-sm",
+      "outline": "border-2 border-primary/20 text-primary hover:bg-primary/5 hover:border-primary/40",
+      "ghost": "text-neutral-600 hover:text-primary hover:bg-primary/5"
+    },
+    "forms": {
+      "inputs": "bg-[#FDFCF8] border-black/10 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all",
+      "labels": "text-sm font-medium text-neutral-700 mb-1.5"
+    },
+    "navigation": {
+      "desktop": "Visible links. No hamburger menu unless on mobile. Primary CTA highly visible.",
+      "sidebar": "Left sidebar for dashboards (F-Pattern). Clean icons, collapsible."
+    },
+    "tables": {
+      "style": "Dense padding (py-3 px-4), alternating row backgrounds (bg-transparent and bg-black/[0.02]), sticky header.",
+      "rules": "Use for Agent Transactions, Admin Approvals."
+    }
+  },
+  "motion_and_interactions": {
+    "hover_states": "All buttons/links must have explicit hover colors (e.g. hover:text-primary). Never rely on default tailwind opacity shifts.",
+    "transitions": "Use specific properties: transition-colors duration-200, transition-transform duration-300.",
+    "entrance": "Staggered fade-up for lists and grid items (use framer-motion)."
+  },
+  "images": {
+    "strategy": "Avoid generic stock. Use curated photography emphasizing 'warmth, real people, and solid architecture'. Use the generated assets for abstract emotional connection.",
+    "urls": [
+      {
+        "category": "hero_background",
+        "url": "https://static.prod-images.emergentagent.com/jobs/4435fab4-fa13-47b5-be07-f927a34d78ae/images/d1c97dc87b4387f65bd1f92ab7e8f5c82b7cb0b0edc3d929082ae6ddf85ad45e.png",
+        "description": "Abstract architectural geometric shapes in warm sand and deep forest green. Use as the background for the Landing Page Hero section with a light gradient overlay."
+      },
+      {
+        "category": "services_illustration",
+        "url": "https://static.prod-images.emergentagent.com/jobs/4435fab4-fa13-47b5-be07-f927a34d78ae/images/5762606c4317726bc335ef5d98c8964cc9d9fd0bc2d20a367fefc6dafafb29cf.png",
+        "description": "3D clay style icons representing electricity, mobile, water, credit card. Use in the 'Services' section on the landing page."
+      },
+      {
+        "category": "network_map",
+        "url": "https://static.prod-images.emergentagent.com/jobs/4435fab4-fa13-47b5-be07-f927a34d78ae/images/1b6162600c64b957c27c0c2c3e222bc03610df0a0a709b5522f1a1c2b183971e.png",
+        "description": "Minimalist map with glowing nodes. Ideal for 'Why Choose Us' or 'Network of Agents' block."
+      },
+      {
+        "category": "about_us_team",
+        "url": "https://images.unsplash.com/photo-1690378820474-b468b8ee64d3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzR8MHwxfHNlYXJjaHwyfHxidXNpbmVzcyUyMHRlYW0lMjBvZmZpY2V8ZW58MHx8fHwxNzc4NzU4MTA2fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Group of people around a table. Use in the 'About Us' or 'Mission/Vision' section to add a human element."
+      },
+      {
+        "category": "digital_payment_context",
+        "url": "https://images.unsplash.com/photo-1599050751795-6cdaafbc2319?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzOTB8MHwxfHNlYXJjaHwyfHxkaWdpdGFsJTIwcGF5bWVudCUyMHNtYXJ0cGhvbmV8ZW58MHx8fHwxNzc4NzU4MTA2fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Person holding a smartphone for payment. Great for 'Mobile Recharge' or 'Fast, Secure' benefits section."
+      }
+    ],
+    "overlay_rules": "Max overlay opacity: bg-black/30 or bg-white/40. If text needs more contrast, use a gradient overlay, never a flat blanket that kills the image."
+  },
+  "icons": {
+    "library": "lucide-react",
+    "stroke_width": "1.5",
+    "rules": "Use consistent stroke widths. For high-impact marketing sections, consider using @phosphor-icons/react (Duotone) if lucide feels too generic."
+  },
+  "testing": {
+    "attributes": "All interactive elements MUST include data-testid. Example: data-testid='admin-login-button'."
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the color palette. DO NOT use generic Tailwind blues or purples.",
+    "Implement the landing page with 'lenis' for smooth scrolling and 'framer-motion' for staggered entrance animations.",
+    "For the dashboards (Admin/Distributor/Agent), implement a clean Left Sidebar navigation, using the 'dashboard_control_room' bento grid for metric cards.",
+    "Ensure all Shadcn components (Cards, Inputs, Buttons) have their default rounded-md borders overridden with rounded-xl or rounded-2xl to match the organic theme.",
+    "DO NOT build raw HTML datepickers or dialogs; use heavily customized Shadcn components.",
+    "In dashboards, prioritize action-oriented UX: the agent's wallet balance should be the 'North Star Metric' in the top-left of their view.",
+    "Use the provided image URLs. Do NOT use generic placeholders like via.placeholder.com."
+  ]
+}

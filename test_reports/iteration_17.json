@@ -1,0 +1,59 @@
+{
+  "summary": "Iteration 17 end-to-end verification of the new 'Withdrawals' KPI card + backend fields in GET /api/admin/stats/financial. Backend: 12/12 pytest cases pass covering shape, math integrity (agent+dist=total), approval-date (reviewed_at) filter, role breakdown correctness, pending/rejected exclusion, custom range, empty-range zeros, auth guard, and existing-field regression. Iteration 16 legacy-bank regression spot-checked (endpoint still auth-guarded). Frontend: Playwright tour as Super Admin — card renders with correct data-testids (kpi-withdrawals / kpi-withdrawals-agent / kpi-withdrawals-distributor), main figure in exact #CC5500 (rgb(204,85,0)) 3xl, overline reads 'Withdrawals' via mfp-overline uppercase, positioned 6th after 'Bill Payments' in the grid, math parity holds across Today/Yesterday/Last 7/Last 30/Lifetime, each toggle fires a new /admin/stats/financial?range=… network request, and 6-card grid layout retained. All existing 5 cards untouched.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_withdrawals_financial_stats.py",
+    "/app/test_reports/pytest/withdrawals_financial_stats.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Range param naming mismatch with docs: review_request mentions 'last-7' / 'last-30' but the backend (_resolve_range) and frontend both use 'last7' / 'last30' (no hyphen). Tests verified the actual implementation. Consider aligning the PRD/spec text to match code.",
+    "server.py continues to grow (~2790 lines). The new withdrawals aggregation logic in admin_stats_financial (L1616-1633) is straightforward but reinforces the earlier iter-16 suggestion to split into routers/admin_stats.py.",
+    "Frontend Overview.jsx L131-138 hand-rolls a custom .mfp-kpi card instead of extending the shared Kpi component with an accent + sub-lines prop. Duplication with the Total Revenue card block (L119-126); both blocks are structurally identical. Consider a KpiAccent component to DRY."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_withdrawals_financial_stats.py (new)"
+  ],
+  "success_rate": { "backend": "100% (12/12)", "frontend": "100% (all assertions pass)" },
+  "test_credentials": "Super Admin: makfinpay@gmail.com / Riyaz@1212 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Synthetic withdrawal docs inserted directly via pymongo per test-class and deleted on teardown (user_name prefixed 'IT17W_' for safety). No persistent seed data left after the run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Live DB baselines used in the UI parity check: lifetime total_withdrawals_approved=66848.0 (agent=65445.0 + distributor=1403.0); today=3303.0 (agent=3100.0 + distributor=203.0). If future iterations approve/reject more withdrawals these numbers will move — tests use delta-based assertions so they remain stable. The tests bypass the /admin/withdrawals/{id}/approve HTTP flow because that flow uses now() for reviewed_at; direct-Mongo insertion (as suggested in the agent-to-agent note) is the pragmatic way to simulate historical approvals.",
+  "detailed_findings": {
+    "backend_pytest": {
+      "TestShapeAndIntegrity::test_lifetime_response_has_new_fields": "PASS — all 3 fields present + numeric",
+      "TestShapeAndIntegrity::test_math_integrity_lifetime": "PASS — agent+dist == total (±0.01)",
+      "TestShapeAndIntegrity::test_math_integrity_today": "PASS — same identity holds for today range",
+      "TestApprovalDateFilter::test_reviewed_at_drives_range_filter": "PASS ★ — inserted an agent withdrawal reviewed 45 days ago and one reviewed today; today range picked up only the new one, lifetime picked up both, last30 excluded the 45-day-old",
+      "TestRoleBreakdown::test_agent_and_distributor_sums_isolated": "PASS — 3 agent (sum 550) + 2 distributor (sum 300) approved withdrawals; deltas match exactly (agent=550, dist=300, total=850)",
+      "TestOnlyApprovedCounted::test_pending_and_rejected_not_in_totals": "PASS — 2 pending + 2 rejected inserts caused zero movement in all three fields",
+      "TestCustomRange::test_custom_from_to_narrows_by_reviewed_at": "PASS — custom [today-14, today-5] included only the reviewed_at=today-10 doc; today-3 and today-20 excluded (verified via life-vs-range diff ≥130)",
+      "TestEmptyRange::test_future_range_returns_zeros": "PASS — custom range in the future returns exact 0.0 for all three fields",
+      "TestAuthGuard::test_no_token_rejected": "PASS — /admin/stats/financial without token returns 403 and new fields not present in body",
+      "TestExistingFieldsUntouched::test_existing_fields_still_present": "PASS — all 9 legacy fields (total_revenue, admin_revenue, distributor_earnings, recharge_approved, total_wallet, total_txn_amount, total_txn_count, transaction_revenue, pending_kyc_count) still returned",
+      "TestExistingFieldsUntouched::test_total_wallet_ignores_range": "PASS — total_wallet identical between lifetime and today",
+      "TestLegacyBankRegression::test_withdrawal_without_bank_still_blocked": "PASS — POST /withdrawals without auth returns 401/403 (endpoint guarded)"
+    },
+    "frontend_playwright": {
+      "login_super_admin": "PASS — redirected to /admin",
+      "kpi_withdrawals_card_present": "PASS — data-testid=kpi-withdrawals rendered",
+      "overline_text": "PASS — 'Withdrawals' via .mfp-overline (uppercased WITHDRAWALS visually)",
+      "main_figure_accent_color": "PASS — computed rgb(204,85,0) == #CC5500",
+      "sub_line_testids": "PASS — kpi-withdrawals-agent and kpi-withdrawals-distributor both present with right-aligned ₹ amounts",
+      "card_position": "PASS — grid children order: [Total Revenue, Transaction Revenue, Recharge Approved, Total Wallet Balance, Bill Payments, Withdrawals]",
+      "math_parity_today": "PASS — initial render 0.0/0.0/0.0 (loading state) → after fetch ₹3,303 = ₹3,100 + ₹203",
+      "date_filter_yesterday": "PASS — API hit range=yesterday, values 0/0/0, parity OK",
+      "date_filter_last7": "PASS — API hit range=last7, main=66848, agent=65445, dist=1403, parity OK",
+      "date_filter_last30": "PASS — API hit range=last30, same values, parity OK",
+      "date_filter_lifetime": "PASS — API hit range=lifetime, same values, parity OK",
+      "six_cards_in_grid": "PASS — count=6 (unchanged behaviour on ≥lg viewport, grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 wraps to 2 rows of 3)"
+    }
+  },
+  "rca_of_the_issue": "N/A — this iteration is a feature-completeness verification, not a bug fix. Feature works exactly as specified: (1) new $group-by-role aggregation on withdrawals filtered by status=approved + reviewed_at∈range guarantees total = agent + distributor by construction (verified numerically); (2) filtering on reviewed_at (approval date, not created_at) matches the recharge_approved convention and was verified via a 45-day-old vs today insertion; (3) UI card is a stylistic clone of the Total Revenue block with correct data-testids and same accent color."
+}

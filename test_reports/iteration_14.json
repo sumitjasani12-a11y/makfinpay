@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 14 — Verified the PDF-glyph bug fix (₹ rupee sign + WHITE header text on dark green). Extended /app/backend/tests/test_pdf_exports.py from 10 to 25 pytest cases; ALL 25 PASS in 8.6s (see /app/test_reports/pytest/pdf_exports_iter14.xml). Key iteration_14 assertions: (a) Rupee glyph '\\u20B9' is present in extracted text of BOTH /api/admin/exports/distributor.pdf and /api/admin/exports/agent.pdf — confirmed literally (e.g., '₹906.06', '₹0.00') via pypdf.extract_text; (b) No tofu char '\\u25A0' or replacement char '\\uFFFD' in either PDF; (c) Each PDF has at least one row that renders '₹<amount>' together, matching the earnings/wallet_balance from /api/admin/users; (d) WHITE header verified via content-stream inspection — raw content stream contains the '1 1 1 rg' fill operator emitted by reportlab when Paragraph textColor=colors.white is used for header cells (in addition to TableStyle TEXTCOLOR=colors.white); (e) Bundled fonts '/app/backend/fonts/DejaVuSans.ttf' (759,720 bytes) and '/app/backend/fonts/DejaVuSans-Bold.ttf' (708,920 bytes) exist, non-empty; fontTools cmap check confirms both include U+20B9; (f) Idempotent font registration — 3 consecutive exports all succeed with HTTP 200, no 'font already registered' errors in backend logs; (g) Regression: filenames MAK_FIN_PAY_Distributors_YYYY-MM-DD.pdf / MAK_FIN_PAY_Agents_YYYY-MM-DD.pdf still correct, Content-Type application/pdf, Content-Disposition attachment, headers 'Name'/'Email'/'Phone'/'Earnings'/'Wallet' all present in extracted text, landscape orientation preserved (page.mediabox.width > height); (h) Auth guard regression 401/403/404 still intact; (i) Async backup POST /api/admin/backups → 202 → 'completed' regression still green. No bugs found — bug fix is complete and verified.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_pdf_exports.py",
+    "/app/test_reports/pytest/pdf_exports_iter14.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py:632-640 — Font-registration guard uses `if 'DejaVuSans' not in pdfmetrics.getRegisteredFontNames()`. Correct and idempotent; the 3-hit test confirms no re-registration errors.",
+    "server.py:646 — datetime strftime uses '%-d' and '%-I' which are GNU/Linux-specific format specifiers; would raise on Windows/macOS but fine in the Kubernetes/Linux deployment (already flagged in iteration_13).",
+    "server.py:654-656 — `cell_bold_white` correctly overrides textColor=colors.white so Paragraph-level colour matches the TableStyle TEXTCOLOR=white for the header row. This is the actual fix for the black-on-green readability bug.",
+    "server.py:680, 691 — Currency uses explicit '\\u20B9' unicode escape rather than the literal '₹'. Byte-identical but clearer intent; consistent between distributor earnings and agent wallet columns.",
+    "server.py at 2720 lines remains the primary code-review concern (>700-line threshold). PDF renderer (~145 lines) could be extracted to modules/exports_pdf.py alongside the future backup extraction.",
+    "No changes on the frontend side, as documented — Export PDF button behaviour unchanged from iteration_13."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_pdf_exports.py (extended from 10 to 25 test cases; new classes: TestRupeeGlyphAndFonts (10 cases), TestBundledFonts (4 cases), TestIdempotentFontRegistration (1 case))"
+  ],
+  "success_rate": {
+    "backend": "100% (25/25 pytest pass)",
+    "frontend": "not tested — testing_type=backend only per review request"
+  },
+  "test_credentials": "Super Admin makfinpay@gmail.com / Riyaz@1212 — working. Reused the frozen TEST_authcheck_* distributor fixture from iteration_13 for 403 checks.",
+  "seed_data_creation": "No new seed data created beyond the existing non_admin_token fixture (reuses / creates a TEST_authcheck_* distributor if needed).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iteration_14 bug fix (rupee glyph + white header) is closed. The test file /app/backend/tests/test_pdf_exports.py now covers 25 cases and can be reused as regression. Notable methods: TestRupeeGlyphAndFonts.test_header_uses_white_fill_colour_* validates via content-stream inspection for the '1 1 1 rg' operator — this is the primary programmatic proof of white header text (pixel sampling not required). If a future iteration ever changes header colour or renderer, these tests will fail loudly. Extracted rupee glyphs confirmed literally in text (e.g., '₹906.06'); Distributor count = 2 (Deraiya Aman + frozen TEST fixture); Agent count depends on live data. Frontend not exercised (backend-only scope).",
+  "rca of the issue": "N/A — bug already fixed by main agent in iteration_14. RCA per problem statement: (1) header text was black because Paragraph(text, cell_bold) inherited BodyText's black textColor which overrode TableStyle TEXTCOLOR=white — fixed by introducing cell_bold_white ParagraphStyle with textColor=colors.white; (2) ₹ rendered as tofu because reportlab default Helvetica lacks U+20B9 glyph — fixed by registering bundled DejaVu Sans TTFs. Verification: pypdf extract_text returns literal ₹ characters, content-stream contains '1 1 1 rg' fill operator."
+}
