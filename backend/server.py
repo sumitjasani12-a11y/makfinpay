@@ -1838,13 +1838,14 @@ async def admin_reject_kyc(uid: str, body: ApprovalIn, request: Request, user=De
 # ---------- QR CODES ----------
 @api.post("/admin/qrcodes")
 async def admin_create_qr(body: QRCodeIn, user=Depends(require_roles("admin"))):
+    await db.qr_codes.update_many({}, {"$set": {"active": False}})
     doc = {
         "id": new_id(),
         "label": body.label,
         "image_path": body.image_path,
         "upi_id": body.upi_id or "",
         "mobile_number": body.mobile_number or "",
-        "active": False,
+        "active": True,
         "is_deleted": False,
         "created_at": now_iso(),
     }

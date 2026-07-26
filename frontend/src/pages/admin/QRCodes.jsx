@@ -160,28 +160,6 @@ export default function AdminQRCodes() {
           ) : <EmptyState>No active QR. Activate one below.</EmptyState>}
         </div>
       </div>
-
-      {/* Grid List of Available QR Codes */}
-      <h3 className="text-lg font-medium mb-4">Available QR Codes</h3>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {items.length === 0 && <EmptyState>No QR codes yet.</EmptyState>}
-        {items.map((q) => (
-          <div key={q.id} className="mfp-card p-5">
-            <img src={fileUrl(q.image_path)} alt={q.label} className="rounded-xl h-44 w-full object-contain bg-[#F4F3ED] border border-black/5" />
-            <div className="mt-3 flex items-center justify-between">
-              <div>
-                <div className="text-sm font-medium text-neutral-800">{q.label}</div>
-                <div className="text-xs text-neutral-500">{q.mobile_number || q.upi_id || "—"}</div>
-              </div>
-              {q.active && <span className="mfp-pill bg-emerald-100 text-emerald-800 flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> Active</span>}
-            </div>
-            <div className="mt-3 flex gap-2">
-              {!q.active && <button className="mfp-btn-outline px-3 py-1.5 text-xs" onClick={() => activate(q.id)} data-testid={`qr-activate-${q.id}`}>Activate</button>}
-              <button className="rounded-xl border-2 border-rose-200 text-rose-700 hover:bg-rose-50 px-3 py-1.5 text-xs font-semibold" onClick={() => del(q.id)} data-testid={`qr-delete-${q.id}`}><Trash2 className="h-3 w-3 inline" /></button>
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
