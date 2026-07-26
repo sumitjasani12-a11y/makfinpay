@@ -1,18 +1,26 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, fmtMoney, fmtDate } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { PageHeader } from "@/components/Shared";
 import KycPasswordGate from "@/components/KycPasswordGate";
 import { Wallet, ArrowRight } from "lucide-react";
 
 export default function AgentOverview() {
+  const { user } = useAuth();
   const [balance, setBalance] = useState(0);
   const [ledger, setLedger] = useState([]);
 
   useEffect(() => {
-    api.get("/wallet").then((r) => setBalance(r.data.balance || 0));
-    api.get("/wallet/ledger").then((r) => setLedger(r.data.slice(0, 5)));
-  }, []);
+    if (user && user.kyc_status === "approved" && !user.first_login) {
+      api.get("/wallet")
+        .then((r) => setBalance(r.data.balance || 0))
+        .catch((e) => console.log("Wallet ignored:", e.message));
+      api.get("/wallet/ledger")
+        .then((r) => setLedger(r.data.slice(0, 5)))
+        .catch((e) => console.log("Ledger ignored:", e.message));
+    }
+  }, [user]);
 
   const now = new Date();
   const dateStr = now.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });

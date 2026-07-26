@@ -1,11 +1,21 @@
 import React, { useEffect, useState } from "react";
 import { api, fmtMoney } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { Kpi, PageHeader } from "@/components/Shared";
 import KycPasswordGate from "@/components/KycPasswordGate";
 
 export default function DistOverview() {
+  const { user } = useAuth();
   const [s, setS] = useState({});
-  useEffect(() => { api.get("/distributor/stats").then((r) => setS(r.data)); }, []);
+
+  useEffect(() => {
+    if (user && user.kyc_status === "approved" && !user.first_login) {
+      api.get("/distributor/stats")
+        .then((r) => setS(r.data))
+        .catch((e) => console.log("Stats ignored:", e.message));
+    }
+  }, [user]);
+
   return (
     <KycPasswordGate>
       <div>
