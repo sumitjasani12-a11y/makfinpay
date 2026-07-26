@@ -25,6 +25,9 @@ export default function AdminQRCodes() {
   const [historySearch, setHistorySearch] = useState("");
   const [dateFilter, setDateFilter] = useState("all");
 
+  const [qrEnabled, setQrEnabled] = useState(true);
+  const [rechargeEnabled, setRechargeEnabled] = useState(true);
+
   const reload = () => {
     api.get("/admin/qrcodes?stats=true").then((r) => {
       setItems(r.data || []);
@@ -34,9 +37,41 @@ export default function AdminQRCodes() {
     });
     api.get("/admin/qr-name-entries").then((r) => setQrEntries(r.data || []));
     api.get("/admin/qrcodes/history").then((r) => setHistory(r.data || []));
+    api.get("/admin/settings/recharge-limits").then((r) => {
+      setQrEnabled(r.data.qr_enabled ?? true);
+      setRechargeEnabled(r.data.recharge_enabled ?? true);
+    });
   };
 
   useEffect(() => { reload(); }, []);
+
+  const handleToggleQr = async (val) => {
+    setQrEnabled(val);
+    try {
+      await api.put("/admin/settings/recharge-toggles", {
+        qr_enabled: val,
+        recharge_enabled: rechargeEnabled
+      });
+      toast.success(`Agent QR image ${val ? "Enabled" : "Disabled"}`);
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail) || "Failed to update toggle");
+      setQrEnabled(!val);
+    }
+  };
+
+  const handleToggleRecharge = async (val) => {
+    setRechargeEnabled(val);
+    try {
+      await api.put("/admin/settings/recharge-toggles", {
+        qr_enabled: qrEnabled,
+        recharge_enabled: val
+      });
+      toast.success(`Agent Recharge request form ${val ? "Enabled" : "Disabled"}`);
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail) || "Failed to update toggle");
+      setRechargeEnabled(!val);
+    }
+  };
 
   const handleSelectEntry = (id) => {
     setSelectedEntryId(id);
@@ -198,7 +233,49 @@ export default function AdminQRCodes() {
 
   return (
     <div>
-      <PageHeader title="QR Code Management" subtitle="Manage active UPI QR codes for payment gateway." />
+      <PageHeader
+        title="QR Code Management"
+        subtitle="Manage active UPI QR codes for payment gateway."
+        actions={
+          <div className="flex flex-wrap items-center gap-6 bg-white px-5 py-2.5 rounded-2xl border border-black/5 shadow-sm">
+            <div className="flex items-center gap-2.5">
+              <span className="text-[11px] font-bold text-neutral-600 uppercase tracking-wider">QR Image</span>
+              <button
+                onClick={() => handleToggleQr(!qrEnabled)}
+                className={`relative inline-flex h-5.5 w-10.5 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  qrEnabled ? "bg-[#2D6A4F]" : "bg-neutral-200"
+                }`}
+                type="button"
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    qrEnabled ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="h-4 w-px bg-black/10" />
+
+            <div className="flex items-center gap-2.5">
+              <span className="text-[11px] font-bold text-neutral-600 uppercase tracking-wider">Recharge Option</span>
+              <button
+                onClick={() => handleToggleRecharge(!rechargeEnabled)}
+                className={`relative inline-flex h-5.5 w-10.5 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  rechargeEnabled ? "bg-[#2D6A4F]" : "bg-neutral-200"
+                }`}
+                type="button"
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    rechargeEnabled ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        }
+      />
       
       <div className="flex flex-col lg:flex-row gap-6 mb-8">
         {/* Left Card: Select QR Name Entry */}

@@ -279,6 +279,10 @@ class RechargeLimitsIn(BaseModel):
     min_recharge_limit: float
     max_recharge_limit: float
 
+class RechargeTogglesIn(BaseModel):
+    qr_enabled: bool
+    recharge_enabled: bool
+
 class CommissionUpdateIn(BaseModel):
     commission_percent: float
 
@@ -2541,7 +2545,9 @@ async def public_recharge_limits(user: dict = Depends(get_current_user)):
     s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
     return {
         "min_recharge_limit": float(s.get("min_recharge_limit", 100)),
-        "max_recharge_limit": float(s.get("max_recharge_limit", 300000))
+        "max_recharge_limit": float(s.get("max_recharge_limit", 300000)),
+        "qr_enabled": bool(s.get("qr_enabled", True)),
+        "recharge_enabled": bool(s.get("recharge_enabled", True))
     }
 
 @api.get("/admin/settings/recharge-limits")
@@ -2549,7 +2555,9 @@ async def get_admin_recharge_limits(user=Depends(require_roles("admin"))):
     s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
     return {
         "min_recharge_limit": float(s.get("min_recharge_limit", 100)),
-        "max_recharge_limit": float(s.get("max_recharge_limit", 300000))
+        "max_recharge_limit": float(s.get("max_recharge_limit", 300000)),
+        "qr_enabled": bool(s.get("qr_enabled", True)),
+        "recharge_enabled": bool(s.get("recharge_enabled", True))
     }
 
 @api.put("/admin/settings/recharge-limits")
@@ -2566,6 +2574,17 @@ async def update_admin_recharge_limits(body: RechargeLimitsIn, request: Request,
     }
     await db.settings.update_one({"id": "commission"}, {"$set": doc})
     await write_audit(user["id"], "recharge_limits_changed", target="settings", meta=doc, request=request)
+    return doc
+
+@api.put("/admin/settings/recharge-toggles")
+async def update_admin_recharge_toggles(body: RechargeTogglesIn, request: Request, user=Depends(require_roles("admin"))):
+    doc = {
+        "qr_enabled": body.qr_enabled,
+        "recharge_enabled": body.recharge_enabled,
+        "updated_at": now_iso()
+    }
+    await db.settings.update_one({"id": "commission"}, {"$set": doc})
+    await write_audit(user["id"], "recharge_toggles_changed", target="settings", meta=doc, request=request)
     return doc
 
 # --- Cascade helper: recompute all agents under a distributor ---
@@ -3169,6 +3188,8 @@ async def _ensure_indexes() -> None:
         await conn.execute('ALTER TABLE qr_name_entries ADD COLUMN IF NOT EXISTS qr_percent NUMERIC(15, 4) DEFAULT 0')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS min_recharge_limit NUMERIC(15, 2) DEFAULT 100')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS max_recharge_limit NUMERIC(15, 2) DEFAULT 300000')
+        await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS qr_enabled BOOLEAN DEFAULT TRUE')
+        await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS recharge_enabled BOOLEAN DEFAULT TRUE')
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS qr_activation_history (
                 id VARCHAR(255) PRIMARY KEY,
@@ -3335,7 +3356,7 @@ async def _seed_admin_user() -> None:
 
 async def _ensure_commission_settings() -> None:
     if not await db.settings.find_one({"id": "commission"}):
-        await db.settings.insert_one({"id": "commission", "default_percent": 1.2, "min_recharge_limit": 100, "max_recharge_limit": 300000, "updated_at": now_iso()})
+        await db.settings.insert_one({"id": "commission", "default_percent": 1.2, "min_recharge_limit": 100, "max_recharge_limit": 300000, "qr_enabled": True, "recharge_enabled": True, "updated_at": now_iso()})
     else:
         s = await db.settings.find_one({"id": "commission"})
         set_updates = {}
@@ -3343,6 +3364,10 @@ async def _ensure_commission_settings() -> None:
             set_updates["min_recharge_limit"] = 100
         if s.get("max_recharge_limit") is None:
             set_updates["max_recharge_limit"] = 300000
+        if s.get("qr_enabled") is None:
+            set_updates["qr_enabled"] = True
+        if s.get("recharge_enabled") is None:
+            set_updates["recharge_enabled"] = True
         
         if set_updates:
             await db.settings.update_one({"id": "commission"}, {"$unset": {"min_percent": "", "max_percent": ""}, "$set": set_updates})
