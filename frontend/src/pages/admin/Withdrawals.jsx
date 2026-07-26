@@ -6,13 +6,6 @@ import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import { toast } from "sonner";
 import { RotateCcw, Search, X } from "lucide-react";
 
-const STATUSES = [
-  { key: "all", label: "All" },
-  { key: "pending", label: "Pending" },
-  { key: "approved", label: "Approved" },
-  { key: "rejected", label: "Rejected" },
-];
-
 const ROLES = [
   { key: "all", label: "All Roles" },
   { key: "agent", label: "Agents" },
@@ -33,6 +26,11 @@ export default function AdminWithdrawals() {
   const [from, setFrom] = useState(todayStr(-7));
   const [to, setTo] = useState(todayStr());
   const [customApplied, setCustomApplied] = useState(false);
+  const [amtQuery, setAmtQuery] = useState("");
+  const debouncedAmt = useDebounced(amtQuery, 350);
+
+  // Stats calculation
+  const [stats, setStats] = useState({ approved: 0, approvedCount: 0, pending: 0, pendingCount: 0, rejected: 0, rejectedCount: 0 });
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
@@ -47,22 +45,56 @@ export default function AdminWithdrawals() {
     if (from_ts) p.from_ts = from_ts;
     if (to_ts) p.to_ts = to_ts;
     if (debouncedQ.trim()) p.q = debouncedQ.trim();
+    if (debouncedAmt.trim()) p.amount = debouncedAmt.trim();
     return p;
-  }, [status, roleFilter, range, from, to, customApplied, debouncedQ, page, pageSize]);
+  }, [status, roleFilter, range, from, to, customApplied, debouncedQ, debouncedAmt, page, pageSize]);
 
   const reload = useCallback(() => {
     setLoading(true);
-    return api.get("/admin/withdrawals", { params })
-      .then((r) => { setItems(r.data.items || []); setTotal(r.data.total || 0); })
+    // paginated list
+    const pagePromise = api.get("/admin/withdrawals", { params });
+
+    // unpaginated list for correct totals
+    const statsParams = { ...params };
+    delete statsParams.paginated;
+    delete statsParams.page;
+    delete statsParams.page_size;
+    const statsPromise = api.get("/admin/withdrawals", { params: statsParams });
+
+    return Promise.all([pagePromise, statsPromise])
+      .then(([pageRes, statsRes]) => {
+        setItems(pageRes.data.items || []);
+        setTotal(pageRes.data.total || 0);
+
+        let approved = 0, approvedCount = 0;
+        let pending = 0, pendingCount = 0;
+        let rejected = 0, rejectedCount = 0;
+
+        const allMatched = statsRes.data || [];
+        allMatched.forEach((item) => {
+          const amt = item.amount || 0;
+          if (item.status === "approved") {
+            approved += amt;
+            approvedCount++;
+          } else if (item.status === "pending") {
+            pending += amt;
+            pendingCount++;
+          } else if (item.status === "rejected") {
+            rejected += amt;
+            rejectedCount++;
+          }
+        });
+        setStats({ approved, approvedCount, pending, pendingCount, rejected, rejectedCount });
+      })
       .catch((e) => toast.error(formatErr(e.response?.data?.detail) || "Failed to load withdrawals"))
       .finally(() => setLoading(false));
   }, [params]);
 
   useEffect(() => { reload(); }, [reload]);
-  useEffect(() => { setPage(1); }, [status, roleFilter, range, from, to, customApplied, debouncedQ, pageSize]);
+  useEffect(() => { setPage(1); }, [status, roleFilter, range, from, to, customApplied, debouncedQ, debouncedAmt, pageSize]);
 
   const clearAll = () => {
-    setQ(""); setStatus("all"); setRoleFilter("all"); setRange("lifetime");
+    setQ(""); setStatus("all"); setRoleFilter("all"); setRange("lifetime"); setAmtQuery("");
     setFrom(todayStr(-7)); setTo(todayStr()); setCustomApplied(false); setPage(1);
   };
 
@@ -79,7 +111,7 @@ export default function AdminWithdrawals() {
 
   const columns = useMemo(() => [
     { key: "user_name", label: "Requester" },
-    { key: "role", label: "Role" },
+    { key: "role", label: "Role", render: (r) => <span className="capitalize">{r.role?.replace("_", " ")}</span> },
     { key: "amount", label: "Amount", render: (r) => fmtMoney(r.amount) },
     { key: "account_holder", label: "Account Holder", render: (r) => r.bank?.account_holder || "—" },
     { key: "account_number", label: "Account Number", render: (r) => r.bank?.account_number || "—" },
@@ -100,16 +132,50 @@ export default function AdminWithdrawals() {
     <div>
       <PageHeader title="Withdrawal Approvals" subtitle="Review withdrawal requests from agents and distributors." />
 
+      {/* Metrics Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+        <div className="bg-emerald-50/60 border border-emerald-500/10 rounded-2xl p-5 flex flex-col justify-between shadow-sm">
+          <div>
+            <span className="text-xs font-semibold text-emerald-800 uppercase tracking-wider block mb-1">Approved Withdrawals</span>
+            <h3 className="text-2xl font-bold text-emerald-900">{fmtMoney(stats.approved)}</h3>
+          </div>
+          <div className="text-xs text-emerald-700 mt-2 font-medium">
+            {stats.approvedCount} Successful Payouts
+          </div>
+        </div>
+
+        <div className="bg-amber-50/60 border border-amber-500/10 rounded-2xl p-5 flex flex-col justify-between shadow-sm">
+          <div>
+            <span className="text-xs font-semibold text-amber-800 uppercase tracking-wider block mb-1">Pending Withdrawals</span>
+            <h3 className="text-2xl font-bold text-amber-900">{fmtMoney(stats.pending)}</h3>
+          </div>
+          <div className="text-xs text-amber-700 mt-2 font-medium">
+            {stats.pendingCount} Awaiting Review
+          </div>
+        </div>
+
+        <div className="bg-rose-50/60 border border-rose-500/10 rounded-2xl p-5 flex flex-col justify-between shadow-sm">
+          <div>
+            <span className="text-xs font-semibold text-rose-800 uppercase tracking-wider block mb-1">Rejected Withdrawals</span>
+            <h3 className="text-2xl font-bold text-rose-900">{fmtMoney(stats.rejected)}</h3>
+          </div>
+          <div className="text-xs text-rose-700 mt-2 font-medium">
+            {stats.rejectedCount} Declined Requests
+          </div>
+        </div>
+      </div>
+
+      {/* Filters Bar */}
       <div className="mfp-card p-5 mb-6 space-y-4" data-testid="withdrawal-filter-bar">
-        <div className="flex flex-col lg:flex-row gap-3">
-          <div className="relative flex-1">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="relative">
             <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
               <Search className="h-4 w-4 text-neutral-400" />
             </span>
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search by Requester, Account Holder, Account No, IFSC, Bank, Phone…"
+              placeholder="Search Requester, Account, Bank..."
               className="mfp-input !pl-11 !pr-10"
               data-testid="withdrawal-search"
             />
@@ -125,44 +191,64 @@ export default function AdminWithdrawals() {
               </button>
             )}
           </div>
-          <select
-            value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}
-            className="mfp-input lg:w-56" data-testid="withdrawal-role-filter"
-          >
-            {ROLES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
-          </select>
-        </div>
 
-        <div className="flex flex-wrap gap-2">
-          <span className="mfp-overline mr-1 self-center">Status:</span>
-          {STATUSES.map((s) => (
-            <button
-              key={s.key}
-              onClick={() => setStatus(s.key)}
-              className={`rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${status === s.key ? "bg-[#1B4332] text-white" : "bg-[#F4F3ED] text-neutral-700 hover:bg-[#E8E5D7]"}`}
-              data-testid={`withdrawal-status-${s.key}`}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
+          <div>
+            <input
+              type="text"
+              value={amtQuery}
+              onChange={(e) => setAmtQuery(e.target.value)}
+              placeholder="Search Amount ₹"
+              className="mfp-input"
+              data-testid="withdrawal-amount-search"
+            />
+          </div>
 
-        <div className="flex flex-wrap gap-2">
-          <span className="mfp-overline mr-1 self-center">Date:</span>
-          {DATE_RANGES.map((r) => (
-            <button
-              key={r.key}
-              onClick={() => { setRange(r.key); if (r.key !== "custom") setCustomApplied(false); }}
-              className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${range === r.key ? "bg-[#1B4332] text-white" : "bg-[#F4F3ED] text-neutral-700 hover:bg-[#E8E5D7]"}`}
-              data-testid={`withdrawal-range-${r.key}`}
+          <div>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="mfp-input w-full"
+              data-testid="withdrawal-status-filter"
             >
-              {r.label}
-            </button>
-          ))}
+              <option value="all">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
+
+          <div>
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className="mfp-input w-full"
+              data-testid="withdrawal-role-filter"
+            >
+              {ROLES.map((r) => (
+                <option key={r.key} value={r.key}>{r.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <select
+              value={range}
+              onChange={(e) => {
+                setRange(e.target.value);
+                if (e.target.value !== "custom") setCustomApplied(false);
+              }}
+              className="mfp-input w-full"
+              data-testid="withdrawal-date-filter"
+            >
+              {DATE_RANGES.map((r) => (
+                <option key={r.key} value={r.key}>{r.label}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {range === "custom" && (
-          <div className="flex flex-wrap items-end gap-3 pt-1">
+          <div className="flex flex-wrap items-end gap-3 pt-1 border-t border-black/5">
             <div>
               <label className="mfp-label">From</label>
               <input type="date" max={to} className="mfp-input" value={from} onChange={(e) => setFrom(e.target.value)} data-testid="withdrawal-custom-from" />

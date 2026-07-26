@@ -6,13 +6,6 @@ import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import { toast } from "sonner";
 import { Check, RotateCcw, Search, X } from "lucide-react";
 
-const STATUSES = [
-  { key: "all", label: "All" },
-  { key: "pending", label: "Pending" },
-  { key: "success", label: "Success" },
-  { key: "reversed", label: "Reversed" },
-];
-
 export default function AdminTransactions() {
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
@@ -30,6 +23,11 @@ export default function AdminTransactions() {
   const [customApplied, setCustomApplied] = useState(false);
   const [agentFilter, setAgentFilter] = useState("all");
   const [bankFilter, setBankFilter] = useState("all");
+  const [amtQuery, setAmtQuery] = useState("");
+  const debouncedAmt = useDebounced(amtQuery, 350);
+
+  // Stats calculation
+  const [stats, setStats] = useState({ success: 0, successCount: 0, pending: 0, pendingCount: 0, reversed: 0, reversedCount: 0 });
 
   // pagination
   const [page, setPage] = useState(1);
@@ -52,22 +50,56 @@ export default function AdminTransactions() {
     if (from_ts) p.from_ts = from_ts;
     if (to_ts) p.to_ts = to_ts;
     if (debouncedQ.trim()) p.q = debouncedQ.trim();
+    if (debouncedAmt.trim()) p.amount = debouncedAmt.trim();
     return p;
-  }, [status, agentFilter, bankFilter, range, from, to, customApplied, debouncedQ, page, pageSize]);
+  }, [status, agentFilter, bankFilter, range, from, to, customApplied, debouncedQ, debouncedAmt, page, pageSize]);
 
   const reload = useCallback(() => {
     setLoading(true);
-    return api.get("/admin/transactions", { params })
-      .then((r) => { setItems(r.data.items || []); setTotal(r.data.total || 0); })
+    // paginated list
+    const pagePromise = api.get("/admin/transactions", { params });
+
+    // unpaginated list for correct totals
+    const statsParams = { ...params };
+    delete statsParams.paginated;
+    delete statsParams.page;
+    delete statsParams.page_size;
+    const statsPromise = api.get("/admin/transactions", { params: statsParams });
+
+    return Promise.all([pagePromise, statsPromise])
+      .then(([pageRes, statsRes]) => {
+        setItems(pageRes.data.items || []);
+        setTotal(pageRes.data.total || 0);
+
+        let success = 0, successCount = 0;
+        let pending = 0, pendingCount = 0;
+        let reversed = 0, reversedCount = 0;
+
+        const allMatched = statsRes.data || [];
+        allMatched.forEach((item) => {
+          const amt = item.bill_amount ?? item.amount ?? 0;
+          if (item.status === "success") {
+            success += amt;
+            successCount++;
+          } else if (item.status === "pending") {
+            pending += amt;
+            pendingCount++;
+          } else if (item.status === "reversed") {
+            reversed += amt;
+            reversedCount++;
+          }
+        });
+        setStats({ success, successCount, pending, pendingCount, reversed, reversedCount });
+      })
       .catch((e) => toast.error(formatErr(e.response?.data?.detail) || "Failed to load transactions"))
       .finally(() => setLoading(false));
   }, [params]);
 
   useEffect(() => { reload(); }, [reload]);
-  useEffect(() => { setPage(1); }, [status, agentFilter, bankFilter, range, from, to, customApplied, debouncedQ, pageSize]);
+  useEffect(() => { setPage(1); }, [status, agentFilter, bankFilter, range, from, to, customApplied, debouncedQ, debouncedAmt, pageSize]);
 
   const clearAll = () => {
-    setQ(""); setStatus("all"); setRange("today"); setAgentFilter("all"); setBankFilter("all");
+    setQ(""); setStatus("all"); setRange("today"); setAgentFilter("all"); setBankFilter("all"); setAmtQuery("");
     setFrom(todayStr(-7)); setTo(todayStr()); setCustomApplied(false); setPage(1);
   };
 
@@ -87,8 +119,6 @@ export default function AdminTransactions() {
     try { await api.post(`/admin/transactions/${id}/reject`, { note: "reversed by admin" }); toast.success("Transaction reversed; wallet refunded"); reload(); }
     catch (e) { toast.error(formatErr(e.response?.data?.detail)); }
   }, [reload]);
-
-
 
   const columns = useMemo(() => [
     { key: "user_name", label: "Agent" },
@@ -143,17 +173,51 @@ export default function AdminTransactions() {
     <div>
       <PageHeader title="Bill Payments" subtitle="Approve or reverse credit card bill payments submitted by agents." />
 
+      {/* Metrics Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+        <div className="bg-emerald-50/60 border border-emerald-500/10 rounded-2xl p-5 flex flex-col justify-between shadow-sm">
+          <div>
+            <span className="text-xs font-semibold text-emerald-800 uppercase tracking-wider block mb-1">Successful Payments</span>
+            <h3 className="text-2xl font-bold text-emerald-900">{fmtMoney(stats.success)}</h3>
+          </div>
+          <div className="text-xs text-emerald-700 mt-2 font-medium">
+            {stats.successCount} Completed Bills
+          </div>
+        </div>
+
+        <div className="bg-amber-50/60 border border-amber-500/10 rounded-2xl p-5 flex flex-col justify-between shadow-sm">
+          <div>
+            <span className="text-xs font-semibold text-amber-800 uppercase tracking-wider block mb-1">Pending Payments</span>
+            <h3 className="text-2xl font-bold text-amber-900">{fmtMoney(stats.pending)}</h3>
+          </div>
+          <div className="text-xs text-amber-700 mt-2 font-medium">
+            {stats.pendingCount} Awaiting Status
+          </div>
+        </div>
+
+        <div className="bg-rose-50/60 border border-rose-500/10 rounded-2xl p-5 flex flex-col justify-between shadow-sm">
+          <div>
+            <span className="text-xs font-semibold text-rose-800 uppercase tracking-wider block mb-1">Reversed Payments</span>
+            <h3 className="text-2xl font-bold text-rose-900">{fmtMoney(stats.reversed)}</h3>
+          </div>
+          <div className="text-xs text-rose-700 mt-2 font-medium">
+            {stats.reversedCount} Refunded Bills
+          </div>
+        </div>
+      </div>
+
       {/* Filter / Search bar */}
       <div className="mfp-card p-5 mb-6 space-y-4" data-testid="tx-filter-bar">
-        <div className="flex flex-col lg:flex-row gap-3">
-          <div className="relative flex-1">
+        {/* Row 1: Search & Dropdowns */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="relative">
             <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
               <Search className="h-4 w-4 text-neutral-400" />
             </span>
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search by Agent Name, Customer Name, Bank, Card Last 4 Digits, Customer Phone…"
+              placeholder="Search Name, Phone, Card..."
               className="mfp-input !pl-11 !pr-10"
               data-testid="tx-search"
             />
@@ -169,54 +233,82 @@ export default function AdminTransactions() {
               </button>
             )}
           </div>
-          <div className="flex gap-3">
+
+          <div>
+            <input
+              type="text"
+              value={amtQuery}
+              onChange={(e) => setAmtQuery(e.target.value)}
+              placeholder="Search Amount ₹"
+              className="mfp-input"
+              data-testid="tx-amount-search"
+            />
+          </div>
+
+          <div>
             <select
-              value={agentFilter} onChange={(e) => setAgentFilter(e.target.value)}
-              className="mfp-input lg:w-56" data-testid="tx-agent-filter"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="mfp-input w-full"
+              data-testid="tx-status-filter"
             >
-              <option value="all">All Agents</option>
-              {agents.map((a) => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+              <option value="all">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="success">Success</option>
+              <option value="reversed">Reversed</option>
             </select>
+          </div>
+
+          <div>
             <select
-              value={bankFilter} onChange={(e) => setBankFilter(e.target.value)}
-              className="mfp-input lg:w-56" data-testid="tx-bank-filter"
+              value={range}
+              onChange={(e) => {
+                setRange(e.target.value);
+                if (e.target.value !== "custom") setCustomApplied(false);
+              }}
+              className="mfp-input w-full"
+              data-testid="tx-date-filter"
             >
-              <option value="all">All Banks</option>
-              {banks.map((b) => <option key={b} value={b}>{b}</option>)}
+              {DATE_RANGES.map((r) => (
+                <option key={r.key} value={r.key}>{r.label}</option>
+              ))}
             </select>
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <span className="mfp-overline mr-1 self-center">Status:</span>
-          {STATUSES.map((s) => (
-            <button
-              key={s.key}
-              onClick={() => setStatus(s.key)}
-              className={`rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${status === s.key ? "bg-[#1B4332] text-white" : "bg-[#F4F3ED] text-neutral-700 hover:bg-[#E8E5D7]"}`}
-              data-testid={`tx-status-${s.key}`}
+        {/* Row 2: Secondary Dropdowns */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <select
+              value={agentFilter}
+              onChange={(e) => setAgentFilter(e.target.value)}
+              className="mfp-input w-full"
+              data-testid="tx-agent-filter"
             >
-              {s.label}
-            </button>
-          ))}
-        </div>
+              <option value="all">All Agents</option>
+              {agents.map((a) => (
+                <option key={a.id} value={a.id}>{a.full_name}</option>
+              ))}
+            </select>
+          </div>
 
-        <div className="flex flex-wrap gap-2">
-          <span className="mfp-overline mr-1 self-center">Date:</span>
-          {DATE_RANGES.map((r) => (
-            <button
-              key={r.key}
-              onClick={() => { setRange(r.key); if (r.key !== "custom") setCustomApplied(false); }}
-              className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${range === r.key ? "bg-[#1B4332] text-white" : "bg-[#F4F3ED] text-neutral-700 hover:bg-[#E8E5D7]"}`}
-              data-testid={`tx-range-${r.key}`}
+          <div>
+            <select
+              value={bankFilter}
+              onChange={(e) => setBankFilter(e.target.value)}
+              className="mfp-input w-full"
+              data-testid="tx-bank-filter"
             >
-              {r.label}
-            </button>
-          ))}
+              <option value="all">All Banks</option>
+              {banks.map((b) => (
+                <option key={b} value={b}>{b}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {range === "custom" && (
-          <div className="flex flex-wrap items-end gap-3 pt-1">
+          <div className="flex flex-wrap items-end gap-3 pt-1 border-t border-black/5">
             <div>
               <label className="mfp-label">From</label>
               <input type="date" max={to} className="mfp-input" value={from} onChange={(e) => setFrom(e.target.value)} data-testid="tx-custom-from" />
@@ -254,3 +346,5 @@ export default function AdminTransactions() {
     </div>
   );
 }
+
+

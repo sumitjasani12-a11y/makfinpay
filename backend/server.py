@@ -1422,7 +1422,7 @@ def _add_created_at_range(query: dict, from_ts: Optional[str], to_ts: Optional[s
 
 
 def _build_recharge_query(*, status=None, agent_id=None, qr_code_id=None,
-                           from_ts=None, to_ts=None, q=None) -> dict:
+                           from_ts=None, to_ts=None, q=None, amount=None) -> dict:
     query: dict = {}
     if status and status != "all":
         query["status"] = status
@@ -1439,11 +1439,13 @@ def _build_recharge_query(*, status=None, agent_id=None, qr_code_id=None,
                 {"utr": {"$regex": needle, "$options": "i"}},
                 {"card_last4": {"$regex": needle, "$options": "i"}},
             ]
+    if amount and amount.strip():
+        query["amount"] = {"$regex": amount.strip()}
     return query
 
 
 def _build_transaction_query(*, status=None, agent_id=None, operator=None,
-                              from_ts=None, to_ts=None, q=None) -> dict:
+                              from_ts=None, to_ts=None, q=None, amount=None) -> dict:
     query: dict = {}
     if status and status != "all":
         query["status"] = status
@@ -1462,11 +1464,13 @@ def _build_transaction_query(*, status=None, agent_id=None, operator=None,
                 {"operator": {"$regex": needle, "$options": "i"}},
                 {"card_last4": {"$regex": needle, "$options": "i"}},
             ]
+    if amount and amount.strip():
+        query["bill_amount"] = {"$regex": amount.strip()}
     return query
 
 
 def _build_withdrawal_query(*, status=None, role_filter=None,
-                             from_ts=None, to_ts=None, q=None) -> dict:
+                             from_ts=None, to_ts=None, q=None, amount=None) -> dict:
     query: dict = {}
     if status and status != "all":
         query["status"] = status
@@ -1484,6 +1488,8 @@ def _build_withdrawal_query(*, status=None, role_filter=None,
                 {"bank.bank_name": {"$regex": needle, "$options": "i"}},
                 {"bank.phone_number": {"$regex": needle, "$options": "i"}},
             ]
+    if amount and amount.strip():
+        query["amount"] = {"$regex": amount.strip()}
     return query
 
 
@@ -1584,13 +1590,14 @@ async def admin_list_recharges(
     from_ts: Optional[str] = None,
     to_ts: Optional[str] = None,
     q: Optional[str] = None,
+    amount: Optional[str] = None,
     page: int = 1,
     page_size: int = 50,
     paginated: bool = False,
     user=Depends(require_roles("admin")),
 ):
     query = _build_recharge_query(status=status, agent_id=agent_id, qr_code_id=qr_code_id,
-                                   from_ts=from_ts, to_ts=to_ts, q=q)
+                                   from_ts=from_ts, to_ts=to_ts, q=q, amount=amount)
     if paginated:
         page = max(1, page); page_size = max(1, min(200, page_size))
         total = await db.recharges.count_documents(query)
@@ -1758,13 +1765,14 @@ async def admin_transactions(
     from_ts: Optional[str] = None,
     to_ts: Optional[str] = None,
     q: Optional[str] = None,
+    amount: Optional[str] = None,
     page: int = 1,
     page_size: int = 50,
     paginated: bool = False,
     user=Depends(require_roles("admin")),
 ):
     query = _build_transaction_query(status=status, agent_id=agent_id, operator=operator,
-                                      from_ts=from_ts, to_ts=to_ts, q=q)
+                                      from_ts=from_ts, to_ts=to_ts, q=q, amount=amount)
     if paginated:
         page = max(1, page); page_size = max(1, min(200, page_size))
         total = await db.transactions.count_documents(query)
@@ -1872,13 +1880,14 @@ async def admin_withdrawals(
     from_ts: Optional[str] = None,
     to_ts: Optional[str] = None,
     q: Optional[str] = None,
+    amount: Optional[str] = None,
     page: int = 1,
     page_size: int = 50,
     paginated: bool = False,
     user=Depends(require_roles("admin")),
 ):
     query = _build_withdrawal_query(status=status, role_filter=role_filter,
-                                     from_ts=from_ts, to_ts=to_ts, q=q)
+                                     from_ts=from_ts, to_ts=to_ts, q=q, amount=amount)
     if paginated:
         page = max(1, page); page_size = max(1, min(200, page_size))
         total = await db.withdrawals.count_documents(query)
