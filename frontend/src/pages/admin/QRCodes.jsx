@@ -151,13 +151,42 @@ export default function AdminQRCodes() {
         <div className="mfp-card p-6">
           <h3 className="text-lg font-medium mb-4">Active QR Preview</h3>
           {activeQr ? (
-            <div className="text-center">
-              <img src={fileUrl(activeQr.image_path)} alt="active qr" className="mx-auto rounded-2xl max-h-64 border border-black/10 object-contain" />
-              <div className="mt-4 text-base font-semibold text-neutral-800">{activeQr.label}</div>
-              <div className="text-sm text-neutral-600 mt-1">Mobile: {activeQr.mobile_number || activeQr.upi_id}</div>
-              {activeQr.mobile_number && activeQr.upi_id && <div className="text-xs text-neutral-400 mt-0.5">UPI ID: {activeQr.upi_id}</div>}
+            <div className="flex flex-col items-center">
+              <div className="relative p-3 border border-black/5 bg-[#F4F3ED] rounded-2xl mb-4 w-full flex items-center justify-center min-h-[260px]">
+                <img 
+                  src={fileUrl(activeQr.image_path)} 
+                  alt="active qr" 
+                  className="mx-auto rounded-xl max-h-60 object-contain" 
+                />
+                <span className="absolute top-4 right-4 mfp-pill bg-emerald-100 text-emerald-800 flex items-center gap-1.5 shadow-sm border border-emerald-200">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span> Active Gateway
+                </span>
+              </div>
+              
+              <div className="w-full bg-[#FBFBFA] border border-neutral-100 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between border-b border-neutral-100 pb-2">
+                  <span className="text-xs text-neutral-500 font-medium">QR Gateway Name</span>
+                  <span className="text-sm font-semibold text-neutral-800 bg-[#E8F5E9] text-[#1B4332] px-2.5 py-1 rounded-lg">
+                    {activeQr.label}
+                  </span>
+                </div>
+                
+                <div className="flex items-center justify-between border-b border-neutral-100 pb-2">
+                  <span className="text-xs text-neutral-500 font-medium">Mobile Number</span>
+                  <span className="text-sm font-medium text-neutral-800 tabular-nums">
+                    {activeQr.mobile_number || "—"}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-neutral-500 font-medium">UPI ID</span>
+                  <span className="text-sm font-medium text-[#1B4332] truncate max-w-[200px]" title={activeQr.upi_id}>
+                    {activeQr.upi_id || "—"}
+                  </span>
+                </div>
+              </div>
             </div>
-          ) : <EmptyState>No active QR. Activate one below.</EmptyState>}
+          ) : <EmptyState>No active QR. Select one to add.</EmptyState>}
         </div>
       </div>
     </div>
