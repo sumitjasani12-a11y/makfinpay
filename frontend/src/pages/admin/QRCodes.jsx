@@ -85,9 +85,9 @@ export default function AdminQRCodes() {
     <div>
       <PageHeader title="QR Code Management" subtitle="Manage active UPI QR codes for payment gateway." />
       
-      <div className="grid lg:grid-cols-2 gap-6 mb-8">
+      <div className="flex flex-col lg:flex-row gap-6 mb-8">
         {/* Left Card: Select QR Name Entry */}
-        <div className="mfp-card p-8 flex flex-col justify-center items-center">
+        <div className="mfp-card p-8 flex flex-col justify-center items-center w-full lg:w-[40%]">
           <div className="max-w-xs w-full flex flex-col items-center justify-center space-y-5">
             {/* Header: Upload New QR */}
             <div className="flex flex-col items-center text-center">
@@ -120,22 +120,9 @@ export default function AdminQRCodes() {
                 >
                   <option value="">Select QR Name...</option>
                   {qrEntries.filter(e => e.active).map(e => (
-                    <option key={e.id} value={e.id}>{e.name} ({e.mobile_number})</option>
+                    <option key={e.id} value={e.id}>{e.name}</option>
                   ))}
                 </select>
-              </div>
-
-              {/* QR Name */}
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-neutral-400 pointer-events-none">
-                  <Tag className="h-3.5 w-3.5" />
-                </span>
-                <input
-                  className="mfp-input !pl-9 !py-2 bg-neutral-50/50 text-xs border border-black/10 focus:border-[#1b4332]"
-                  value={label}
-                  onChange={(e) => setLabel(e.target.value)}
-                  placeholder="QR Name"
-                />
               </div>
 
               {/* Mobile Number */}
@@ -182,7 +169,7 @@ export default function AdminQRCodes() {
         </div>
 
         {/* Right Card: Active QR Preview */}
-        <div className="mfp-card p-6 flex flex-col justify-between">
+        <div className="mfp-card p-6 flex flex-col justify-between w-full lg:w-[60%]">
           <div className="flex items-center justify-between border-b border-black/5 pb-4 mb-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
