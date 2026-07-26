@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { api, formatErr, fmtMoney } from "@/lib/api";
 import { PageHeader } from "@/components/Shared";
 import { toast } from "sonner";
-import { CreditCard, Check, ChevronsUpDown, Wallet, Search, Loader2 } from "lucide-react";
+import { CreditCard, Check, ChevronsUpDown, Wallet, Search, Loader2, AlertCircle } from "lucide-react";
 
 
 function BankCombobox({ value, onChange, options = [] }) {
@@ -69,11 +69,24 @@ export default function AgentBillPay() {
   const [busy, setBusy] = useState(false);
   const [slabs, setSlabs] = useState([]);
   const [banks, setBanks] = useState([]);
+  const [billPayEnabled, setBillPayEnabled] = useState(true);
 
   useEffect(() => {
     api.get("/wallet").then((r) => setWallet(r.data));
     api.get("/billing/service-slabs").then((r) => setSlabs(r.data)).catch((e) => console.log("Failed to fetch slabs:", e.message));
     api.get("/billing/banks").then((r) => setBanks(r.data.map(b => b.name))).catch((e) => console.log("Failed to fetch banks:", e.message));
+
+    const fetchConfig = () => {
+      api.get("/settings/recharge-limits-public")
+        .then((r) => {
+          setBillPayEnabled(r.data.bill_pay_enabled ?? true);
+        })
+        .catch((e) => console.log("Failed to fetch settings config:", e.message));
+    };
+
+    fetchConfig();
+    const interval = setInterval(fetchConfig, 4000);
+    return () => clearInterval(interval);
   }, []);
 
   const billAmt = Number(f.amount) || 0;
@@ -123,135 +136,154 @@ export default function AgentBillPay() {
   return (
     <div>
       <PageHeader title="Credit Card Bill Payment" subtitle="A small service charge is added on top of every bill payment." />
-      <div className="grid lg:grid-cols-12 gap-8 items-start">
-        {/* Form */}
-        <div className="lg:col-span-8 mfp-card p-6">
-          <form onSubmit={submit} className="grid sm:grid-cols-2 gap-x-6 gap-y-4">
-            <div>
-              <label className="mfp-label">Customer Owner Name</label>
-              <input className="mfp-input bg-neutral-50/50" required value={f.customer_name} onChange={(e) => setF({ ...f, customer_name: e.target.value })} disabled={busy} data-testid="bill-name" />
-            </div>
-            <div>
-              <label className="mfp-label">Card Last 4 Digits</label>
-              <input className="mfp-input bg-neutral-50/50" required maxLength={4} value={f.card_last4} onChange={(e) => setF({ ...f, card_last4: e.target.value.replace(/\D/g, "") })} disabled={busy} data-testid="bill-card" />
-            </div>
-            <div>
-              <label className="mfp-label">Bank / Operator</label>
-              <BankCombobox value={f.operator} onChange={(v) => setF({ ...f, operator: v })} options={banks} />
-            </div>
-            <div>
-              <label className="mfp-label">Customer Phone</label>
-              <input className="mfp-input bg-neutral-50/50" required value={f.customer_phone} onChange={(e) => setF({ ...f, customer_phone: e.target.value })} disabled={busy} data-testid="bill-phone" />
-            </div>
-            <div>
-              <label className="mfp-label">Bill Amount</label>
-              <input
-                className={`mfp-input bg-neutral-50/50 ${exceedsLimit ? "border-rose-400 focus:border-rose-500" : ""}`}
-                type="number" min="1" max={maxLimit} step="0.01" required
-                value={f.amount}
-                onChange={(e) => setF({ ...f, amount: e.target.value })}
-                disabled={busy}
-                data-testid="bill-amount"
-              />
-              {exceedsLimit && (
-                <div className="mt-1 text-xs text-rose-600" data-testid="bill-amount-error">
-                  Maximum bill amount allowed is ₹{maxLimit.toLocaleString("en-IN")}
-                </div>
-              )}
-            </div>
-            <div className="flex items-end pb-0.5 w-full">
-              <div className="flex items-center gap-3 w-full">
-                <button
-                  disabled={busy || exceedsLimit}
-                  className="mfp-btn-secondary flex-1 w-1/2 disabled:opacity-50 disabled:cursor-not-allowed py-2.5 flex items-center justify-center gap-2 h-[38px] rounded-xl text-xs font-bold"
-                  data-testid="bill-submit"
-                >
-                  {busy
-                    ? <><Loader2 className="h-4 w-4 animate-spin" /> Processing…</>
-                    : exceedsLimit
-                      ? <><CreditCard className="h-4 w-4" /> Limit Exceeded</>
-                      : hasAmount
-                        ? <><CreditCard className="h-4 w-4" /> Pay {fmtMoney(total)}</>
-                        : <><CreditCard className="h-4 w-4" /> Pay Bill</>
-                  }
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setF({ customer_name: "", card_last4: "", operator: "", customer_phone: "", amount: "" })}
-                  disabled={busy}
-                  className="flex-1 w-1/2 border border-black/10 hover:bg-neutral-50 text-neutral-600 h-[38px] rounded-xl text-xs font-bold transition-all flex items-center justify-center"
-                >
-                  Clear
-                </button>
-              </div>
-            </div>
-          </form>
+      
+      {!billPayEnabled ? (
+        <div className="bg-white border border-black/5 rounded-3xl p-10 lg:p-16 shadow-lg shadow-indigo-500/5 flex flex-col items-center justify-center text-center space-y-5 max-w-[800px] mx-auto animate-fadeIn">
+          <div className="bg-rose-50 text-rose-600 p-5 rounded-full border border-rose-200/50 animate-pulse">
+            <AlertCircle className="h-12 w-12 stroke-1" />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-xl font-bold text-neutral-800">Bill Payment Service Paused</h3>
+            <p className="text-sm text-neutral-500 max-w-md leading-relaxed mx-auto">
+              Credit Card Bill Payment service is temporarily disabled by the administrator. 
+              Please check back later or contact support if you have any queries.
+            </p>
+          </div>
+          <div className="text-[10px] text-neutral-400 font-mono bg-neutral-50 px-3 py-1.5 rounded-full border border-neutral-100">
+            SERVICE_STATUS: PAUSED
+          </div>
         </div>
-
-        {/* Wallet & Charges panel */}
-        <aside className="lg:col-span-4 mfp-card p-6 bg-[#FDFCF8]">
-          <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-neutral-500">
-            <Wallet className="h-4 w-4" /> Available Wallet
-          </div>
-          <div className="mt-3 text-4xl font-medium tracking-tight text-[#1B4332]" data-testid="wallet-balance-billpay">
-            {fmtMoney(wallet.balance)}
-          </div>
-          <div className="text-xs text-neutral-500 mt-1">Live balance — updates after each payment</div>
-
-          <div className="my-6 border-t border-black/5" />
-
-          <div className="mfp-overline">Service Charges</div>
-          <div className="mt-3 rounded-xl border border-black/5 bg-[#F4F3ED] overflow-hidden">
-            <table className="w-full text-sm">
-              <tbody>
-                {slabs.length === 0 ? (
-                  <>
-                    <tr className="border-b border-black/5">
-                      <td className="px-4 py-2.5 text-neutral-700">₹0 – ₹50,000</td>
-                      <td className="px-4 py-2.5 text-right font-semibold text-[#1B4332]">₹15</td>
-                    </tr>
-                    <tr>
-                      <td className="px-4 py-2.5 text-neutral-700">₹50,001 – ₹1,00,000</td>
-                      <td className="px-4 py-2.5 text-right font-semibold text-[#1B4332]">₹25</td>
-                    </tr>
-                  </>
-                ) : (
-                  slabs.map((s, idx) => (
-                    <tr key={s.id} className={idx < slabs.length - 1 ? "border-b border-black/5" : ""}>
-                      <td className="px-4 py-2.5 text-neutral-700">
-                        ₹{parseFloat(s.min_amount).toLocaleString("en-IN")} – ₹{parseFloat(s.max_amount).toLocaleString("en-IN")}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-semibold text-[#1B4332]">
-                        {s.charge_type === "percent" ? `${s.charge_amount}%` : `₹${parseFloat(s.charge_amount).toFixed(2)}`}
-                      </td>
-                    </tr>
-                  ))
+      ) : (
+        <div className="grid lg:grid-cols-12 gap-8 items-start">
+          {/* Form */}
+          <div className="lg:col-span-8 mfp-card p-6">
+            <form onSubmit={submit} className="grid sm:grid-cols-2 gap-x-6 gap-y-4">
+              <div>
+                <label className="mfp-label">Customer Owner Name</label>
+                <input className="mfp-input bg-neutral-50/50" required value={f.customer_name} onChange={(e) => setF({ ...f, customer_name: e.target.value })} disabled={busy} data-testid="bill-name" />
+              </div>
+              <div>
+                <label className="mfp-label">Card Last 4 Digits</label>
+                <input className="mfp-input bg-neutral-50/50" required maxLength={4} value={f.card_last4} onChange={(e) => setF({ ...f, card_last4: e.target.value.replace(/\D/g, "") })} disabled={busy} data-testid="bill-card" />
+              </div>
+              <div>
+                <label className="mfp-label">Bank / Operator</label>
+                <BankCombobox value={f.operator} onChange={(v) => setF({ ...f, operator: v })} options={banks} />
+              </div>
+              <div>
+                <label className="mfp-label">Customer Phone</label>
+                <input className="mfp-input bg-neutral-50/50" required value={f.customer_phone} onChange={(e) => setF({ ...f, customer_phone: e.target.value })} disabled={busy} data-testid="bill-phone" />
+              </div>
+              <div>
+                <label className="mfp-label">Bill Amount</label>
+                <input
+                  className={`mfp-input bg-neutral-50/50 ${exceedsLimit ? "border-rose-400 focus:border-rose-500" : ""}`}
+                  type="number" min="1" max={maxLimit} step="0.01" required
+                  value={f.amount}
+                  onChange={(e) => setF({ ...f, amount: e.target.value })}
+                  disabled={busy}
+                  data-testid="bill-amount"
+                />
+                {exceedsLimit && (
+                  <div className="mt-1 text-xs text-rose-600" data-testid="bill-amount-error">
+                    Maximum bill amount allowed is ₹{maxLimit.toLocaleString("en-IN")}
+                  </div>
                 )}
-              </tbody>
-            </table>
-          </div>
-
-          {hasAmount && (
-            <div className="mt-6 rounded-xl bg-[#1B4332] text-white p-5" data-testid="bill-breakdown">
-              <div className="text-xs uppercase tracking-[0.2em] text-[#E8E5D7]">Breakdown</div>
-              <div className="mt-4 space-y-2.5 text-sm">
-                <div className="flex justify-between"><span className="text-[#E8E5D7]">Bill Amount</span><span className="font-medium text-white">{fmtMoney(billAmt)}</span></div>
-                <div className="flex justify-between"><span className="text-[#E8E5D7]">Service Charge</span><span className="font-medium text-white">{fmtMoney(charge)}</span></div>
-                <div className="border-t border-white/15 my-2" />
-                <div className="flex justify-between text-base">
-                  <span className="text-white">Total Payable</span>
-                  <span className="font-semibold text-[#FFE4C7]" data-testid="bill-total">{fmtMoney(total)}</span>
+              </div>
+              <div className="flex items-end pb-0.5 w-full">
+                <div className="flex items-center gap-3 w-full">
+                  <button
+                    disabled={busy || exceedsLimit}
+                    className="mfp-btn-secondary flex-1 w-1/2 disabled:opacity-50 disabled:cursor-not-allowed py-2.5 flex items-center justify-center gap-2 h-[38px] rounded-xl text-xs font-bold"
+                    data-testid="bill-submit"
+                  >
+                    {busy
+                      ? <><Loader2 className="h-4 w-4 animate-spin" /> Processing…</>
+                      : exceedsLimit
+                        ? <><CreditCard className="h-4 w-4" /> Limit Exceeded</>
+                        : hasAmount
+                          ? <><CreditCard className="h-4 w-4" /> Pay {fmtMoney(total)}</>
+                          : <><CreditCard className="h-4 w-4" /> Pay Bill</>
+                    }
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setF({ customer_name: "", card_last4: "", operator: "", customer_phone: "", amount: "" })}
+                    disabled={busy}
+                    className="flex-1 w-1/2 border border-black/10 hover:bg-neutral-50 text-neutral-600 h-[38px] rounded-xl text-xs font-bold transition-all flex items-center justify-center"
+                  >
+                    Clear
+                  </button>
                 </div>
               </div>
-              {wallet.balance < total && (
-                <div className="mt-3 text-xs text-rose-200 bg-rose-900/30 rounded-lg px-3 py-2">
-                  Wallet short by {fmtMoney(total - wallet.balance)}
-                </div>
-              )}
+            </form>
+          </div>
+
+          {/* Wallet & Charges panel */}
+          <aside className="lg:col-span-4 mfp-card p-6 bg-[#FDFCF8]">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-neutral-500">
+              <Wallet className="h-4 w-4" /> Available Wallet
             </div>
-          )}
-        </aside>
-      </div>
+            <div className="mt-3 text-4xl font-medium tracking-tight text-[#1B4332]" data-testid="wallet-balance-billpay">
+              {fmtMoney(wallet.balance)}
+            </div>
+            <div className="text-xs text-neutral-500 mt-1">Live balance — updates after each payment</div>
+
+            <div className="my-6 border-t border-black/5" />
+
+            <div className="mfp-overline">Service Charges</div>
+            <div className="mt-3 rounded-xl border border-black/5 bg-[#F4F3ED] overflow-hidden">
+              <table className="w-full text-sm">
+                <tbody>
+                  {slabs.length === 0 ? (
+                    <>
+                      <tr className="border-b border-black/5">
+                        <td className="px-4 py-2.5 text-neutral-700">₹0 – ₹50,000</td>
+                        <td className="px-4 py-2.5 text-right font-semibold text-[#1B4332]">₹15</td>
+                      </tr>
+                      <tr>
+                        <td className="px-4 py-2.5 text-neutral-700">₹50,001 – ₹1,00,000</td>
+                        <td className="px-4 py-2.5 text-right font-semibold text-[#1B4332]">₹25</td>
+                      </tr>
+                    </>
+                  ) : (
+                    slabs.map((s, idx) => (
+                      <tr key={s.id} className={idx < slabs.length - 1 ? "border-b border-black/5" : ""}>
+                        <td className="px-4 py-2.5 text-neutral-700">
+                          ₹{parseFloat(s.min_amount).toLocaleString("en-IN")} – ₹{parseFloat(s.max_amount).toLocaleString("en-IN")}
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-semibold text-[#1B4332]">
+                          {s.charge_type === "percent" ? `${s.charge_amount}%` : `₹${parseFloat(s.charge_amount).toFixed(2)}`}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {hasAmount && (
+              <div className="mt-6 rounded-xl bg-[#1B4332] text-white p-5" data-testid="bill-breakdown">
+                <div className="text-xs uppercase tracking-[0.2em] text-[#E8E5D7]">Breakdown</div>
+                <div className="mt-4 space-y-2.5 text-sm">
+                  <div className="flex justify-between"><span className="text-[#E8E5D7]">Bill Amount</span><span className="font-medium text-white">{fmtMoney(billAmt)}</span></div>
+                  <div className="flex justify-between"><span className="text-[#E8E5D7]">Service Charge</span><span className="font-medium text-white">{fmtMoney(charge)}</span></div>
+                  <div className="border-t border-white/15 my-2" />
+                  <div className="flex justify-between text-base">
+                    <span className="text-white">Total Payable</span>
+                    <span className="font-semibold text-[#FFE4C7]" data-testid="bill-total">{fmtMoney(total)}</span>
+                  </div>
+                </div>
+                {wallet.balance < total && (
+                  <div className="mt-3 text-xs text-rose-200 bg-rose-900/30 rounded-lg px-3 py-2">
+                    Wallet short by {fmtMoney(total - wallet.balance)}
+                  </div>
+                )}
+              </div>
+            )}
+          </aside>
+        </div>
+      )}
     </div>
   );
 }

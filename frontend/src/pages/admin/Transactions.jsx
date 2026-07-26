@@ -12,6 +12,30 @@ export default function AdminTransactions() {
   const [loading, setLoading] = useState(false);
   const [agents, setAgents] = useState([]);
   const [banks, setBanks] = useState([]);
+  const [billPayEnabled, setBillPayEnabled] = useState(true);
+
+  const fetchToggles = useCallback(() => {
+    api.get("/admin/settings/recharge-limits").then((r) => {
+      setBillPayEnabled(r.data.bill_pay_enabled ?? true);
+    });
+  }, []);
+
+  const handleToggleBillPay = async (val) => {
+    setBillPayEnabled(val);
+    try {
+      const res = await api.get("/admin/settings/recharge-limits");
+      await api.put("/admin/settings/recharge-toggles", {
+        qr_enabled: res.data.qr_enabled ?? true,
+        recharge_enabled: res.data.recharge_enabled ?? true,
+        withdrawal_enabled: res.data.withdrawal_enabled ?? true,
+        bill_pay_enabled: val
+      });
+      toast.success(`Agent Bill Payment requests ${val ? "Enabled" : "Disabled"}`);
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail) || "Failed to update toggle");
+      setBillPayEnabled(!val);
+    }
+  };
 
   // filter state
   const [q, setQ] = useState("");
@@ -37,7 +61,8 @@ export default function AdminTransactions() {
     api.get("/admin/users", { params: { role: "agent" } })
       .then((r) => setAgents(Array.isArray(r.data) ? r.data : (r.data?.items || [])));
     api.get("/billing/banks").then((r) => setBanks(r.data.map(b => b.name))).catch((e) => console.log("Failed to fetch banks:", e.message));
-  }, []);
+    fetchToggles();
+  }, [fetchToggles]);
 
   const params = useMemo(() => {
     const { from_ts, to_ts } = range === "custom" && !customApplied
@@ -171,7 +196,30 @@ export default function AdminTransactions() {
 
   return (
     <div>
-      <PageHeader title="Bill Payments" subtitle="Approve or reverse credit card bill payments submitted by agents." />
+      <PageHeader
+        title="Bill Payments"
+        subtitle="Approve or reverse credit card bill payments submitted by agents."
+        actions={
+          <div className="flex flex-wrap items-center gap-6 bg-white px-5 py-2.5 rounded-2xl border border-black/5 shadow-sm">
+            <div className="flex items-center gap-2.5">
+              <span className="text-xs font-bold text-neutral-600 uppercase tracking-wider">Bill Pay Service</span>
+              <button
+                onClick={() => handleToggleBillPay(!billPayEnabled)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  billPayEnabled ? "bg-[#2D6A4F]" : "bg-neutral-200"
+                }`}
+                type="button"
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    billPayEnabled ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        }
+      />
 
       {/* Metrics Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">

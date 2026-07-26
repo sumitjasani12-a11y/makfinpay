@@ -283,6 +283,7 @@ class RechargeTogglesIn(BaseModel):
     qr_enabled: bool
     recharge_enabled: bool
     withdrawal_enabled: bool
+    bill_pay_enabled: bool
 
 class CommissionUpdateIn(BaseModel):
     commission_percent: float
@@ -1712,6 +1713,9 @@ async def admin_reject_recharge(rid: str, body: ApprovalIn, request: Request, us
 # ---------- BILL PAYMENTS (Credit Card) ----------
 @api.post("/agent/bill-payments")
 async def agent_bill_payment(body: BillPaymentIn, user=Depends(require_approved_agent())):
+    s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    if not s.get("bill_pay_enabled", True):
+        raise HTTPException(status_code=400, detail="Credit Card Bill Payment service is temporarily disabled by administrator.")
     if body.amount <= 0:
         raise HTTPException(400, "Invalid amount")
     slabs = await db.service_charge_slabs.find({"is_deleted": False, "active": True}).sort("min_amount", 1).to_list(100)
@@ -2552,7 +2556,8 @@ async def public_recharge_limits(user: dict = Depends(get_current_user)):
         "max_recharge_limit": float(s.get("max_recharge_limit", 300000)),
         "qr_enabled": bool(s.get("qr_enabled", True)),
         "recharge_enabled": bool(s.get("recharge_enabled", True)),
-        "withdrawal_enabled": bool(s.get("withdrawal_enabled", True))
+        "withdrawal_enabled": bool(s.get("withdrawal_enabled", True)),
+        "bill_pay_enabled": bool(s.get("bill_pay_enabled", True))
     }
 
 @api.get("/admin/settings/recharge-limits")
@@ -2563,7 +2568,8 @@ async def get_admin_recharge_limits(user=Depends(require_roles("admin"))):
         "max_recharge_limit": float(s.get("max_recharge_limit", 300000)),
         "qr_enabled": bool(s.get("qr_enabled", True)),
         "recharge_enabled": bool(s.get("recharge_enabled", True)),
-        "withdrawal_enabled": bool(s.get("withdrawal_enabled", True))
+        "withdrawal_enabled": bool(s.get("withdrawal_enabled", True)),
+        "bill_pay_enabled": bool(s.get("bill_pay_enabled", True))
     }
 
 @api.put("/admin/settings/recharge-limits")
@@ -2588,6 +2594,7 @@ async def update_admin_recharge_toggles(body: RechargeTogglesIn, request: Reques
         "qr_enabled": body.qr_enabled,
         "recharge_enabled": body.recharge_enabled,
         "withdrawal_enabled": body.withdrawal_enabled,
+        "bill_pay_enabled": body.bill_pay_enabled,
         "updated_at": now_iso()
     }
     await db.settings.update_one({"id": "commission"}, {"$set": doc})
@@ -3198,6 +3205,7 @@ async def _ensure_indexes() -> None:
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS qr_enabled BOOLEAN DEFAULT TRUE')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS recharge_enabled BOOLEAN DEFAULT TRUE')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS withdrawal_enabled BOOLEAN DEFAULT TRUE')
+        await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS bill_pay_enabled BOOLEAN DEFAULT TRUE')
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS qr_activation_history (
                 id VARCHAR(255) PRIMARY KEY,
@@ -3364,7 +3372,7 @@ async def _seed_admin_user() -> None:
 
 async def _ensure_commission_settings() -> None:
     if not await db.settings.find_one({"id": "commission"}):
-        await db.settings.insert_one({"id": "commission", "default_percent": 1.2, "min_recharge_limit": 100, "max_recharge_limit": 300000, "qr_enabled": True, "recharge_enabled": True, "withdrawal_enabled": True, "updated_at": now_iso()})
+        await db.settings.insert_one({"id": "commission", "default_percent": 1.2, "min_recharge_limit": 100, "max_recharge_limit": 300000, "qr_enabled": True, "recharge_enabled": True, "withdrawal_enabled": True, "bill_pay_enabled": True, "updated_at": now_iso()})
     else:
         s = await db.settings.find_one({"id": "commission"})
         set_updates = {}
@@ -3378,6 +3386,8 @@ async def _ensure_commission_settings() -> None:
             set_updates["recharge_enabled"] = True
         if s.get("withdrawal_enabled") is None:
             set_updates["withdrawal_enabled"] = True
+        if s.get("bill_pay_enabled") is None:
+            set_updates["bill_pay_enabled"] = True
         
         if set_updates:
             await db.settings.update_one({"id": "commission"}, {"$unset": {"min_percent": "", "max_percent": ""}, "$set": set_updates})
