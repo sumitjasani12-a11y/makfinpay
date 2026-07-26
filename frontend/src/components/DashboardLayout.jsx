@@ -13,20 +13,22 @@ export default function DashboardLayout() {
   const { user, logout } = useAuth();
   const nav = useNavigate();
   const location = useLocation();
+  const roleBaseRoute = user.role === "master_distributor" ? "/md" : `/${user.role}`;
+  const isExcludedRole = user.role === "admin";
   let items = NAV[user.role] || [];
-  if (user.role === "agent" && (user.first_login || user.kyc_status !== "approved")) {
-    items = items.filter(it => it.to === "/agent");
+  if (!isExcludedRole && (user.first_login || user.kyc_status !== "approved")) {
+    items = items.filter(it => it.to === roleBaseRoute);
   }
   const [open, setOpen] = useState(false);
 
-  // redirect to agent main page if not fully approved/setup
+  // redirect to base overview page if not fully approved/setup
   useEffect(() => {
-    if (user.role === "agent" && (user.first_login || user.kyc_status !== "approved")) {
-      if (location.pathname !== "/agent") {
-        nav("/agent");
+    if (!isExcludedRole && (user.first_login || user.kyc_status !== "approved")) {
+      if (location.pathname !== roleBaseRoute) {
+        nav(roleBaseRoute);
       }
     }
-  }, [user, location.pathname, nav]);
+  }, [user, location.pathname, nav, isExcludedRole, roleBaseRoute]);
 
   // close drawer whenever route changes (mobile UX)
   useEffect(() => { setOpen(false); }, [location.pathname]);

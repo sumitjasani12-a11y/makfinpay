@@ -187,6 +187,27 @@ def require_approved_agent():
         return user
     return dep
 
+def require_approved_distributor():
+    async def dep(user: dict = Depends(require_roles("distributor"))):
+        if user.get("kyc_status") != "approved":
+            raise HTTPException(403, "KYC is pending or rejected. Services are locked.")
+        return user
+    return dep
+
+def require_approved_md():
+    async def dep(user: dict = Depends(require_roles("master_distributor"))):
+        if user.get("kyc_status") != "approved":
+            raise HTTPException(403, "KYC is pending or rejected. Services are locked.")
+        return user
+    return dep
+
+def require_approved_any():
+    async def dep(user: dict = Depends(require_roles("agent", "distributor", "master_distributor"))):
+        if user.get("kyc_status") != "approved":
+            raise HTTPException(403, "KYC is pending or rejected. Services are locked.")
+        return user
+    return dep
+
 # ---------- MODELS ----------
 class LoginIn(BaseModel):
     email: EmailStr
@@ -537,7 +558,7 @@ async def admin_create_user(body: CreateUserIn, user=Depends(require_roles("admi
 
 
 @api.post("/master-distributor/users")
-async def md_create_subuser(body: CreateUserIn, user=Depends(require_roles("master_distributor"))):
+async def md_create_subuser(body: CreateUserIn, user=Depends(require_approved_md())):
     if body.role not in ("distributor", "agent"):
         raise HTTPException(400, "Master Distributor can only create distributors or agents")
     md_markup = float(body.commission_percent) if body.commission_percent is not None else 0.0
@@ -564,7 +585,7 @@ async def md_create_subuser(body: CreateUserIn, user=Depends(require_roles("mast
 
 
 @api.post("/distributor/agents")
-async def distributor_create_agent(body: CreateUserIn, user=Depends(require_roles("distributor"))):
+async def distributor_create_agent(body: CreateUserIn, user=Depends(require_approved_distributor())):
     if body.role != "agent":
         raise HTTPException(400, "Distributor can only create agents")
     dist_markup = float(body.commission_percent) if body.commission_percent is not None else 0.0
@@ -606,7 +627,7 @@ async def create_subuser(
     if not raw_password:
         raw_password = secrets.token_urlsafe(8)  # Generates a secure random 11-character password
 
-    kyc_status = "not_submitted" if body.role == "agent" else "approved"
+    kyc_status = "not_submitted" if body.role in ("agent", "distributor", "master_distributor") else "approved"
     doc = {
         "id": new_id(),
         "role": body.role,
@@ -650,7 +671,7 @@ async def create_subuser(
     await db.users.insert_one(dict(doc))
     await get_or_create_wallet(doc["id"])
     
-    if body.role == "agent":
+    if body.role in ("agent", "distributor", "master_distributor"):
         await db.kyc.update_one(
             {"user_id": doc["id"]},
             {"$set": {
@@ -1234,7 +1255,7 @@ async def admin_update_user(uid: str, body: UpdateUserIn, user=Depends(require_r
     await db.users.update_one({"id": uid}, {"$set": upd})
     return {"ok": True}
 
-@api.delete("/admin/users/{uid}")
+@api.post("/admin/users/{uid}/delete")
 async def admin_delete_user(uid: str, request: Request, user=Depends(require_roles("admin"))):
     u = await db.users.find_one({"id": uid})
     if not u:
@@ -1245,7 +1266,7 @@ async def admin_delete_user(uid: str, request: Request, user=Depends(require_rol
     return {"ok": True}
 
 @api.patch("/distributor/agents/{uid}/freeze")
-async def distributor_freeze(uid: str, request: Request, user=Depends(require_roles("distributor"))):
+async def distributor_freeze(uid: str, request: Request, user=Depends(require_approved_distributor())):
     u = await db.users.find_one({"id": uid, "parent_id": user["id"]})
     if not u:
         raise HTTPException(404, "Not found")
@@ -1254,7 +1275,7 @@ async def distributor_freeze(uid: str, request: Request, user=Depends(require_ro
     return {"frozen": not u.get("frozen", False)}
 
 @api.get("/distributor/agents")
-async def distributor_list_agents(user=Depends(require_roles("distributor"))):
+async def distributor_list_agents(user=Depends(require_approved_distributor())):
     items = await db.users.find({"parent_id": user["id"], "is_deleted": False}, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(1000)
     wallets_map = await _wallet_balances_for([it["id"] for it in items])
     for it in items:
@@ -1264,7 +1285,7 @@ async def distributor_list_agents(user=Depends(require_roles("distributor"))):
 
 # ---------- MASTER DISTRIBUTOR PANEL ----------
 @api.get("/master-distributor/distributors")
-async def md_list_distributors(user=Depends(require_roles("master_distributor"))):
+async def md_list_distributors(user=Depends(require_approved_md())):
     """List all distributors created by this MD, enriched with earnings."""
     items = await db.users.find(
         {"md_id": user["id"], "role": "distributor", "is_deleted": False},
@@ -1277,7 +1298,7 @@ async def md_list_distributors(user=Depends(require_roles("master_distributor"))
 
 
 @api.get("/master-distributor/agents")
-async def md_list_agents(user=Depends(require_roles("master_distributor"))):
+async def md_list_agents(user=Depends(require_approved_md())):
     """List EVERY agent in this MD's downline (via distributors + direct)."""
     items = await db.users.find(
         {"md_id": user["id"], "role": "agent", "is_deleted": False},
@@ -1297,7 +1318,7 @@ async def md_list_agents(user=Depends(require_roles("master_distributor"))):
 
 
 @api.get("/master-distributor/recharges")
-async def md_list_downline_recharges(user=Depends(require_roles("master_distributor"))):
+async def md_list_downline_recharges(user=Depends(require_approved_md())):
     """Read-only view of recharges from every agent in the MD's downline."""
     agent_ids = [u["id"] async for u in db.users.find(
         {"md_id": user["id"], "role": "agent"}, {"_id": 0, "id": 1}
@@ -1308,7 +1329,7 @@ async def md_list_downline_recharges(user=Depends(require_roles("master_distribu
 
 
 @api.get("/master-distributor/stats")
-async def md_stats(user=Depends(require_roles("master_distributor"))):
+async def md_stats(user=Depends(require_approved_md())):
     md_id = user["id"]
     distributors_count = await db.users.count_documents({"md_id": md_id, "role": "distributor", "is_deleted": False})
     agents_count = await db.users.count_documents({"md_id": md_id, "role": "agent", "is_deleted": False})
@@ -1328,7 +1349,7 @@ async def md_stats(user=Depends(require_roles("master_distributor"))):
 
 
 @api.patch("/master-distributor/users/{uid}/freeze")
-async def md_freeze(uid: str, request: Request, user=Depends(require_roles("master_distributor"))):
+async def md_freeze(uid: str, request: Request, user=Depends(require_approved_md())):
     """MD can freeze/unfreeze users in their OWN downline only."""
     u = await db.users.find_one({"id": uid, "md_id": user["id"]})
     if not u:
@@ -1546,7 +1567,7 @@ async def admin_list_recharges(
     return await db.recharges.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
 
 @api.get("/distributor/recharges")
-async def distributor_list_recharges(user=Depends(require_roles("distributor"))):
+async def distributor_list_recharges(user=Depends(require_approved_distributor())):
     agent_ids = [u["id"] async for u in db.users.find({"parent_id": user["id"]}, {"_id": 0, "id": 1})]
     return await db.recharges.find({"user_id": {"$in": agent_ids}}, {"_id": 0}).sort("created_at", -1).to_list(1000)
 
@@ -1727,9 +1748,7 @@ async def admin_reject_transaction(tid: str, body: ApprovalIn, request: Request,
 
 # ---------- WITHDRAWALS ----------
 @api.post("/withdrawals")
-async def create_withdrawal(body: WithdrawalIn, user=Depends(require_roles("agent", "distributor", "master_distributor"))):
-    if user["role"] == "agent" and user.get("kyc_status") != "approved":
-        raise HTTPException(403, "KYC is pending or rejected. Services are locked.")
+async def create_withdrawal(body: WithdrawalIn, user=Depends(require_approved_any())):
     if body.amount <= 0:
         raise HTTPException(400, "Invalid amount")
     bank = await db.bank_details.find_one({"user_id": user["id"]}, {"_id": 0})
@@ -1774,7 +1793,7 @@ async def create_withdrawal(body: WithdrawalIn, user=Depends(require_roles("agen
     return clean(doc)
 
 @api.get("/withdrawals/mine")
-async def my_withdrawals(user=Depends(require_roles("agent", "distributor", "master_distributor"))):
+async def my_withdrawals(user=Depends(require_approved_any())):
     return await db.withdrawals.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(500)
 
 @api.get("/admin/withdrawals")
@@ -1932,12 +1951,12 @@ async def admin_kyc(user=Depends(require_roles("admin"))):
     enriched = []
     for it in items:
         u = users_map.get(it["user_id"], {})
-        if u.get("role") != "agent":
-            continue  # only agents have reviewable KYC now
+        if u.get("role") not in ("agent", "distributor", "master_distributor"):
+            continue
         it["user"] = u
         it["distributor_name"] = (
-            dist_map.get(u.get("parent_id"), "")
-            if u.get("created_by_role") == "distributor" else "Admin"
+            dist_map.get(u.get("parent_id"), "Admin")
+            if u.get("parent_id") else "Admin"
         )
         # Prefer the agent's authoritative kyc_status (kept in sync below)
         it["status"] = u.get("kyc_status", it.get("status", "pending"))
@@ -2360,7 +2379,7 @@ async def admin_reset_commission(uid: str, request: Request, user=Depends(requir
     return {"ok": True, "commission_percent": default_pct, "commission_type": "default"}
 
 @api.patch("/distributor/agents/{uid}/markup")
-async def distributor_update_markup(uid: str, body: MarkupUpdateIn, request: Request, user=Depends(require_roles("distributor"))):
+async def distributor_update_markup(uid: str, body: MarkupUpdateIn, request: Request, user=Depends(require_approved_distributor())):
     if body.markup_percent < 0:
         raise HTTPException(400, "Markup cannot be negative")
     target = await db.users.find_one({"id": uid, "parent_id": user["id"], "role": "agent"})
@@ -2389,7 +2408,7 @@ async def distributor_update_markup(uid: str, body: MarkupUpdateIn, request: Req
 
 
 @api.patch("/master-distributor/users/{uid}/markup")
-async def md_update_markup(uid: str, body: MarkupUpdateIn, request: Request, user=Depends(require_roles("master_distributor"))):
+async def md_update_markup(uid: str, body: MarkupUpdateIn, request: Request, user=Depends(require_approved_md())):
     """MD sets/updates the md_markup on one of their distributors or direct agents.
     Cascades to that user's downstream (agents under a distributor) so future
     recharges use the new rate. History untouched."""
@@ -2646,7 +2665,7 @@ async def admin_stats(user=Depends(require_roles("admin"))):
     }
 
 @api.get("/distributor/stats")
-async def distributor_stats(user=Depends(require_roles("distributor"))):
+async def distributor_stats(user=Depends(require_approved_distributor())):
     agents = await db.users.count_documents({"parent_id": user["id"], "is_deleted": False})
     agent_ids = [u["id"] async for u in db.users.find({"parent_id": user["id"]}, {"_id": 0, "id": 1})]
     pending_recharges = await db.recharges.count_documents({"user_id": {"$in": agent_ids}, "status": "pending"})

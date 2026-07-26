@@ -45,7 +45,7 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
     setBusy(true);
     try {
       const body = { ...form };
-      if ((isAgent || isMd) && form.commission_percent !== "") {
+      if (form.commission_percent !== "") {
         body.commission_percent = parseFloat(form.commission_percent);
       } else {
         delete body.commission_percent;
@@ -73,14 +73,9 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
     { label: "Email", key: "email", type: "email", required: true },
     { label: "Phone", key: "phone", type: "text", required: true },
     { label: "Address", key: "address", type: "text", required: true },
+    { label: "Firm Name", key: "firm_name", type: "text", required: true },
+    { label: "Firm Address", key: "firm_address", type: "text", required: true }
   ];
-  
-  if (isAgent) {
-    fields.push(
-      { label: "Firm Name", key: "firm_name", type: "text", required: true },
-      { label: "Firm Address", key: "firm_address", type: "text", required: true }
-    );
-  }
   
   if (editingUser) {
     fields.push({ 
@@ -92,15 +87,13 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
     });
   }
   
-  if (isAgent || isMd) {
-    fields.push({
-      label: isMd ? "Commission % (Optional MD Rate Override)" : "Commission % (Charges)",
-      key: "commission_percent",
-      type: "number",
-      required: false,
-      placeholder: isMd ? "Leave empty for default" : "e.g. 1.2"
-    });
-  }
+  fields.push({
+    label: role === "agent" ? "Commission % (Charges)" : "Commission %",
+    key: "commission_percent",
+    type: "number",
+    required: false,
+    placeholder: "e.g. 1.2"
+  });
 
   return (
     <form onSubmit={submit} className="mfp-card p-6 grid sm:grid-cols-2 gap-4">
@@ -376,7 +369,7 @@ export function AdminUserList({ role }) {
   const delUser = async (id, name) => {
     if (!window.confirm(`Are you sure you want to delete ${name}?`)) return;
     try {
-      await api.delete(`/admin/users/${id}`);
+      await api.post(`/admin/users/${id}/delete`);
       toast.success("User deleted successfully");
       reload();
     } catch (e) {
