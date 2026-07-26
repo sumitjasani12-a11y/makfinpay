@@ -37,7 +37,7 @@ export const NAV = {
     { to: "/distributor/change-password", label: "Change Password", icon: KeyRound },
   ],
   agent: [
-    { to: "/agent", label: "Wallet", icon: Wallet, end: true },
+    { to: "/agent", label: "Dashboard", icon: LayoutDashboard, end: true },
     { to: "/agent/recharge", label: "Recharge Wallet", icon: FilePlus2 },
     { to: "/agent/billpay", label: "Credit Card Bill", icon: CreditCard },
     { to: "/agent/history", label: "Transaction History", icon: History },

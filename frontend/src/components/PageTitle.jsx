@@ -46,7 +46,7 @@ const ROUTE_META = {
   "/distributor/change-password": { title: "Change Password | MAK FIN PAY" },
 
   // Agent
-  "/agent": { title: "Wallet | MAK FIN PAY" },
+  "/agent": { title: "Dashboard | MAK FIN PAY" },
   "/agent/recharge": { title: "Recharge Wallet | MAK FIN PAY" },
   "/agent/billpay": { title: "Credit Card Bill | MAK FIN PAY" },
   "/agent/history": { title: "Transaction History | MAK FIN PAY" },

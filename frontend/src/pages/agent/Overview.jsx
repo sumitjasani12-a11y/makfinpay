@@ -49,18 +49,7 @@ export default function AgentOverview() {
         </div>
       </div>
 
-      {/* 3 stacked action buttons */}
-      <div className="grid grid-cols-1 gap-3 mb-8">
-        <Link to="/agent/recharge" className="rounded-xl bg-[#CC5500] hover:bg-[#A64500] text-white px-4 py-3 text-sm font-semibold inline-flex items-center justify-center gap-2" data-testid="quick-recharge">
-          <FilePlus2 className="h-4 w-4" /> Recharge
-        </Link>
-        <Link to="/agent/billpay" className="rounded-xl border-2 border-[#1B4332] text-[#1B4332] hover:bg-[#1B4332] hover:text-white px-4 py-3 text-sm font-semibold inline-flex items-center justify-center gap-2 transition-colors" data-testid="quick-billpay">
-          <CreditCard className="h-4 w-4" /> Pay Credit Card Bill
-        </Link>
-        <Link to="/agent/withdrawal" className="rounded-xl border-2 border-[#1B4332] text-[#1B4332] hover:bg-[#1B4332] hover:text-white px-4 py-3 text-sm font-semibold inline-flex items-center justify-center gap-2 transition-colors" data-testid="quick-withdraw">
-          <ArrowUpFromLine className="h-4 w-4" /> Withdraw
-        </Link>
-      </div>
+
 
       <div className="mfp-card p-6">
         <div className="flex items-center justify-between mb-4">
