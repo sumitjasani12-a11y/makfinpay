@@ -2577,7 +2577,7 @@ async def _ensure_indexes() -> None:
                 position INTEGER DEFAULT 0,
                 active BOOLEAN DEFAULT TRUE,
                 is_deleted BOOLEAN DEFAULT FALSE,
-                created_at VARCHAR(50) NOT NULL
+                created_at TIMESTAMPTZ
             )
         ''')
         await conn.execute('ALTER TABLE qr_codes ADD COLUMN IF NOT EXISTS mobile_number VARCHAR(50)')
