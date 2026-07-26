@@ -2115,7 +2115,7 @@ async def admin_qr_history(user=Depends(require_roles("admin"))):
                         COALESCE(SUM(CASE WHEN status = 'approved' THEN md_earnings_amount END), 0) as md_earnings,
                         COALESCE(SUM(CASE WHEN status = 'approved' THEN distributor_earnings_amount END), 0) as dist_earnings
                     FROM recharges
-                    WHERE qr_code_id = $1 AND created_at >= $2 AND created_at <= $3
+                    WHERE qr_code_id = $1::uuid AND created_at >= $2 AND created_at <= $3
                 """
                 stats = await conn.fetchrow(recharges_query, qid, activated_at, deactivated_at)
             else:
@@ -2130,7 +2130,7 @@ async def admin_qr_history(user=Depends(require_roles("admin"))):
                         COALESCE(SUM(CASE WHEN status = 'approved' THEN md_earnings_amount END), 0) as md_earnings,
                         COALESCE(SUM(CASE WHEN status = 'approved' THEN distributor_earnings_amount END), 0) as dist_earnings
                     FROM recharges
-                    WHERE qr_code_id = $1 AND created_at >= $2
+                    WHERE qr_code_id = $1::uuid AND created_at >= $2
                 """
                 stats = await conn.fetchrow(recharges_query, qid, activated_at)
             
@@ -2203,15 +2203,15 @@ async def admin_list_qr(user=Depends(require_roles("admin"))):
         for qr in qrs:
             qid = qr["id"]
             approved_amount_row = await conn.fetchrow(
-                'SELECT COALESCE(SUM(amount), 0) FROM recharges WHERE qr_code_id = $1 AND status = \'approved\'',
+                'SELECT COALESCE(SUM(amount), 0) FROM recharges WHERE qr_code_id = $1::uuid AND status = \'approved\'',
                 qid
             )
             approved_amount = float(approved_amount_row[0]) if approved_amount_row else 0.0
 
-            total_count = await conn.fetchval('SELECT COUNT(*) FROM recharges WHERE qr_code_id = $1', qid)
-            pending_count = await conn.fetchval('SELECT COUNT(*) FROM recharges WHERE qr_code_id = $1 AND status = \'pending\'', qid)
-            approved_count = await conn.fetchval('SELECT COUNT(*) FROM recharges WHERE qr_code_id = $1 AND status = \'approved\'', qid)
-            rejected_count = await conn.fetchval('SELECT COUNT(*) FROM recharges WHERE qr_code_id = $1 AND status = \'rejected\'', qid)
+            total_count = await conn.fetchval('SELECT COUNT(*) FROM recharges WHERE qr_code_id = $1::uuid', qid)
+            pending_count = await conn.fetchval('SELECT COUNT(*) FROM recharges WHERE qr_code_id = $1::uuid AND status = \'pending\'', qid)
+            approved_count = await conn.fetchval('SELECT COUNT(*) FROM recharges WHERE qr_code_id = $1::uuid AND status = \'approved\'', qid)
+            rejected_count = await conn.fetchval('SELECT COUNT(*) FROM recharges WHERE qr_code_id = $1::uuid AND status = \'rejected\'', qid)
             
             qr["stats"] = {
                 "approved_amount": approved_amount,
