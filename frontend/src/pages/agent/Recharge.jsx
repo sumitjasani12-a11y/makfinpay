@@ -6,8 +6,6 @@ import FileUpload from "@/components/FileUpload";
 import { toast } from "sonner";
 import { Loader2, Coins, KeyRound, CreditCard, QrCode, Info, Sparkles, CheckCircle2, History, Check, ShieldAlert } from "lucide-react";
 
-const MAX_RECHARGE_AMOUNT = 300000;
-
 export default function AgentRecharge() {
   const { user } = useAuth();
   const commPct = Number(user?.commission_percent || 0);
@@ -19,15 +17,25 @@ export default function AgentRecharge() {
   const [olderQr, setOlderQr] = useState(false);
   const [items, setItems] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [minLimit, setMinLimit] = useState(100);
+  const [maxLimit, setMaxLimit] = useState(300000);
+
   const reload = () => api.get("/agent/recharges").then((r) => setItems(r.data));
   useEffect(() => {
     api.get("/agent/active-qr").then((r) => setQr(r.data && r.data.image_path ? r.data : null));
+    api.get("/settings/recharge-limits-public")
+      .then((r) => {
+        setMinLimit(r.data.min_recharge_limit ?? 100);
+        setMaxLimit(r.data.max_recharge_limit ?? 300000);
+      })
+      .catch((e) => console.log("Failed to fetch recharge limits:", e.message));
     reload();
   }, []);
 
   const amt = Number(amount) || 0;
-  const amountValid = amt > 0 && amt <= MAX_RECHARGE_AMOUNT;
-  const amountTooHigh = amt > MAX_RECHARGE_AMOUNT;
+  const amountValid = amt >= minLimit && amt <= maxLimit;
+  const amountTooLow = amt > 0 && amt < minLimit;
+  const amountTooHigh = amt > maxLimit;
   const utrValid = /^\d{12}$/.test(utr);
   const last4Valid = /^\d{4}$/.test(last4);
   const shotValid = Boolean(shot);
@@ -260,7 +268,7 @@ export default function AgentRecharge() {
                   AMOUNT PAID
                 </label>
                 <span className="text-[9px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 px-1.5 py-0.5 rounded">
-                  LIMIT: ₹100 - {fmtMoney(MAX_RECHARGE_AMOUNT)}
+                  LIMIT: {fmtMoney(minLimit)} - {fmtMoney(maxLimit)}
                 </span>
               </div>
               <div className="relative">
@@ -269,7 +277,7 @@ export default function AgentRecharge() {
                 </span>
                 <input
                   className="mfp-input !pl-8 !py-2.5 text-xs bg-neutral-50/50"
-                  type="number" min="1" max={MAX_RECHARGE_AMOUNT} step="0.01" required
+                  type="number" min="1" max={maxLimit} step="0.01" required
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   disabled={isSubmitting}
@@ -277,9 +285,14 @@ export default function AgentRecharge() {
                   data-testid="recharge-amount"
                 />
               </div>
+              {amountTooLow && (
+                <div className="mt-1 text-[10px] font-bold text-rose-600 flex items-center gap-1" data-testid="recharge-amount-error-low">
+                  <ShieldAlert className="h-3 w-3" /> Minimum recharge amount is {fmtMoney(minLimit)}
+                </div>
+              )}
               {amountTooHigh && (
-                <div className="mt-1 text-[10px] font-bold text-rose-600 flex items-center gap-1" data-testid="recharge-amount-error">
-                  <ShieldAlert className="h-3 w-3" /> Maximum recharge amount is ₹3,00,000
+                <div className="mt-1 text-[10px] font-bold text-rose-600 flex items-center gap-1" data-testid="recharge-amount-error-high">
+                  <ShieldAlert className="h-3 w-3" /> Maximum recharge amount is {fmtMoney(maxLimit)}
                 </div>
               )}
             </div>

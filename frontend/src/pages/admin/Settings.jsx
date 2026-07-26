@@ -1,30 +1,152 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { PageHeader } from "@/components/Shared";
-import { Wrench } from "lucide-react";
+import { api, formatErr } from "@/lib/api";
+import { toast } from "sonner";
+import { Save, ShieldAlert, Check } from "lucide-react";
 
 export default function AdminSettings() {
+  const [minLimit, setMinLimit] = useState("");
+  const [maxLimit, setMaxLimit] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const fetchSettings = async () => {
+    try {
+      const { data } = await api.get("/admin/settings/recharge-limits");
+      setMinLimit(String(data.min_recharge_limit ?? 100));
+      setMaxLimit(String(data.max_recharge_limit ?? 300000));
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail) || "Failed to load settings");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    const minVal = parseFloat(minLimit);
+    const maxVal = parseFloat(maxLimit);
+
+    if (Number.isNaN(minVal) || minVal <= 0) {
+      return toast.error("Minimum limit must be a number greater than 0");
+    }
+    if (Number.isNaN(maxVal) || maxVal <= 0) {
+      return toast.error("Maximum limit must be a number greater than 0");
+    }
+    if (maxVal < minVal) {
+      return toast.error("Maximum limit cannot be less than minimum limit");
+    }
+
+    setSaving(true);
+    try {
+      await api.put("/admin/settings/recharge-limits", {
+        min_recharge_limit: minVal,
+        max_recharge_limit: maxVal,
+      });
+      toast.success("Recharge limit settings saved successfully");
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail) || "Failed to save settings");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
         title="Settings"
-        subtitle="Manage global application preferences and configurations."
+        subtitle="Manage global application preferences and configuration limits dynamically."
       />
 
-      <div className="mfp-card p-12 flex flex-col items-center justify-center text-center space-y-4">
-        <div className="bg-amber-50 text-amber-600 p-4 rounded-full border border-amber-200/50">
-          <Wrench className="h-10 w-10 animate-bounce" />
+      {loading ? (
+        <div className="flex justify-center items-center py-12 text-sm text-neutral-500">
+          Loading settings…
         </div>
-        
-        <h3 className="text-xl font-bold text-neutral-800">Under Maintenance</h3>
-        
-        <p className="text-sm text-neutral-500 max-w-md leading-relaxed">
-          The settings panel is currently undergoing scheduled updates to bring you advanced configuration controls. Please check back later.
-        </p>
+      ) : (
+        <form onSubmit={handleSave} className="max-w-2xl">
+          <div className="mfp-card p-6 space-y-6">
+            <div>
+              <h3 className="text-base font-semibold text-neutral-800 border-b border-black/5 pb-2.5 mb-4">
+                Recharge Wallet Limits
+              </h3>
+              <p className="text-xs text-neutral-500 mb-6 leading-relaxed">
+                Configure the allowed range for recharge requests submitted by agents. 
+                These limits are validated on the client and server side.
+              </p>
+            </div>
 
-        <div className="text-xs text-neutral-400 font-mono mt-4">
-          Status: CONFIGURATION_LOCK_ACTIVE
-        </div>
-      </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="space-y-1">
+                <label className="mfp-label font-bold text-neutral-600">
+                  Minimum Limit (₹) <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-400 font-bold text-xs pointer-events-none">
+                    ₹
+                  </span>
+                  <input
+                    type="number"
+                    min="1"
+                    step="0.01"
+                    required
+                    value={minLimit}
+                    onChange={(e) => setMinLimit(e.target.value)}
+                    className="mfp-input !pl-9"
+                    placeholder="100.00"
+                    data-testid="settings-min-limit"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="mfp-label font-bold text-neutral-600">
+                  Maximum Limit (₹) <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-400 font-bold text-xs pointer-events-none">
+                    ₹
+                  </span>
+                  <input
+                    type="number"
+                    min="1"
+                    step="0.01"
+                    required
+                    value={maxLimit}
+                    onChange={(e) => setMaxLimit(e.target.value)}
+                    className="mfp-input !pl-9"
+                    placeholder="300000.00"
+                    data-testid="settings-max-limit"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-amber-50/60 border border-amber-500/10 rounded-2xl p-4 flex gap-3">
+              <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-xs text-amber-800 leading-relaxed font-medium">
+                Changing these limits will immediately restrict agents from submitting UTR recharge requests 
+                below the minimum or above the maximum limit.
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-black/5 flex justify-end">
+              <button
+                type="submit"
+                disabled={saving}
+                className="mfp-btn-primary inline-flex items-center gap-2"
+                data-testid="settings-save-btn"
+              >
+                <Save className="h-4 w-4" />
+                {saving ? "Saving Changes…" : "Save Settings"}
+              </button>
+            </div>
+          </div>
+        </form>
+      )}
     </div>
   );
 }

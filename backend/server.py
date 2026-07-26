@@ -275,6 +275,10 @@ class BankIn(BaseModel):
 class CommissionSettingsIn(BaseModel):
     default_percent: float
 
+class RechargeLimitsIn(BaseModel):
+    min_recharge_limit: float
+    max_recharge_limit: float
+
 class CommissionUpdateIn(BaseModel):
     commission_percent: float
 
@@ -1519,10 +1523,14 @@ async def active_qr(user=Depends(require_roles("agent", "distributor"))):
 
 @api.post("/agent/recharges")
 async def agent_create_recharge(body: RechargeIn, user=Depends(require_approved_agent())):
-    if body.amount is None or body.amount <= 0:
-        raise HTTPException(400, "Amount must be greater than 0")
-    if body.amount > 300000:
-        raise HTTPException(400, "Maximum recharge amount is ₹3,00,000")
+    s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    min_limit = float(s.get("min_recharge_limit", 100))
+    max_limit = float(s.get("max_recharge_limit", 300000))
+    
+    if body.amount is None or body.amount < min_limit:
+        raise HTTPException(400, f"Minimum recharge amount is ₹{min_limit:,.2f}")
+    if body.amount > max_limit:
+        raise HTTPException(400, f"Maximum recharge amount is ₹{max_limit:,.2f}")
     utr = (body.utr or "").strip()
     if not utr:
         raise HTTPException(400, "UTR / Reference is required")
@@ -2528,6 +2536,38 @@ async def public_commission(user: dict = Depends(get_current_user)):
     s = await db.settings.find_one({"id": "commission"}, {"_id": 0})
     return {"default_percent": (s or {}).get("default_percent", 1.2)}
 
+@api.get("/settings/recharge-limits-public")
+async def public_recharge_limits(user: dict = Depends(get_current_user)):
+    s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    return {
+        "min_recharge_limit": float(s.get("min_recharge_limit", 100)),
+        "max_recharge_limit": float(s.get("max_recharge_limit", 300000))
+    }
+
+@api.get("/admin/settings/recharge-limits")
+async def get_admin_recharge_limits(user=Depends(require_roles("admin"))):
+    s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    return {
+        "min_recharge_limit": float(s.get("min_recharge_limit", 100)),
+        "max_recharge_limit": float(s.get("max_recharge_limit", 300000))
+    }
+
+@api.put("/admin/settings/recharge-limits")
+async def update_admin_recharge_limits(body: RechargeLimitsIn, request: Request, user=Depends(require_roles("admin"))):
+    if body.min_recharge_limit <= 0:
+        raise HTTPException(status_code=400, detail="Minimum limit must be greater than zero")
+    if body.max_recharge_limit < body.min_recharge_limit:
+        raise HTTPException(status_code=400, detail="Maximum limit cannot be less than minimum limit")
+    
+    doc = {
+        "min_recharge_limit": body.min_recharge_limit,
+        "max_recharge_limit": body.max_recharge_limit,
+        "updated_at": now_iso()
+    }
+    await db.settings.update_one({"id": "commission"}, {"$set": doc})
+    await write_audit(user["id"], "recharge_limits_changed", target="settings", meta=doc, request=request)
+    return doc
+
 # --- Cascade helper: recompute all agents under a distributor ---
 async def cascade_distributor_agents(distributor_id: str, new_distributor_pct: float, actor_id: str,
                                      old_distributor_pct: Optional[float] = None,
@@ -3127,6 +3167,8 @@ async def _ensure_indexes() -> None:
         ''')
         await conn.execute('ALTER TABLE qr_codes ADD COLUMN IF NOT EXISTS mobile_number VARCHAR(50)')
         await conn.execute('ALTER TABLE qr_name_entries ADD COLUMN IF NOT EXISTS qr_percent NUMERIC(15, 4) DEFAULT 0')
+        await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS min_recharge_limit NUMERIC(15, 2) DEFAULT 100')
+        await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS max_recharge_limit NUMERIC(15, 2) DEFAULT 300000')
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS qr_activation_history (
                 id VARCHAR(255) PRIMARY KEY,
@@ -3293,10 +3335,19 @@ async def _seed_admin_user() -> None:
 
 async def _ensure_commission_settings() -> None:
     if not await db.settings.find_one({"id": "commission"}):
-        await db.settings.insert_one({"id": "commission", "default_percent": 1.2, "updated_at": now_iso()})
+        await db.settings.insert_one({"id": "commission", "default_percent": 1.2, "min_recharge_limit": 100, "max_recharge_limit": 300000, "updated_at": now_iso()})
     else:
-        # strip legacy min/max if present
-        await db.settings.update_one({"id": "commission"}, {"$unset": {"min_percent": "", "max_percent": ""}})
+        s = await db.settings.find_one({"id": "commission"})
+        set_updates = {}
+        if s.get("min_recharge_limit") is None:
+            set_updates["min_recharge_limit"] = 100
+        if s.get("max_recharge_limit") is None:
+            set_updates["max_recharge_limit"] = 300000
+        
+        if set_updates:
+            await db.settings.update_one({"id": "commission"}, {"$unset": {"min_percent": "", "max_percent": ""}, "$set": set_updates})
+        else:
+            await db.settings.update_one({"id": "commission"}, {"$unset": {"min_percent": "", "max_percent": ""}})
 
 
 def _build_commission_migration(user: dict, default_pct: float, parent_pct: Optional[float]) -> dict:

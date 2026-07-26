@@ -23,7 +23,7 @@ TABLE_COLUMNS = {
     "qr_codes": ["id", "label", "image_path", "upi_id", "active", "is_deleted", "created_at", "mobile_number"],
     "qr_name_entries": ["id", "name", "color", "mobile_number", "upi_id", "min_amount", "max_amount", "image_path", "position", "active", "is_deleted", "created_at", "qr_percent"],
     "bank_details": ["id", "user_id", "account_holder", "account_number", "ifsc", "bank_name", "phone_number", "updated_at"],
-    "settings": ["id", "default_percent", "updated_at"],
+    "settings": ["id", "default_percent", "updated_at", "min_recharge_limit", "max_recharge_limit"],
     "files": ["id", "storage_path", "original_filename", "content_type", "size", "uploaded_by", "is_deleted", "created_at"],
     "audit_logs": ["id", "user_id", "action", "target", "meta", "ip", "created_at"],
     "backup_settings": ["id", "enabled", "retention_days", "updated_at"],
