@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { api, formatErr, fmtMoney, fmtDate } from "@/lib/api";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
-import FileUpload from "@/components/FileUpload";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { Plus, PencilLine, X } from "lucide-react";
@@ -58,8 +57,9 @@ export default function DistAgents() {
 
   const [items, setItems] = useState([]);
   const [show, setShow] = useState(false);
-  const [form, setForm] = useState({ role: "agent", full_name: "", email: "", password: "", phone: "", address: "", aadhaar_path: "", pan_path: "", markup: "" });
+  const [form, setForm] = useState({ full_name: "", email: "", phone: "", address: "", firm_name: "", firm_address: "", markup: "" });
   const [editing, setEditing] = useState(null);
+  const [createdCreds, setCreatedCreds] = useState(null);
 
   const reload = () => api.get("/distributor/agents").then((r) => setItems(r.data));
   useEffect(() => { reload(); }, []);
@@ -70,21 +70,28 @@ export default function DistAgents() {
   const create = async (e) => {
     e.preventDefault();
     if (markupNum < 0) return toast.error("Markup must be ≥ 0");
-    if (!form.aadhaar_path || !form.pan_path) return toast.error("Aadhaar and PAN documents are required");
     try {
       const body = {
         role: "agent",
-        full_name: form.full_name, email: form.email, password: form.password,
-        phone: form.phone, address: form.address,
-        aadhaar_path: form.aadhaar_path, pan_path: form.pan_path,
-        commission_percent: markupNum,  // backend treats this as markup for distributor route
+        full_name: form.full_name,
+        email: form.email,
+        phone: form.phone,
+        address: form.address,
+        firm_name: form.firm_name,
+        firm_address: form.firm_address,
+        commission_percent: markupNum,
       };
-      await api.post("/distributor/agents", body);
-      toast.success("Agent created — pending KYC approval");
+      const { data } = await api.post("/distributor/agents", body);
+      toast.success("Agent created successfully");
       setShow(false);
-      setForm({ role: "agent", full_name: "", email: "", password: "", phone: "", address: "", aadhaar_path: "", pan_path: "", markup: "" });
+      setForm({ full_name: "", email: "", phone: "", address: "", firm_name: "", firm_address: "", markup: "" });
       reload();
-    } catch (e) { toast.error(formatErr(e.response?.data?.detail)); }
+      if (data && data.password) {
+        setCreatedCreds(data);
+      }
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail));
+    }
   };
 
   const toggle = async (id) => { try { await api.patch(`/distributor/agents/${id}/freeze`); reload(); } catch (e) { toast.error(formatErr(e.response?.data?.detail)); } };
@@ -96,20 +103,19 @@ export default function DistAgents() {
 
       {show && (
         <form onSubmit={create} className="mfp-card p-6 grid sm:grid-cols-2 gap-4 mb-8">
-          {[["Full Name","full_name"],["Email","email"],["Password","password"],["Phone","phone"],["Address","address"]].map(([l,k]) => (
+          {[
+            ["Full Name", "full_name", "text"],
+            ["Email Address", "email", "email"],
+            ["Phone Number", "phone", "text"],
+            ["Personal Address", "address", "text"],
+            ["Firm Name", "firm_name", "text"],
+            ["Firm Address", "firm_address", "text"]
+          ].map(([l, k, t]) => (
             <div key={k}>
               <label className="mfp-label">{l}</label>
-              <input className="mfp-input" type={k === "password" ? "password" : k === "email" ? "email" : "text"} required value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} data-testid={`dist-form-${k}`} />
+              <input className="mfp-input" type={t} required value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} data-testid={`dist-form-${k}`} />
             </div>
           ))}
-          <div>
-            <label className="mfp-label">Aadhaar Card</label>
-            <FileUpload onUploaded={(p) => setForm((f) => ({ ...f, aadhaar_path: p }))} label="Upload Aadhaar Card" testid="dist-form-aadhaar" />
-          </div>
-          <div>
-            <label className="mfp-label">PAN Card</label>
-            <FileUpload onUploaded={(p) => setForm((f) => ({ ...f, pan_path: p }))} label="Upload PAN Card" testid="dist-form-pan" />
-          </div>
           <div>
             <label className="mfp-label">Add Your Markup %</label>
             <input className="mfp-input" type="number" step="0.01" min="0" value={form.markup} onChange={(e) => setForm({ ...form, markup: e.target.value })} placeholder="Enter markup percentage" data-testid="dist-form-markup" />
@@ -132,7 +138,11 @@ export default function DistAgents() {
           { key: "base_commission", label: "Base %", render: (r) => `${r.base_commission ?? base}%` },
           { key: "markup_commission", label: "Markup %", render: (r) => `${r.markup_commission ?? 0}%` },
           { key: "commission_percent", label: "Total %", render: (r) => <span className="font-semibold text-[#1B4332]">{r.commission_percent}%</span> },
-          { key: "frozen", label: "Status", render: (r) => <StatusBadge status={r.frozen ? "rejected" : "approved"} /> },
+          { key: "kyc_status", label: "Status", render: (r) => {
+            if (r.frozen) return <StatusBadge status="rejected" />;
+            const resolved = !r.kyc_status || r.kyc_status === "approved" ? "approved" : (r.kyc_status === "rejected" ? "rejected" : "pending");
+            return <StatusBadge status={resolved} />;
+          } },
           { key: "created_at", label: "Created", render: (r) => fmtDate(r.created_at) },
           { key: "actions", label: "Action", render: (r) => (
             <div className="flex items-center gap-2">
@@ -159,6 +169,39 @@ export default function DistAgents() {
 
       {editing && (
         <MarkupModal agent={editing} base={base} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); }} />
+      )}
+
+      {createdCreds && (
+        <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4">
+          <div className="bg-[#FDFCF8] rounded-2xl p-6 max-w-md w-full border border-black/5 shadow-2xl animate-fade-in" data-testid="creds-modal">
+            <h3 className="text-lg font-semibold text-neutral-800 mb-2">Agent Created Successfully!</h3>
+            <p className="text-xs text-neutral-500 mb-4">Please copy these credentials and share them with the agent. The password will not be shown again.</p>
+
+            <div className="space-y-3 bg-neutral-50 p-4 rounded-xl border border-neutral-100 mb-4">
+              <div>
+                <span className="text-[10px] uppercase font-semibold text-neutral-400">Email Address</span>
+                <div className="text-sm font-medium text-neutral-800 mt-0.5 break-all">{createdCreds.email}</div>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-semibold text-neutral-400">Temporary Password</span>
+                <div className="text-sm font-mono font-semibold text-emerald-700 mt-0.5 break-all bg-emerald-50/50 p-1.5 rounded-lg border border-emerald-100 flex justify-between items-center">
+                  <span>{createdCreds.password}</span>
+                  <button
+                    type="button"
+                    className="text-xs font-semibold text-emerald-800 hover:text-emerald-950 px-2 py-1 rounded bg-emerald-100"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`Email: ${createdCreds.email}\nPassword: ${createdCreds.password}`);
+                      toast.success("Credentials copied to clipboard");
+                    }}
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+            </div>
+            <button className="mfp-btn-primary w-full py-2.5 font-bold" onClick={() => setCreatedCreds(null)}>Close</button>
+          </div>
+        </div>
       )}
     </div>
   );
