@@ -42,9 +42,29 @@ export default function AgentRecharge() {
     setUtr(clean);
   };
 
+  const fallbackCopy = (text) => {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.style.position = "fixed";  // avoid scrolling to bottom
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+      document.execCommand("copy");
+      toast.success("UPI ID copied to clipboard!");
+    } catch (err) {
+      toast.error("Failed to copy UPI ID");
+    }
+    document.body.removeChild(textarea);
+  };
+
   const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text);
-    toast.success("UPI ID copied to clipboard!");
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(() => toast.success("UPI ID copied to clipboard!"))
+        .catch(() => fallbackCopy(text));
+    } else {
+      fallbackCopy(text);
+    }
   };
 
   const submit = async (e) => {
@@ -111,7 +131,7 @@ export default function AgentRecharge() {
                 </div>
 
                 {/* QR Code Container */}
-                <div className="relative border border-black/10 rounded-2xl p-4 bg-white max-w-[280px] w-full aspect-square flex items-center justify-center shadow-sm overflow-hidden transition-all hover:scale-102">
+                <div className="relative border border-black/10 rounded-2xl p-4 bg-white max-w-[340px] w-full aspect-square flex items-center justify-center shadow-sm overflow-hidden transition-all hover:scale-102">
                   <img
                     src={fileUrl(qr.image_path)} alt="qr"
                     className="h-full w-full object-contain"
