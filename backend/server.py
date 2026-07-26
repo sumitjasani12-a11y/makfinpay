@@ -297,6 +297,12 @@ class QRNameEntryIn(BaseModel):
 class QRReorderIn(BaseModel):
     ids: List[str]
 
+class ServiceChargeSlabIn(BaseModel):
+    min_amount: float
+    max_amount: float
+    charge_amount: float
+    charge_type: str = "flat"
+
 class ApprovalIn(BaseModel):
     note: Optional[str] = None
 
@@ -1673,9 +1679,28 @@ async def admin_reject_recharge(rid: str, body: ApprovalIn, request: Request, us
 async def agent_bill_payment(body: BillPaymentIn, user=Depends(require_approved_agent())):
     if body.amount <= 0:
         raise HTTPException(400, "Invalid amount")
-    if body.amount > 100000:
-        raise HTTPException(400, "Bill amount cannot exceed ₹1,00,000")
-    service_charge = 15.0 if body.amount <= 50000 else 25.0
+    slabs = await db.service_charge_slabs.find({"is_deleted": False, "active": True}).sort("min_amount", 1).to_list(100)
+    max_limit = 100000.0
+    if slabs:
+        max_limit = max([float(s["max_amount"]) for s in slabs])
+        
+    if body.amount > max_limit:
+        raise HTTPException(400, f"Bill amount cannot exceed ₹{max_limit:,.2f}")
+        
+    service_charge = 0.0
+    matched = False
+    for s in slabs:
+        if float(s["min_amount"]) <= body.amount <= float(s["max_amount"]):
+            if s.get("charge_type") == "percent":
+                service_charge = round((body.amount * float(s["charge_amount"])) / 100.0, 2)
+            else:
+                service_charge = float(s["charge_amount"])
+            matched = True
+            break
+            
+    if not matched:
+        service_charge = 15.0 if body.amount <= 50000 else 25.0
+        
     total_amount = round(body.amount + service_charge, 2)
     w = await get_or_create_wallet(user["id"])
     if w["balance"] < total_amount:
@@ -2050,6 +2075,48 @@ async def admin_activate_qr(qid: str, user=Depends(require_roles("admin"))):
 async def admin_delete_qr(qid: str, user=Depends(require_roles("admin"))):
     await db.qr_codes.update_one({"id": qid}, {"$set": {"is_deleted": True, "active": False}})
     return {"ok": True}
+
+# ---------- SERVICE CHARGE SLABS ----------
+@api.get("/admin/service-slabs")
+async def admin_list_service_slabs(user=Depends(require_roles("admin"))):
+    return await db.service_charge_slabs.find({"is_deleted": False}, {"_id": 0}).sort("min_amount", 1).to_list(100)
+
+@api.post("/admin/service-slabs")
+async def admin_create_service_slab(body: ServiceChargeSlabIn, user=Depends(require_roles("admin"))):
+    if body.min_amount < 0 or body.max_amount <= body.min_amount or body.charge_amount < 0:
+        raise HTTPException(400, "Invalid amounts configuration")
+    if body.charge_type not in ("flat", "percent"):
+        raise HTTPException(400, "Invalid charge type")
+    doc = {
+        "id": new_id(),
+        "min_amount": body.min_amount,
+        "max_amount": body.max_amount,
+        "charge_amount": body.charge_amount,
+        "charge_type": body.charge_type,
+        "active": True,
+        "is_deleted": False,
+        "created_at": now_iso()
+    }
+    await db.service_charge_slabs.insert_one(dict(doc))
+    return clean(doc)
+
+@api.patch("/admin/service-slabs/{sid}/toggle")
+async def admin_toggle_service_slab(sid: str, user=Depends(require_roles("admin"))):
+    slab = await db.service_charge_slabs.find_one({"id": sid})
+    if not slab:
+        raise HTTPException(404, "Slab not found")
+    new_active = not slab.get("active", True)
+    await db.service_charge_slabs.update_one({"id": sid}, {"$set": {"active": new_active}})
+    return {"ok": True, "active": new_active}
+
+@api.delete("/admin/service-slabs/{sid}")
+async def admin_delete_service_slab(sid: str, user=Depends(require_roles("admin"))):
+    await db.service_charge_slabs.update_one({"id": sid}, {"$set": {"is_deleted": True}})
+    return {"ok": True}
+
+@api.get("/billing/service-slabs")
+async def list_active_service_slabs(user=Depends(get_current_user)):
+    return await db.service_charge_slabs.find({"is_deleted": False, "active": True}, {"_id": 0}).sort("min_amount", 1).to_list(100)
 
 # ---------- QR NAME ENTRIES ----------
 @api.get("/admin/qr-name-entries")
@@ -2765,6 +2832,18 @@ async def _ensure_indexes() -> None:
                 created_at TIMESTAMPTZ
             )
         ''')
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS service_charge_slabs (
+                id VARCHAR(255) PRIMARY KEY,
+                min_amount NUMERIC(15, 2) NOT NULL,
+                max_amount NUMERIC(15, 2) NOT NULL,
+                charge_amount NUMERIC(15, 2) NOT NULL,
+                charge_type VARCHAR(20) DEFAULT 'flat',
+                active BOOLEAN DEFAULT TRUE,
+                is_deleted BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMPTZ
+            )
+        ''')
         await conn.execute('ALTER TABLE qr_codes ADD COLUMN IF NOT EXISTS mobile_number VARCHAR(50)')
         await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS firm_name VARCHAR(255)')
         await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS firm_address TEXT')
@@ -2796,6 +2875,7 @@ async def _ensure_indexes() -> None:
     await db.wallets.create_index("user_id", unique=True)
     await db.ledger.create_index("user_id")
     await db.recharges.create_index("user_id")
+    await db.service_charge_slabs.create_index("min_amount")
     try:
         await db.recharges.create_index(
             [("user_id", 1), ("utr", 1)],
@@ -2831,6 +2911,30 @@ async def _ensure_indexes() -> None:
     await db.users.create_index([("role", 1), ("is_deleted", 1), ("created_at", -1)])
     await db.users.create_index([("md_id", 1), ("role", 1), ("is_deleted", 1), ("created_at", -1)])
     await db.recharges.create_index([("md_id", 1), ("status", 1), ("created_at", -1)])
+
+    # Seed default service charge slabs if table is empty
+    count = await db.service_charge_slabs.count_documents({"is_deleted": False})
+    if count == 0:
+        await db.service_charge_slabs.insert_one({
+            "id": new_id(),
+            "min_amount": 0.0,
+            "max_amount": 50000.0,
+            "charge_amount": 15.0,
+            "charge_type": "flat",
+            "active": True,
+            "is_deleted": False,
+            "created_at": now_iso()
+        })
+        await db.service_charge_slabs.insert_one({
+            "id": new_id(),
+            "min_amount": 50001.0,
+            "max_amount": 100000.0,
+            "charge_amount": 25.0,
+            "charge_type": "flat",
+            "active": True,
+            "is_deleted": False,
+            "created_at": now_iso()
+        })
 
 
 async def _seed_admin_user() -> None:

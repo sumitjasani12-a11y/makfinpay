@@ -3,7 +3,7 @@ import { api, formatErr, fmtMoney } from "@/lib/api";
 import { PageHeader } from "@/components/Shared";
 import { toast } from "sonner";
 import { CreditCard, Check, ChevronsUpDown, Wallet, Search, Loader2 } from "lucide-react";
-import { CREDIT_CARD_OPERATORS, calcServiceCharge, MAX_BILL_AMOUNT } from "@/lib/billing";
+import { CREDIT_CARD_OPERATORS } from "@/lib/billing";
 
 function BankCombobox({ value, onChange }) {
   const [open, setOpen] = useState(false);
@@ -67,12 +67,33 @@ export default function AgentBillPay() {
   const [wallet, setWallet] = useState({ balance: 0 });
   const [f, setF] = useState({ customer_name: "", card_last4: "", operator: "", customer_phone: "", amount: "" });
   const [busy, setBusy] = useState(false);
+  const [slabs, setSlabs] = useState([]);
 
-  useEffect(() => { api.get("/wallet").then((r) => setWallet(r.data)); }, []);
+  useEffect(() => {
+    api.get("/wallet").then((r) => setWallet(r.data));
+    api.get("/billing/service-slabs").then((r) => setSlabs(r.data)).catch((e) => console.log("Failed to fetch slabs:", e.message));
+  }, []);
 
   const billAmt = Number(f.amount) || 0;
-  const exceedsLimit = billAmt > MAX_BILL_AMOUNT;
-  const charge = calcServiceCharge(billAmt);
+
+  const maxLimit = useMemo(() => {
+    if (slabs.length === 0) return 100000;
+    return Math.max(...slabs.map((s) => s.max_amount));
+  }, [slabs]);
+
+  const exceedsLimit = billAmt > maxLimit;
+
+  const charge = useMemo(() => {
+    if (billAmt <= 0) return 0;
+    const match = slabs.find((s) => billAmt >= s.min_amount && billAmt <= s.max_amount);
+    if (match) {
+      return match.charge_type === "percent"
+        ? +(billAmt * match.charge_amount / 100).toFixed(2)
+        : match.charge_amount;
+    }
+    return billAmt <= 50000 ? 15 : 25;
+  }, [billAmt, slabs]);
+
   const total = billAmt > 0 && !exceedsLimit ? billAmt + charge : 0;
   const hasAmount = billAmt > 0 && !exceedsLimit;
 
@@ -82,7 +103,7 @@ export default function AgentBillPay() {
     if (!f.operator) return toast.error("Select a Bank / Operator");
     if (f.card_last4.length !== 4) return toast.error("Card last 4 digits required");
     if (!billAmt) return toast.error("Enter bill amount");
-    if (exceedsLimit) return toast.error(`Maximum bill amount allowed is ₹${MAX_BILL_AMOUNT.toLocaleString("en-IN")}`);
+    if (exceedsLimit) return toast.error(`Maximum bill amount allowed is ₹${maxLimit.toLocaleString("en-IN")}`);
     if (wallet.balance < total) return toast.error("Insufficient wallet balance");
     setBusy(true);
     try {
@@ -124,7 +145,7 @@ export default function AgentBillPay() {
               <label className="mfp-label">Bill Amount</label>
               <input
                 className={`mfp-input ${exceedsLimit ? "border-rose-400 focus:border-rose-500" : ""}`}
-                type="number" min="1" max={MAX_BILL_AMOUNT} step="0.01" required
+                type="number" min="1" max={maxLimit} step="0.01" required
                 value={f.amount}
                 onChange={(e) => setF({ ...f, amount: e.target.value })}
                 disabled={busy}
@@ -132,7 +153,7 @@ export default function AgentBillPay() {
               />
               {exceedsLimit && (
                 <div className="mt-1 text-xs text-rose-600" data-testid="bill-amount-error">
-                  Maximum bill amount allowed is ₹{MAX_BILL_AMOUNT.toLocaleString("en-IN")}
+                  Maximum bill amount allowed is ₹{maxLimit.toLocaleString("en-IN")}
                 </div>
               )}
             </div>
@@ -171,14 +192,29 @@ export default function AgentBillPay() {
           <div className="mt-3 rounded-xl border border-black/5 bg-[#F4F3ED] overflow-hidden">
             <table className="w-full text-sm">
               <tbody>
-                <tr className="border-b border-black/5">
-                  <td className="px-4 py-2.5 text-neutral-700">₹0 – ₹50,000</td>
-                  <td className="px-4 py-2.5 text-right font-semibold text-[#1B4332]">₹15</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-2.5 text-neutral-700">₹50,001 – ₹1,00,000</td>
-                  <td className="px-4 py-2.5 text-right font-semibold text-[#1B4332]">₹25</td>
-                </tr>
+                {slabs.length === 0 ? (
+                  <>
+                    <tr className="border-b border-black/5">
+                      <td className="px-4 py-2.5 text-neutral-700">₹0 – ₹50,000</td>
+                      <td className="px-4 py-2.5 text-right font-semibold text-[#1B4332]">₹15</td>
+                    </tr>
+                    <tr>
+                      <td className="px-4 py-2.5 text-neutral-700">₹50,001 – ₹1,00,000</td>
+                      <td className="px-4 py-2.5 text-right font-semibold text-[#1B4332]">₹25</td>
+                    </tr>
+                  </>
+                ) : (
+                  slabs.map((s, idx) => (
+                    <tr key={s.id} className={idx < slabs.length - 1 ? "border-b border-black/5" : ""}>
+                      <td className="px-4 py-2.5 text-neutral-700">
+                        ₹{parseFloat(s.min_amount).toLocaleString("en-IN")} – ₹{parseFloat(s.max_amount).toLocaleString("en-IN")}
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-semibold text-[#1B4332]">
+                        {s.charge_type === "percent" ? `${s.charge_amount}%` : `₹${parseFloat(s.charge_amount).toFixed(2)}`}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
