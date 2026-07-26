@@ -5,6 +5,7 @@ import { Menu } from "lucide-react";
 import { NAV } from "./dashboardNav";
 import { SidebarContent } from "./SidebarContent";
 import Logo from "./Logo";
+import { api, fmtMoney } from "@/lib/api";
 
 const ROLE_LABELS = { master_distributor: "Master Distributor" };
 export function roleLabel(r) { return ROLE_LABELS[r] || r; }
@@ -20,6 +21,7 @@ export default function DashboardLayout() {
     items = items.filter(it => it.to === roleBaseRoute);
   }
   const [open, setOpen] = useState(false);
+  const [balance, setBalance] = useState(null);
 
   // redirect to base overview page if not fully approved/setup
   useEffect(() => {
@@ -29,6 +31,15 @@ export default function DashboardLayout() {
       }
     }
   }, [user, location.pathname, nav, isExcludedRole, roleBaseRoute]);
+
+  // Fetch wallet balance on route change / page view
+  useEffect(() => {
+    if (user && user.role !== "admin" && user.kyc_status === "approved" && !user.first_login) {
+      api.get("/wallet")
+        .then((r) => setBalance(r.data.balance))
+        .catch((e) => console.log("Failed to fetch header wallet:", e.message));
+    }
+  }, [user, location.pathname]);
 
   // close drawer whenever route changes (mobile UX)
   useEffect(() => { setOpen(false); }, [location.pathname]);
@@ -74,6 +85,12 @@ export default function DashboardLayout() {
             </div>
           </div>
           <div className="flex items-center gap-3 text-sm text-neutral-600">
+            {balance !== null && (
+              <span className="font-extrabold text-neutral-800 bg-[#E8F5E9] text-[#00966B] px-3.5 py-1 rounded-full text-xs flex items-center gap-1.5 border border-[#C8E6C9] shadow-sm transition-all" data-testid="header-balance">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#00966B] animate-pulse" />
+                Wallet: {fmtMoney(balance)}
+              </span>
+            )}
             <span className="mfp-pill bg-[#E8E5D7] text-[#1B4332] capitalize">{roleLabel(user.role)}</span>
           </div>
         </header>
