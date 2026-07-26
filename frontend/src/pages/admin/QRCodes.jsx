@@ -105,16 +105,39 @@ export default function AdminQRCodes() {
               </select>
             </div>
 
-            {label && (
-              <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-100 space-y-2 text-sm text-neutral-700">
-                <div>QR Name: <strong className="text-neutral-800">{label}</strong></div>
-                <div>Mobile Number: <strong className="text-neutral-800">{mobile}</strong></div>
-                <div>UPI ID: <strong className="text-neutral-800">{upi}</strong></div>
-                {path && (
-                  <div className="mt-2 text-xs text-emerald-700 font-medium">
-                    QR Image Loaded ✓
-                  </div>
-                )}
+            <div>
+              <label className="mfp-label font-medium mb-1">QR Name</label>
+              <input
+                className="mfp-input bg-neutral-50/50"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                placeholder="QR Name"
+              />
+            </div>
+
+            <div>
+              <label className="mfp-label font-medium mb-1">Mobile Number</label>
+              <input
+                className="mfp-input bg-neutral-50/50"
+                value={mobile}
+                onChange={(e) => setMobile(e.target.value)}
+                placeholder="Mobile Number"
+              />
+            </div>
+
+            <div>
+              <label className="mfp-label font-medium mb-1">UPI ID</label>
+              <input
+                className="mfp-input bg-neutral-50/50"
+                value={upi}
+                onChange={(e) => setUpi(e.target.value)}
+                placeholder="UPI ID"
+              />
+            </div>
+
+            {path && (
+              <div className="text-xs text-emerald-700 font-medium pt-1">
+                QR Image Loaded ✓
               </div>
             )}
 
