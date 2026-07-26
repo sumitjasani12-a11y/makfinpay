@@ -89,7 +89,7 @@ export default function AgentRecharge() {
               </div>
               <div className="mt-3 text-center">
                 <div className="text-sm font-semibold">{qr.label}</div>
-                {qr.upi_id && <div className="text-xs text-neutral-500 mt-0.5">Phone: {qr.upi_id}</div>}
+                {qr.upi_id && <div className="text-xs text-neutral-500 mt-0.5">UPI ID: {qr.upi_id}</div>}
                 <div className="text-xs text-neutral-600 mt-1" data-testid="recharge-charges-line">
                   Recharge Charges: <span className="font-semibold text-[#1B4332]">{commPct}%</span>
                 </div>
