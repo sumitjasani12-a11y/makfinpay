@@ -22,6 +22,8 @@ import AdminBackups from "@/pages/admin/Backups";
 import AdminQrNameEntry from "@/pages/admin/QrNameEntry";
 import AdminServiceSlabs from "@/pages/admin/ServiceSlabs";
 import AdminBanks from "@/pages/admin/Banks";
+import AdminSettings from "@/pages/admin/Settings";
+
 
 import DistOverview from "@/pages/distributor/Overview";
 import DistAgents from "@/pages/distributor/Agents";
@@ -91,6 +93,7 @@ export default function App() {
             <Route path="audit" element={<AdminAudit />} />
             <Route path="backups" element={<AdminBackups />} />
             <Route path="change-password" element={<ChangePassword />} />
+            <Route path="settings" element={<AdminSettings />} />
           </Route>
 
           {/* Distributor */}

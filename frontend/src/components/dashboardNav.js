@@ -2,6 +2,7 @@ import {
   LayoutDashboard, Users, UserCog, ArrowDownToLine, ArrowUpFromLine, Wallet,
   QrCode, Percent, FileCheck2, ScrollText, CreditCard, History,
   FilePlus2, KeyRound, DatabaseBackup, Crown, FileText, Layers, Landmark,
+  Settings,
 } from "lucide-react";
 
 /** Static navigation map per role — referenced by DashboardLayout. */
@@ -23,6 +24,7 @@ export const NAV = {
     { to: "/admin/audit", label: "Audit Logs", icon: ScrollText },
     { to: "/admin/backups", label: "Backup & Restore", icon: DatabaseBackup },
     { to: "/admin/change-password", label: "Change Password", icon: KeyRound },
+    { to: "/admin/settings", label: "Settings", icon: Settings },
   ],
   master_distributor: [
     { to: "/md", label: "Overview", icon: LayoutDashboard, end: true },
