@@ -93,20 +93,7 @@ export default function AdminRecharges() {
     { key: "qr_code_label", label: "QR Code", render: (r) => r.qr_code_label || "N/A" },
     { key: "card_last4", label: "Card / Acc (Last 4)", render: (r) => r.card_last4 ? `XXXX ${r.card_last4}` : "N/A" },
     { key: "commission_percent", label: "Comm %", render: (r) => `${r.commission_percent}%` },
-    { key: "charge_breakdown", label: "Commission Charge", render: (r) => {
-      const userCharge = r.status === "approved" ? r.commission_amount : (r.amount * r.commission_percent / 100);
-      const adminEarn = r.status === "approved" ? r.admin_revenue_amount : null;
-      return (
-        <div className="text-xs space-y-0.5">
-          <div>User: <span className="font-medium text-neutral-800">{fmtMoney(userCharge)}</span></div>
-          {adminEarn !== null ? (
-            <div>Admin: <span className="font-medium text-emerald-700">{fmtMoney(adminEarn)}</span></div>
-          ) : (
-            <div>Admin: <span className="text-neutral-400">—</span></div>
-          )}
-        </div>
-      );
-    } },
+    { key: "commission_charge", label: "Commission Charge", render: (r) => r.status === "approved" ? fmtMoney(r.commission_amount) : fmtMoney(r.amount * r.commission_percent / 100) },
     { key: "credit_amount", label: "Net Credit", render: (r) => r.status === "approved" ? fmtMoney(r.credit_amount) : "—" },
     { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
     { key: "created_at", label: "Created", render: (r) => fmtDate(r.created_at) },
