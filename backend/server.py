@@ -330,6 +330,10 @@ class RejectionReasonIn(BaseModel):
 class RejectionReasonUpdateIn(BaseModel):
     reason_text: str
 
+class PolicyIn(BaseModel):
+    title: str
+    content: str
+
 class ServiceChargeSlabIn(BaseModel):
     min_amount: float
     max_amount: float
@@ -3296,6 +3300,16 @@ async def reset_demo_data(body: DemoResetIn, request: Request, user=Depends(requ
 async def _ensure_indexes() -> None:
     async with db.pool.acquire() as conn:
         await conn.execute('''
+            CREATE TABLE IF NOT EXISTS policies (
+                id VARCHAR(255) PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                content TEXT NOT NULL,
+                active BOOLEAN DEFAULT TRUE,
+                is_deleted BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMPTZ
+            )
+        ''')
+        await conn.execute('''
             CREATE TABLE IF NOT EXISTS rejection_categories (
                 id VARCHAR(255) PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
@@ -4679,6 +4693,41 @@ async def get_active_rejection_reasons(target: str, user=Depends(get_current_use
     }).sort("created_at", 1).to_list(500)
     
     return [r["reason_text"] for r in reasons]
+
+# ---------- POLICIES & RULES ----------
+@api.get("/admin/policies")
+async def admin_list_policies(user=Depends(require_roles("admin"))):
+    return await db.policies.find({"is_deleted": False}).sort("created_at", -1).to_list(100)
+
+@api.post("/admin/policies")
+async def admin_create_policy(body: PolicyIn, user=Depends(require_roles("admin"))):
+    doc = {
+        "id": new_id(),
+        "title": body.title.strip(),
+        "content": body.content.strip(),
+        "active": True,
+        "is_deleted": False,
+        "created_at": now_iso()
+    }
+    await db.policies.insert_one(dict(doc))
+    return clean(doc)
+
+@api.put("/admin/policies/{pid}")
+async def admin_update_policy(pid: str, body: PolicyIn, user=Depends(require_roles("admin"))):
+    await db.policies.update_one({"id": pid}, {"$set": {
+        "title": body.title.strip(),
+        "content": body.content.strip()
+    }})
+    return {"ok": True}
+
+@api.delete("/admin/policies/{pid}")
+async def admin_delete_policy(pid: str, user=Depends(require_roles("admin"))):
+    await db.policies.update_one({"id": pid}, {"$set": {"is_deleted": True}})
+    return {"ok": True}
+
+@api.get("/policies/active")
+async def get_active_policies(user=Depends(get_current_user)):
+    return await db.policies.find({"is_deleted": False, "active": True}).sort("created_at", 1).to_list(100)
 
 
 app.include_router(api)

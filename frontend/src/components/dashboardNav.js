@@ -28,6 +28,7 @@ export const NAV = {
     {to: "/admin/backups", label: "Backup & Restore", icon: DatabaseBackup},
     {to: "/admin/change-password", label: "Change Password", icon: KeyRound},
     { to: "/admin/settings", label: "Settings", icon: Settings },
+    { to: "/admin/policies", label: "Rules & Policies", icon: ScrollText },
   ],
   master_distributor: [
     { to: "/md", label: "Overview", icon: LayoutDashboard, end: true },
@@ -36,6 +37,7 @@ export const NAV = {
     { to: "/md/recharges", label: "Recharge Activity", icon: ArrowDownToLine },
     { to: "/md/withdrawal", label: "Withdrawal", icon: ArrowUpFromLine },
     { to: "/md/change-password", label: "Change Password", icon: KeyRound },
+    { to: "/md/policies", label: "Rules & Policies", icon: ScrollText },
   ],
   distributor: [
     { to: "/distributor", label: "Overview", icon: LayoutDashboard, end: true },
@@ -43,6 +45,7 @@ export const NAV = {
     { to: "/distributor/recharges", label: "Recharge Activity", icon: ArrowDownToLine },
     { to: "/distributor/withdrawal", label: "Withdrawal", icon: ArrowUpFromLine },
     { to: "/distributor/change-password", label: "Change Password", icon: KeyRound },
+    { to: "/distributor/policies", label: "Rules & Policies", icon: ScrollText },
   ],
   agent: [
     { to: "/agent", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -52,5 +55,6 @@ export const NAV = {
     { to: "/agent/ledger", label: "Wallet Ledger", icon: ScrollText },
     { to: "/agent/withdrawal", label: "Withdrawal", icon: ArrowUpFromLine },
     { to: "/agent/change-password", label: "Change Password", icon: KeyRound },
+    { to: "/agent/policies", label: "Rules & Policies", icon: ScrollText },
   ],
 };

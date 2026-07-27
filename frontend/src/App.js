@@ -26,6 +26,8 @@ import AdminServiceSlabs from "@/pages/admin/ServiceSlabs";
 import AdminBanks from "@/pages/admin/Banks";
 import AdminSettings from "@/pages/admin/Settings";
 import AdminReasons from "@/pages/admin/Reasons";
+import AdminPolicies from "@/pages/admin/Policies";
+import UserPolicies from "@/pages/UserPolicies";
 
 
 import DistOverview from "@/pages/distributor/Overview";
@@ -100,6 +102,7 @@ export default function App() {
             <Route path="backups" element={<AdminBackups />} />
             <Route path="change-password" element={<ChangePassword />} />
             <Route path="settings" element={<AdminSettings />} />
+            <Route path="policies" element={<AdminPolicies />} />
           </Route>
 
           {/* Distributor */}
@@ -109,6 +112,7 @@ export default function App() {
             <Route path="recharges" element={<DistRecharges />} />
             <Route path="withdrawal" element={<DistWithdrawal />} />
             <Route path="change-password" element={<ChangePassword />} />
+            <Route path="policies" element={<UserPolicies />} />
           </Route>
 
           {/* Master Distributor */}
@@ -119,6 +123,7 @@ export default function App() {
             <Route path="recharges" element={<MdRecharges />} />
             <Route path="withdrawal" element={<MdWithdrawal />} />
             <Route path="change-password" element={<ChangePassword />} />
+            <Route path="policies" element={<UserPolicies />} />
           </Route>
 
           {/* Agent */}
@@ -130,6 +135,7 @@ export default function App() {
             <Route path="ledger" element={<AgentLedger />} />
             <Route path="withdrawal" element={<AgentWithdrawal />} />
             <Route path="change-password" element={<ChangePassword />} />
+            <Route path="policies" element={<UserPolicies />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" />} />

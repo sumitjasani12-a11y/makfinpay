@@ -36,7 +36,8 @@ TABLE_COLUMNS = {
     "service_charge_slabs": ["id", "min_amount", "max_amount", "charge_amount", "charge_type", "active", "is_deleted", "created_at"],
     "banks": ["id", "name", "active", "bill_pay_enabled", "payout_enabled", "is_deleted", "created_at"],
     "rejection_categories": ["id", "name", "show_bill", "show_qr", "show_kyc", "is_deleted", "created_at"],
-    "rejection_reasons": ["id", "category_id", "reason_text", "active", "is_deleted", "created_at"]
+    "rejection_reasons": ["id", "category_id", "reason_text", "active", "is_deleted", "created_at"],
+    "policies": ["id", "title", "content", "active", "is_deleted", "created_at"]
 }
 
 DATETIME_COLUMNS = {
