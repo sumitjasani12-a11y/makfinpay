@@ -2564,8 +2564,8 @@ async def call_irise_api(method: str, endpoint: str, params: dict = None, json_d
     headers = {
         "Accept": "application/json",
         "Content-Type": "application/json",
-        "api-key": IRISE_PUBLIC_KEY,
-        "secret-key": IRISE_SECRET_KEY
+        "x-api-key": IRISE_PUBLIC_KEY,
+        "x-secret-key": IRISE_SECRET_KEY
     }
     url = f"{IRISE_BASE_URL.rstrip('/')}/{endpoint.lstrip('/')}"
     async with httpx.AsyncClient(timeout=30) as client:
