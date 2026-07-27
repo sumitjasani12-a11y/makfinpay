@@ -28,10 +28,10 @@ function RejectModal({ onClose, onConfirm }) {
           <button onClick={onClose} className="mfp-btn-ghost p-2"><X className="h-4 w-4" /></button>
         </div>
         <div className="p-5 space-y-4">
-          {predefined.length > 0 && (
+          {predefined.length > 0 ? (
             <div>
               <label className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider block mb-1">
-                Quick Select Reason
+                Select Rejection Reason
               </label>
               <select
                 className="w-full bg-[#F8F9FA] border border-black/5 rounded-xl px-3 py-2.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-[#4F46E5] transition-all"
@@ -44,21 +44,14 @@ function RejectModal({ onClose, onConfirm }) {
                 ))}
               </select>
             </div>
+          ) : (
+            <div className="text-xs text-rose-500 font-bold bg-rose-50 p-3.5 rounded-xl border border-rose-100">
+              No rejection reasons configured. Please add reasons for KYC page in Reason Entry menu first.
+            </div>
           )}
-          <div>
-            <label className="mfp-label">Reason for Rejection</label>
-            <textarea
-              className="mfp-input min-h-[96px]"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="e.g. Aadhaar Back side photo is blurred or missing"
-              data-testid="kyc-reject-reason"
-              autoFocus
-            />
-          </div>
           <div className="flex gap-2">
             <button type="button" onClick={onClose} className="mfp-btn-outline flex-1">Cancel</button>
-            <button type="button" onClick={confirm} disabled={busy} className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 text-sm font-semibold flex-1" data-testid="kyc-reject-confirm">
+            <button type="button" onClick={confirm} disabled={busy || !reason} className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 text-sm font-semibold flex-1 disabled:opacity-50 disabled:cursor-not-allowed" data-testid="kyc-reject-confirm">
               {busy ? "Rejecting…" : "Confirm Reject"}
             </button>
           </div>
