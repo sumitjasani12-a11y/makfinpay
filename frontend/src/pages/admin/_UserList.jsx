@@ -4,7 +4,7 @@ import { useDebounced } from "@/lib/hooks";
 import { PageHeader, DataTable, StatusBadge, EmptyState } from "@/components/Shared";
 import FileUpload from "@/components/FileUpload";
 import { toast } from "sonner";
-import { Plus, Eye, X, FileDown, Loader2, Search, RotateCcw, Pencil, Trash2, FileSpreadsheet } from "lucide-react";
+import { Plus, Eye, X, FileDown, Loader2, Search, RotateCcw, Pencil, Trash2, FileSpreadsheet, Users, UserCheck, IndianRupee, Phone, Mail, Building2, Sparkles, ShieldCheck } from "lucide-react";
 
 function UserForm({ role, editingUser, onCreated, onCancel }) {
   const [form, setForm] = useState({ 
@@ -592,73 +592,91 @@ export function AdminUserList({ role }) {
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {items.map((r) => (
-                  <div className="bg-[#FDFCF8] border border-black/5 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all flex flex-col justify-between" key={r.id}>
-                    {/* Top part: Avatar, Name, Email, Role badge */}
+                  <div className="bg-[#FDFCF8] border border-black/5 hover:border-[#1B4332]/20 rounded-3xl p-6 shadow-sm hover:shadow-xl hover:shadow-[#1B4332]/5 transition-all duration-300 transform hover:-translate-y-1 flex flex-col justify-between relative overflow-hidden group" key={r.id}>
+                    {/* Top Accent Gradient Bar on Hover */}
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-[#1B4332] opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    
+                    {/* Top part: Avatar, Contact, Role badge */}
                     <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-center gap-3.5">
-                        <div className="h-12 w-12 rounded-2xl bg-[#1B4332]/5 text-[#1B4332] font-black text-sm flex items-center justify-center border border-[#1B4332]/10 flex-shrink-0 capitalize">
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        {/* Avatar Initials with Glow */}
+                        <div className="h-12 w-12 rounded-2xl bg-[#1B4332]/5 text-[#1B4332] font-black text-sm flex items-center justify-center border border-[#1B4332]/10 flex-shrink-0 capitalize group-hover:bg-[#1B4332] group-hover:text-white transition-all duration-300 shadow-sm">
                           {r.full_name ? r.full_name[0] : "?"}
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <h4 className="text-sm font-bold text-neutral-800 capitalize leading-snug truncate" title={r.full_name}>{r.full_name}</h4>
-                          <p className="text-xs text-neutral-400 font-medium truncate" title={r.email}>{r.email}</p>
-                          <p className="text-[10px] text-neutral-400 font-bold mt-0.5">{r.phone || "—"}</p>
+                        {/* User Details */}
+                        <div className="min-w-0 space-y-1">
+                          <h4 className="text-sm font-extrabold text-neutral-800 capitalize leading-tight truncate group-hover:text-[#1B4332] transition-colors" title={r.full_name}>
+                            {r.full_name}
+                          </h4>
+                          <div className="flex items-center gap-1.5 text-neutral-400 group-hover:text-neutral-500 transition-colors">
+                            <Mail className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
+                            <span className="text-xs font-semibold truncate block" title={r.email}>{r.email}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-neutral-400 group-hover:text-neutral-500 transition-colors">
+                            <Phone className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
+                            <span className="text-[10px] font-bold">{r.phone || "—"}</span>
+                          </div>
                         </div>
                       </div>
-                      <span className="text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded bg-[#1B4332]/10 text-[#1B4332] shrink-0">
+                      
+                      {/* Premium Role Badge */}
+                      <span className="text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-100 shrink-0 shadow-sm">
                         {role === "master_distributor" ? "Master Dist" : "Distributor"}
                       </span>
                     </div>
 
-                    {/* Middle part: Info Block */}
-                    <div className="grid grid-cols-3 gap-2 bg-[#F4F3ED] rounded-2xl p-4 my-5 text-center border border-black/[0.02]">
-                      {role === "master_distributor" ? (
-                        <>
-                          <div>
-                            <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wide block">Distributors</span>
-                            <span className="text-xs font-black text-neutral-700 block mt-1">{r.distributors_count ?? 0}</span>
-                          </div>
-                          <div>
-                            <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wide block">Agents</span>
-                            <span className="text-xs font-black text-neutral-700 block mt-1">{r.agents_count ?? 0}</span>
-                          </div>
-                          <div>
-                            <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wide block">Earnings</span>
-                            <span className="text-xs font-black text-[#1B4332] block mt-1 truncate" title={fmtMoney(r.earnings ?? 0)}>
-                              {fmtMoney(r.earnings ?? 0)}
-                            </span>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="col-span-2 text-left px-2">
-                            <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wide block text-center sm:text-left">Created By</span>
-                            <span className="text-xs font-semibold text-neutral-700 block mt-1 truncate text-center sm:text-left" title={r.creator_name}>
-                              {r.creator_name === "Admin" ? <span className="italic text-neutral-500">Admin</span> : r.creator_name || "—"}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wide block">Earnings</span>
-                            <span className="text-xs font-black text-[#1B4332] block mt-1 truncate" title={fmtMoney(r.earnings ?? 0)}>
-                              {fmtMoney(r.earnings ?? 0)}
-                            </span>
-                          </div>
-                        </>
-                      )}
-                    </div>
+                    {/* Middle part: Micro-cards Metrics Grid */}
+                    {role === "master_distributor" ? (
+                      <div className="grid grid-cols-3 gap-3 my-5">
+                        <div className="bg-[#F8F7F2] rounded-2xl p-2.5 text-center border border-black/[0.02] flex flex-col items-center justify-center hover:bg-white hover:shadow-sm hover:border-black/5 transition-all">
+                          <Users className="h-4 w-4 text-amber-600 mb-1" />
+                          <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wide">Distributors</span>
+                          <span className="text-xs font-black text-neutral-800 mt-0.5">{r.distributors_count ?? 0}</span>
+                        </div>
+                        <div className="bg-[#F8F7F2] rounded-2xl p-2.5 text-center border border-black/[0.02] flex flex-col items-center justify-center hover:bg-white hover:shadow-sm hover:border-black/5 transition-all">
+                          <UserCheck className="h-4 w-4 text-indigo-600 mb-1" />
+                          <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wide">Agents</span>
+                          <span className="text-xs font-black text-neutral-800 mt-0.5">{r.agents_count ?? 0}</span>
+                        </div>
+                        <div className="bg-[#F8F7F2] rounded-2xl p-2.5 text-center border border-black/[0.02] flex flex-col items-center justify-center hover:bg-white hover:shadow-sm hover:border-black/5 transition-all">
+                          <IndianRupee className="h-4 w-4 text-emerald-600 mb-1" />
+                          <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wide">Earnings</span>
+                          <span className="text-xs font-black text-emerald-700 mt-0.5 truncate max-w-full" title={fmtMoney(r.earnings ?? 0)}>
+                            {fmtMoney(r.earnings ?? 0).replace("₹", "")}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-3 my-5">
+                        <div className="col-span-2 bg-[#F8F7F2] rounded-2xl p-2.5 text-center border border-black/[0.02] flex flex-col items-center justify-center hover:bg-white hover:shadow-sm hover:border-black/5 transition-all min-w-0">
+                          <Building2 className="h-4 w-4 text-blue-600 mb-1" />
+                          <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wide">Created By</span>
+                          <span className="text-xs font-extrabold text-neutral-800 mt-0.5 truncate max-w-full px-1" title={r.creator_name}>
+                            {r.creator_name === "Admin" ? <span className="italic text-neutral-500">Admin</span> : r.creator_name || "—"}
+                          </span>
+                        </div>
+                        <div className="bg-[#F8F7F2] rounded-2xl p-2.5 text-center border border-black/[0.02] flex flex-col items-center justify-center hover:bg-white hover:shadow-sm hover:border-black/5 transition-all min-w-0">
+                          <IndianRupee className="h-4 w-4 text-emerald-600 mb-1" />
+                          <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wide">Earnings</span>
+                          <span className="text-xs font-black text-emerald-700 mt-0.5 truncate max-w-full" title={fmtMoney(r.earnings ?? 0)}>
+                            {fmtMoney(r.earnings ?? 0).replace("₹", "")}
+                          </span>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Bottom part: Status & Actions */}
                     <div className="flex items-center justify-between border-t border-black/5 pt-4">
-                      {/* Status Badge */}
-                      <div className="flex items-center gap-1.5">
+                      {/* Status Badge & Comm Info */}
+                      <div className="flex items-center gap-2">
                         <StatusBadge status={r.frozen ? "rejected" : (!r.kyc_status || r.kyc_status === "approved" ? "approved" : (r.kyc_status === "rejected" ? "rejected" : "pending"))} />
-                        <span className="text-[10px] font-bold text-neutral-400">({r.commission_percent ?? 0}%)</span>
+                        <span className="text-[10px] font-bold text-neutral-400 bg-neutral-100 px-2 py-0.5 rounded-md">Comm: {r.commission_percent ?? 0}%</span>
                       </div>
 
                       {/* Actions */}
                       <div className="flex items-center gap-2">
                         <button
-                          className="p-1.5 border border-neutral-200 text-neutral-600 hover:bg-neutral-50 rounded-lg transition-colors inline-flex items-center justify-center bg-white"
+                          className="p-1.5 border border-neutral-200 text-neutral-600 hover:bg-[#1B4332] hover:text-white hover:border-[#1B4332] rounded-xl transition-all inline-flex items-center justify-center bg-white shadow-sm hover:shadow-md"
                           onClick={() => setDetail(r)}
                           title="View Details"
                           data-testid={`view-${r.id}`}
@@ -666,7 +684,7 @@ export function AdminUserList({ role }) {
                           <Eye className="h-3.5 w-3.5" />
                         </button>
                         <button 
-                          className="p-1.5 border border-neutral-200 text-neutral-600 hover:bg-neutral-50 rounded-lg transition-colors inline-flex items-center justify-center bg-white" 
+                          className="p-1.5 border border-neutral-200 text-neutral-600 hover:bg-[#1B4332] hover:text-white hover:border-[#1B4332] rounded-xl transition-all inline-flex items-center justify-center bg-white shadow-sm hover:shadow-md" 
                           onClick={() => { setShow(false); setEditingUser(r); }} 
                           title="Edit"
                           data-testid={`edit-${r.id}`}
@@ -674,7 +692,7 @@ export function AdminUserList({ role }) {
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
                         <button 
-                          className="p-1.5 border border-rose-200 text-rose-700 hover:bg-rose-50 rounded-lg transition-colors inline-flex items-center justify-center bg-white" 
+                          className="p-1.5 border border-rose-200 text-rose-700 hover:bg-rose-600 hover:text-white hover:border-rose-600 rounded-xl transition-all inline-flex items-center justify-center bg-white shadow-sm hover:shadow-md" 
                           onClick={() => delUser(r.id, r.full_name)} 
                           title="Delete"
                           data-testid={`delete-${r.id}`}
