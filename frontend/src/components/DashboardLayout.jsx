@@ -30,6 +30,12 @@ export default function DashboardLayout() {
     return headlines.filter(h => h.type === "image").map(h => h.message);
   }, [headlines]);
 
+  // Formatted date string for the header
+  const headerDateStr = useMemo(() => {
+    const now = new Date();
+    return now.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  }, []);
+
   // Autoplay image headlines slider rotation
   useEffect(() => {
     if (imageMessages.length <= 1) {
@@ -116,7 +122,10 @@ export default function DashboardLayout() {
               <div className="text-sm font-medium capitalize truncate">{roleLabel(user.role)} Dashboard</div>
             </div>
           </div>
-          <div className="flex items-center gap-3 text-sm text-neutral-600">
+          <div className="flex items-center gap-3 text-sm text-neutral-600 animate-fadeIn">
+            <span className="font-extrabold text-neutral-600 bg-neutral-100/70 border border-neutral-200/50 px-3.5 py-1 rounded-full text-xs shadow-sm select-none">
+              {headerDateStr}
+            </span>
             {balance !== null && (
               <span className="font-extrabold text-neutral-800 bg-[#E8F5E9] text-[#00966B] px-3.5 py-1 rounded-full text-xs flex items-center gap-1.5 border border-[#C8E6C9] shadow-sm transition-all" data-testid="header-balance">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#00966B] animate-pulse" />
@@ -145,59 +154,6 @@ export default function DashboardLayout() {
                   <marquee className="text-xs font-bold text-[#CC5500] self-center" scrollamount="3">
                     {textMessages.map(msg => `${msg} | `).join("     ")}
                   </marquee>
-                </div>
-              )}
-
-              {/* IMAGE HEADLINES BANNER AREA (SLIDER VIEW) */}
-              {user.role !== "admin" && imageMessages.length > 0 && (
-                <div className="px-4 sm:px-8 pt-4">
-                  <div className="w-full bg-white rounded-3xl border border-black/5 overflow-hidden shadow-sm aspect-[21/9] sm:aspect-[32/9] md:max-h-[140px] relative group">
-                    <div
-                      className="flex transition-transform duration-500 ease-out h-full"
-                      style={{ transform: `translateX(-${activeImageIndex * 100}%)` }}
-                    >
-                      {imageMessages.map((path, idx) => (
-                        <div key={idx} className="w-full h-full shrink-0">
-                          <img
-                            src={fileUrl(path)}
-                            alt={`Announcement Banner ${idx + 1}`}
-                            className="h-full w-full object-cover"
-                          />
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Navigation Arrows */}
-                    {imageMessages.length > 1 && (
-                      <>
-                        <button
-                          onClick={() => setActiveImageIndex((prev) => (prev === 0 ? imageMessages.length - 1 : prev - 1))}
-                          className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/60 text-white p-1.5 rounded-full transition-all opacity-0 group-hover:opacity-100 flex items-center justify-center"
-                        >
-                          <ChevronLeft className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => setActiveImageIndex((prev) => (prev + 1) % imageMessages.length)}
-                          className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/60 text-white p-1.5 rounded-full transition-all opacity-0 group-hover:opacity-100 flex items-center justify-center"
-                        >
-                          <ChevronRight className="h-4 w-4" />
-                        </button>
-
-                        {/* Pagination Indicator Dots */}
-                        <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
-                          {imageMessages.map((_, idx) => (
-                            <button
-                              key={idx}
-                              onClick={() => setActiveImageIndex(idx)}
-                              className={`w-1.5 h-1.5 rounded-full transition-all ${
-                                activeImageIndex === idx ? "bg-white w-3" : "bg-white/50"
-                              }`}
-                            />
-                          ))}
-                        </div>
-                      </>
-                    )}
-                  </div>
                 </div>
               )}
             </>
