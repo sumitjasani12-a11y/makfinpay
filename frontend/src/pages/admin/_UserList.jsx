@@ -144,7 +144,7 @@ function MdDetailModal({ md, onClose }) {
   const distributorAgents = data?.distributor_agents || [];
 
   return (
-    <div className="fixed inset-0 bg-[#F8F7F2] z-50 overflow-y-auto flex flex-col">
+    <div className="fixed inset-y-0 right-0 left-0 md:left-64 bg-[#F8F7F2] z-50 overflow-y-auto flex flex-col">
       {/* Header */}
       <div className="bg-white border-b border-black/5 px-8 py-5 flex items-center justify-between sticky top-0 z-10 shadow-sm">
         <div className="flex items-center gap-4">
@@ -334,7 +334,7 @@ function DistributorDetailModal({ distributor, onClose }) {
   }, [distributor.id]);
 
   return (
-    <div className="fixed inset-0 bg-[#F8F7F2] z-[60] overflow-y-auto flex flex-col">
+    <div className="fixed inset-y-0 right-0 left-0 md:left-64 bg-[#F8F7F2] z-[60] overflow-y-auto flex flex-col">
       {/* Header */}
       <div className="bg-white border-b border-black/5 px-8 py-5 flex items-center justify-between sticky top-0 z-10 shadow-sm">
         <div className="flex items-center gap-4">
