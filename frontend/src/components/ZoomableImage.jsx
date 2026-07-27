@@ -66,16 +66,14 @@ export default function ZoomableImage({ src, alt, className = "" }) {
     if (!container) return;
     
     const wheelHandler = (e) => {
-      if (e.ctrlKey || scale > 1) {
-        e.preventDefault();
-        const zoomFactor = 0.15;
-        setScale((s) => {
-          const next = s + (e.deltaY < 0 ? zoomFactor : -zoomFactor);
-          const val = Math.max(0.5, Math.min(next, 4));
-          if (val <= 1) setOffset({ x: 0, y: 0 });
-          return val;
-        });
-      }
+      e.preventDefault();
+      const zoomFactor = 0.15;
+      setScale((s) => {
+        const next = s + (e.deltaY < 0 ? zoomFactor : -zoomFactor);
+        const val = Math.max(0.5, Math.min(next, 4));
+        if (val <= 1) setOffset({ x: 0, y: 0 });
+        return val;
+      });
     };
 
     container.addEventListener("wheel", wheelHandler, { passive: false });
