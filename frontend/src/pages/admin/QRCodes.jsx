@@ -372,7 +372,7 @@ export default function AdminQRCodes() {
                   data-testid="qr-select-entry"
                 >
                   <option value="">Select QR Name...</option>
-                  {qrEntries.filter(e => e.active).map(e => (
+                  {qrEntries.filter(e => e.active && (uploadIsT1 ? e.is_t1 : !e.is_t1)).map(e => (
                     <option key={e.id} value={e.id}>{e.name}</option>
                   ))}
                 </select>
@@ -407,7 +407,14 @@ export default function AdminQRCodes() {
               <div className="flex gap-2 bg-[#F8F7F2] p-1.5 rounded-xl border border-neutral-100">
                 <button
                   type="button"
-                  onClick={() => setUploadIsT1(false)}
+                  onClick={() => {
+                    setUploadIsT1(false);
+                    setLabel("");
+                    setMobile("");
+                    setUpi("");
+                    setPath("");
+                    setSelectedEntryId("");
+                  }}
                   className={`flex-1 py-1.5 px-3 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${
                     !uploadIsT1
                       ? "bg-white text-[#1B4332] shadow-sm border border-neutral-200/20"
@@ -418,7 +425,14 @@ export default function AdminQRCodes() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setUploadIsT1(true)}
+                  onClick={() => {
+                    setUploadIsT1(true);
+                    setLabel("");
+                    setMobile("");
+                    setUpi("");
+                    setPath("");
+                    setSelectedEntryId("");
+                  }}
                   className={`flex-1 py-1.5 px-3 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${
                     uploadIsT1
                       ? "bg-white text-[#1B4332] shadow-sm border border-neutral-200/20"
