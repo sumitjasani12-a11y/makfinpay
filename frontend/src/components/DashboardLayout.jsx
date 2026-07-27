@@ -144,13 +144,13 @@ export default function DashboardLayout() {
                 Wallet: {fmtMoney(balance)}
               </span>
             )}
-            {t1Balance !== null && t1Balance > 0 && (
+            {user.role === "agent" && t1Balance !== null && (
               <span className="font-extrabold text-neutral-800 bg-[#E3F2FD] text-[#1E88E5] px-3.5 py-1 rounded-full text-xs flex items-center gap-1.5 border border-[#BBDEFB] shadow-sm transition-all" data-testid="header-t1-balance">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#1E88E5] animate-pulse" />
                 T+1 Wallet: {fmtMoney(t1Balance)}
               </span>
             )}
-            {user.role === "admin" && t1Total !== null && t1Total > 0 && (
+            {user.role === "admin" && t1Total !== null && (
               <span className="font-extrabold text-neutral-800 bg-[#FFF3E0] text-[#E65100] px-3.5 py-1 rounded-full text-xs flex items-center gap-1.5 border border-[#FFE0B2] shadow-sm transition-all" data-testid="admin-header-t1-total">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#E65100] animate-pulse" />
                 T+1 Total: {fmtMoney(t1Total)}
