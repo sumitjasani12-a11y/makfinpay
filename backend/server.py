@@ -288,6 +288,7 @@ class RechargeLimitsIn(BaseModel):
 
 class RechargeTogglesIn(BaseModel):
     qr_enabled: Optional[bool] = None
+    t1_qr_enabled: Optional[bool] = None
     recharge_enabled: Optional[bool] = None
     withdrawal_enabled: Optional[bool] = None
     bill_pay_enabled: Optional[bool] = None
@@ -310,6 +311,7 @@ class QRCodeIn(BaseModel):
     image_path: str
     upi_id: Optional[str] = None
     mobile_number: Optional[str] = None
+    is_t1: Optional[bool] = False
 
 class QRNameEntryIn(BaseModel):
     name: str
@@ -2115,6 +2117,10 @@ def _build_audit_query(*, action=None, from_ts=None, to_ts=None, q=None) -> dict
 async def active_qr(is_t1: bool = False, user=Depends(require_roles("agent", "distributor"))):
     if user["role"] == "agent" and user.get("kyc_status") != "approved":
         raise HTTPException(403, "KYC is pending or rejected. Services are locked.")
+    s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    enabled = bool(s.get("t1_qr_enabled", True)) if is_t1 else bool(s.get("qr_enabled", True))
+    if not enabled:
+        return {}
     qr = await db.qr_codes.find_one({"active": True, "is_t1": is_t1, "is_deleted": False}, {"_id": 0})
     return qr or {}
 
@@ -2924,10 +2930,11 @@ async def admin_qr_history(user=Depends(require_roles("admin"))):
 
 @api.post("/admin/qrcodes")
 async def admin_create_qr(body: QRCodeIn, user=Depends(require_roles("admin"))):
-    is_t1 = False
-    entry = await db.qr_name_entries.find_one({"name": body.label, "is_deleted": False})
-    if entry:
-        is_t1 = entry.get("is_t1", False)
+    is_t1 = body.is_t1 or False
+    if body.is_t1 is None:
+        entry = await db.qr_name_entries.find_one({"name": body.label, "is_deleted": False})
+        if entry:
+            is_t1 = entry.get("is_t1", False)
 
     await db.qr_codes.update_many({"is_t1": is_t1}, {"$set": {"active": False}})
     doc = {
@@ -3258,6 +3265,7 @@ async def public_recharge_limits(user: dict = Depends(get_current_user)):
         "min_recharge_limit": float(s.get("min_recharge_limit", 100)),
         "max_recharge_limit": float(s.get("max_recharge_limit", 300000)),
         "qr_enabled": bool(s.get("qr_enabled", True)),
+        "t1_qr_enabled": bool(s.get("t1_qr_enabled", True)),
         "recharge_enabled": bool(s.get("recharge_enabled", True)),
         "withdrawal_enabled": bool(s.get("withdrawal_enabled", True)),
         "bill_pay_enabled": bool(s.get("bill_pay_enabled", True))
@@ -3270,6 +3278,7 @@ async def get_admin_recharge_limits(user=Depends(require_roles("admin"))):
         "min_recharge_limit": float(s.get("min_recharge_limit", 100)),
         "max_recharge_limit": float(s.get("max_recharge_limit", 300000)),
         "qr_enabled": bool(s.get("qr_enabled", True)),
+        "t1_qr_enabled": bool(s.get("t1_qr_enabled", True)),
         "recharge_enabled": bool(s.get("recharge_enabled", True)),
         "withdrawal_enabled": bool(s.get("withdrawal_enabled", True)),
         "bill_pay_enabled": bool(s.get("bill_pay_enabled", True))
@@ -3295,12 +3304,14 @@ async def update_admin_recharge_limits(body: RechargeLimitsIn, request: Request,
 async def update_admin_recharge_toggles(body: RechargeTogglesIn, request: Request, user=Depends(require_roles("admin"))):
     settings = await db.settings.find_one({"id": "commission"}) or {}
     qr_val = body.qr_enabled if body.qr_enabled is not None else settings.get("qr_enabled", True)
+    t1_qr_val = body.t1_qr_enabled if body.t1_qr_enabled is not None else settings.get("t1_qr_enabled", True)
     recharge_val = body.recharge_enabled if body.recharge_enabled is not None else settings.get("recharge_enabled", True)
     withdrawal_val = body.withdrawal_enabled if body.withdrawal_enabled is not None else settings.get("withdrawal_enabled", True)
     bill_pay_val = body.bill_pay_enabled if body.bill_pay_enabled is not None else settings.get("bill_pay_enabled", True)
     
     doc = {
         "qr_enabled": qr_val,
+        "t1_qr_enabled": t1_qr_val,
         "recharge_enabled": recharge_val,
         "withdrawal_enabled": withdrawal_val,
         "bill_pay_enabled": bill_pay_val,
@@ -3963,6 +3974,7 @@ async def _ensure_indexes() -> None:
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS min_recharge_limit NUMERIC(15, 2) DEFAULT 100')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS max_recharge_limit NUMERIC(15, 2) DEFAULT 300000')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS qr_enabled BOOLEAN DEFAULT TRUE')
+        await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS t1_qr_enabled BOOLEAN DEFAULT TRUE')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS recharge_enabled BOOLEAN DEFAULT TRUE')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS withdrawal_enabled BOOLEAN DEFAULT TRUE')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS bill_pay_enabled BOOLEAN DEFAULT TRUE')
