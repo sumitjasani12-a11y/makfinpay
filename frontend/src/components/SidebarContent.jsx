@@ -3,42 +3,6 @@ import { Link, NavLink } from "react-router-dom";
 import { LogOut } from "lucide-react";
 import Logo from "./Logo";
 
-const getIconBgColor = (label) => {
-  const colors = {
-    "Overview": "bg-[#4361EE]",
-    "Dashboard": "bg-[#4361EE]",
-    "Master Distributors": "bg-[#7209B7]",
-    "Distributors": "bg-[#3A0CA3]",
-    "My Distributors": "bg-[#7209B7]",
-    "Agents": "bg-[#F72585]",
-    "My Agents": "bg-[#F72585]",
-    "Recharge Approvals": "bg-[#06D6A0]",
-    "Recharge Activity": "bg-[#06D6A0]",
-    "Recharge Wallet": "bg-[#06D6A0]",
-    "Withdrawals": "bg-[#EF476F]",
-    "Withdrawal": "bg-[#EF476F]",
-    "Transactions": "bg-[#FF9F1C]",
-    "Transaction History": "bg-[#FF9F1C]",
-    "Credit Card Bill": "bg-[#3F37C9]",
-    "Wallet Ledger": "bg-[#4CC9F0]",
-    "QR Codes": "bg-[#00B4D8]",
-    "QR Name Entry": "bg-[#0077B6]",
-    "QR Gallery": "bg-[#7209B7]",
-    "Add Announcement": "bg-[#E63946]",
-    "Commission": "bg-[#F15BB5]",
-    "Service Slabs": "bg-[#2A9D8F]",
-    "Bank Entry": "bg-[#FFB703]",
-    "KYC Review": "bg-[#E76F51]",
-    "Reason Entry": "bg-[#6A0DAD]",
-    "Audit Logs": "bg-[#588157]",
-    "Backup & Restore": "bg-[#3A5A40]",
-    "Change Password": "bg-[#9A8C98]",
-    "Settings": "bg-[#DDA15E]",
-    "Rules & Policies": "bg-[#8338EC]"
-  };
-  return colors[label] || "bg-indigo-500";
-};
-
 export function SidebarContent({ user, items, onLogout }) {
   return (
     <>
@@ -71,9 +35,7 @@ export function SidebarContent({ user, items, onLogout }) {
             }
             data-testid={`nav-${it.label.replace(/\s+/g, "-").toLowerCase()}`}
           >
-            <div className={`p-1.5 rounded-lg text-white shadow-sm shrink-0 flex items-center justify-center ${getIconBgColor(it.label)}`}>
-              <it.icon className="h-3.5 w-3.5" strokeWidth={2.5} />
-            </div>
+            <it.icon className="h-4 w-4 shrink-0" strokeWidth={2} />
             <span>{it.label}</span>
           </NavLink>
         ))}
@@ -95,9 +57,7 @@ export function SidebarContent({ user, items, onLogout }) {
           className="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-bold text-white/70 hover:bg-white/5 hover:text-white hover:text-rose-400 hover:bg-rose-500/5 transition-all select-none border border-transparent hover:border-rose-500/10 uppercase tracking-wider"
           data-testid="logout-btn"
         >
-          <div className="p-1.5 rounded-lg bg-white/5 text-white shrink-0 flex items-center justify-center group-hover:bg-rose-500/10 transition-colors">
-            <LogOut className="h-3.5 w-3.5" strokeWidth={2.5} />
-          </div>
+          <LogOut className="h-4 w-4 shrink-0" strokeWidth={2} />
           <span>Sign out</span>
         </button>
       </div>
