@@ -1421,6 +1421,39 @@ async def my_ledger(user=Depends(get_current_user)):
     items = await db.ledger.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(500)
     return items
 
+@api.get("/agent/dashboard-stats")
+async def get_agent_dashboard_stats(user=Depends(require_roles("agent"))):
+    wallet = await get_or_create_wallet(user["id"])
+    balance = wallet.get("balance", 0.0)
+    
+    # Sum approved recharges
+    qr_cursor = db.recharges.aggregate([
+        {"$match": {"user_id": user["id"], "status": "approved"}},
+        {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+    ])
+    qr_list = await qr_cursor.to_list(1)
+    qr_sum = qr_list[0]["total"] if qr_list else 0.0
+    
+    # Sum success bill payments
+    bill_cursor = db.transactions.aggregate([
+        {"$match": {"user_id": user["id"], "status": "success"}},
+        {"$group": {"_id": None, "total": {"$sum": "$bill_amount"}}}
+    ])
+    bill_list = await bill_cursor.to_list(1)
+    bill_sum = bill_list[0]["total"] if bill_list else 0.0
+    
+    # Count pending
+    pending_recharges = await db.recharges.count_documents({"user_id": user["id"], "status": "pending"})
+    pending_bills = await db.transactions.count_documents({"user_id": user["id"], "status": "pending"})
+    pending_withdrawals = await db.withdrawals.count_documents({"user_id": user["id"], "status": "pending"})
+    
+    return {
+        "wallet_balance": balance,
+        "qr_payment": qr_sum,
+        "live_bill_payment": bill_sum,
+        "pending_requests": pending_recharges + pending_bills + pending_withdrawals
+    }
+
 # ---------- LIST FILTER HELPERS (server-side pagination) ----------
 def _escape_regex(s: str) -> str:
     return re.escape(s)

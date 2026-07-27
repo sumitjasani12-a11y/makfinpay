@@ -1,22 +1,26 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { api, fmtMoney, fmtDate, fileUrl } from "@/lib/api";
+import { api, fmtMoney, fileUrl } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { PageHeader } from "@/components/Shared";
 import KycPasswordGate from "@/components/KycPasswordGate";
-import { Wallet, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { Wallet, QrCode, CreditCard, Clock, ChevronLeft, ChevronRight } from "lucide-react";
 
 export default function AgentOverview() {
   const { user } = useAuth();
-  const [balance, setBalance] = useState(0);
+  const [stats, setStats] = useState({
+    wallet_balance: 0,
+    qr_payment: 0,
+    live_bill_payment: 0,
+    pending_requests: 0
+  });
   const [headlines, setHeadlines] = useState([]);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   useEffect(() => {
     if (user && user.kyc_status === "approved" && !user.first_login) {
-      api.get("/wallet")
-        .then((r) => setBalance(r.data.balance || 0))
-        .catch((e) => console.log("Wallet ignored:", e.message));
+      api.get("/agent/dashboard-stats")
+        .then((r) => setStats(r.data))
+        .catch((e) => console.log("Stats error ignored:", e.message));
       api.get("/headlines/active")
         .then((r) => setHeadlines(r.data || []))
         .catch((e) => console.log("Failed to fetch active headlines:", e.message));
@@ -42,22 +46,102 @@ export default function AgentOverview() {
   const now = new Date();
   const dateStr = now.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
+  const getGreeting = () => {
+    const hr = now.getHours();
+    const name = user?.full_name ? user.full_name.toUpperCase() : "USER";
+    if (hr < 12) return `GOOD MORNING, ${name}`;
+    if (hr < 17) return `GOOD AFTERNOON, ${name}`;
+    return `GOOD EVENING, ${name}`;
+  };
+
   return (
     <KycPasswordGate>
       <div className="overflow-x-hidden relative">
         <PageHeader title="Agent Dashboard" subtitle="Manage recharges, ledger history and wallet balance." />
 
-        {/* Two-column hero: wallet (70%) + date/time (30%) */}
-        <div className="grid grid-cols-1 lg:grid-cols-10 gap-5 mb-5">
-          <div className="mfp-card p-8 !bg-[#1B4332] text-white relative overflow-hidden lg:col-span-7" data-testid="wallet-hero">
-            <div className="text-xs uppercase tracking-[0.2em] text-white/80">Wallet Balance</div>
-            <div className="mt-4 text-4xl sm:text-5xl font-medium tracking-tight text-white" data-testid="wallet-balance">
-              {fmtMoney(balance)}
+        {/* Welcome greeting */}
+        <div className="mb-6 animate-fadeIn">
+          <h2 className="text-base font-black tracking-widest text-[#9d4edd] uppercase">
+            {getGreeting()}
+          </h2>
+        </div>
+
+        {/* Hero Section: Grid of 4 Cards + Slider Carousel */}
+        <div className="grid grid-cols-1 lg:grid-cols-10 gap-5 mb-8">
+          {/* Grid of 4 Cards (Col Span 7) */}
+          <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+            {/* Card 1: Total Balance */}
+            <div className="bg-white border border-black/5 rounded-3xl p-6 shadow-sm flex flex-col justify-between h-36 relative overflow-hidden transition-all hover:shadow-md animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <div className="p-3 bg-[#E8F5E9] text-[#00966B] rounded-2xl">
+                  <Wallet className="h-5 w-5" />
+                </div>
+              </div>
+              <div className="mt-4">
+                <span className="text-[10px] text-neutral-400 font-bold tracking-wider uppercase block">
+                  Total Balance
+                </span>
+                <span className="text-xl font-black text-neutral-800 mt-1 block">
+                  {fmtMoney(stats.wallet_balance)}
+                </span>
+              </div>
             </div>
-            <Wallet className="absolute -right-8 -bottom-8 h-44 w-44 text-white/5" />
+
+            {/* Card 2: QR Payment */}
+            <div className="bg-white border border-black/5 rounded-3xl p-6 shadow-sm flex flex-col justify-between h-36 relative overflow-hidden transition-all hover:shadow-md animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <div className="p-3 bg-[#E3F2FD] text-[#1E88E5] rounded-2xl">
+                  <QrCode className="h-5 w-5" />
+                </div>
+              </div>
+              <div className="mt-4">
+                <span className="text-[10px] text-neutral-400 font-bold tracking-wider uppercase block">
+                  QR Payment
+                </span>
+                <span className="text-xl font-black text-neutral-800 mt-1 block">
+                  {fmtMoney(stats.qr_payment)}
+                </span>
+              </div>
+            </div>
+
+            {/* Card 3: Live Bill Payment */}
+            <div className="bg-white border border-black/5 rounded-3xl p-6 shadow-sm flex flex-col justify-between h-36 relative overflow-hidden transition-all hover:shadow-md animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <div className="p-3 bg-[#F3E5F5] text-[#8E24AA] rounded-2xl">
+                  <CreditCard className="h-5 w-5" />
+                </div>
+              </div>
+              <div className="mt-4">
+                <span className="text-[10px] text-neutral-400 font-bold tracking-wider uppercase block">
+                  Live Bill Payment
+                </span>
+                <span className="text-xl font-black text-neutral-800 mt-1 block">
+                  {fmtMoney(stats.live_bill_payment)}
+                </span>
+              </div>
+            </div>
+
+            {/* Card 4: Pending Requests */}
+            <div className="bg-white border border-black/5 rounded-3xl p-6 shadow-sm flex flex-col justify-between h-36 relative overflow-hidden transition-all hover:shadow-md animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <div className="p-3 bg-[#FFF3E0] text-[#FB8C00] rounded-2xl">
+                  <Clock className="h-5 w-5" />
+                </div>
+              </div>
+              <div className="mt-4">
+                <span className="text-[10px] text-neutral-400 font-bold tracking-wider uppercase block">
+                  Pending Requests
+                </span>
+                <span className="text-xl font-black text-neutral-800 mt-1 block">
+                  {stats.pending_requests}
+                </span>
+              </div>
+            </div>
           </div>
+
+          {/* Slider Carousel (Col Span 3) */}
           {imageMessages.length > 0 ? (
-            <div className="bg-white border border-black/5 rounded-3xl overflow-hidden shadow-sm lg:col-span-3 relative h-40 lg:h-auto min-h-[140px] group animate-fadeIn">
+            <div className="bg-white border border-black/5 rounded-3xl overflow-hidden shadow-sm lg:col-span-3 relative h-auto min-h-[140px] group animate-fadeIn">
               <div
                 className="flex transition-transform duration-500 ease-out h-full"
                 style={{ transform: `translateX(-${activeImageIndex * 100}%)` }}
@@ -112,7 +196,6 @@ export default function AgentOverview() {
             </div>
           )}
         </div>
-        
       </div>
     </KycPasswordGate>
   );
