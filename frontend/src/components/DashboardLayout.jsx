@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
-import { Menu } from "lucide-react";
+import { Menu, Megaphone } from "lucide-react";
 import { NAV } from "./dashboardNav";
 import { SidebarContent } from "./SidebarContent";
 import Logo from "./Logo";
@@ -82,16 +82,6 @@ export default function DashboardLayout() {
       </aside>
 
       <main className="flex-1 min-w-0">
-        {headlines.length > 0 && (
-          <div className="bg-[#FFF9E6] border-b border-amber-100 py-1.5 px-4 flex items-center gap-3 overflow-hidden select-none">
-            <span className="shrink-0 text-[10px] font-black uppercase bg-[#CC5500] text-white px-2 py-0.5 rounded-md tracking-wider">
-              News
-            </span>
-            <marquee className="text-xs font-semibold text-[#CC5500]" scrollamount="3">
-              {headlines.join("     •     ")}
-            </marquee>
-          </div>
-        )}
         <header className="h-16 px-4 sm:px-8 border-b border-black/5 flex items-center justify-between bg-[#FDFCF8]/80 backdrop-blur-xl sticky top-0 z-30">
           <div className="flex items-center gap-3 min-w-0">
             <button
@@ -118,6 +108,17 @@ export default function DashboardLayout() {
             <span className="mfp-pill bg-[#E8E5D7] text-[#1B4332] capitalize">{roleLabel(user.role)}</span>
           </div>
         </header>
+        {user.role !== "admin" && headlines.length > 0 && (
+          <div className="bg-[#FFF9E6] border-b border-amber-100 py-1.5 px-4 flex items-center gap-3 overflow-hidden select-none">
+            <span className="shrink-0 flex items-center gap-1.5 text-[10px] font-black uppercase bg-[#CC5500] text-white px-2.5 py-1 rounded-lg tracking-wider">
+              <Megaphone className="h-3.5 w-3.5" />
+              Announcement
+            </span>
+            <marquee className="text-xs font-semibold text-[#CC5500]" scrollamount="3">
+              {headlines.join("     •     ")}
+            </marquee>
+          </div>
+        )}
         <div className="p-4 sm:p-6 lg:p-8">
           <Outlet />
         </div>
