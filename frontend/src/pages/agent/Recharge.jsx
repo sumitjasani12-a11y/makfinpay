@@ -417,7 +417,16 @@ export default function AgentRecharge() {
             { key: "credit_amount", label: "Net Credit", render: (r) => r.status === "approved" ? fmtMoney(r.credit_amount) : "—" },
             { key: "utr", label: "UTR" },
             { key: "card_last4", label: "Card / Acc", render: (r) => r.card_last4 ? `XXXX ${r.card_last4}` : "—" },
-            { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
+            { key: "status", label: "Status", render: (r) => (
+              <div className="flex flex-col">
+                <StatusBadge status={r.status} />
+                {r.status === "rejected" && r.note && (
+                  <span className="text-[10px] text-rose-500 font-black mt-1 uppercase tracking-wider max-w-[150px] break-words">
+                    Reason: {r.note}
+                  </span>
+                )}
+              </div>
+            ) },
             { key: "created_at", label: "Created", render: (r) => fmtDate(r.created_at) },
           ]}
           rows={paginatedItems}
