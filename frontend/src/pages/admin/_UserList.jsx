@@ -96,34 +96,57 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
   });
 
   return (
-    <form onSubmit={submit} className="mfp-card p-6 grid sm:grid-cols-2 gap-4">
-      {fields.map((f) => (
-        <div key={f.key}>
-          <label className="mfp-label">{f.label}</label>
-          <input 
-            className="mfp-input" 
-            required={f.required} 
-            type={f.type}
-            step={f.type === "number" ? "0.01" : undefined}
-            min={f.type === "number" ? "0" : undefined}
-            value={form[f.key]} 
-            onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} 
-            placeholder={f.placeholder}
-            data-testid={`form-${f.key}`} 
-          />
-        </div>
-      ))}
-      <div className="sm:col-span-2 flex gap-2">
-        <button disabled={busy} className="mfp-btn-primary animate-pulse-once" data-testid="form-submit">
-          <Plus className="h-4 w-4" /> {busy ? "Saving…" : editingUser ? `Update ${role.replace("_", " ")}` : `Create ${role.replace("_", " ")}`}
-        </button>
-        {onCancel && (
-          <button type="button" onClick={onCancel} className="mfp-btn-outline">
-            Cancel
+    <div className="fixed inset-y-0 right-0 left-0 md:left-64 bg-[#F8F7F2] z-50 overflow-y-auto flex flex-col">
+      {/* Header */}
+      <div className="bg-white border-b border-black/5 px-8 py-5 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+        <div className="flex items-center gap-4">
+          <button type="button" onClick={onCancel} className="p-2.5 hover:bg-neutral-100 rounded-2xl transition-all border border-neutral-200 text-neutral-600 inline-flex items-center justify-center">
+            <ArrowLeft className="h-5 w-5" />
           </button>
-        )}
+          <div>
+            <div className="text-[10px] uppercase font-black tracking-widest text-[#1B4332]/60">
+              {editingUser ? "Edit" : "Create"} {role.replace("_", " ")}
+            </div>
+            <h2 className="text-xl font-black text-neutral-800">
+              {editingUser ? `Update ${editingUser.full_name}` : `New ${role.replace("_", " ")}`}
+            </h2>
+          </div>
+        </div>
+        <button type="button" onClick={onCancel} className="p-2 hover:bg-neutral-100 rounded-xl transition-all text-neutral-400 hover:text-neutral-700">
+          <X className="h-6 w-6" />
+        </button>
       </div>
-    </form>
+
+      <div className="p-8 max-w-4xl w-full mx-auto flex-1">
+        <form onSubmit={submit} className="bg-white border border-black/5 rounded-3xl p-8 shadow-sm grid sm:grid-cols-2 gap-5">
+          {fields.map((f) => (
+            <div key={f.key}>
+              <label className="mfp-label font-bold text-neutral-700">{f.label}</label>
+              <input 
+                className="mfp-input mt-1.5" 
+                required={f.required} 
+                type={f.type}
+                step={f.type === "number" ? "0.01" : undefined}
+                min={f.type === "number" ? "0" : undefined}
+                value={form[f.key]} 
+                onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} 
+                placeholder={f.placeholder}
+                data-testid={`form-${f.key}`} 
+              />
+            </div>
+          ))}
+          <div className="sm:col-span-2 flex gap-3 border-t border-neutral-100 pt-6 mt-4">
+            <button disabled={busy} className="mfp-btn-primary px-6 py-3 font-bold flex items-center justify-center gap-2" data-testid="form-submit">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} 
+              {busy ? "Saving…" : editingUser ? `Update ${role.replace("_", " ")}` : `Create ${role.replace("_", " ")}`}
+            </button>
+            <button type="button" onClick={onCancel} className="mfp-btn-outline px-6 py-3 font-bold">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 
