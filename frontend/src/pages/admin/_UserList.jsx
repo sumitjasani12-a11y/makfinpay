@@ -379,9 +379,22 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
         <div className="lg:col-span-4 space-y-6">
           <div className="bg-white border border-black/5 rounded-3xl p-6 shadow-sm flex flex-col items-center space-y-6">
             {/* Dotted Circle for Avatar */}
-            <div className="h-28 w-28 rounded-full border-2 border-dashed border-neutral-300 bg-neutral-50 flex flex-col items-center justify-center text-neutral-400 select-none">
-              <Users className="h-8 w-8 text-neutral-400 mb-1" />
-              <span className="text-[9px] font-black uppercase tracking-wider text-neutral-400">User Profile</span>
+            <div className="h-28 w-28 rounded-full border-2 border-dashed border-neutral-300 bg-neutral-50 flex flex-col items-center justify-center text-neutral-400 select-none overflow-hidden shrink-0">
+              {form.selfie_path ? (
+                <img src={fileUrl(form.selfie_path)} alt="Profile Preview" className="h-full w-full object-cover" />
+              ) : (
+                <>
+                  <Users className="h-8 w-8 text-neutral-400 mb-1" />
+                  <span className="text-[9px] font-black uppercase tracking-wider text-neutral-400">User Profile</span>
+                </>
+              )}
+            </div>
+
+            <div className="w-full">
+              <FileUpload 
+                onUploaded={(path) => setForm({ ...form, selfie_path: path })} 
+                label="Upload Profile Photo"
+              />
             </div>
 
             <div className="w-full space-y-4 text-left">
