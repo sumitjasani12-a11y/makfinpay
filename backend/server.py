@@ -1633,6 +1633,70 @@ async def get_recharge_gallery(user=Depends(require_roles("admin"))):
     }).sort("created_at", -1).to_list(10000)
     return items
 
+@api.get("/admin/recharge-gallery/zip")
+async def download_recharge_gallery_zip(
+    qr_code_label: str,
+    auth: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None)
+):
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization[7:]
+    elif auth:
+        token = auth
+    if not token:
+        raise HTTPException(401, "Auth required")
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+        if payload.get("role") != "admin":
+            raise HTTPException(403, "Forbidden")
+    except Exception:
+        raise HTTPException(401, "Invalid token")
+
+    query = {
+        "screenshot_path": {"$ne": "", "$exists": True},
+        "qr_code_label": qr_code_label,
+        "status": "approved"
+    }
+    items = await db.recharges.find(query, {
+        "id": 1,
+        "amount": 1,
+        "screenshot_path": 1,
+        "created_at": 1
+    }).to_list(10000)
+
+    if not items:
+        raise HTTPException(400, "No approved payment proofs found for this merchant")
+
+    import io
+    import zipfile
+    from fastapi.responses import StreamingResponse
+
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for idx, item in enumerate(items):
+            path = item["screenshot_path"]
+            if not path:
+                continue
+            try:
+                data, _ = get_object(path)
+                ext = "png"
+                if "." in path:
+                    ext = path.split(".")[-1].split("?")[0]
+                filename = f"{idx + 1}_{int(item['amount'])}_{item['id']}.{ext}"
+                zip_file.writestr(filename, data)
+            except Exception as e:
+                print(f"Failed to zip item {item['id']} at {path}: {str(e)}")
+                continue
+
+    zip_buffer.seek(0)
+    safe_label = "".join(c for c in qr_code_label if c.isalnum() or c in (" ", "_", "-")).strip().replace(" ", "_")
+    
+    headers = {
+        "Content-Disposition": f"attachment; filename=gallery_{safe_label}.zip"
+    }
+    return StreamingResponse(zip_buffer, media_type="application/zip", headers=headers)
+
 @api.get("/distributor/recharges")
 async def distributor_list_recharges(user=Depends(require_approved_distributor())):
     agent_ids = [u["id"] async for u in db.users.find({"parent_id": user["id"]}, {"_id": 0, "id": 1})]
