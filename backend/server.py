@@ -225,6 +225,7 @@ class CreateUserIn(BaseModel):
     firm_address: Optional[str] = None
     aadhaar_path: Optional[str] = None  # uploaded file path (required for agents)
     pan_path: Optional[str] = None      # uploaded file path (required for agents)
+    selfie_path: Optional[str] = None    # profile photo path
     commission_percent: Optional[float] = None  # for agent (markup) or MD (rate override)
 
 class UpdateUserIn(BaseModel):
@@ -237,6 +238,7 @@ class UpdateUserIn(BaseModel):
     firm_address: Optional[str] = None
     aadhaar_path: Optional[str] = None
     pan_path: Optional[str] = None
+    selfie_path: Optional[str] = None
     commission_percent: Optional[float] = None
 
 class ChangeFirstPasswordIn(BaseModel):
@@ -696,11 +698,11 @@ async def create_subuser(
         "firm_address": body.firm_address or "",
         "first_login": True,
         "welcome_shown": False,
-        "aadhaar_path": "",
-        "pan_path": "",
+        "aadhaar_path": body.aadhaar_path or "",
+        "pan_path": body.pan_path or "",
         "aadhaar_back_path": "",
         "pan_back_path": "",
-        "selfie_path": "",
+        "selfie_path": body.selfie_path or "",
         "cheque_path": "",
         "firm_front_path": "",
         "kyc_status": kyc_status,
@@ -1779,6 +1781,9 @@ async def admin_update_user(uid: str, body: UpdateUserIn, user=Depends(require_r
     
     if body.password:
         upd["password_hash"] = hash_password(body.password)
+
+    if body.selfie_path:
+        upd["selfie_path"] = body.selfie_path
         
     if u["role"] == "agent":
         if body.aadhaar_path:
@@ -1786,12 +1791,14 @@ async def admin_update_user(uid: str, body: UpdateUserIn, user=Depends(require_r
         if body.pan_path:
             upd["pan_path"] = body.pan_path
             
-        if body.aadhaar_path or body.pan_path:
+        if body.aadhaar_path or body.pan_path or body.selfie_path:
             kyc_set = {}
             if body.aadhaar_path:
                 kyc_set["aadhaar_path"] = body.aadhaar_path
             if body.pan_path:
                 kyc_set["pan_path"] = body.pan_path
+            if body.selfie_path:
+                kyc_set["selfie_path"] = body.selfie_path
             kyc_set["updated_at"] = now_iso()
             await db.kyc.update_one({"user_id": uid}, {"$set": kyc_set})
 
