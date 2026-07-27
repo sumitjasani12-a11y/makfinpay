@@ -17,7 +17,8 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
     firm_name: editingUser?.firm_name || "",
     firm_address: editingUser?.firm_address || "",
     selfie_path: editingUser?.selfie_path || "",
-    commission_percent: editingUser?.commission_percent || "" 
+    commission_percent: editingUser?.commission_percent || "",
+    t1_commission_percent: editingUser?.t1_commission_percent || ""
   });
   const [busy, setBusy] = useState(false);
   const [activeTab, setActiveTab] = useState("firm");
@@ -55,10 +56,11 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
         firm_name: editingUser.firm_name || "",
         firm_address: editingUser.firm_address || "",
         selfie_path: editingUser.selfie_path || "",
-        commission_percent: editingUser.commission_percent ?? ""
+        commission_percent: editingUser.commission_percent ?? "",
+        t1_commission_percent: editingUser.t1_commission_percent ?? ""
       });
     } else {
-      setForm({ role, full_name: "", email: "", password: "", phone: "", address: "", firm_name: "", firm_address: "", selfie_path: "", commission_percent: "" });
+      setForm({ role, full_name: "", email: "", password: "", phone: "", address: "", firm_name: "", firm_address: "", selfie_path: "", commission_percent: "", t1_commission_percent: "" });
     }
   }, [editingUser, role]);
 
@@ -71,6 +73,11 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
         body.commission_percent = parseFloat(form.commission_percent);
       } else {
         delete body.commission_percent;
+      }
+      if (form.t1_commission_percent !== "") {
+        body.t1_commission_percent = parseFloat(form.t1_commission_percent);
+      } else {
+        delete body.t1_commission_percent;
       }
       if (!body.selfie_path) {
         delete body.selfie_path;
@@ -314,6 +321,26 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
                           />
                         </div>
                       </div>
+
+                      {role === "agent" && (
+                        <div className="bg-[#F8F7F2] rounded-2xl p-5 border border-black/[0.02]">
+                          <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
+                            T+1 Commission % (Charges)
+                          </label>
+                          <div className="flex items-center mt-1">
+                            <span className="text-base font-black text-[#1B4332] mr-1.5">%</span>
+                            <input 
+                              type="number" 
+                              step="0.01"
+                              min="0"
+                              className="w-full text-base font-black text-neutral-800 bg-transparent border-b border-neutral-100 focus:border-[#1B4332] focus:outline-none py-1" 
+                              value={form.t1_commission_percent}
+                              onChange={(e) => setForm({ ...form, t1_commission_percent: e.target.value })}
+                              placeholder="e.g. 2.0"
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -563,6 +590,26 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
                 />
               </div>
             </div>
+
+            {role === "agent" && (
+              <div className="mt-4">
+                <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
+                  T+1 Commission % (Charges)
+                </label>
+                <div className="flex items-center mt-1 bg-[#F8F7F2] rounded-xl px-3 border border-neutral-200">
+                  <span className="text-sm font-black text-[#1B4332] select-none">%</span>
+                  <input 
+                    type="number" 
+                    step="0.01"
+                    min="0"
+                    className="w-full bg-transparent border-0 focus:outline-none focus:ring-0 text-xs font-bold p-3" 
+                    placeholder="e.g. 2.0" 
+                    value={form.t1_commission_percent}
+                    onChange={(e) => setForm({ ...form, t1_commission_percent: e.target.value })}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Action buttons at the bottom */}
@@ -1082,7 +1129,12 @@ export function AdminUserList({ role }) {
                 : <span className="font-medium">{r.creator_name || "—"}</span>,
             }] : []),
             ...(role === "agent" ? [{ key: "wallet_balance", label: "Wallet", render: (r) => fmtMoney(r.wallet_balance) }] : []),
-            { key: "commission_percent", label: "Comm %", render: (r) => `${r.commission_percent ?? "—"}%` },
+            ...(role === "agent" ? [
+              { key: "commission_percent", label: "Comm %", render: (r) => `${r.commission_percent ?? "—"}%` },
+              { key: "t1_commission_percent", label: "T+1 Comm %", render: (r) => `${r.t1_commission_percent ?? "—"}%` }
+            ] : [
+              { key: "commission_percent", label: "Comm %", render: (r) => `${r.commission_percent ?? "—"}%` }
+            ]),
             { key: "status", label: "Status", render: (r) => {
               const resolved = r.frozen ? "rejected" : (!r.kyc_status || r.kyc_status === "approved" ? "approved" : (r.kyc_status === "rejected" ? "rejected" : "pending"));
               return <StatusBadge status={resolved} />;

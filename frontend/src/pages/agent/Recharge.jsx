@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { api, formatErr, fmtMoney, fmtDate, fileUrl } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { PageHeader, DataTable, StatusBadge, EmptyState } from "@/components/Shared";
@@ -8,7 +8,8 @@ import { Loader2, Coins, KeyRound, CreditCard, QrCode, Info, Sparkles, CheckCirc
 
 export default function AgentRecharge() {
   const { user } = useAuth();
-  const commPct = Number(user?.commission_percent || 0);
+  const [isT1, setIsT1] = useState(false);
+  const commPct = Number(isT1 ? (user?.t1_commission_percent || 0) : (user?.commission_percent || 0));
   const [qr, setQr] = useState(null);
   const [amount, setAmount] = useState("");
   const [utr, setUtr] = useState("");
@@ -26,8 +27,15 @@ export default function AgentRecharge() {
 
   const reload = () => api.get("/agent/recharges").then((r) => setItems(r.data || []));
 
+  const fetchActiveQr = useCallback(() => {
+    api.get(`/agent/active-qr?is_t1=${isT1}`).then((r) => setQr(r.data && r.data.image_path ? r.data : null));
+  }, [isT1]);
+
   useEffect(() => {
-    api.get("/agent/active-qr").then((r) => setQr(r.data && r.data.image_path ? r.data : null));
+    fetchActiveQr();
+  }, [fetchActiveQr]);
+
+  useEffect(() => {
     reload();
 
     const fetchConfig = () => {
@@ -251,6 +259,7 @@ export default function AgentRecharge() {
         card_last4: last4,
         screenshot_path: shot,
         older_qr: olderQr,
+        is_t1: isT1,
       });
       toast.success("Recharge request submitted — pending admin approval");
       setAmount(""); setUtr(""); setLast4(""); setShot(""); setOlderQr(false); reload();
@@ -267,6 +276,37 @@ export default function AgentRecharge() {
       <PageHeader title="Recharge Wallet" subtitle="Pay via UPI, then submit UTR + screenshot for admin verification." />
       
       <div className="max-w-[1100px] mx-auto px-4 mb-8">
+        {rechargeEnabled && (
+          <div className="flex justify-center mb-6">
+            <div className="bg-neutral-100/80 p-1.5 rounded-2xl border border-neutral-200/50 flex gap-1 shadow-inner">
+              <button
+                type="button"
+                onClick={() => setIsT1(false)}
+                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                  !isT1 
+                    ? "bg-white text-neutral-800 shadow-sm border border-neutral-200/20" 
+                    : "text-neutral-500 hover:text-neutral-700"
+                }`}
+              >
+                <Sparkles className="h-4 w-4 text-[#00966B]" />
+                Standard (Instant Settlement)
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsT1(true)}
+                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                  isT1 
+                    ? "bg-white text-neutral-800 shadow-sm border border-neutral-200/20" 
+                    : "text-neutral-500 hover:text-neutral-700"
+                }`}
+              >
+                <Clock className="h-4 w-4 text-blue-600" />
+                T+1 (Next Day Settlement)
+              </button>
+            </div>
+          </div>
+        )}
+
         {!rechargeEnabled ? (
           <div className="bg-white border border-black/5 rounded-3xl p-10 lg:p-16 shadow-lg shadow-indigo-500/5 flex flex-col items-center justify-center text-center space-y-5 max-w-[800px] mx-auto">
             <div className="bg-amber-50 text-amber-600 p-5 rounded-full border border-amber-200/50 animate-pulse">
@@ -615,7 +655,16 @@ export default function AgentRecharge() {
 
         <DataTable
           columns={[
-            { key: "amount", label: "Amount", render: (r) => fmtMoney(r.amount) },
+            { key: "amount", label: "Amount", render: (r) => (
+              <div className="flex items-center gap-1.5 font-bold">
+                <span>{fmtMoney(r.amount)}</span>
+                {r.is_t1 && (
+                  <span className="text-[9px] font-black bg-blue-50 text-blue-600 border border-blue-100 px-1 py-0.5 rounded uppercase tracking-wider">
+                    T+1
+                  </span>
+                )}
+              </div>
+            ) },
             { key: "charge", label: "Commission Charge", render: (r) => r.status === "approved" ? fmtMoney(r.commission_amount) : fmtMoney(r.amount * r.commission_percent / 100) },
             { key: "credit_amount", label: "Net Credit", render: (r) => r.status === "approved" ? fmtMoney(r.credit_amount) : "—" },
             { key: "utr", label: "UTR" },

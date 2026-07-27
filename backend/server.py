@@ -227,6 +227,7 @@ class CreateUserIn(BaseModel):
     pan_path: Optional[str] = None      # uploaded file path (required for agents)
     selfie_path: Optional[str] = None    # profile photo path
     commission_percent: Optional[float] = None  # for agent (markup) or MD (rate override)
+    t1_commission_percent: Optional[float] = None # T+1 commission percent (only for Agent)
 
 class UpdateUserIn(BaseModel):
     full_name: str
@@ -240,6 +241,7 @@ class UpdateUserIn(BaseModel):
     pan_path: Optional[str] = None
     selfie_path: Optional[str] = None
     commission_percent: Optional[float] = None
+    t1_commission_percent: Optional[float] = None
 
 class ChangeFirstPasswordIn(BaseModel):
     password: str
@@ -258,6 +260,7 @@ class RechargeIn(BaseModel):
     card_last4: str
     screenshot_path: str  # storage path of uploaded screenshot
     older_qr: Optional[bool] = False
+    is_t1: Optional[bool] = False
 
 class BillPaymentIn(BaseModel):
     customer_name: str
@@ -317,6 +320,7 @@ class QRNameEntryIn(BaseModel):
     max_amount: float
     image_path: str
     qr_percent: Optional[float] = 0.0
+    is_t1: Optional[bool] = False
 
 class QRReorderIn(BaseModel):
     ids: List[str]
@@ -529,8 +533,10 @@ async def serve_file(path: str, auth: Optional[str] = Query(None), authorization
 async def get_or_create_wallet(user_id: str) -> dict:
     w = await db.wallets.find_one({"user_id": user_id}, {"_id": 0})
     if not w:
-        w = {"id": new_id(), "user_id": user_id, "balance": 0.0, "created_at": now_iso()}
+        w = {"id": new_id(), "user_id": user_id, "balance": 0.0, "t1_balance": 0.0, "created_at": now_iso()}
         await db.wallets.insert_one(dict(w))
+    if "t1_balance" not in w:
+        w["t1_balance"] = 0.0
     return w
 
 async def ledger_entry(user_id: str, kind: str, amount: float, balance_after: float, ref_type: str = "", ref_id: str = "", note: str = ""):
@@ -553,6 +559,14 @@ async def adjust_balance(user_id: str, delta: float) -> float:
         raise HTTPException(400, "Insufficient wallet balance")
     await db.wallets.update_one({"user_id": user_id}, {"$set": {"balance": new_balance, "updated_at": now_iso()}})
     return new_balance
+
+async def adjust_t1_balance(user_id: str, delta: float) -> float:
+    w = await get_or_create_wallet(user_id)
+    new_t1_balance = round(w.get("t1_balance", 0.0) + delta, 2)
+    if new_t1_balance < 0:
+        raise HTTPException(400, "Insufficient T+1 balance")
+    await db.wallets.update_one({"user_id": user_id}, {"$set": {"t1_balance": new_t1_balance, "updated_at": now_iso()}})
+    return new_t1_balance
 
 # ---------- ADMIN: USERS ----------
 @dataclass
@@ -719,6 +733,10 @@ async def create_subuser(
         "md_pct": alloc.md_pct,
         "dist_pct": alloc.dist_pct,
         "commission_type": alloc.type,
+        "t1_commission_percent": float(body.t1_commission_percent) if (body.role == "agent" and body.t1_commission_percent is not None) else 0.0,
+        "t1_admin_pct": float(body.t1_commission_percent) if (body.role == "agent" and body.t1_commission_percent is not None) else 0.0,
+        "t1_md_pct": 0.0,
+        "t1_dist_pct": 0.0,
         "created_by_role": created_by_role,
         "created_by_id": by,
         "frozen": False,
@@ -1802,12 +1820,18 @@ async def admin_update_user(uid: str, body: UpdateUserIn, user=Depends(require_r
             kyc_set["updated_at"] = now_iso()
             await db.kyc.update_one({"user_id": uid}, {"$set": kyc_set})
 
-    if u["role"] == "master_distributor":
-        if body.commission_percent is not None:
-            upd["commission_percent"] = body.commission_percent
-            upd["total_commission"] = body.commission_percent
+    if body.commission_percent is not None:
+        upd["commission_percent"] = body.commission_percent
+        upd["total_commission"] = body.commission_percent
+        if u["role"] == "master_distributor":
             upd["base_commission"] = body.commission_percent
             upd["admin_pct"] = body.commission_percent
+
+    if u["role"] == "agent" and body.t1_commission_percent is not None:
+        upd["t1_commission_percent"] = body.t1_commission_percent
+        upd["t1_admin_pct"] = body.t1_commission_percent
+        upd["t1_md_pct"] = 0.0
+        upd["t1_dist_pct"] = 0.0
             
     await db.users.update_one({"id": uid}, {"$set": upd})
     return {"ok": True}
@@ -1932,9 +1956,16 @@ async def md_freeze(uid: str, request: Request, user=Depends(require_approved_md
 @api.get("/wallet")
 async def my_wallet(user=Depends(get_current_user)):
     if user["role"] == "admin":
-        return {"balance": 0}
+        return {"balance": 0, "t1_balance": 0}
     w = await get_or_create_wallet(user["id"])
     return w
+
+@api.get("/admin/t1-total")
+async def admin_t1_total(user=Depends(require_roles("admin"))):
+    async with db.pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT COALESCE(SUM(t1_balance), 0) as total FROM wallets")
+        total = float(row["total"])
+    return {"total": total}
 
 @api.get("/wallet/ledger")
 async def my_ledger(user=Depends(get_current_user)):
@@ -2081,10 +2112,10 @@ def _build_audit_query(*, action=None, from_ts=None, to_ts=None, q=None) -> dict
 
 # ---------- RECHARGE REQUESTS ----------
 @api.get("/agent/active-qr")
-async def active_qr(user=Depends(require_roles("agent", "distributor"))):
+async def active_qr(is_t1: bool = False, user=Depends(require_roles("agent", "distributor"))):
     if user["role"] == "agent" and user.get("kyc_status") != "approved":
         raise HTTPException(403, "KYC is pending or rejected. Services are locked.")
-    qr = await db.qr_codes.find_one({"active": True, "is_deleted": False}, {"_id": 0})
+    qr = await db.qr_codes.find_one({"active": True, "is_t1": is_t1, "is_deleted": False}, {"_id": 0})
     return qr or {}
 
 @api.post("/agent/recharges")
@@ -2120,7 +2151,15 @@ async def agent_create_recharge(body: RechargeIn, user=Depends(require_approved_
             "This UTR has already been submitted. If you believe this is an error, please contact the admin.",
         )
 
-    active_qr = await db.qr_codes.find_one({"active": True, "is_deleted": False}, {"_id": 0})
+    active_qr = await db.qr_codes.find_one({"active": True, "is_t1": body.is_t1, "is_deleted": False}, {"_id": 0})
+    
+    if body.is_t1:
+        comm_pct = user.get("t1_commission_percent")
+        if comm_pct is None:
+            comm_pct = 0.0
+    else:
+        comm_pct = user.get("commission_percent", 1.2)
+        
     doc = {
         "id": new_id(),
         "user_id": user["id"],
@@ -2133,7 +2172,8 @@ async def agent_create_recharge(body: RechargeIn, user=Depends(require_approved_
         "screenshot_path": body.screenshot_path,
         "older_qr": body.older_qr or False,
         "status": "pending",
-        "commission_percent": user.get("commission_percent", 1.2),
+        "commission_percent": float(comm_pct),
+        "is_t1": body.is_t1 or False,
         "commission_amount": 0,
         "credit_amount": 0,
         "note": "",
@@ -2271,43 +2311,60 @@ async def admin_approve_recharge(rid: str, body: ApprovalIn, request: Request, u
         raise HTTPException(400, "Already processed")
 
     # ---- Snapshot live commission state into the recharge record (one-way write) ----
+    is_t1_request = r.get("is_t1", False)
+    
     agent = await db.users.find_one({"id": r["user_id"]},
                                      {"_id": 0, "id": 1, "parent_id": 1, "md_id": 1,
                                       "created_by_role": 1,
                                       "base_commission": 1, "markup_commission": 1,
                                       "total_commission": 1, "commission_percent": 1,
-                                      "admin_pct": 1, "md_pct": 1, "dist_pct": 1})
+                                      "admin_pct": 1, "md_pct": 1, "dist_pct": 1,
+                                      "t1_commission_percent": 1})
 
-    # Prefer new canonical 3-way fields if present; fall back to legacy fields.
-    admin_pct = agent.get("admin_pct")
-    md_pct = agent.get("md_pct")
-    dist_pct = agent.get("dist_pct")
-    total_pct = float(agent.get("total_commission", agent.get("commission_percent", 0.0)) or 0.0)
-    if admin_pct is None or md_pct is None or dist_pct is None:
-        # Legacy record (no MD chain): admin_pct = base_commission, dist_pct = markup, md_pct = 0.
-        legacy_base = float(agent.get("base_commission") or 0.0)
-        legacy_markup = float(agent.get("markup_commission") or 0.0)
-        admin_pct = legacy_base
-        md_pct = 0.0
-        dist_pct = legacy_markup
-    admin_pct = float(admin_pct); md_pct = float(md_pct); dist_pct = float(dist_pct)
-
-    # References (nullable):
-    # - distributor_id set only when the agent was created by a distributor (existing behaviour extended).
-    # - md_id set when the agent is under an MD (via distributor or directly).
     parent_id = agent.get("parent_id")
     md_id_snapshot = agent.get("md_id")
     distributor_id = parent_id if (agent.get("created_by_role") == "distributor" and parent_id) else None
 
     gross = float(r["amount"])
-    total_commission_amount = round(gross * total_pct / 100.0, 2)
-    admin_revenue_amount    = round(gross * admin_pct / 100.0, 2)
-    md_earnings_amount      = round(gross * md_pct / 100.0, 2)
-    # Force distributor amount so admin + md + dist == total exactly (no float drift).
-    distributor_earnings_amount = round(total_commission_amount - admin_revenue_amount - md_earnings_amount, 2)
-    net_credit_amount = round(gross - total_commission_amount, 2)
 
-    new_balance = await adjust_balance(r["user_id"], net_credit_amount)
+    if is_t1_request:
+        # T+1 Recharge: commission goes entirely to admin. MD and distributor get 0.
+        total_pct = float(r.get("commission_percent") if r.get("commission_percent") is not None else (agent.get("t1_commission_percent") or 0.0))
+        admin_pct = total_pct
+        md_pct = 0.0
+        dist_pct = 0.0
+        
+        total_commission_amount = round(gross * total_pct / 100.0, 2)
+        admin_revenue_amount    = total_commission_amount
+        md_earnings_amount      = 0.0
+        distributor_earnings_amount = 0.0
+        net_credit_amount = round(gross - total_commission_amount, 2)
+        
+        new_balance = await adjust_t1_balance(r["user_id"], net_credit_amount)
+    else:
+        # Regular recharge:
+        admin_pct = agent.get("admin_pct")
+        md_pct = agent.get("md_pct")
+        dist_pct = agent.get("dist_pct")
+        total_pct = float(agent.get("total_commission", agent.get("commission_percent", 0.0)) or 0.0)
+        if admin_pct is None or md_pct is None or dist_pct is None:
+            # Legacy record (no MD chain): admin_pct = base_commission, dist_pct = markup, md_pct = 0.
+            legacy_base = float(agent.get("base_commission") or 0.0)
+            legacy_markup = float(agent.get("markup_commission") or 0.0)
+            admin_pct = legacy_base
+            md_pct = 0.0
+            dist_pct = legacy_markup
+        admin_pct = float(admin_pct); md_pct = float(md_pct); dist_pct = float(dist_pct)
+
+        total_commission_amount = round(gross * total_pct / 100.0, 2)
+        admin_revenue_amount    = round(gross * admin_pct / 100.0, 2)
+        md_earnings_amount      = round(gross * md_pct / 100.0, 2)
+        # Force distributor amount so admin + md + dist == total exactly (no float drift).
+        distributor_earnings_amount = round(total_commission_amount - admin_revenue_amount - md_earnings_amount, 2)
+        net_credit_amount = round(gross - total_commission_amount, 2)
+
+        new_balance = await adjust_balance(r["user_id"], net_credit_amount)
+
     await db.recharges.update_one({"id": rid}, {"$set": {
         "status": "approved",
         # Legacy fields kept for backward compat:
@@ -2331,8 +2388,8 @@ async def admin_approve_recharge(rid: str, body: ApprovalIn, request: Request, u
         "reviewed_at": now_iso(),
         "reviewed_by": user["id"],
     }})
-    await ledger_entry(r["user_id"], "credit", net_credit_amount, new_balance, "recharge", rid,
-                       f"Recharge approved (gross {gross}, commission {total_commission_amount})")
+    await ledger_entry(r["user_id"], "t1_pending" if is_t1_request else "credit", net_credit_amount, new_balance, "recharge", rid,
+                       f"T+1 Recharge approved (Pending settlement)" if is_t1_request else f"Recharge approved (gross {gross}, commission {total_commission_amount})")
     await write_audit(user["id"], "approve_recharge", target=rid, request=request)
     return {"ok": True}
 
@@ -2867,7 +2924,12 @@ async def admin_qr_history(user=Depends(require_roles("admin"))):
 
 @api.post("/admin/qrcodes")
 async def admin_create_qr(body: QRCodeIn, user=Depends(require_roles("admin"))):
-    await db.qr_codes.update_many({}, {"$set": {"active": False}})
+    is_t1 = False
+    entry = await db.qr_name_entries.find_one({"name": body.label, "is_deleted": False})
+    if entry:
+        is_t1 = entry.get("is_t1", False)
+
+    await db.qr_codes.update_many({"is_t1": is_t1}, {"$set": {"active": False}})
     doc = {
         "id": new_id(),
         "label": body.label,
@@ -2877,6 +2939,7 @@ async def admin_create_qr(body: QRCodeIn, user=Depends(require_roles("admin"))):
         "active": True,
         "is_deleted": False,
         "created_at": now_iso(),
+        "is_t1": is_t1,
     }
     await db.qr_codes.insert_one(dict(doc))
     await log_qr_activation(doc["id"], doc["label"], doc["mobile_number"], doc["upi_id"])
@@ -2925,7 +2988,8 @@ async def admin_activate_qr(qid: str, user=Depends(require_roles("admin"))):
     qr = await db.qr_codes.find_one({"id": qid})
     if not qr:
         raise HTTPException(404, "QR Code not found")
-    await db.qr_codes.update_many({}, {"$set": {"active": False}})
+    is_t1 = qr.get("is_t1", False)
+    await db.qr_codes.update_many({"is_t1": is_t1}, {"$set": {"active": False}})
     await db.qr_codes.update_one({"id": qid}, {"$set": {"active": True}})
     await log_qr_activation(qid, qr["label"], qr.get("mobile_number", ""), qr.get("upi_id", ""))
     return {"ok": True}
@@ -3066,6 +3130,7 @@ async def admin_create_qr_name_entry(body: QRNameEntryIn, user=Depends(require_r
         "is_deleted": False,
         "created_at": now_iso(),
         "qr_percent": body.qr_percent or 0.0,
+        "is_t1": body.is_t1 or False,
     }
     await db.qr_name_entries.insert_one(dict(doc))
     return clean(doc)
@@ -3087,6 +3152,7 @@ async def admin_update_qr_name_entry(eid: str, body: QRNameEntryIn, user=Depends
         "max_amount": body.max_amount,
         "image_path": body.image_path,
         "qr_percent": body.qr_percent or 0.0,
+        "is_t1": body.is_t1 or False,
     }})
     return {"ok": True}
 
@@ -3933,6 +3999,14 @@ async def _ensure_indexes() -> None:
         await conn.execute("ALTER TABLE users ADD CONSTRAINT users_kyc_status_check CHECK (kyc_status IN ('pending', 'approved', 'rejected', 'not_submitted'))")
         await conn.execute('ALTER TABLE kyc DROP CONSTRAINT IF EXISTS kyc_status_check')
         await conn.execute("ALTER TABLE kyc ADD CONSTRAINT kyc_status_check CHECK (status IN ('pending', 'approved', 'rejected', 'not_submitted'))")
+        await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS t1_commission_percent NUMERIC(15, 4) DEFAULT 0')
+        await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS t1_admin_pct NUMERIC(15, 4) DEFAULT 0')
+        await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS t1_md_pct NUMERIC(15, 4) DEFAULT 0')
+        await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS t1_dist_pct NUMERIC(15, 4) DEFAULT 0')
+        await conn.execute('ALTER TABLE wallets ADD COLUMN IF NOT EXISTS t1_balance NUMERIC(15, 2) DEFAULT 0')
+        await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS is_t1 BOOLEAN DEFAULT FALSE')
+        await conn.execute('ALTER TABLE qr_name_entries ADD COLUMN IF NOT EXISTS is_t1 BOOLEAN DEFAULT FALSE')
+        await conn.execute('ALTER TABLE qr_codes ADD COLUMN IF NOT EXISTS is_t1 BOOLEAN DEFAULT FALSE')
     await db.users.create_index("email", unique=True)
     # drop legacy agent_code index if it exists from older schema
     try:
@@ -4760,14 +4834,46 @@ async def _daily_backup_job():
         logger.error(f"Daily backup failed: {exc}")
 
 
+async def _daily_t1_settlement_job():
+    logger.info("Starting daily T+1 wallet settlement job...")
+    wallets = await db.wallets.find({"t1_balance": {"$gt": 0}}).to_list(10000)
+    logger.info(f"Found {len(wallets)} wallets with pending T+1 balance")
+    for w in wallets:
+        t1_bal = float(w.get("t1_balance") or 0.0)
+        if t1_bal <= 0:
+            continue
+        try:
+            user_id = w["user_id"]
+            res = await db.wallets.update_one(
+                {"user_id": user_id, "t1_balance": w["t1_balance"]},
+                {"$inc": {"balance": t1_bal, "t1_balance": -t1_bal}, "$set": {"updated_at": now_iso()}}
+            )
+            if res.modified_count > 0:
+                w_after = await db.wallets.find_one({"user_id": user_id})
+                new_main_balance = float(w_after.get("balance", 0.0))
+                await ledger_entry(
+                    user_id=user_id,
+                    kind="credit",
+                    amount=t1_bal,
+                    balance_after=new_main_balance,
+                    ref_type="t1_settlement",
+                    ref_id=w["id"],
+                    note=f"T+1 settlement credited to wallet: ₹{t1_bal:,.2f}"
+                )
+                logger.info(f"Successfully settled T+1 balance of ₹{t1_bal} for user {user_id}")
+        except Exception as e:
+            logger.error(f"Error settling T+1 balance for wallet {w.get('id')}: {str(e)}")
+
+
 def _ensure_backup_scheduler():
     global _scheduler
     if _scheduler:
         return
     _scheduler = AsyncIOScheduler(timezone="Asia/Kolkata")
     _scheduler.add_job(_daily_backup_job, CronTrigger(hour=0, minute=0), id="daily_backup", replace_existing=True)
+    _scheduler.add_job(_daily_t1_settlement_job, CronTrigger(hour=11, minute=30), id="daily_t1_settlement", replace_existing=True)
     _scheduler.start()
-    logger.info("Backup scheduler started (00:00 Asia/Kolkata daily)")
+    logger.info("Backup and T+1 settlement schedulers started (Daily settlement at 11:30 AM Asia/Kolkata)")
 
 
 async def _ensure_backup_settings():

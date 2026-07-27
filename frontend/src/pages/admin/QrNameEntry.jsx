@@ -20,6 +20,7 @@ export default function AdminQrNameEntry() {
   const [upi, setUpi] = useState("");
   const [path, setPath] = useState("");
   const [qrPercent, setQrPercent] = useState("");
+  const [isT1, setIsT1] = useState(false);
   
   const [search, setSearch] = useState("");
   const [editingId, setEditingId] = useState(null);
@@ -41,7 +42,8 @@ export default function AdminQrNameEntry() {
       min_amount: 0,
       max_amount: 0,
       image_path: path,
-      qr_percent: parseFloat(qrPercent) || 0.0
+      qr_percent: parseFloat(qrPercent) || 0.0,
+      is_t1: isT1
     };
 
     try {
@@ -66,6 +68,7 @@ export default function AdminQrNameEntry() {
     setUpi("");
     setPath("");
     setQrPercent("");
+    setIsT1(false);
     setEditingId(null);
   };
 
@@ -76,6 +79,7 @@ export default function AdminQrNameEntry() {
     setUpi(item.upi_id);
     setPath(item.image_path);
     setQrPercent(item.qr_percent !== undefined ? String(item.qr_percent) : "0");
+    setIsT1(item.is_t1 || false);
     setEditingId(item.id);
   };
 
@@ -209,6 +213,19 @@ export default function AdminQrNameEntry() {
                 />
               </div>
 
+              <div className="flex items-center gap-2 mt-2">
+                <input 
+                  id="is_t1_checkbox"
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-neutral-300 text-[#1B4332] focus:ring-[#1B4332]"
+                  checked={isT1}
+                  onChange={(e) => setIsT1(e.target.checked)}
+                />
+                <label htmlFor="is_t1_checkbox" className="text-xs font-bold text-neutral-700 select-none cursor-pointer">
+                  T+1 Settlement QR Code
+                </label>
+              </div>
+
 
 
               <div className="pt-2">
@@ -293,6 +310,11 @@ export default function AdminQrNameEntry() {
                           <span className={`text-[10px] px-2 py-0.5 font-bold rounded-full uppercase tracking-wider ${style.pill}`}>
                             {item.color || "Blue"}
                           </span>
+                          {item.is_t1 && (
+                            <span className="text-[10px] px-2 py-0.5 font-extrabold bg-blue-50 text-blue-700 border border-blue-200 rounded-full uppercase tracking-wider">
+                              T+1 Settlement
+                            </span>
+                          )}
                         </div>
                         <div className="text-xs text-neutral-600 mt-1 flex flex-col sm:flex-row sm:gap-x-4 sm:gap-y-1">
                           <span>Mobile: <strong className="text-neutral-800">{item.mobile_number}</strong></span>

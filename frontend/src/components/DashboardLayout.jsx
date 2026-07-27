@@ -22,6 +22,8 @@ export default function DashboardLayout() {
   }
   const [open, setOpen] = useState(false);
   const [balance, setBalance] = useState(null);
+  const [t1Balance, setT1Balance] = useState(null);
+  const [t1Total, setT1Total] = useState(null);
   const [headlines, setHeadlines] = useState([]);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
@@ -72,10 +74,20 @@ export default function DashboardLayout() {
 
   // Fetch wallet balance on route change / page view
   useEffect(() => {
-    if (user && user.role !== "admin" && user.kyc_status === "approved" && !user.first_login) {
+    if (!user) return;
+    if (user.role !== "admin" && user.kyc_status === "approved" && !user.first_login) {
       api.get("/wallet")
-        .then((r) => setBalance(r.data.balance))
+        .then((r) => {
+          setBalance(r.data.balance);
+          setT1Balance(r.data.t1_balance);
+        })
         .catch((e) => console.log("Failed to fetch header wallet:", e.message));
+    } else if (user.role === "admin") {
+      api.get("/admin/t1-total")
+        .then((r) => {
+          setT1Total(r.data.total);
+        })
+        .catch((e) => console.log("Failed to fetch admin T+1 total:", e.message));
     }
   }, [user, location.pathname]);
 
@@ -130,6 +142,18 @@ export default function DashboardLayout() {
               <span className="font-extrabold text-neutral-800 bg-[#E8F5E9] text-[#00966B] px-3.5 py-1 rounded-full text-xs flex items-center gap-1.5 border border-[#C8E6C9] shadow-sm transition-all" data-testid="header-balance">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#00966B] animate-pulse" />
                 Wallet: {fmtMoney(balance)}
+              </span>
+            )}
+            {t1Balance !== null && t1Balance > 0 && (
+              <span className="font-extrabold text-neutral-800 bg-[#E3F2FD] text-[#1E88E5] px-3.5 py-1 rounded-full text-xs flex items-center gap-1.5 border border-[#BBDEFB] shadow-sm transition-all" data-testid="header-t1-balance">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#1E88E5] animate-pulse" />
+                T+1 Wallet: {fmtMoney(t1Balance)}
+              </span>
+            )}
+            {user.role === "admin" && t1Total !== null && t1Total > 0 && (
+              <span className="font-extrabold text-neutral-800 bg-[#FFF3E0] text-[#E65100] px-3.5 py-1 rounded-full text-xs flex items-center gap-1.5 border border-[#FFE0B2] shadow-sm transition-all" data-testid="admin-header-t1-total">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#E65100] animate-pulse" />
+                T+1 Total: {fmtMoney(t1Total)}
               </span>
             )}
             <span className="mfp-pill bg-[#E8E5D7] text-[#1B4332] capitalize">{roleLabel(user.role)}</span>
