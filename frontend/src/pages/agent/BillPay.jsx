@@ -90,6 +90,106 @@ export default function AgentBillPay() {
       .finally(() => setLoadingHistory(false));
   };
 
+  const exportHistoryExcel = () => {
+    const csvRows = [
+      ["Customer Name", "Bank / Operator", "Card Last 4", "Bill Amount", "Service Charge", "Total Deducted", "Status", "Date"]
+    ];
+    historyItems.forEach((item) => {
+      csvRows.push([
+        `"${item.customer_name || ""}"`,
+        `"${item.operator || ""}"`,
+        `"${item.card_last4 || ""}"`,
+        item.bill_amount ?? item.amount ?? 0,
+        item.service_charge ?? 0,
+        item.total_amount ?? item.amount ?? 0,
+        `"${item.status}"`,
+        `"${fmtDate(item.created_at)}"`
+      ].join(","));
+    });
+
+    const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Bill_Transaction_History_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Excel/CSV downloaded");
+  };
+
+  const exportHistoryPdf = () => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return toast.error("Pop-up blocker is preventing the PDF export. Please allow pop-ups.");
+
+    const rowsHtml = historyItems.map(item => {
+      return `
+        <tr>
+          <td>${item.customer_name || "—"}</td>
+          <td>${item.operator || "—"}</td>
+          <td>${item.card_last4 ? `XXXX ${item.card_last4}` : "—"}</td>
+          <td>${fmtMoney(item.bill_amount ?? item.amount ?? 0)}</td>
+          <td>${fmtMoney(item.service_charge ?? 0)}</td>
+          <td>${fmtMoney(item.total_amount ?? item.amount ?? 0)}</td>
+          <td class="status-${item.status}">${item.status.toUpperCase()}</td>
+          <td>${fmtDate(item.created_at)}</td>
+        </tr>
+      `;
+    }).join("");
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Bill Transaction History Report</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 20px; color: #333; }
+            h1 { color: #1b4332; font-size: 20px; margin-bottom: 2px; }
+            p { color: #666; font-size: 12px; margin-bottom: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #1b4332; color: white; font-weight: bold; }
+            tr:nth-child(even) { background-color: #f9f9f9; }
+            .status-success { color: #2d6a4f; font-weight: bold; }
+            .status-pending { color: #b7791f; font-weight: bold; }
+            .status-reversed { color: #c53030; font-weight: bold; }
+            @media print {
+              body { padding: 0; }
+              button { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <h1>MAK FIN PAY</h1>
+          <p>Bill Transaction History Report · Generated on ${new Date().toLocaleDateString()}</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Customer</th>
+                <th>Bank</th>
+                <th>Card</th>
+                <th>Bill Amount</th>
+                <th>Service Charge</th>
+                <th>Total Deducted</th>
+                <th>Status</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   useEffect(() => {
     setPage(1);
   }, [statusFilter, q, amtQuery, startDate, endDate]);
@@ -372,13 +472,29 @@ export default function AgentBillPay() {
 
       {/* Bill Transaction History Section */}
       <div className="mt-12 space-y-6">
-        <div className="flex items-center gap-3 border-b border-black/5 pb-4">
-          <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
-            <History className="h-5 w-5" />
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-black/5 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+              <History className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-neutral-800">Bill Transaction History</h3>
+              <p className="text-xs text-neutral-400">All bill payments performed by you. Pending payments are under admin review.</p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-base font-semibold text-neutral-800">Bill Transaction History</h3>
-            <p className="text-xs text-neutral-400">All bill payments performed by you. Pending payments are under admin review.</p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={exportHistoryPdf}
+              className="py-1.5 px-3 flex items-center gap-1.5 text-xs font-semibold rounded-xl border border-black/10 hover:bg-neutral-50 transition-all text-neutral-700 bg-white"
+            >
+              <FileDown className="h-3.5 w-3.5" /> Export PDF
+            </button>
+            <button
+              onClick={exportHistoryExcel}
+              className="py-1.5 px-3 flex items-center gap-1.5 text-xs font-semibold rounded-xl border border-black/10 hover:bg-neutral-50 transition-all text-neutral-700 bg-white"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" /> Export Excel
+            </button>
           </div>
         </div>
 
