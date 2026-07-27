@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { PageHeader, DataTable, StatusBadge, EmptyState } from "@/components/Shared";
 import FileUpload from "@/components/FileUpload";
 import { toast } from "sonner";
-import { Loader2, Coins, KeyRound, CreditCard, QrCode, Info, Sparkles, CheckCircle2, History, Check, ShieldAlert, FileDown, FileSpreadsheet } from "lucide-react";
+import { Loader2, Coins, KeyRound, CreditCard, QrCode, Info, Sparkles, CheckCircle2, History, Check, ShieldAlert, FileDown, FileSpreadsheet, Clock } from "lucide-react";
 
 export default function AgentRecharge() {
   const { user } = useAuth();
@@ -45,6 +45,40 @@ export default function AgentRecharge() {
     const interval = setInterval(fetchConfig, 4000); // Polling every 4 seconds for instant real-time sync!
     return () => clearInterval(interval);
   }, []);
+
+  const stats = useMemo(() => {
+    let approvedAmt = 0;
+    let approvedCount = 0;
+    let rejectedAmt = 0;
+    let rejectedCount = 0;
+    let pendingAmt = 0;
+    let pendingCount = 0;
+    let commissionAmt = 0;
+
+    items.forEach((item) => {
+      if (item.status === "approved") {
+        approvedAmt += item.amount || 0;
+        approvedCount++;
+        commissionAmt += item.commission_amount || 0;
+      } else if (item.status === "rejected") {
+        rejectedAmt += item.amount || 0;
+        rejectedCount++;
+      } else if (item.status === "pending") {
+        pendingAmt += item.amount || 0;
+        pendingCount++;
+      }
+    });
+
+    return {
+      approvedAmt,
+      approvedCount,
+      rejectedAmt,
+      rejectedCount,
+      pendingAmt,
+      pendingCount,
+      commissionAmt
+    };
+  }, [items]);
 
   const exportExcel = () => {
     const csvRows = [
@@ -498,6 +532,57 @@ export default function AgentRecharge() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Metrics Statistics Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mt-8">
+        {/* Approved */}
+        <div className="mfp-card p-5 border-l-4 border-emerald-500 flex items-center justify-between shadow-sm bg-white">
+          <div className="space-y-1">
+            <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Approved Requests</div>
+            <div className="text-xl font-black text-neutral-800">{fmtMoney(stats.approvedAmt)}</div>
+            <div className="text-[11px] font-medium text-emerald-600">{stats.approvedCount} approved</div>
+          </div>
+          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
+            <Check className="h-5 w-5" />
+          </div>
+        </div>
+
+        {/* Pending */}
+        <div className="mfp-card p-5 border-l-4 border-amber-500 flex items-center justify-between shadow-sm bg-white">
+          <div className="space-y-1">
+            <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Pending Requests</div>
+            <div className="text-xl font-black text-neutral-800">{fmtMoney(stats.pendingAmt)}</div>
+            <div className="text-[11px] font-medium text-amber-600">{stats.pendingCount} pending</div>
+          </div>
+          <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl">
+            <Clock className="h-5 w-5" />
+          </div>
+        </div>
+
+        {/* Commission Charge */}
+        <div className="mfp-card p-5 border-l-4 border-indigo-500 flex items-center justify-between shadow-sm bg-white">
+          <div className="space-y-1">
+            <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Commission Charge</div>
+            <div className="text-xl font-black text-neutral-800">{fmtMoney(stats.commissionAmt)}</div>
+            <div className="text-[11px] font-medium text-indigo-600">Total charge</div>
+          </div>
+          <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl">
+            <Coins className="h-5 w-5" />
+          </div>
+        </div>
+
+        {/* Rejected */}
+        <div className="mfp-card p-5 border-l-4 border-rose-500 flex items-center justify-between shadow-sm bg-white">
+          <div className="space-y-1">
+            <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Rejected Requests</div>
+            <div className="text-xl font-black text-neutral-800">{fmtMoney(stats.rejectedAmt)}</div>
+            <div className="text-[11px] font-medium text-rose-600">{stats.rejectedCount} rejected</div>
+          </div>
+          <div className="p-3 bg-rose-50 text-rose-600 rounded-2xl">
+            <X className="h-5 w-5" />
+          </div>
+        </div>
       </div>
 
       {/* Recharge History Table Card */}
