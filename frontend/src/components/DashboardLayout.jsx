@@ -24,6 +24,7 @@ export default function DashboardLayout() {
   const [balance, setBalance] = useState(null);
   const [t1Balance, setT1Balance] = useState(null);
   const [t1Total, setT1Total] = useState(null);
+  const [bbpsBalance, setBbpsBalance] = useState(null);
   const [headlines, setHeadlines] = useState([]);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
@@ -88,6 +89,12 @@ export default function DashboardLayout() {
           setT1Total(r.data.total);
         })
         .catch((e) => console.log("Failed to fetch admin T+1 total:", e.message));
+
+      api.get("/admin/bbps-balance")
+        .then((r) => {
+          setBbpsBalance(r.data.balance);
+        })
+        .catch((e) => console.log("Failed to fetch admin BBPS balance:", e.message));
     }
   }, [user, location.pathname]);
 
@@ -154,6 +161,12 @@ export default function DashboardLayout() {
               <span className="font-extrabold text-neutral-800 bg-[#FFF3E0] text-[#E65100] px-3.5 py-1 rounded-full text-xs flex items-center gap-1.5 border border-[#FFE0B2] shadow-sm transition-all" data-testid="admin-header-t1-total">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#E65100] animate-pulse" />
                 T+1 Total: {fmtMoney(t1Total)}
+              </span>
+            )}
+            {user.role === "admin" && bbpsBalance !== null && (
+              <span className="font-extrabold text-neutral-800 bg-[#E8F5E9] text-[#00966B] px-3.5 py-1 rounded-full text-xs flex items-center gap-1.5 border border-[#C8E6C9] shadow-sm transition-all" data-testid="admin-header-bbps-balance">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#00966B] animate-pulse" />
+                Live BBPS Wallet: {fmtMoney(bbpsBalance)}
               </span>
             )}
             <span className="mfp-pill bg-[#E8E5D7] text-[#1B4332] capitalize">{roleLabel(user.role)}</span>

@@ -1987,6 +1987,11 @@ async def admin_t1_total(user=Depends(require_roles("admin"))):
         total = float(row["total"])
     return {"total": total}
 
+@api.get("/admin/bbps-balance")
+async def admin_bbps_balance(user=Depends(require_roles("admin"))):
+    res = await call_irise_api("GET", "balance")
+    return res
+
 @api.get("/wallet/ledger")
 async def my_ledger(user=Depends(get_current_user)):
     items = await db.ledger.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(500)
