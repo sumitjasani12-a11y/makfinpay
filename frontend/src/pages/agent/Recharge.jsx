@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { PageHeader, DataTable, StatusBadge, EmptyState } from "@/components/Shared";
 import FileUpload from "@/components/FileUpload";
 import { toast } from "sonner";
-import { Loader2, Coins, KeyRound, CreditCard, QrCode, Info, Sparkles, CheckCircle2, History, Check, ShieldAlert } from "lucide-react";
+import { Loader2, Coins, KeyRound, CreditCard, QrCode, Info, Sparkles, CheckCircle2, History, Check, ShieldAlert, FileDown, FileSpreadsheet } from "lucide-react";
 
 export default function AgentRecharge() {
   const { user } = useAuth();
@@ -45,6 +45,108 @@ export default function AgentRecharge() {
     const interval = setInterval(fetchConfig, 4000); // Polling every 4 seconds for instant real-time sync!
     return () => clearInterval(interval);
   }, []);
+
+  const exportExcel = () => {
+    const csvRows = [
+      ["Amount", "Commission Charge", "Net Credit", "UTR", "Card / Acc Last 4", "Status", "Rejection Reason", "Created At"]
+    ];
+    items.forEach((item) => {
+      const commCharge = item.status === "approved" ? item.commission_amount : (item.amount * item.commission_percent / 100);
+      const netCredit = item.status === "approved" ? item.credit_amount : 0;
+      csvRows.push([
+        item.amount || 0,
+        commCharge || 0,
+        netCredit || 0,
+        `"${item.utr || ""}"`,
+        `"${item.card_last4 ? `XXXX ${item.card_last4}` : "—"}"`,
+        `"${item.status}"`,
+        `"${item.note || ""}"`,
+        `"${fmtDate(item.created_at)}"`
+      ].join(","));
+    });
+    
+    const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Recharge_History_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Excel/CSV downloaded");
+  };
+
+  const exportPdf = () => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return toast.error("Pop-up blocker is preventing the PDF export. Please allow pop-ups.");
+
+    const rowsHtml = items.map(item => {
+      const commCharge = item.status === "approved" ? item.commission_amount : (item.amount * item.commission_percent / 100);
+      const netCredit = item.status === "approved" ? item.credit_amount : 0;
+      return `
+        <tr>
+          <td>${fmtMoney(item.amount)}</td>
+          <td>${fmtMoney(commCharge)}</td>
+          <td>${item.status === "approved" ? fmtMoney(netCredit) : "—"}</td>
+          <td>${item.utr || "—"}</td>
+          <td>${item.card_last4 ? `XXXX ${item.card_last4}` : "—"}</td>
+          <td class="status-${item.status}">${item.status.toUpperCase()}</td>
+          <td>${fmtDate(item.created_at)}</td>
+        </tr>
+      `;
+    }).join("");
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Recharge History Report</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 20px; color: #333; }
+            h1 { color: #1b4332; font-size: 20px; margin-bottom: 2px; }
+            p { color: #666; font-size: 12px; margin-bottom: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #1b4332; color: white; font-weight: bold; }
+            tr:nth-child(even) { background-color: #f9f9f9; }
+            .status-approved { color: #2d6a4f; font-weight: bold; }
+            .status-pending { color: #b7791f; font-weight: bold; }
+            .status-rejected { color: #c53030; font-weight: bold; }
+            @media print {
+              body { padding: 0; }
+              button { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <h1>MAK FIN PAY</h1>
+          <p>Recharge History Report · Generated on ${new Date().toLocaleDateString()}</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Amount</th>
+                <th>Commission Charge</th>
+                <th>Net Credit</th>
+                <th>UTR</th>
+                <th>Card / Acc</th>
+                <th>Status</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
 
   const paginatedItems = useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -400,13 +502,29 @@ export default function AgentRecharge() {
 
       {/* Recharge History Table Card */}
       <div className="mfp-card p-6 mt-8">
-        <div className="flex items-center gap-3 border-b border-black/5 pb-4 mb-4">
-          <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
-            <History className="h-5 w-5" />
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-black/5 pb-4 mb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+              <History className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-neutral-800">Recharge History</h3>
+              <p className="text-xs text-neutral-400">Track and verify your wallet recharge request logs</p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-base font-semibold text-neutral-800">Recharge History</h3>
-            <p className="text-xs text-neutral-400">Track and verify your wallet recharge request logs</p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={exportPdf}
+              className="py-1.5 px-3 flex items-center gap-1.5 text-xs font-semibold rounded-xl border border-black/10 hover:bg-neutral-50 transition-all text-neutral-700 bg-white"
+            >
+              <FileDown className="h-3.5 w-3.5" /> Export PDF
+            </button>
+            <button
+              onClick={exportExcel}
+              className="py-1.5 px-3 flex items-center gap-1.5 text-xs font-semibold rounded-xl border border-black/10 hover:bg-neutral-50 transition-all text-neutral-700 bg-white"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" /> Export Excel
+            </button>
           </div>
         </div>
 
