@@ -233,6 +233,8 @@ class UpdateUserIn(BaseModel):
     password: Optional[str] = None
     phone: str
     address: str
+    firm_name: Optional[str] = None
+    firm_address: Optional[str] = None
     aadhaar_path: Optional[str] = None
     pan_path: Optional[str] = None
     commission_percent: Optional[float] = None
@@ -1653,6 +1655,14 @@ async def admin_list_users(
         ]):
             md_agent_counts[row["_id"]] = row["n"]
 
+    dist_agent_counts: dict = {}
+    if distributor_ids:
+        async for row in db.users.aggregate([
+            {"$match": {"parent_id": {"$in": distributor_ids}, "role": "agent", "is_deleted": False}},
+            {"$group": {"_id": "$parent_id", "n": {"$sum": 1}}},
+        ]):
+            dist_agent_counts[row["_id"]] = row["n"]
+
     for it in items:
         it["wallet_balance"] = wallets_map.get(it["id"], 0)
         if it.get("role") == "agent":
@@ -1667,6 +1677,7 @@ async def admin_list_users(
             it["earnings"] = earnings_map.get(it["id"], 0.0)
             # "Created By" — MD name if md_id set, else Admin.
             it["creator_name"] = parent_map.get(it.get("md_id"), "Admin") if it.get("md_id") else "Admin"
+            it["agents_count"] = dist_agent_counts.get(it["id"], 0)
         if it.get("role") == "master_distributor":
             it["earnings"] = md_earnings_map.get(it["id"], 0.0)
             it["distributors_count"] = md_dist_counts.get(it["id"], 0)
@@ -1762,6 +1773,8 @@ async def admin_update_user(uid: str, body: UpdateUserIn, user=Depends(require_r
         "email": email,
         "phone": body.phone,
         "address": body.address,
+        "firm_name": body.firm_name,
+        "firm_address": body.firm_address,
     }
     
     if body.password:

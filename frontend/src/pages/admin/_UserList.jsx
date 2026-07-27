@@ -648,12 +648,17 @@ export function AdminUserList({ role }) {
                       </div>
                     ) : (
                       <div className="grid grid-cols-3 gap-3 my-5">
-                        <div className="col-span-2 bg-[#F8F7F2] rounded-2xl p-2.5 text-center border border-black/[0.02] flex flex-col items-center justify-center hover:bg-white hover:shadow-sm hover:border-black/5 transition-all min-w-0">
+                        <div className="bg-[#F8F7F2] rounded-2xl p-2.5 text-center border border-black/[0.02] flex flex-col items-center justify-center hover:bg-white hover:shadow-sm hover:border-black/5 transition-all min-w-0">
                           <Building2 className="h-4 w-4 text-blue-600 mb-1" />
                           <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wide">Created By</span>
                           <span className="text-xs font-extrabold text-neutral-800 mt-0.5 truncate max-w-full px-1" title={r.creator_name}>
                             {r.creator_name === "Admin" ? <span className="italic text-neutral-500">Admin</span> : r.creator_name || "—"}
                           </span>
+                        </div>
+                        <div className="bg-[#F8F7F2] rounded-2xl p-2.5 text-center border border-black/[0.02] flex flex-col items-center justify-center hover:bg-white hover:shadow-sm hover:border-black/5 transition-all min-w-0">
+                          <UserCheck className="h-4 w-4 text-indigo-600 mb-1" />
+                          <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wide">Agents</span>
+                          <span className="text-xs font-black text-neutral-800 mt-0.5">{r.agents_count ?? 0}</span>
                         </div>
                         <div className="bg-[#F8F7F2] rounded-2xl p-2.5 text-center border border-black/[0.02] flex flex-col items-center justify-center hover:bg-white hover:shadow-sm hover:border-black/5 transition-all min-w-0">
                           <IndianRupee className="h-4 w-4 text-emerald-600 mb-1" />
