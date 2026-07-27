@@ -56,7 +56,7 @@ export function SidebarContent({ user, items, onLogout }) {
         </div>
       </Link>
       
-      <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto mfp-scrollbar">
+      <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto no-scrollbar">
         {items.map((it) => (
           <NavLink
             key={it.to}
