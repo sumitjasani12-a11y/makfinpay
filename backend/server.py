@@ -317,6 +317,19 @@ class QRNameEntryIn(BaseModel):
 class QRReorderIn(BaseModel):
     ids: List[str]
 
+class RejectionCategoryIn(BaseModel):
+    name: str
+    show_bill: bool
+    show_qr: bool
+    show_kyc: bool
+
+class RejectionReasonIn(BaseModel):
+    category_id: str
+    reason_text: str
+
+class RejectionReasonUpdateIn(BaseModel):
+    reason_text: str
+
 class ServiceChargeSlabIn(BaseModel):
     min_amount: float
     max_amount: float
@@ -3283,6 +3296,27 @@ async def reset_demo_data(body: DemoResetIn, request: Request, user=Depends(requ
 async def _ensure_indexes() -> None:
     async with db.pool.acquire() as conn:
         await conn.execute('''
+            CREATE TABLE IF NOT EXISTS rejection_categories (
+                id VARCHAR(255) PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                show_bill BOOLEAN DEFAULT FALSE,
+                show_qr BOOLEAN DEFAULT FALSE,
+                show_kyc BOOLEAN DEFAULT FALSE,
+                is_deleted BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMPTZ
+            )
+        ''')
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS rejection_reasons (
+                id VARCHAR(255) PRIMARY KEY,
+                category_id VARCHAR(255) NOT NULL,
+                reason_text TEXT NOT NULL,
+                active BOOLEAN DEFAULT TRUE,
+                is_deleted BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMPTZ
+            )
+        ''')
+        await conn.execute('''
             CREATE TABLE IF NOT EXISTS qr_name_entries (
                 id VARCHAR(255) PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
@@ -4546,6 +4580,105 @@ async def admin_delete_headline(hid: str, request: Request, user=Depends(require
 async def get_active_headlines(user=Depends(get_current_user)):
     items = await db.headlines.find({"is_deleted": False, "active": True}).sort([("position", 1), ("created_at", -1)]).to_list(100)
     return [{"message": i["message"], "type": i.get("type", "text")} for i in items if i.get("message")]
+
+# ---------- REJECTION CATEGORIES & REASONS ----------
+@api.get("/admin/rejection-categories")
+async def admin_list_rejection_categories(user=Depends(require_roles("admin"))):
+    categories = await db.rejection_categories.find({"is_deleted": False}).sort("created_at", -1).to_list(100)
+    for cat in categories:
+        reasons = await db.rejection_reasons.find({"category_id": cat["id"], "is_deleted": False}).sort("created_at", 1).to_list(100)
+        cat["reasons"] = reasons
+    return categories
+
+@api.post("/admin/rejection-categories")
+async def admin_create_rejection_category(body: RejectionCategoryIn, user=Depends(require_roles("admin"))):
+    doc = {
+        "id": new_id(),
+        "name": body.name.strip(),
+        "show_bill": body.show_bill,
+        "show_qr": body.show_qr,
+        "show_kyc": body.show_kyc,
+        "is_deleted": False,
+        "created_at": now_iso()
+    }
+    await db.rejection_categories.insert_one(dict(doc))
+    doc["reasons"] = []
+    return clean(doc)
+
+@api.put("/admin/rejection-categories/{cid}")
+async def admin_update_rejection_category(cid: str, body: RejectionCategoryIn, user=Depends(require_roles("admin"))):
+    await db.rejection_categories.update_one({"id": cid}, {"$set": {
+        "name": body.name.strip(),
+        "show_bill": body.show_bill,
+        "show_qr": body.show_qr,
+        "show_kyc": body.show_kyc
+    }})
+    return {"ok": True}
+
+@api.delete("/admin/rejection-categories/{cid}")
+async def admin_delete_rejection_category(cid: str, user=Depends(require_roles("admin"))):
+    await db.rejection_categories.update_one({"id": cid}, {"$set": {"is_deleted": True}})
+    await db.rejection_reasons.update_many({"category_id": cid}, {"$set": {"is_deleted": True}})
+    return {"ok": True}
+
+@api.post("/admin/rejection-reasons")
+async def admin_create_rejection_reason(body: RejectionReasonIn, user=Depends(require_roles("admin"))):
+    doc = {
+        "id": new_id(),
+        "category_id": body.category_id,
+        "reason_text": body.reason_text.strip(),
+        "active": True,
+        "is_deleted": False,
+        "created_at": now_iso()
+    }
+    await db.rejection_reasons.insert_one(dict(doc))
+    return clean(doc)
+
+@api.put("/admin/rejection-reasons/{rid}")
+async def admin_update_rejection_reason(rid: str, body: RejectionReasonUpdateIn, user=Depends(require_roles("admin"))):
+    await db.rejection_reasons.update_one({"id": rid}, {"$set": {
+        "reason_text": body.reason_text.strip()
+    }})
+    return {"ok": True}
+
+@api.put("/admin/rejection-reasons/{rid}/toggle")
+async def admin_toggle_rejection_reason(rid: str, user=Depends(require_roles("admin"))):
+    r = await db.rejection_reasons.find_one({"id": rid})
+    if not r:
+        raise HTTPException(404, "Reason not found")
+    new_active = not r.get("active", True)
+    await db.rejection_reasons.update_one({"id": rid}, {"$set": {"active": new_active}})
+    return {"active": new_active}
+
+@api.delete("/admin/rejection-reasons/{rid}")
+async def admin_delete_rejection_reason(rid: str, user=Depends(require_roles("admin"))):
+    await db.rejection_reasons.update_one({"id": rid}, {"$set": {"is_deleted": True}})
+    return {"ok": True}
+
+@api.get("/rejection-reasons/active")
+async def get_active_rejection_reasons(target: str, user=Depends(get_current_user)):
+    query = {"is_deleted": False}
+    if target == "bill":
+        query["show_bill"] = True
+    elif target == "qr":
+        query["show_qr"] = True
+    elif target == "kyc":
+        query["show_kyc"] = True
+    else:
+        return []
+        
+    categories = await db.rejection_categories.find(query).to_list(100)
+    cat_ids = [c["id"] for c in categories]
+    if not cat_ids:
+        return []
+        
+    reasons = await db.rejection_reasons.find({
+        "category_id": {"$in": cat_ids},
+        "active": True,
+        "is_deleted": False
+    }).sort("created_at", 1).to_list(500)
+    
+    return [r["reason_text"] for r in reasons]
 
 
 app.include_router(api)

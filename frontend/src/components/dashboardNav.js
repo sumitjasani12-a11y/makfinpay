@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Users, UserCog, ArrowDownToLine, ArrowUpFromLine, Wallet,
   QrCode, Percent, FileCheck2, ScrollText, CreditCard, History,
   FilePlus2, KeyRound, DatabaseBackup, Crown, FileText, Layers, Landmark,
-  Settings, FolderOpen,
+  Settings, FolderOpen, ClipboardList,
 } from "lucide-react";
 
 /** Static navigation map per role — referenced by DashboardLayout. */
@@ -20,12 +20,13 @@ export const NAV = {
     { to: "/admin/qr-gallery", label: "QR Gallery", icon: FolderOpen },
     { to: "/admin/headlines", label: "Add Announcement", icon: ScrollText },
     { to: "/admin/commission", label: "Commission", icon: Percent },
-    { to: "/admin/service-slabs", label: "Service Slabs", icon: Layers },
-    { to: "/admin/banks", label: "Bank Entry", icon: Landmark },
-    { to: "/admin/kyc", label: "KYC Review", icon: FileCheck2 },
-    { to: "/admin/audit", label: "Audit Logs", icon: ScrollText },
-    { to: "/admin/backups", label: "Backup & Restore", icon: DatabaseBackup },
-    { to: "/admin/change-password", label: "Change Password", icon: KeyRound },
+    {to: "/admin/service-slabs", label: "Service Slabs", icon: Layers},
+    {to: "/admin/banks", label: "Bank Entry", icon: Landmark},
+    {to: "/admin/kyc", label: "KYC Review", icon: FileCheck2},
+    {to: "/admin/reasons", label: "Reason Entry", icon: ClipboardList},
+    {to: "/admin/audit", label: "Audit Logs", icon: ScrollText},
+    {to: "/admin/backups", label: "Backup & Restore", icon: DatabaseBackup},
+    {to: "/admin/change-password", label: "Change Password", icon: KeyRound},
     { to: "/admin/settings", label: "Settings", icon: Settings },
   ],
   master_distributor: [

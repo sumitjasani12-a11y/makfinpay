@@ -7,6 +7,14 @@ import { Check, X, Eye, AlertCircle, Search, RotateCcw } from "lucide-react";
 function RejectModal({ onClose, onConfirm }) {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
+  const [predefined, setPredefined] = useState([]);
+
+  useEffect(() => {
+    api.get("/rejection-reasons/active?target=kyc")
+      .then((res) => setPredefined(res.data || []))
+      .catch((e) => console.log("Failed to fetch kyc rejection reasons:", e));
+  }, []);
+
   const confirm = async () => {
     if (!reason.trim()) return toast.error("Please provide a rejection reason");
     setBusy(true);
@@ -14,12 +22,29 @@ function RejectModal({ onClose, onConfirm }) {
   };
   return (
     <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4" onClick={onClose}>
-      <div className="bg-[#FDFCF8] rounded-2xl max-w-md w-full border border-black/5 shadow-2xl" onClick={(e) => e.stopPropagation()} data-testid="kyc-reject-modal">
+      <div className="bg-[#FDFCF8] rounded-2xl max-w-md w-full border border-black/5 shadow-2xl animate-scaleUp" onClick={(e) => e.stopPropagation()} data-testid="kyc-reject-modal">
         <div className="px-5 py-4 border-b border-black/5 flex items-center justify-between">
           <div className="text-base font-semibold">Reject KYC Application</div>
           <button onClick={onClose} className="mfp-btn-ghost p-2"><X className="h-4 w-4" /></button>
         </div>
         <div className="p-5 space-y-4">
+          {predefined.length > 0 && (
+            <div>
+              <label className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider block mb-1">
+                Quick Select Reason
+              </label>
+              <select
+                className="w-full bg-[#F8F9FA] border border-black/5 rounded-xl px-3 py-2.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-[#4F46E5] transition-all"
+                onChange={(e) => setReason(e.target.value)}
+                value={reason}
+              >
+                <option value="">-- Choose Preconfigured Reason --</option>
+                {predefined.map((r, idx) => (
+                  <option key={idx} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <label className="mfp-label">Reason for Rejection</label>
             <textarea

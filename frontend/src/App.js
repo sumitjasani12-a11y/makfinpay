@@ -25,6 +25,7 @@ import AdminHeadlines from "@/pages/admin/Headlines";
 import AdminServiceSlabs from "@/pages/admin/ServiceSlabs";
 import AdminBanks from "@/pages/admin/Banks";
 import AdminSettings from "@/pages/admin/Settings";
+import AdminReasons from "@/pages/admin/Reasons";
 
 
 import DistOverview from "@/pages/distributor/Overview";
@@ -94,6 +95,7 @@ export default function App() {
             <Route path="service-slabs" element={<AdminServiceSlabs />} />
             <Route path="banks" element={<AdminBanks />} />
             <Route path="kyc" element={<AdminKyc />} />
+            <Route path="reasons" element={<AdminReasons />} />
             <Route path="audit" element={<AdminAudit />} />
             <Route path="backups" element={<AdminBackups />} />
             <Route path="change-password" element={<ChangePassword />} />
