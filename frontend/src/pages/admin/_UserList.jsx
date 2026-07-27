@@ -514,95 +514,234 @@ export function AdminUserList({ role }) {
         )}
       </div>
 
-      <DataTable
-        columns={[
-          { key: "full_name", label: "Name" },
-          { key: "email", label: "Email" },
-          { key: "phone", label: "Phone" },
-          // Agents: show direct parent (Distributor / MD / Admin).
-          // Distributors: show Created By (MD / Admin).
-          ...(role === "agent" ? [{
-            key: "creator_name",
-            label: "Distributor",
-            render: (r) => r.creator_name === "Admin"
-              ? <span className="italic text-neutral-500">Admin</span>
-              : <span className="font-medium">{r.creator_name || "—"}</span>,
-          }] : []),
-          ...(isDistributor ? [{
-            key: "creator_name",
-            label: "Created By",
-            render: (r) => r.creator_name === "Admin"
-              ? <span className="italic text-neutral-500">Admin</span>
-              : <span className="font-medium">{r.creator_name || "—"}</span>,
-          }] : []),
-          ...(isMd ? [
-            { key: "distributors_count", label: "Distributors", render: (r) => r.distributors_count ?? 0 },
-            { key: "agents_count", label: "Agents", render: (r) => r.agents_count ?? 0 },
-            { key: "earnings", label: "Earnings", render: (r) => fmtMoney(r.earnings ?? 0) },
-          ] : []),
-          ...(isDistributor ? [{ key: "earnings", label: "Earnings", render: (r) => fmtMoney(r.earnings ?? 0) }] : []),
-          ...(role === "agent" ? [{ key: "wallet_balance", label: "Wallet", render: (r) => fmtMoney(r.wallet_balance) }] : []),
-          { key: "commission_percent", label: "Comm %", render: (r) => `${r.commission_percent ?? "—"}%` },
-          { key: "status", label: "Status", render: (r) => {
-            const resolved = r.frozen ? "rejected" : (!r.kyc_status || r.kyc_status === "approved" ? "approved" : (r.kyc_status === "rejected" ? "rejected" : "pending"));
-            return <StatusBadge status={resolved} />;
-          } },
-          { key: "created_at", label: "Created", render: (r) => fmtDate(r.created_at) },
-          { key: "actions", label: "Action", render: (r) => (
-            <div className="flex items-center gap-2">
-              {(isDistributor || isMd) && (
-                <button
-                  className="p-1.5 border border-neutral-200 text-neutral-600 hover:bg-neutral-50 rounded-lg transition-colors inline-flex items-center justify-center"
-                  onClick={() => setDetail(r)}
-                  title="View Details"
-                  data-testid={`view-${r.id}`}
+      {!(role === "master_distributor" || role === "distributor") ? (
+        <DataTable
+          columns={[
+            { key: "full_name", label: "Name" },
+            { key: "email", label: "Email" },
+            { key: "phone", label: "Phone" },
+            // Agents: show direct parent (Distributor / MD / Admin).
+            ...(role === "agent" ? [{
+              key: "creator_name",
+              label: "Distributor",
+              render: (r) => r.creator_name === "Admin"
+                ? <span className="italic text-neutral-500">Admin</span>
+                : <span className="font-medium">{r.creator_name || "—"}</span>,
+            }] : []),
+            ...(role === "agent" ? [{ key: "wallet_balance", label: "Wallet", render: (r) => fmtMoney(r.wallet_balance) }] : []),
+            { key: "commission_percent", label: "Comm %", render: (r) => `${r.commission_percent ?? "—"}%` },
+            { key: "status", label: "Status", render: (r) => {
+              const resolved = r.frozen ? "rejected" : (!r.kyc_status || r.kyc_status === "approved" ? "approved" : (r.kyc_status === "rejected" ? "rejected" : "pending"));
+              return <StatusBadge status={resolved} />;
+            } },
+            { key: "created_at", label: "Created", render: (r) => fmtDate(r.created_at) },
+            { key: "actions", label: "Action", render: (r) => (
+              <div className="flex items-center gap-2">
+                <button 
+                  className="p-1.5 border border-neutral-200 text-neutral-600 hover:bg-neutral-50 rounded-lg transition-colors inline-flex items-center justify-center font-semibold" 
+                  onClick={() => { setShow(false); setEditingUser(r); }} 
+                  title="Edit"
+                  data-testid={`edit-${r.id}`}
                 >
-                  <Eye className="h-4 w-4" />
+                  <Pencil className="h-4 w-4" />
                 </button>
-              )}
-              <button 
-                className="p-1.5 border border-neutral-200 text-neutral-600 hover:bg-neutral-50 rounded-lg transition-colors inline-flex items-center justify-center font-semibold" 
-                onClick={() => { setShow(false); setEditingUser(r); }} 
-                title="Edit"
-                data-testid={`edit-${r.id}`}
-              >
-                <Pencil className="h-4 w-4" />
-              </button>
-              <button 
-                className="p-1.5 border border-rose-200 text-rose-700 hover:bg-rose-50 rounded-lg transition-colors inline-flex items-center justify-center" 
-                onClick={() => delUser(r.id, r.full_name)} 
-                title="Delete"
-                data-testid={`delete-${r.id}`}
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => toggle(r.id)}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  r.frozen ? "bg-neutral-200" : "bg-[#2D6A4F]"
-                }`}
-                title={r.frozen ? "Frozen (Click to Enable)" : "Active (Click to Freeze)"}
-                data-testid={`freeze-${r.id}`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                    r.frozen ? "translate-x-0" : "translate-x-5"
+                <button 
+                  className="p-1.5 border border-rose-200 text-rose-700 hover:bg-rose-50 rounded-lg transition-colors inline-flex items-center justify-center" 
+                  onClick={() => delUser(r.id, r.full_name)} 
+                  title="Delete"
+                  data-testid={`delete-${r.id}`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => toggle(r.id)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    r.frozen ? "bg-neutral-200" : "bg-[#2D6A4F]"
                   }`}
-                />
-              </button>
-            </div>
-          ) },
-        ]}
-        rows={items}
-        empty={loading ? "Loading…" : `No ${roleTitle.toLowerCase()} found`}
-        pagination={{
-          page,
-          pageSize,
-          total,
-          onPageChange: setPage,
-          onPageSizeChange: (n) => { setPageSize(n); setPage(1); },
-        }}
-      />
+                  title={r.frozen ? "Frozen (Click to Enable)" : "Active (Click to Freeze)"}
+                  data-testid={`freeze-${r.id}`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      r.frozen ? "translate-x-0" : "translate-x-5"
+                    }`}
+                  />
+                </button>
+              </div>
+            ) },
+          ]}
+          rows={items}
+          empty={loading ? "Loading…" : `No ${roleTitle.toLowerCase()} found`}
+          pagination={{
+            page,
+            pageSize,
+            total,
+            onPageChange: setPage,
+            onPageSizeChange: (n) => { setPageSize(n); setPage(1); },
+          }}
+        />
+      ) : (
+        <div className="space-y-6">
+          {items.length === 0 ? (
+            <EmptyState
+              title={`No ${roleTitle.toLowerCase()} found`}
+              desc="Try modifying your search filter."
+              icon={Search}
+            />
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {items.map((r) => (
+                  <div className="bg-[#FDFCF8] border border-black/5 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all flex flex-col justify-between" key={r.id}>
+                    {/* Top part: Avatar, Name, Email, Role badge */}
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center gap-3.5">
+                        <div className="h-12 w-12 rounded-2xl bg-[#1B4332]/5 text-[#1B4332] font-black text-sm flex items-center justify-center border border-[#1B4332]/10 flex-shrink-0 capitalize">
+                          {r.full_name ? r.full_name[0] : "?"}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-sm font-bold text-neutral-800 capitalize leading-snug truncate" title={r.full_name}>{r.full_name}</h4>
+                          <p className="text-xs text-neutral-400 font-medium truncate" title={r.email}>{r.email}</p>
+                          <p className="text-[10px] text-neutral-400 font-bold mt-0.5">{r.phone || "—"}</p>
+                        </div>
+                      </div>
+                      <span className="text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded bg-[#1B4332]/10 text-[#1B4332] shrink-0">
+                        {role === "master_distributor" ? "Master Dist" : "Distributor"}
+                      </span>
+                    </div>
+
+                    {/* Middle part: Info Block */}
+                    <div className="grid grid-cols-3 gap-2 bg-[#F4F3ED] rounded-2xl p-4 my-5 text-center border border-black/[0.02]">
+                      {role === "master_distributor" ? (
+                        <>
+                          <div>
+                            <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wide block">Distributors</span>
+                            <span className="text-xs font-black text-neutral-700 block mt-1">{r.distributors_count ?? 0}</span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wide block">Agents</span>
+                            <span className="text-xs font-black text-neutral-700 block mt-1">{r.agents_count ?? 0}</span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wide block">Earnings</span>
+                            <span className="text-xs font-black text-[#1B4332] block mt-1 truncate" title={fmtMoney(r.earnings ?? 0)}>
+                              {fmtMoney(r.earnings ?? 0)}
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="col-span-2 text-left px-2">
+                            <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wide block text-center sm:text-left">Created By</span>
+                            <span className="text-xs font-semibold text-neutral-700 block mt-1 truncate text-center sm:text-left" title={r.creator_name}>
+                              {r.creator_name === "Admin" ? <span className="italic text-neutral-500">Admin</span> : r.creator_name || "—"}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wide block">Earnings</span>
+                            <span className="text-xs font-black text-[#1B4332] block mt-1 truncate" title={fmtMoney(r.earnings ?? 0)}>
+                              {fmtMoney(r.earnings ?? 0)}
+                            </span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Bottom part: Status & Actions */}
+                    <div className="flex items-center justify-between border-t border-black/5 pt-4">
+                      {/* Status Badge */}
+                      <div className="flex items-center gap-1.5">
+                        <StatusBadge status={r.frozen ? "rejected" : (!r.kyc_status || r.kyc_status === "approved" ? "approved" : (r.kyc_status === "rejected" ? "rejected" : "pending"))} />
+                        <span className="text-[10px] font-bold text-neutral-400">({r.commission_percent ?? 0}%)</span>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-2">
+                        <button
+                          className="p-1.5 border border-neutral-200 text-neutral-600 hover:bg-neutral-50 rounded-lg transition-colors inline-flex items-center justify-center bg-white"
+                          onClick={() => setDetail(r)}
+                          title="View Details"
+                          data-testid={`view-${r.id}`}
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </button>
+                        <button 
+                          className="p-1.5 border border-neutral-200 text-neutral-600 hover:bg-neutral-50 rounded-lg transition-colors inline-flex items-center justify-center bg-white" 
+                          onClick={() => { setShow(false); setEditingUser(r); }} 
+                          title="Edit"
+                          data-testid={`edit-${r.id}`}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button 
+                          className="p-1.5 border border-rose-200 text-rose-700 hover:bg-rose-50 rounded-lg transition-colors inline-flex items-center justify-center bg-white" 
+                          onClick={() => delUser(r.id, r.full_name)} 
+                          title="Delete"
+                          data-testid={`delete-${r.id}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => toggle(r.id)}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            r.frozen ? "bg-neutral-200" : "bg-[#2D6A4F]"
+                          }`}
+                          title={r.frozen ? "Frozen (Click to Enable)" : "Active (Click to Freeze)"}
+                          data-testid={`freeze-${r.id}`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                              r.frozen ? "translate-x-0" : "translate-x-4"
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Card View Pagination Bar */}
+              <div className="flex items-center justify-between border-t border-black/5 pt-4 mt-6">
+                <div className="text-xs text-neutral-500 font-medium">
+                  Showing <span className="font-semibold">{items.length}</span> of <span className="font-semibold">{total}</span> users
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-1.5 text-xs text-neutral-500">
+                    <span>Rows:</span>
+                    <select
+                      value={pageSize}
+                      onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
+                      className="bg-[#FDFCF8] border border-black/10 rounded-lg px-2 py-1 outline-none text-xs"
+                    >
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      disabled={page <= 1}
+                      onClick={() => setPage(page - 1)}
+                      className="px-3 py-1 bg-white border border-neutral-200 text-neutral-600 rounded-lg disabled:opacity-50 text-xs font-semibold hover:bg-neutral-50 transition-colors"
+                    >
+                      Prev
+                    </button>
+                    <span className="text-xs font-bold text-neutral-700 px-1">Page {page}</span>
+                    <button
+                      disabled={page * pageSize >= total}
+                      onClick={() => setPage(page + 1)}
+                      className="px-3 py-1 bg-white border border-neutral-200 text-neutral-600 rounded-lg disabled:opacity-50 text-xs font-semibold hover:bg-neutral-50 transition-colors"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {detail && isMd && <MdDetailModal md={detail} onClose={() => setDetail(null)} />}
       {detail && isDistributor && <DistributorDetailModal distributor={detail} onClose={() => setDetail(null)} />}
