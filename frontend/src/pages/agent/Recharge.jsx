@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { PageHeader, DataTable, StatusBadge, EmptyState } from "@/components/Shared";
 import FileUpload from "@/components/FileUpload";
 import { toast } from "sonner";
-import { Loader2, Coins, KeyRound, CreditCard, QrCode, Info, Sparkles, CheckCircle2, History, Check, ShieldAlert, FileDown, FileSpreadsheet, Clock } from "lucide-react";
+import { Loader2, Coins, KeyRound, CreditCard, QrCode, Info, Sparkles, CheckCircle2, History, Check, ShieldAlert, FileDown, FileSpreadsheet, Clock, X } from "lucide-react";
 
 export default function AgentRecharge() {
   const { user } = useAuth();
