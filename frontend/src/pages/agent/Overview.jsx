@@ -9,7 +9,6 @@ import { Wallet, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 export default function AgentOverview() {
   const { user } = useAuth();
   const [balance, setBalance] = useState(0);
-  const [ledger, setLedger] = useState([]);
   const [headlines, setHeadlines] = useState([]);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
@@ -18,9 +17,6 @@ export default function AgentOverview() {
       api.get("/wallet")
         .then((r) => setBalance(r.data.balance || 0))
         .catch((e) => console.log("Wallet ignored:", e.message));
-      api.get("/wallet/ledger")
-        .then((r) => setLedger(r.data.slice(0, 5)))
-        .catch((e) => console.log("Ledger ignored:", e.message));
       api.get("/headlines/active")
         .then((r) => setHeadlines(r.data || []))
         .catch((e) => console.log("Failed to fetch active headlines:", e.message));
@@ -116,30 +112,7 @@ export default function AgentOverview() {
             </div>
           )}
         </div>
-
-        <div className="mfp-card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium">Recent ledger</h3>
-            <Link to="/agent/ledger" className="text-sm text-[#1B4332] hover:underline inline-flex items-center gap-1">View all <ArrowRight className="h-3 w-3" /></Link>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full mfp-table">
-              <thead><tr><th>Kind</th><th>Amount</th><th>Balance</th><th>Note</th><th>Time</th></tr></thead>
-              <tbody>
-                {ledger.length === 0 && <tr><td colSpan="5" className="text-center text-neutral-500 py-8">No activity yet. Start by adding money to your wallet.</td></tr>}
-                {ledger.map((l) => (
-                  <tr key={l.id}>
-                    <td className="capitalize">{l.kind}</td>
-                    <td className={l.kind === "debit" ? "text-rose-700" : "text-emerald-700"}>{l.kind === "debit" ? "-" : "+"}{fmtMoney(l.amount)}</td>
-                    <td>{fmtMoney(l.balance_after)}</td>
-                    <td className="text-neutral-600 max-w-[240px] truncate">{l.note}</td>
-                    <td className="text-xs text-neutral-500">{fmtDate(l.created_at)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        
       </div>
     </KycPasswordGate>
   );
