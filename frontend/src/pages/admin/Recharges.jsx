@@ -3,6 +3,7 @@ import { api, formatErr, fmtDate, fmtMoney, fileUrl } from "@/lib/api";
 import { DATE_RANGES, todayStr, rangeWindowIso } from "@/lib/filters";
 import { useDebounced } from "@/lib/hooks";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
+import ZoomableImage from "@/components/ZoomableImage";
 import { toast } from "sonner";
 import { Eye, Check, X, Search, RotateCcw } from "lucide-react";
 
@@ -368,7 +369,7 @@ export default function AdminRecharges() {
               <div>
                 <div className="mfp-overline mb-2">Payment Screenshot</div>
                 {detail.screenshot_path ? (
-                  <img src={fileUrl(detail.screenshot_path)} alt="screenshot" className="rounded-xl max-h-[480px] w-full object-contain bg-[#F4F3ED] border border-black/5" />
+                  <ZoomableImage src={fileUrl(detail.screenshot_path)} alt="screenshot" />
                 ) : (
                   <div className="text-sm text-neutral-500 italic">No screenshot uploaded</div>
                 )}

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { api, formatErr, fileUrl, fmtMoney, API } from "@/lib/api";
 import { PageHeader } from "@/components/Shared";
+import ZoomableImage from "@/components/ZoomableImage";
 import { toast } from "sonner";
 import {
   FolderOpen, Folder, ArrowLeft, Share2, Download, Eye, X, ChevronRight,
@@ -677,11 +678,10 @@ export default function AdminQRGallery() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="p-6 bg-neutral-50 flex items-center justify-center max-h-[70vh] overflow-y-auto">
-              <img
+            <div className="p-6 bg-neutral-50 flex items-center justify-center">
+              <ZoomableImage
                 src={fileUrl(previewImage.screenshot_path)}
                 alt="Payment Proof Fullsize"
-                className="max-h-[60vh] max-w-full object-contain rounded-2xl shadow-sm"
               />
             </div>
           </div>
