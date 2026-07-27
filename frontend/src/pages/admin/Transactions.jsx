@@ -4,7 +4,7 @@ import { DATE_RANGES, todayStr, rangeWindowIso } from "@/lib/filters";
 import { useDebounced } from "@/lib/hooks";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import { toast } from "sonner";
-import { Check, RotateCcw, Search, X } from "lucide-react";
+import { Check, RotateCcw, Search, X, FileDown, FileSpreadsheet, Loader2 } from "lucide-react";
 
 function RejectModal({ onClose, onConfirm }) {
   const [reason, setReason] = useState("");
@@ -261,28 +261,107 @@ export default function AdminTransactions() {
     } },
   ], [approve, reverse]);
 
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
+
+  const handleExportPdf = async () => {
+    if (exportingPdf) return;
+    setExportingPdf(true);
+    try {
+      const statsParams = { ...params };
+      delete statsParams.paginated;
+      delete statsParams.page;
+      delete statsParams.page_size;
+      const r = await api.get("/admin/transactions/export/pdf", { params: statsParams, responseType: "blob" });
+      const blob = new Blob([r.data], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `MAK_FIN_PAY_Bill_Payments_${new Date().toISOString().slice(0, 10)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("Bill Payments PDF downloaded");
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail) || "Failed to download PDF");
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    if (exportingExcel) return;
+    setExportingExcel(true);
+    try {
+      const statsParams = { ...params };
+      delete statsParams.paginated;
+      delete statsParams.page;
+      delete statsParams.page_size;
+      const r = await api.get("/admin/transactions/export/csv", { params: statsParams, responseType: "blob" });
+      const blob = new Blob([r.data], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `MAK_FIN_PAY_Bill_Payments_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("Bill Payments Excel downloaded");
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail) || "Failed to download Excel");
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
   return (
     <div>
       <PageHeader
         title="Bill Payments"
         subtitle="Approve or reverse credit card bill payments submitted by agents."
         actions={
-          <div className="flex flex-wrap items-center gap-6 bg-white px-5 py-2.5 rounded-2xl border border-black/5 shadow-sm">
-            <div className="flex items-center gap-2.5">
-              <span className="text-xs font-bold text-neutral-600 uppercase tracking-wider">Bill Pay Service</span>
-              <button
-                onClick={() => handleToggleBillPay(!billPayEnabled)}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  billPayEnabled ? "bg-[#2D6A4F]" : "bg-neutral-200"
-                }`}
-                type="button"
-              >
-                <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                    billPayEnabled ? "translate-x-5" : "translate-x-0"
+          <div className="flex flex-wrap items-center gap-4">
+            <button
+              onClick={handleExportPdf}
+              disabled={exportingPdf}
+              className="mfp-btn-outline disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+              data-testid="tx-export-pdf"
+            >
+              {exportingPdf
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> Preparing PDF…</>
+                : <><FileDown className="h-4 w-4" /> Export PDF</>
+              }
+            </button>
+            <button
+              onClick={handleExportExcel}
+              disabled={exportingExcel}
+              className="mfp-btn-outline disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+              data-testid="tx-export-excel"
+            >
+              {exportingExcel
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> Preparing Excel…</>
+                : <><FileSpreadsheet className="h-4 w-4 text-emerald-600" /> Export Excel</>
+              }
+            </button>
+            <div className="flex flex-wrap items-center gap-6 bg-white px-5 py-2.5 rounded-2xl border border-black/5 shadow-sm">
+              <div className="flex items-center gap-2.5">
+                <span className="text-xs font-bold text-neutral-600 uppercase tracking-wider">Bill Pay Service</span>
+                <button
+                  onClick={() => handleToggleBillPay(!billPayEnabled)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    billPayEnabled ? "bg-[#2D6A4F]" : "bg-neutral-200"
                   }`}
-                />
-              </button>
+                  type="button"
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      billPayEnabled ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
             </div>
           </div>
         }

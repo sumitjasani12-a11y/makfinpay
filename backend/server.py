@@ -940,6 +940,489 @@ async def export_users_pdf(role: str, user=Depends(require_roles("admin"))):
     )
 
 
+@api.get("/admin/exports/{role}.csv")
+async def export_users_csv(role: str, user=Depends(require_roles("admin"))):
+    """Stream a CSV report of every master_distributor, distributor OR agent in the system."""
+    if role not in ("master_distributor", "distributor", "agent"):
+        raise HTTPException(404, "Unknown export")
+
+    q = {"is_deleted": False, "role": role}
+    items = await db.users.find(q, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(None)
+    parent_ids = list({it.get("parent_id") for it in items if it.get("parent_id")})
+    md_ids_map = list({it.get("md_id") for it in items if it.get("md_id")})
+    parent_map = await _build_parent_name_map(list({*parent_ids, *md_ids_map}))
+    wallets_map = await _wallet_balances_for([it["id"] for it in items])
+    dist_ids = [it["id"] for it in items] if role == "distributor" else []
+    earnings_map = await _distributor_earnings_batch(dist_ids)
+    md_ids_for_earn = [it["id"] for it in items] if role == "master_distributor" else []
+    md_earnings_map = await _md_earnings_batch(md_ids_for_earn)
+    for it in items:
+        it["wallet_balance"] = wallets_map.get(it["id"], 0)
+        if role == "agent":
+            it["creator_name"] = parent_map.get(it.get("parent_id"), "Admin") if it.get("parent_id") else "Admin"
+        if role == "distributor":
+            it["earnings"] = earnings_map.get(it["id"], 0.0)
+            it["creator_name"] = parent_map.get(it.get("md_id"), "Admin") if it.get("md_id") else "Admin"
+        if role == "master_distributor":
+            it["earnings"] = md_earnings_map.get(it["id"], 0.0)
+
+    def _row_status(u: dict) -> str:
+        if u.get("frozen"):
+            return "Frozen"
+        if role == "agent":
+            k = u.get("kyc_status")
+            if k and k != "approved":
+                return "Pending" if k == "pending" else "Rejected"
+        return "Approved"
+
+    import csv
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    if role == "agent":
+        writer.writerow(["Full Name", "Email", "Phone", "Creator", "Wallet Balance", "Commission % (Charges)", "KYC Status", "Created At"])
+        for it in items:
+            writer.writerow([
+                it.get("full_name", ""),
+                it.get("email", ""),
+                it.get("phone", ""),
+                it.get("creator_name", ""),
+                it.get("wallet_balance", 0.0),
+                it.get("commission_percent", 0.0),
+                _row_status(it),
+                it.get("created_at", "")
+            ])
+    elif role == "distributor":
+        writer.writerow(["Full Name", "Email", "Phone", "Creator", "Wallet Balance", "Commission %", "Total Earnings", "Status", "Created At"])
+        for it in items:
+            writer.writerow([
+                it.get("full_name", ""),
+                it.get("email", ""),
+                it.get("phone", ""),
+                it.get("creator_name", ""),
+                it.get("wallet_balance", 0.0),
+                it.get("commission_percent", 0.0),
+                it.get("earnings", 0.0),
+                _row_status(it),
+                it.get("created_at", "")
+            ])
+    else:  # master_distributor
+        writer.writerow(["Full Name", "Email", "Phone", "Wallet Balance", "Commission %", "Total Earnings", "Status", "Created At"])
+        for it in items:
+            writer.writerow([
+                it.get("full_name", ""),
+                it.get("email", ""),
+                it.get("phone", ""),
+                it.get("wallet_balance", 0.0),
+                it.get("commission_percent", 0.0),
+                it.get("earnings", 0.0),
+                _row_status(it),
+                it.get("created_at", "")
+            ])
+
+    from starlette.responses import StreamingResponse
+    csv_data = output.getvalue()
+    output.close()
+    
+    fname_role = {"master_distributor": "Master_Distributors", "distributor": "Distributors", "agent": "Agents"}[role]
+    fname = f"MAK_FIN_PAY_{fname_role}_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.csv"
+    return StreamingResponse(
+        io.BytesIO(csv_data.encode("utf-8-sig")),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
+@api.get("/admin/recharges/export/pdf")
+async def export_recharges_pdf(
+    status: Optional[str] = None,
+    agent_id: Optional[str] = None,
+    qr_code_id: Optional[str] = None,
+    from_ts: Optional[str] = None,
+    to_ts: Optional[str] = None,
+    q: Optional[str] = None,
+    amount: Optional[str] = None,
+    user=Depends(require_roles("admin")),
+):
+    query = _build_recharge_query(status=status, agent_id=agent_id, qr_code_id=qr_code_id,
+                                   from_ts=from_ts, to_ts=to_ts, q=q, amount=amount)
+    items = await db.recharges.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
+    
+    from starlette.responses import StreamingResponse
+    from starlette.concurrency import run_in_threadpool
+    
+    pdf_bytes = await run_in_threadpool(_render_recharges_pdf, items)
+    fname = f"MAK_FIN_PAY_Recharge_Approvals_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
+@api.get("/admin/recharges/export/csv")
+async def export_recharges_csv(
+    status: Optional[str] = None,
+    agent_id: Optional[str] = None,
+    qr_code_id: Optional[str] = None,
+    from_ts: Optional[str] = None,
+    to_ts: Optional[str] = None,
+    q: Optional[str] = None,
+    amount: Optional[str] = None,
+    user=Depends(require_roles("admin")),
+):
+    query = _build_recharge_query(status=status, agent_id=agent_id, qr_code_id=qr_code_id,
+                                   from_ts=from_ts, to_ts=to_ts, q=q, amount=amount)
+    items = await db.recharges.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
+    
+    import csv
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Agent", "Amount", "UTR", "QR Code Used", "Card/Acc Last 4", 
+        "Comm %", "Comm Charge", "Admin Comm", "S.Dist Comm", "Dist Comm", 
+        "Net Credit", "Status", "Created At", "Reviewed At", "Rejection Reason"
+    ])
+    for r in items:
+        comm_charge = r.get("commission_amount", 0.0) if r.get("status") == "approved" else (r.get("amount", 0) * r.get("commission_percent", 0) / 100)
+        net_credit = r.get("credit_amount", 0.0) if r.get("status") == "approved" else 0.0
+        writer.writerow([
+            r.get("user_name", ""),
+            r.get("amount", 0.0),
+            r.get("utr", ""),
+            r.get("qr_code_label", ""),
+            r.get("card_last4", ""),
+            r.get("commission_percent", 0.0),
+            comm_charge,
+            r.get("admin_revenue_amount", 0.0) if r.get("status") == "approved" else 0.0,
+            r.get("md_earnings_amount", 0.0) if r.get("status") == "approved" else 0.0,
+            r.get("distributor_earnings_amount", 0.0) if r.get("status") == "approved" else 0.0,
+            net_credit,
+            r.get("status", ""),
+            r.get("created_at", ""),
+            r.get("reviewed_at", ""),
+            r.get("rejection_reason", "")
+        ])
+    
+    from starlette.responses import StreamingResponse
+    csv_data = output.getvalue()
+    output.close()
+    
+    fname = f"MAK_FIN_PAY_Recharge_Approvals_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.csv"
+    return StreamingResponse(
+        io.BytesIO(csv_data.encode("utf-8-sig")),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
+@api.get("/admin/transactions/export/pdf")
+async def export_transactions_pdf(
+    status: Optional[str] = None,
+    agent_id: Optional[str] = None,
+    operator: Optional[str] = None,
+    from_ts: Optional[str] = None,
+    to_ts: Optional[str] = None,
+    q: Optional[str] = None,
+    amount: Optional[str] = None,
+    user=Depends(require_roles("admin")),
+):
+    query = _build_transaction_query(status=status, agent_id=agent_id, operator=operator,
+                                      from_ts=from_ts, to_ts=to_ts, q=q, amount=amount)
+    items = await db.transactions.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
+    
+    from starlette.responses import StreamingResponse
+    from starlette.concurrency import run_in_threadpool
+    
+    pdf_bytes = await run_in_threadpool(_render_transactions_pdf, items)
+    fname = f"MAK_FIN_PAY_Bill_Payments_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
+@api.get("/admin/transactions/export/csv")
+async def export_transactions_csv(
+    status: Optional[str] = None,
+    agent_id: Optional[str] = None,
+    operator: Optional[str] = None,
+    from_ts: Optional[str] = None,
+    to_ts: Optional[str] = None,
+    q: Optional[str] = None,
+    amount: Optional[str] = None,
+    user=Depends(require_roles("admin")),
+):
+    query = _build_transaction_query(status=status, agent_id=agent_id, operator=operator,
+                                      from_ts=from_ts, to_ts=to_ts, q=q, amount=amount)
+    items = await db.transactions.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
+    
+    import csv
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Agent", "Customer Name", "Customer Phone", "Bank", "Card Last 4", 
+        "Bill Amount", "Charge", "Total Amount", "Status", "Date", "Rejection Reason"
+    ])
+    for t in items:
+        writer.writerow([
+            t.get("user_name", ""),
+            t.get("customer_name", ""),
+            t.get("customer_phone", ""),
+            t.get("operator", ""),
+            t.get("card_last4", ""),
+            t.get("bill_amount") or t.get("amount") or 0.0,
+            t.get("service_charge", 0.0),
+            t.get("total_amount", 0.0),
+            t.get("status", ""),
+            t.get("created_at", ""),
+            t.get("rejection_reason", "")
+        ])
+    
+    from starlette.responses import StreamingResponse
+    csv_data = output.getvalue()
+    output.close()
+    
+    fname = f"MAK_FIN_PAY_Bill_Payments_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.csv"
+    return StreamingResponse(
+        io.BytesIO(csv_data.encode("utf-8-sig")),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
+def _render_recharges_pdf(items: list) -> bytes:
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.units import mm
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+    )
+
+    fonts_dir = Path(__file__).resolve().parent / "fonts"
+    if "DejaVuSans" not in pdfmetrics.getRegisteredFontNames():
+        pdfmetrics.registerFont(TTFont("DejaVuSans", str(fonts_dir / "DejaVuSans.ttf")))
+        pdfmetrics.registerFont(TTFont("DejaVuSans-Bold", str(fonts_dir / "DejaVuSans-Bold.ttf")))
+        pdfmetrics.registerFontFamily(
+            "DejaVuSans", normal="DejaVuSans", bold="DejaVuSans-Bold",
+        )
+    FONT = "DejaVuSans"
+    FONT_BOLD = "DejaVuSans-Bold"
+
+    ist = timezone(timedelta(hours=5, minutes=30))
+    generated = datetime.now(ist).strftime("%-d %b %Y, %-I:%M %p IST")
+
+    styles = getSampleStyleSheet()
+    cell_style = ParagraphStyle(
+        "cell", parent=styles["BodyText"], fontName=FONT, fontSize=7.5, leading=9.5,
+    )
+    cell_bold_white = ParagraphStyle(
+        "cellBW", parent=cell_style, fontName=FONT_BOLD, textColor=colors.white,
+    )
+
+    def P(text, style=cell_style):
+        text = "" if text is None else str(text)
+        text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        return Paragraph(text, style)
+
+    header_row = ["Agent", "Amount", "UTR", "QR Code Used", "Card/Acc", "Comm Charge", "Net Credit", "Status", "Created"]
+    col_widths = [35*mm, 24*mm, 35*mm, 35*mm, 28*mm, 26*mm, 26*mm, 20*mm, 37*mm]
+
+    data_rows = [[P(h, cell_bold_white) for h in header_row]]
+    for r in items:
+        comm_charge = r.get("commission_amount", 0.0) if r.get("status") == "approved" else (r.get("amount", 0) * r.get("commission_percent", 0) / 100)
+        net_credit = r.get("credit_amount", 0.0) if r.get("status") == "approved" else 0.0
+        row = [
+            P(r.get("user_name")),
+            P(f"\u20B9{float(r.get('amount') or 0):,.2f}"),
+            P(r.get("utr") or "—"),
+            P(r.get("qr_code_label") or "—"),
+            P(f"XXXX {r.get('card_last4')}" if r.get("card_last4") else "—"),
+            P(f"\u20B9{float(comm_charge):,.2f}"),
+            P(f"\u20B9{float(net_credit):,.2f}" if r.get("status") == "approved" else "—"),
+            P(r.get("status", "").upper()),
+            P(_fmt_ist(r.get("created_at"))),
+        ]
+        data_rows.append(row)
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf,
+        pagesize=landscape(A4),
+        leftMargin=15*mm, rightMargin=15*mm, topMargin=20*mm, bottomMargin=18*mm,
+        title="MAK FIN PAY — Recharge Approvals",
+        author="MAK FIN PAY",
+    )
+
+    title_style = ParagraphStyle(
+        "title", parent=styles["Title"], fontName=FONT_BOLD, fontSize=16,
+        textColor=colors.HexColor("#1B4332"), spaceAfter=2,
+    )
+    subtitle_style = ParagraphStyle(
+        "sub", parent=styles["Heading3"], fontName=FONT_BOLD, fontSize=11,
+        textColor=colors.HexColor("#1B4332"),
+    )
+    meta_style = ParagraphStyle(
+        "meta", parent=styles["Normal"], fontName=FONT, fontSize=9, textColor=colors.grey,
+    )
+
+    story = [
+        Paragraph("MAK FIN PAY", title_style),
+        Paragraph("Recharge Approvals Report", subtitle_style),
+        Paragraph(f"Generated: {generated} · Total Requests: {len(items)}", meta_style),
+        Spacer(1, 6),
+    ]
+
+    tbl = Table(data_rows, colWidths=col_widths, repeatRows=1)
+    tbl.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1B4332")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), FONT_BOLD),
+        ("FONTSIZE", (0, 0), (-1, 0), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
+        ("TOPPADDING", (0, 0), (-1, 0), 6),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.HexColor("#FDFCF8"), colors.HexColor("#F4F3ED")]),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#0C1F17")),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 1), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 1), (-1, -1), 4),
+    ]))
+    story.append(tbl)
+
+    def _draw_footer(canvas, doc_):
+        canvas.saveState()
+        page_num = canvas.getPageNumber()
+        canvas.setFont(FONT, 8)
+        canvas.setFillColor(colors.grey)
+        canvas.drawString(15*mm, 10*mm, "MAK FIN PAY · Confidential")
+        canvas.drawRightString(landscape(A4)[0] - 15*mm, 10*mm, f"Page {page_num}")
+        canvas.restoreState()
+
+    doc.build(story, onFirstPage=_draw_footer, onLaterPages=_draw_footer)
+    return buf.getvalue()
+
+
+def _render_transactions_pdf(items: list) -> bytes:
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.units import mm
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+    )
+
+    fonts_dir = Path(__file__).resolve().parent / "fonts"
+    if "DejaVuSans" not in pdfmetrics.getRegisteredFontNames():
+        pdfmetrics.registerFont(TTFont("DejaVuSans", str(fonts_dir / "DejaVuSans.ttf")))
+        pdfmetrics.registerFont(TTFont("DejaVuSans-Bold", str(fonts_dir / "DejaVuSans-Bold.ttf")))
+        pdfmetrics.registerFontFamily(
+            "DejaVuSans", normal="DejaVuSans", bold="DejaVuSans-Bold",
+        )
+    FONT = "DejaVuSans"
+    FONT_BOLD = "DejaVuSans-Bold"
+
+    ist = timezone(timedelta(hours=5, minutes=30))
+    generated = datetime.now(ist).strftime("%-d %b %Y, %-I:%M %p IST")
+
+    styles = getSampleStyleSheet()
+    cell_style = ParagraphStyle(
+        "cell", parent=styles["BodyText"], fontName=FONT, fontSize=7.5, leading=9.5,
+    )
+    cell_bold_white = ParagraphStyle(
+        "cellBW", parent=cell_style, fontName=FONT_BOLD, textColor=colors.white,
+    )
+
+    def P(text, style=cell_style):
+        text = "" if text is None else str(text)
+        text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        return Paragraph(text, style)
+
+    header_row = ["Agent", "Customer", "Customer Phone", "Bank", "Card", "Bill Amount", "Charge", "Total Amount", "Status", "Date"]
+    col_widths = [32*mm, 28*mm, 28*mm, 26*mm, 18*mm, 24*mm, 18*mm, 24*mm, 20*mm, 38*mm]
+
+    data_rows = [[P(h, cell_bold_white) for h in header_row]]
+    for t in items:
+        row = [
+            P(t.get("user_name")),
+            P(t.get("customer_name")),
+            P(t.get("customer_phone") or "—"),
+            P(t.get("operator")),
+            P(f"**** {t.get('card_last4')}" if t.get("card_last4") else "—"),
+            P(f"\u20B9{float(t.get('bill_amount') or t.get('amount') or 0):,.2f}"),
+            P(f"\u20B9{float(t.get('service_charge') or 0):,.2f}"),
+            P(f"\u20B9{float(t.get('total_amount') or 0):,.2f}" if t.get("total_amount") is not None else "—"),
+            P(t.get("status", "").upper()),
+            P(_fmt_ist(t.get("created_at"))),
+        ]
+        data_rows.append(row)
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf,
+        pagesize=landscape(A4),
+        leftMargin=15*mm, rightMargin=15*mm, topMargin=20*mm, bottomMargin=18*mm,
+        title="MAK FIN PAY — Bill Payments",
+        author="MAK FIN PAY",
+    )
+
+    title_style = ParagraphStyle(
+        "title", parent=styles["Title"], fontName=FONT_BOLD, fontSize=16,
+        textColor=colors.HexColor("#1B4332"), spaceAfter=2,
+    )
+    subtitle_style = ParagraphStyle(
+        "sub", parent=styles["Heading3"], fontName=FONT_BOLD, fontSize=11,
+        textColor=colors.HexColor("#1B4332"),
+    )
+    meta_style = ParagraphStyle(
+        "meta", parent=styles["Normal"], fontName=FONT, fontSize=9, textColor=colors.grey,
+    )
+
+    story = [
+        Paragraph("MAK FIN PAY", title_style),
+        Paragraph("Bill Payments Report", subtitle_style),
+        Paragraph(f"Generated: {generated} · Total Transactions: {len(items)}", meta_style),
+        Spacer(1, 6),
+    ]
+
+    tbl = Table(data_rows, colWidths=col_widths, repeatRows=1)
+    tbl.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1B4332")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), FONT_BOLD),
+        ("FONTSIZE", (0, 0), (-1, 0), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
+        ("TOPPADDING", (0, 0), (-1, 0), 6),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.HexColor("#FDFCF8"), colors.HexColor("#F4F3ED")]),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#0C1F17")),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 1), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 1), (-1, -1), 4),
+    ]))
+    story.append(tbl)
+
+    def _draw_footer(canvas, doc_):
+        canvas.saveState()
+        page_num = canvas.getPageNumber()
+        canvas.setFont(FONT, 8)
+        canvas.setFillColor(colors.grey)
+        canvas.drawString(15*mm, 10*mm, "MAK FIN PAY · Confidential")
+        canvas.drawRightString(landscape(A4)[0] - 15*mm, 10*mm, f"Page {page_num}")
+        canvas.restoreState()
+
+    doc.build(story, onFirstPage=_draw_footer, onLaterPages=_draw_footer)
+    return buf.getvalue()
+
+
 def _render_users_pdf(role: str, items: list, status_fn) -> bytes:
     """Render the users-export PDF synchronously with reportlab. Runs in a
     threadpool via `run_in_threadpool`, so the event loop is not blocked.

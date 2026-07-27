@@ -5,7 +5,7 @@ import { useDebounced } from "@/lib/hooks";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import ZoomableImage from "@/components/ZoomableImage";
 import { toast } from "sonner";
-import { Eye, Check, X, Search, RotateCcw } from "lucide-react";
+import { Eye, Check, X, Search, RotateCcw, FileDown, FileSpreadsheet, Loader2 } from "lucide-react";
 
 const STATUSES = [
   { key: "all", label: "All" },
@@ -225,11 +225,92 @@ export default function AdminRecharges() {
     ) },
   ], [act]);
 
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
+
+  const handleExportPdf = async () => {
+    if (exportingPdf) return;
+    setExportingPdf(true);
+    try {
+      const statsParams = { ...params };
+      delete statsParams.paginated;
+      delete statsParams.page;
+      delete statsParams.page_size;
+      const r = await api.get("/admin/recharges/export/pdf", { params: statsParams, responseType: "blob" });
+      const blob = new Blob([r.data], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `MAK_FIN_PAY_Recharge_Approvals_${new Date().toISOString().slice(0, 10)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("Recharge Approvals PDF downloaded");
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail) || "Failed to download PDF");
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    if (exportingExcel) return;
+    setExportingExcel(true);
+    try {
+      const statsParams = { ...params };
+      delete statsParams.paginated;
+      delete statsParams.page;
+      delete statsParams.page_size;
+      const r = await api.get("/admin/recharges/export/csv", { params: statsParams, responseType: "blob" });
+      const blob = new Blob([r.data], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `MAK_FIN_PAY_Recharge_Approvals_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("Recharge Approvals Excel downloaded");
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail) || "Failed to download Excel");
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
   return (
     <div>
       <PageHeader
         title="Recharge Approvals"
         subtitle="Verify UPI payments, approve to credit agent wallet (after commission)."
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={handleExportPdf}
+              disabled={exportingPdf}
+              className="mfp-btn-outline disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+              data-testid="recharges-export-pdf"
+            >
+              {exportingPdf
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> Preparing PDF…</>
+                : <><FileDown className="h-4 w-4" /> Export PDF</>
+              }
+            </button>
+            <button
+              onClick={handleExportExcel}
+              disabled={exportingExcel}
+              className="mfp-btn-outline disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+              data-testid="recharges-export-excel"
+            >
+              {exportingExcel
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> Preparing Excel…</>
+                : <><FileSpreadsheet className="h-4 w-4 text-emerald-600" /> Export Excel</>
+              }
+            </button>
+          </div>
+        }
       />
 
       {/* Metrics Summary Cards */}

@@ -4,7 +4,7 @@ import { useDebounced } from "@/lib/hooks";
 import { PageHeader, DataTable, StatusBadge, EmptyState } from "@/components/Shared";
 import FileUpload from "@/components/FileUpload";
 import { toast } from "sonner";
-import { Plus, Eye, X, FileDown, Loader2, Search, RotateCcw, Pencil, Trash2 } from "lucide-react";
+import { Plus, Eye, X, FileDown, Loader2, Search, RotateCcw, Pencil, Trash2, FileSpreadsheet } from "lucide-react";
 
 function UserForm({ role, editingUser, onCreated, onCancel }) {
   const [form, setForm] = useState({ 
@@ -333,6 +333,7 @@ export function AdminUserList({ role }) {
   const [createdCreds, setCreatedCreds] = useState(null);
   const [detail, setDetail] = useState(null);
   const [exporting, setExporting] = useState(false);
+  const [exportingCsv, setExportingCsv] = useState(false);
   const isDistributor = role === "distributor";
   const isMd = role === "master_distributor";
   const roleTitle = isMd ? "Master Distributors" : isDistributor ? "Distributors" : "Agents";
@@ -401,6 +402,30 @@ export function AdminUserList({ role }) {
     }
   };
 
+  const exportCsv = async () => {
+    if (exportingCsv) return;
+    setExportingCsv(true);
+    try {
+      const r = await api.get(`/admin/exports/${role}.csv`, { responseType: "blob" });
+      const blob = new Blob([r.data], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const label = roleTitle.replace(/ /g, "_");
+      const today = new Date().toISOString().slice(0, 10);
+      a.download = `MAK_FIN_PAY_${label}_${today}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(`${roleTitle} Excel/CSV downloaded`);
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail) || "Could not generate Excel/CSV, please try again");
+    } finally {
+      setTimeout(() => setExportingCsv(false), 800);
+    }
+  };
+
   return (
     <div>
       <PageHeader
@@ -417,6 +442,17 @@ export function AdminUserList({ role }) {
               {exporting
                 ? <><Loader2 className="h-4 w-4 animate-spin" /> Preparing PDF…</>
                 : <><FileDown className="h-4 w-4" /> Export PDF</>
+              }
+            </button>
+            <button
+              onClick={exportCsv}
+              disabled={exportingCsv}
+              className="mfp-btn-outline disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+              data-testid={`export-${role}-excel`}
+            >
+              {exportingCsv
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> Preparing Excel…</>
+                : <><FileSpreadsheet className="h-4 w-4 text-emerald-600" /> Export Excel</>
               }
             </button>
             <button className="mfp-btn-primary" onClick={() => { setEditingUser(null); setShow(!show); }} data-testid="toggle-create-form">
