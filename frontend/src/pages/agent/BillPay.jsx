@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { api, formatErr, fmtMoney, fmtDate } from "@/lib/api";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import { toast } from "sonner";
-import { CreditCard, Check, ChevronsUpDown, Wallet, Search, Loader2, AlertCircle, History, X, Clock, RotateCcw, ShieldCheck } from "lucide-react";
+import { CreditCard, Check, ChevronsUpDown, Wallet, Search, Loader2, AlertCircle, History, X, Clock, RotateCcw, ShieldCheck, FileDown, FileSpreadsheet } from "lucide-react";
 
 
 function BankCombobox({ value, onChange, options = [] }) {
@@ -90,106 +90,6 @@ export default function AgentBillPay() {
       .finally(() => setLoadingHistory(false));
   };
 
-  const exportHistoryExcel = () => {
-    const csvRows = [
-      ["Customer Name", "Bank / Operator", "Card Last 4", "Bill Amount", "Service Charge", "Total Deducted", "Status", "Date"]
-    ];
-    historyItems.forEach((item) => {
-      csvRows.push([
-        `"${item.customer_name || ""}"`,
-        `"${item.operator || ""}"`,
-        `"${item.card_last4 || ""}"`,
-        item.bill_amount ?? item.amount ?? 0,
-        item.service_charge ?? 0,
-        item.total_amount ?? item.amount ?? 0,
-        `"${item.status}"`,
-        `"${fmtDate(item.created_at)}"`
-      ].join(","));
-    });
-
-    const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `Bill_Transaction_History_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success("Excel/CSV downloaded");
-  };
-
-  const exportHistoryPdf = () => {
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) return toast.error("Pop-up blocker is preventing the PDF export. Please allow pop-ups.");
-
-    const rowsHtml = historyItems.map(item => {
-      return `
-        <tr>
-          <td>${item.customer_name || "—"}</td>
-          <td>${item.operator || "—"}</td>
-          <td>${item.card_last4 ? `XXXX ${item.card_last4}` : "—"}</td>
-          <td>${fmtMoney(item.bill_amount ?? item.amount ?? 0)}</td>
-          <td>${fmtMoney(item.service_charge ?? 0)}</td>
-          <td>${fmtMoney(item.total_amount ?? item.amount ?? 0)}</td>
-          <td class="status-${item.status}">${item.status.toUpperCase()}</td>
-          <td>${fmtDate(item.created_at)}</td>
-        </tr>
-      `;
-    }).join("");
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Bill Transaction History Report</title>
-          <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 20px; color: #333; }
-            h1 { color: #1b4332; font-size: 20px; margin-bottom: 2px; }
-            p { color: #666; font-size: 12px; margin-bottom: 20px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background-color: #1b4332; color: white; font-weight: bold; }
-            tr:nth-child(even) { background-color: #f9f9f9; }
-            .status-success { color: #2d6a4f; font-weight: bold; }
-            .status-pending { color: #b7791f; font-weight: bold; }
-            .status-reversed { color: #c53030; font-weight: bold; }
-            @media print {
-              body { padding: 0; }
-              button { display: none; }
-            }
-          </style>
-        </head>
-        <body>
-          <h1>MAK FIN PAY</h1>
-          <p>Bill Transaction History Report · Generated on ${new Date().toLocaleDateString()}</p>
-          <table>
-            <thead>
-              <tr>
-                <th>Customer</th>
-                <th>Bank</th>
-                <th>Card</th>
-                <th>Bill Amount</th>
-                <th>Service Charge</th>
-                <th>Total Deducted</th>
-                <th>Status</th>
-                <th>Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rowsHtml}
-            </tbody>
-          </table>
-          <script>
-            window.onload = function() {
-              window.print();
-              setTimeout(function() { window.close(); }, 500);
-            };
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-  };
-
   useEffect(() => {
     setPage(1);
   }, [statusFilter, q, amtQuery, startDate, endDate]);
@@ -247,6 +147,112 @@ export default function AgentBillPay() {
       return matchesStatus && matchesSearch && matchesAmount && matchesStart && matchesEnd;
     });
   }, [historyItems, statusFilter, q, amtQuery, startDate, endDate]);
+
+  const exportHistoryExcel = () => {
+    const csvRows = [
+      ["Customer Name", "Bank / Operator", "Card Last 4", "Bill Amount", "Service Charge", "Total Deducted", "Status", "Date"]
+    ];
+    filteredItems.forEach((item) => {
+      const billAmt = item.bill_amount ?? item.amount ?? 0;
+      const chargeAmt = item.service_charge ?? 0;
+      const totalAmt = item.total_amount ?? item.amount ?? 0;
+      csvRows.push([
+        `"${item.customer_name || ""}"`,
+        `"${item.operator || ""}"`,
+        `"${item.card_last4 ? `XXXX ${item.card_last4}` : "—"}"`,
+        billAmt,
+        chargeAmt,
+        totalAmt,
+        `"${item.status}"`,
+        `"${fmtDate(item.created_at)}"`
+      ].join(","));
+    });
+    
+    const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Bill_Transaction_History_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Excel/CSV downloaded");
+  };
+
+  const exportHistoryPdf = () => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return toast.error("Pop-up blocker is preventing the PDF export. Please allow pop-ups.");
+
+    const rowsHtml = filteredItems.map(item => {
+      const billAmt = item.bill_amount ?? item.amount ?? 0;
+      const chargeAmt = item.service_charge ?? 0;
+      const totalAmt = item.total_amount ?? item.amount ?? 0;
+      return `
+        <tr>
+          <td>${item.customer_name}</td>
+          <td>${item.operator}</td>
+          <td>${item.card_last4 ? `XXXX ${item.card_last4}` : "—"}</td>
+          <td>${fmtMoney(billAmt)}</td>
+          <td>${fmtMoney(chargeAmt)}</td>
+          <td>${fmtMoney(totalAmt)}</td>
+          <td class="status-${item.status}">${item.status.toUpperCase()}</td>
+          <td>${fmtDate(item.created_at)}</td>
+        </tr>
+      `;
+    }).join("");
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Bill Transaction History Report</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 20px; color: #333; }
+            h1 { color: #1b4332; font-size: 20px; margin-bottom: 2px; }
+            p { color: #666; font-size: 12px; margin-bottom: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #1b4332; color: white; font-weight: bold; }
+            tr:nth-child(even) { background-color: #f9f9f9; }
+            .status-success { color: #2d6a4f; font-weight: bold; }
+            .status-pending { color: #b7791f; font-weight: bold; }
+            .status-reversed { color: #c53030; font-weight: bold; }
+            @media print {
+              body { padding: 0; }
+              button { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <h1>MAK FIN PAY</h1>
+          <p>Bill Transaction History Report · Generated on ${new Date().toLocaleDateString()}</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Customer Name</th>
+                <th>Bank / Operator</th>
+                <th>Card</th>
+                <th>Bill Amount</th>
+                <th>Service Charge</th>
+                <th>Total Deducted</th>
+                <th>Status</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
 
   const paginatedHistory = useMemo(() => {
     const fromIdx = (page - 1) * pageSize;
