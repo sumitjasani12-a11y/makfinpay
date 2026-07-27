@@ -280,10 +280,10 @@ class RechargeLimitsIn(BaseModel):
     max_recharge_limit: float
 
 class RechargeTogglesIn(BaseModel):
-    qr_enabled: bool
-    recharge_enabled: bool
-    withdrawal_enabled: bool
-    bill_pay_enabled: bool
+    qr_enabled: Optional[bool] = None
+    recharge_enabled: Optional[bool] = None
+    withdrawal_enabled: Optional[bool] = None
+    bill_pay_enabled: Optional[bool] = None
 
 class HeadlineIn(BaseModel):
     message: str
@@ -2674,11 +2674,17 @@ async def update_admin_recharge_limits(body: RechargeLimitsIn, request: Request,
 
 @api.put("/admin/settings/recharge-toggles")
 async def update_admin_recharge_toggles(body: RechargeTogglesIn, request: Request, user=Depends(require_roles("admin"))):
+    settings = await db.settings.find_one({"id": "commission"}) or {}
+    qr_val = body.qr_enabled if body.qr_enabled is not None else settings.get("qr_enabled", True)
+    recharge_val = body.recharge_enabled if body.recharge_enabled is not None else settings.get("recharge_enabled", True)
+    withdrawal_val = body.withdrawal_enabled if body.withdrawal_enabled is not None else settings.get("withdrawal_enabled", True)
+    bill_pay_val = body.bill_pay_enabled if body.bill_pay_enabled is not None else settings.get("bill_pay_enabled", True)
+    
     doc = {
-        "qr_enabled": body.qr_enabled,
-        "recharge_enabled": body.recharge_enabled,
-        "withdrawal_enabled": body.withdrawal_enabled,
-        "bill_pay_enabled": body.bill_pay_enabled,
+        "qr_enabled": qr_val,
+        "recharge_enabled": recharge_val,
+        "withdrawal_enabled": withdrawal_val,
+        "bill_pay_enabled": bill_pay_val,
         "updated_at": now_iso()
     }
     await db.settings.update_one({"id": "commission"}, {"$set": doc})
