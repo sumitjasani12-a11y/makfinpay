@@ -50,7 +50,6 @@ const ROUTE_META = {
   "/agent": { title: "Dashboard | MAK FIN PAY" },
   "/agent/recharge": { title: "Recharge Wallet | MAK FIN PAY" },
   "/agent/billpay": { title: "Credit Card Bill | MAK FIN PAY" },
-  "/agent/history": { title: "Transaction History | MAK FIN PAY" },
   "/agent/ledger": { title: "Wallet Ledger | MAK FIN PAY" },
   "/agent/withdrawal": { title: "Withdrawal | MAK FIN PAY" },
   "/agent/change-password": { title: "Change Password | MAK FIN PAY" },

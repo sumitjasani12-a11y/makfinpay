@@ -44,7 +44,6 @@ import MdWithdrawal from "@/pages/md/Withdrawal";
 import AgentOverview from "@/pages/agent/Overview";
 import AgentRecharge from "@/pages/agent/Recharge";
 import AgentBillPay from "@/pages/agent/BillPay";
-import AgentHistory from "@/pages/agent/History";
 import AgentLedger from "@/pages/agent/Ledger";
 import AgentWithdrawal from "@/pages/agent/Withdrawal";
 
@@ -131,7 +130,6 @@ export default function App() {
             <Route index element={<AgentOverview />} />
             <Route path="recharge" element={<AgentRecharge />} />
             <Route path="billpay" element={<AgentBillPay />} />
-            <Route path="history" element={<AgentHistory />} />
             <Route path="ledger" element={<AgentLedger />} />
             <Route path="withdrawal" element={<AgentWithdrawal />} />
             <Route path="change-password" element={<ChangePassword />} />
