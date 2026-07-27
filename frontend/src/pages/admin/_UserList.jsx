@@ -4,7 +4,7 @@ import { useDebounced } from "@/lib/hooks";
 import { PageHeader, DataTable, StatusBadge, EmptyState } from "@/components/Shared";
 import FileUpload from "@/components/FileUpload";
 import { toast } from "sonner";
-import { Plus, Eye, X, FileDown, Loader2, Search, RotateCcw, Pencil, Trash2, FileSpreadsheet, Users, UserCheck, IndianRupee, Phone, Mail, Building2, Sparkles, ShieldCheck, ArrowLeft, Percent } from "lucide-react";
+import { Plus, Eye, X, FileDown, Loader2, Search, RotateCcw, Pencil, Trash2, FileSpreadsheet, Users, UserCheck, IndianRupee, Phone, Mail, Building2, Sparkles, ShieldCheck, ArrowLeft, Percent, Camera } from "lucide-react";
 
 function UserForm({ role, editingUser, onCreated, onCancel }) {
   const [form, setForm] = useState({ 
@@ -23,6 +23,25 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
   const [activeTab, setActiveTab] = useState("firm");
   const isAgent = role === "agent";
   const isMd = role === "master_distributor";
+
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  const handleAvatarChange = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setUploadingAvatar(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", f);
+      const { data } = await api.post("/uploads", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      setForm((prev) => ({ ...prev, selfie_path: data.path }));
+      toast.success("Profile photo uploaded successfully");
+    } catch (err) {
+      toast.error(formatErr(err.response?.data?.detail) || err.message);
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   useEffect(() => {
     if (editingUser) {
@@ -125,7 +144,7 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
           <div className="lg:col-span-4 space-y-6">
             {/* Profile Info */}
             <div className="bg-white border border-black/5 rounded-3xl p-6 shadow-sm flex flex-col items-center text-center space-y-4">
-              <div className="h-24 w-24 rounded-full bg-[#1B4332]/5 text-[#1B4332] font-black text-3xl flex items-center justify-center border border-[#1B4332]/10 overflow-hidden capitalize shadow-sm shrink-0">
+              <label className="relative h-24 w-24 rounded-full bg-[#1B4332]/5 text-[#1B4332] font-black text-3xl flex items-center justify-center border border-[#1B4332]/10 overflow-hidden capitalize shadow-sm shrink-0 group cursor-pointer">
                 {form.selfie_path ? (
                   <img src={fileUrl(form.selfie_path)} alt="Profile" className="h-full w-full object-cover" />
                 ) : editingUser.selfie_path ? (
@@ -133,13 +152,26 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
                 ) : (
                   editingUser.full_name ? editingUser.full_name[0] : "?"
                 )}
-              </div>
-              <div className="w-full">
-                <FileUpload 
-                  onUploaded={(path) => setForm({ ...form, selfie_path: path })} 
-                  label="Change Profile Photo"
+                
+                <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                  {uploadingAvatar ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <>
+                      <Camera className="h-5 w-5 mb-0.5" />
+                      <span className="text-[8px] font-black uppercase tracking-widest leading-none">Upload</span>
+                    </>
+                  )}
+                </div>
+                
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  className="hidden" 
+                  onChange={handleAvatarChange}
+                  disabled={uploadingAvatar}
                 />
-              </div>
+              </label>
               <div className="space-y-1">
                 <h3 className="text-base font-black text-neutral-800 capitalize leading-tight">{form.full_name || editingUser.full_name}</h3>
                 <span className="text-[10px] font-bold text-neutral-400">ID: {editingUser.id}</span>
@@ -379,7 +411,7 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
         <div className="lg:col-span-4 space-y-6">
           <div className="bg-white border border-black/5 rounded-3xl p-6 shadow-sm flex flex-col items-center space-y-6">
             {/* Dotted Circle for Avatar */}
-            <div className="h-28 w-28 rounded-full border-2 border-dashed border-neutral-300 bg-neutral-50 flex flex-col items-center justify-center text-neutral-400 select-none overflow-hidden shrink-0">
+            <label className="relative h-28 w-28 rounded-full border-2 border-dashed border-neutral-300 bg-neutral-50 flex flex-col items-center justify-center text-neutral-400 select-none overflow-hidden shrink-0 group cursor-pointer">
               {form.selfie_path ? (
                 <img src={fileUrl(form.selfie_path)} alt="Profile Preview" className="h-full w-full object-cover" />
               ) : (
@@ -388,14 +420,26 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
                   <span className="text-[9px] font-black uppercase tracking-wider text-neutral-400">User Profile</span>
                 </>
               )}
-            </div>
-
-            <div className="w-full">
-              <FileUpload 
-                onUploaded={(path) => setForm({ ...form, selfie_path: path })} 
-                label="Upload Profile Photo"
+              
+              <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                {uploadingAvatar ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <>
+                    <Camera className="h-5 w-5 mb-0.5" />
+                    <span className="text-[8px] font-black uppercase tracking-widest leading-none">Upload</span>
+                  </>
+                )}
+              </div>
+              
+              <input 
+                type="file" 
+                accept="image/*" 
+                className="hidden" 
+                onChange={handleAvatarChange}
+                disabled={uploadingAvatar}
               />
-            </div>
+            </label>
 
             <div className="w-full space-y-4 text-left">
               <div>
