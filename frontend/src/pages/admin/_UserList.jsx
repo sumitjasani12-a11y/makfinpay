@@ -4,7 +4,7 @@ import { useDebounced } from "@/lib/hooks";
 import { PageHeader, DataTable, StatusBadge, EmptyState } from "@/components/Shared";
 import FileUpload from "@/components/FileUpload";
 import { toast } from "sonner";
-import { Plus, Eye, X, FileDown, Loader2, Search, RotateCcw, Pencil, Trash2, FileSpreadsheet, Users, UserCheck, IndianRupee, Phone, Mail, Building2, Sparkles, ShieldCheck } from "lucide-react";
+import { Plus, Eye, X, FileDown, Loader2, Search, RotateCcw, Pencil, Trash2, FileSpreadsheet, Users, UserCheck, IndianRupee, Phone, Mail, Building2, Sparkles, ShieldCheck, ArrowLeft, Percent } from "lucide-react";
 
 function UserForm({ role, editingUser, onCreated, onCancel }) {
   const [form, setForm] = useState({ 
@@ -144,106 +144,175 @@ function MdDetailModal({ md, onClose }) {
   const distributorAgents = data?.distributor_agents || [];
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 grid place-items-start overflow-y-auto p-4 pt-10" onClick={onClose}>
-      <div className="bg-[#FDFCF8] rounded-2xl max-w-6xl w-full mx-auto" onClick={(e) => e.stopPropagation()} data-testid="md-detail-modal">
-        <div className="px-6 py-4 border-b border-black/5 flex items-center justify-between">
+    <div className="fixed inset-0 bg-[#F8F7F2] z-50 overflow-y-auto flex flex-col">
+      {/* Header */}
+      <div className="bg-white border-b border-black/5 px-8 py-5 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+        <div className="flex items-center gap-4">
+          <button onClick={onClose} className="p-2.5 hover:bg-neutral-100 rounded-2xl transition-all border border-neutral-200 text-neutral-600 inline-flex items-center justify-center">
+            <ArrowLeft className="h-5 w-5" />
+          </button>
           <div>
-            <div className="mfp-overline">Master Distributor Detail</div>
-            <div className="text-lg font-medium">{md.full_name}</div>
+            <div className="text-[10px] uppercase font-black tracking-widest text-[#1B4332]/60">Master Distributor Dashboard</div>
+            <h2 className="text-xl font-black text-neutral-800">{md.full_name}</h2>
           </div>
-          <button onClick={onClose} className="mfp-btn-ghost p-2" data-testid="md-detail-close"><X className="h-4 w-4" /></button>
         </div>
-        <div className="p-6 space-y-6">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {[
-              ["Name", md.full_name],
-              ["Email", md.email],
-              ["Phone", md.phone || "—"],
-              ["Commission %", `${md.commission_percent}%`],
-              ["Earnings", fmtMoney(md.earnings ?? 0)],
-              ["Status", null],
-            ].map(([k, v]) => (
-              <div key={k} className="mfp-card p-4">
-                <div className="mfp-overline">{k}</div>
-                <div className="mt-2 text-sm font-medium break-all">
-                  {k === "Status" ? <StatusBadge status={md.frozen ? "rejected" : "approved"} /> : v}
-                </div>
-              </div>
-            ))}
-          </div>
+        <button onClick={onClose} className="p-2 hover:bg-neutral-100 rounded-xl transition-all text-neutral-400 hover:text-neutral-700">
+          <X className="h-6 w-6" />
+        </button>
+      </div>
 
-          {loading ? <EmptyState>Loading…</EmptyState> : (
-            <>
-              <div>
-                <h3 className="text-base font-medium mb-3">Distributors under {md.full_name} ({distributors.length})</h3>
-                {distributors.length === 0 ? <EmptyState>No distributors yet.</EmptyState> : (
-                  <div className="mfp-card overflow-hidden"><div className="overflow-x-auto"><table className="w-full mfp-table">
-                    <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Earnings</th><th>Markup %</th><th>Total %</th><th>Status</th><th>Created</th><th className="text-center">Actions</th></tr></thead>
-                    <tbody>{distributors.map((d) => (
-                      <tr key={d.id} data-testid={`md-dist-row-${d.id}`}>
-                        <td className="px-4 py-3 text-sm">{d.full_name}</td>
-                        <td className="px-4 py-3 text-sm">{d.email}</td>
-                        <td className="px-4 py-3 text-sm">{d.phone || "—"}</td>
-                        <td className="px-4 py-3 text-sm">{fmtMoney(d.earnings ?? 0)}</td>
-                        <td className="px-4 py-3 text-sm">{d.md_pct ?? d.markup_commission ?? 0}%</td>
-                        <td className="px-4 py-3 text-sm"><span className="font-semibold text-[#1B4332]">{d.commission_percent}%</span></td>
-                        <td className="px-4 py-3 text-sm"><StatusBadge status={d.frozen ? "rejected" : "approved"} /></td>
-                        <td className="px-4 py-3 text-sm">{fmtDate(d.created_at)}</td>
-                        <td className="px-4 py-3 text-sm text-center">
-                          <button
-                            onClick={() => setSelectedDistributorForAgents(d)}
-                            className="px-2.5 py-1 text-xs inline-flex items-center gap-1.5 bg-[#1B4332]/5 text-[#1B4332] hover:bg-[#1B4332] hover:text-white border border-[#1B4332]/10 rounded-lg transition-colors font-bold shadow-sm"
-                            title="View Agents"
-                            data-testid={`view-dist-agents-${d.id}`}
-                          >
-                            <Eye className="h-3 w-3" /> View Agents
-                          </button>
-                        </td>
-                      </tr>
-                    ))}</tbody>
-                  </table></div></div>
-                )}
+      <div className="p-8 max-w-7xl w-full mx-auto space-y-8 flex-1">
+        {/* Details Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-5">
+          {[
+            { label: "Name", val: md.full_name, icon: Users, color: "text-blue-600 bg-blue-50" },
+            { label: "Email", val: md.email, icon: Mail, color: "text-amber-600 bg-amber-50" },
+            { label: "Phone", val: md.phone || "—", icon: Phone, color: "text-purple-600 bg-purple-50" },
+            { label: "Commission %", val: `${md.commission_percent}%`, icon: Percent, color: "text-indigo-600 bg-indigo-50" },
+            { label: "Earnings", val: fmtMoney(md.earnings ?? 0), icon: IndianRupee, color: "text-emerald-600 bg-emerald-50" },
+            { label: "Status", val: null, icon: ShieldCheck, color: "text-teal-600 bg-teal-50" },
+          ].map((item) => (
+            <div key={item.label} className="bg-white border border-black/5 rounded-3xl p-5 shadow-sm hover:shadow-md transition-all">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-neutral-400">{item.label}</span>
+                <item.icon className={`h-8 w-8 p-1.5 rounded-xl ${item.color}`} />
               </div>
-              <div>
-                <h3 className="text-base font-medium mb-3">Direct Agents ({directAgents.length})</h3>
-                {directAgents.length === 0 ? <EmptyState>No direct agents.</EmptyState> : (
-                  <div className="mfp-card overflow-hidden"><div className="overflow-x-auto"><table className="w-full mfp-table">
-                    <thead><tr><th>Name</th><th>Email</th><th>Wallet</th><th>Total %</th><th>Status</th><th>Created</th></tr></thead>
-                    <tbody>{directAgents.map((a) => (
-                      <tr key={a.id} data-testid={`md-direct-agent-row-${a.id}`}>
-                        <td className="px-4 py-3 text-sm">{a.full_name}</td>
-                        <td className="px-4 py-3 text-sm">{a.email}</td>
-                        <td className="px-4 py-3 text-sm">{fmtMoney(a.wallet_balance)}</td>
-                        <td className="px-4 py-3 text-sm"><span className="font-semibold text-[#1B4332]">{a.commission_percent}%</span></td>
-                        <td className="px-4 py-3 text-sm"><StatusBadge status={a.frozen ? "rejected" : (!a.kyc_status || a.kyc_status === "approved" ? "approved" : (a.kyc_status === "rejected" ? "rejected" : "pending"))} /></td>
-                        <td className="px-4 py-3 text-sm">{fmtDate(a.created_at)}</td>
-                      </tr>
-                    ))}</tbody>
-                  </table></div></div>
-                )}
+              <div className="mt-4 text-sm font-black text-neutral-800 break-all">
+                {item.label === "Status" ? <StatusBadge status={md.frozen ? "rejected" : "approved"} /> : item.val}
               </div>
-              {distributorAgents.length > 0 && (
-                <div>
-                  <h3 className="text-base font-medium mb-3">Agents via Distributors ({distributorAgents.length})</h3>
-                  <div className="mfp-card overflow-hidden"><div className="overflow-x-auto"><table className="w-full mfp-table">
-                    <thead><tr><th>Name</th><th>Email</th><th>Wallet</th><th>Total %</th><th>Status</th><th>Created</th></tr></thead>
-                    <tbody>{distributorAgents.map((a) => (
-                      <tr key={a.id} data-testid={`md-via-agent-row-${a.id}`}>
-                        <td className="px-4 py-3 text-sm">{a.full_name}</td>
-                        <td className="px-4 py-3 text-sm">{a.email}</td>
-                        <td className="px-4 py-3 text-sm">{fmtMoney(a.wallet_balance)}</td>
-                        <td className="px-4 py-3 text-sm"><span className="font-semibold text-[#1B4332]">{a.commission_percent}%</span></td>
-                        <td className="px-4 py-3 text-sm"><StatusBadge status={a.frozen ? "rejected" : (!a.kyc_status || a.kyc_status === "approved" ? "approved" : (a.kyc_status === "rejected" ? "rejected" : "pending"))} /></td>
-                        <td className="px-4 py-3 text-sm">{fmtDate(a.created_at)}</td>
-                      </tr>
-                    ))}</tbody>
-                  </table></div></div>
+            </div>
+          ))}
+        </div>
+
+        {loading ? <EmptyState>Loading…</EmptyState> : (
+          <>
+            {/* Distributors under MD */}
+            <div className="bg-white border border-black/5 rounded-3xl p-6 shadow-sm space-y-4">
+              <h3 className="text-base font-black text-neutral-800 flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-[#1B4332]" /> Distributors under {md.full_name} ({distributors.length})
+              </h3>
+              {distributors.length === 0 ? <EmptyState>No distributors yet.</EmptyState> : (
+                <div className="overflow-hidden border border-neutral-100 rounded-2xl">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-[#F8F7F2] border-b border-neutral-100">
+                          <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Name</th>
+                          <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Email</th>
+                          <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Phone</th>
+                          <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Earnings</th>
+                          <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Markup %</th>
+                          <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Total %</th>
+                          <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Status</th>
+                          <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Created</th>
+                          <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400 text-center">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-100 bg-white">
+                        {distributors.map((d) => (
+                          <tr key={d.id} className="hover:bg-neutral-50/50 transition-colors">
+                            <td className="px-6 py-4 text-sm font-bold text-neutral-800">{d.full_name}</td>
+                            <td className="px-6 py-4 text-sm text-neutral-600">{d.email}</td>
+                            <td className="px-6 py-4 text-sm text-neutral-500 font-semibold">{d.phone || "—"}</td>
+                            <td className="px-6 py-4 text-sm font-black text-[#1B4332]">{fmtMoney(d.earnings ?? 0)}</td>
+                            <td className="px-6 py-4 text-sm font-semibold text-neutral-500">{d.md_pct ?? d.markup_commission ?? 0}%</td>
+                            <td className="px-6 py-4 text-sm"><span className="font-extrabold text-[#1B4332]">{d.commission_percent}%</span></td>
+                            <td className="px-6 py-4 text-sm"><StatusBadge status={d.frozen ? "rejected" : "approved"} /></td>
+                            <td className="px-6 py-4 text-sm text-neutral-400 font-semibold">{fmtDate(d.created_at)}</td>
+                            <td className="px-6 py-4 text-sm text-center">
+                              <button
+                                onClick={() => setSelectedDistributorForAgents(d)}
+                                className="px-4 py-2 text-xs inline-flex items-center gap-1.5 bg-[#1B4332]/5 text-[#1B4332] hover:bg-[#1B4332] hover:text-white border border-[#1B4332]/10 rounded-xl transition-all font-bold shadow-sm"
+                              >
+                                <Eye className="h-3.5 w-3.5" /> View Agents
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
-            </>
-          )}
-        </div>
+            </div>
+
+            {/* Direct Agents table */}
+            <div className="bg-white border border-black/5 rounded-3xl p-6 shadow-sm space-y-4">
+              <h3 className="text-base font-black text-neutral-800 flex items-center gap-2">
+                <UserCheck className="h-5 w-5 text-indigo-600" /> Direct Agents ({directAgents.length})
+              </h3>
+              {directAgents.length === 0 ? <EmptyState>No direct agents.</EmptyState> : (
+                <div className="overflow-hidden border border-neutral-100 rounded-2xl">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-[#F8F7F2] border-b border-neutral-100">
+                          <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Name</th>
+                          <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Email</th>
+                          <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Wallet</th>
+                          <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Total %</th>
+                          <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Status</th>
+                          <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Created</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-100 bg-white">
+                        {directAgents.map((a) => (
+                          <tr key={a.id} className="hover:bg-neutral-50/50 transition-colors">
+                            <td className="px-6 py-4 text-sm font-bold text-neutral-800">{a.full_name}</td>
+                            <td className="px-6 py-4 text-sm text-neutral-600">{a.email}</td>
+                            <td className="px-6 py-4 text-sm font-black text-[#1B4332]">{fmtMoney(a.wallet_balance)}</td>
+                            <td className="px-6 py-4 text-sm"><span className="font-extrabold text-[#1B4332]">{a.commission_percent}%</span></td>
+                            <td className="px-6 py-4 text-sm"><StatusBadge status={a.frozen ? "rejected" : (!a.kyc_status || a.kyc_status === "approved" ? "approved" : (a.kyc_status === "rejected" ? "rejected" : "pending"))} /></td>
+                            <td className="px-6 py-4 text-sm text-neutral-400 font-semibold">{fmtDate(a.created_at)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Agents via Distributors table */}
+            {distributorAgents.length > 0 && (
+              <div className="bg-white border border-black/5 rounded-3xl p-6 shadow-sm space-y-4">
+                <h3 className="text-base font-black text-neutral-800 flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-blue-600" /> Agents via Distributors ({distributorAgents.length})
+                </h3>
+                <div className="overflow-hidden border border-neutral-100 rounded-2xl">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-[#F8F7F2] border-b border-neutral-100">
+                          <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Name</th>
+                          <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Email</th>
+                          <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Wallet</th>
+                          <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Total %</th>
+                          <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Status</th>
+                          <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Created</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-100 bg-white">
+                        {distributorAgents.map((a) => (
+                          <tr key={a.id} className="hover:bg-neutral-50/50 transition-colors">
+                            <td className="px-6 py-4 text-sm font-bold text-neutral-800">{a.full_name}</td>
+                            <td className="px-6 py-4 text-sm text-neutral-600">{a.email}</td>
+                            <td className="px-6 py-4 text-sm font-black text-[#1B4332]">{fmtMoney(a.wallet_balance)}</td>
+                            <td className="px-6 py-4 text-sm"><span className="font-extrabold text-[#1B4332]">{a.commission_percent}%</span></td>
+                            <td className="px-6 py-4 text-sm"><StatusBadge status={a.frozen ? "rejected" : (!a.kyc_status || a.kyc_status === "approved" ? "approved" : (a.kyc_status === "rejected" ? "rejected" : "pending"))} /></td>
+                            <td className="px-6 py-4 text-sm text-neutral-400 font-semibold">{fmtDate(a.created_at)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
+
       {selectedDistributorForAgents && (
         <DistributorDetailModal
           distributor={selectedDistributorForAgents}
@@ -265,77 +334,89 @@ function DistributorDetailModal({ distributor, onClose }) {
   }, [distributor.id]);
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 grid place-items-start overflow-y-auto p-4 pt-10" onClick={onClose}>
-      <div className="bg-[#FDFCF8] rounded-2xl max-w-5xl w-full mx-auto" onClick={(e) => e.stopPropagation()} data-testid="distributor-detail-modal">
-        <div className="px-6 py-4 border-b border-black/5 flex items-center justify-between">
+    <div className="fixed inset-0 bg-[#F8F7F2] z-[60] overflow-y-auto flex flex-col">
+      {/* Header */}
+      <div className="bg-white border-b border-black/5 px-8 py-5 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+        <div className="flex items-center gap-4">
+          <button onClick={onClose} className="p-2.5 hover:bg-neutral-100 rounded-2xl transition-all border border-neutral-200 text-neutral-600 inline-flex items-center justify-center">
+            <ArrowLeft className="h-5 w-5" />
+          </button>
           <div>
-            <div className="mfp-overline">Distributor Detail</div>
-            <div className="text-lg font-medium">{distributor.full_name}</div>
+            <div className="text-[10px] uppercase font-black tracking-widest text-[#1B4332]/60">Distributor Dashboard</div>
+            <h2 className="text-xl font-black text-neutral-800">{distributor.full_name}</h2>
           </div>
-          <button onClick={onClose} className="mfp-btn-ghost p-2" data-testid="distributor-detail-close"><X className="h-4 w-4" /></button>
         </div>
-        <div className="p-6 space-y-6">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {[
-              ["Name", distributor.full_name],
-              ["Email", distributor.email],
-              ["Phone", distributor.phone || "—"],
-              ["Commission %", `${distributor.commission_percent}%`],
-              ["Earnings", fmtMoney(distributor.earnings ?? 0)],
-              ["Status", null],
-            ].map(([k, v]) => (
-              <div key={k} className="mfp-card p-4">
-                <div className="mfp-overline">{k}</div>
-                <div className="mt-2 text-sm font-medium break-all">
-                  {k === "Status"
-                    ? <StatusBadge status={distributor.frozen ? "rejected" : "approved"} />
-                    : v}
-                </div>
-              </div>
-            ))}
-          </div>
+        <button onClick={onClose} className="p-2 hover:bg-neutral-100 rounded-xl transition-all text-neutral-400 hover:text-neutral-700">
+          <X className="h-6 w-6" />
+        </button>
+      </div>
 
-          <div>
-            <h3 className="text-base font-medium mb-3">Agents Under {distributor.full_name}</h3>
-            {loading ? (
-              <EmptyState>Loading…</EmptyState>
-            ) : agents.length === 0 ? (
-              <EmptyState>No agents created by this distributor yet.</EmptyState>
-            ) : (
-              <div className="mfp-card overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full mfp-table">
-                    <thead>
-                      <tr>
-                        <th>Name</th>
-                        <th>Email</th>
-                        <th>Phone</th>
-                        <th>Wallet</th>
-                        <th>Markup %</th>
-                        <th>Total Commission %</th>
-                        <th>Status</th>
-                        <th>Created</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {agents.map((a) => (
-                        <tr key={a.id} data-testid={`distributor-agent-row-${a.id}`}>
-                          <td className="px-4 py-3 text-sm">{a.full_name}</td>
-                          <td className="px-4 py-3 text-sm">{a.email}</td>
-                          <td className="px-4 py-3 text-sm">{a.phone || "—"}</td>
-                          <td className="px-4 py-3 text-sm">{fmtMoney(a.wallet_balance)}</td>
-                          <td className="px-4 py-3 text-sm">{a.markup_commission ?? 0}%</td>
-                          <td className="px-4 py-3 text-sm"><span className="font-semibold text-[#1B4332]">{a.commission_percent}%</span></td>
-                          <td className="px-4 py-3 text-sm"><StatusBadge status={a.frozen ? "rejected" : "approved"} /></td>
-                          <td className="px-4 py-3 text-sm">{fmtDate(a.created_at)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+      <div className="p-8 max-w-7xl w-full mx-auto space-y-8 flex-1">
+        {/* Details Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-5">
+          {[
+            { label: "Name", val: distributor.full_name, icon: Users, color: "text-blue-600 bg-blue-50" },
+            { label: "Email", val: distributor.email, icon: Mail, color: "text-amber-600 bg-amber-50" },
+            { label: "Phone", val: distributor.phone || "—", icon: Phone, color: "text-purple-600 bg-purple-50" },
+            { label: "Commission %", val: `${distributor.commission_percent}%`, icon: Percent, color: "text-indigo-600 bg-indigo-50" },
+            { label: "Earnings", val: fmtMoney(distributor.earnings ?? 0), icon: IndianRupee, color: "text-emerald-600 bg-emerald-50" },
+            { label: "Status", val: null, icon: ShieldCheck, color: "text-teal-600 bg-teal-50" },
+          ].map((item) => (
+            <div key={item.label} className="bg-white border border-black/5 rounded-3xl p-5 shadow-sm hover:shadow-md transition-all">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-neutral-400">{item.label}</span>
+                <item.icon className={`h-8 w-8 p-1.5 rounded-xl ${item.color}`} />
               </div>
-            )}
-          </div>
+              <div className="mt-4 text-sm font-black text-neutral-800 break-all">
+                {item.label === "Status" ? <StatusBadge status={distributor.frozen ? "rejected" : "approved"} /> : item.val}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Agents table */}
+        <div className="bg-white border border-black/5 rounded-3xl p-6 shadow-sm space-y-4">
+          <h3 className="text-base font-black text-neutral-800 flex items-center gap-2">
+            <UserCheck className="h-5 w-5 text-[#1B4332]" /> Agents Under {distributor.full_name} ({agents.length})
+          </h3>
+          {loading ? (
+            <EmptyState>Loading…</EmptyState>
+          ) : agents.length === 0 ? (
+            <EmptyState>No agents created by this distributor yet.</EmptyState>
+          ) : (
+            <div className="overflow-hidden border border-neutral-100 rounded-2xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-[#F8F7F2] border-b border-neutral-100">
+                      <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Name</th>
+                      <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Email</th>
+                      <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Phone</th>
+                      <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Wallet</th>
+                      <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Markup %</th>
+                      <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Total %</th>
+                      <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Status</th>
+                      <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Created</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100 bg-white">
+                    {agents.map((a) => (
+                      <tr key={a.id} className="hover:bg-neutral-50/50 transition-colors">
+                        <td className="px-6 py-4 text-sm font-bold text-neutral-800">{a.full_name}</td>
+                        <td className="px-6 py-4 text-sm text-neutral-600">{a.email}</td>
+                        <td className="px-6 py-4 text-sm text-neutral-500 font-semibold">{a.phone || "—"}</td>
+                        <td className="px-6 py-4 text-sm font-black text-[#1B4332]">{fmtMoney(a.wallet_balance)}</td>
+                        <td className="px-6 py-4 text-sm font-semibold text-neutral-500">{a.markup_commission ?? 0}%</td>
+                        <td className="px-6 py-4 text-sm"><span className="font-extrabold text-[#1B4332]">{a.commission_percent}%</span></td>
+                        <td className="px-6 py-4 text-sm"><StatusBadge status={a.frozen ? "rejected" : "approved"} /></td>
+                        <td className="px-6 py-4 text-sm text-neutral-400 font-semibold">{fmtDate(a.created_at)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
