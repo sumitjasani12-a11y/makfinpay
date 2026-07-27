@@ -285,6 +285,9 @@ class RechargeTogglesIn(BaseModel):
     withdrawal_enabled: bool
     bill_pay_enabled: bool
 
+class HeadlineIn(BaseModel):
+    message: str
+
 class CommissionUpdateIn(BaseModel):
     commission_percent: float
 
@@ -3275,6 +3278,15 @@ async def _ensure_indexes() -> None:
                 created_at TIMESTAMPTZ
             )
         ''')
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS headlines (
+                id VARCHAR(255) PRIMARY KEY,
+                message TEXT NOT NULL,
+                active BOOLEAN DEFAULT TRUE,
+                is_deleted BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMPTZ
+            )
+        ''')
         await conn.execute('ALTER TABLE qr_codes ADD COLUMN IF NOT EXISTS mobile_number VARCHAR(50)')
         await conn.execute('ALTER TABLE qr_name_entries ADD COLUMN IF NOT EXISTS qr_percent NUMERIC(15, 4) DEFAULT 0')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS min_recharge_limit NUMERIC(15, 2) DEFAULT 100')
@@ -4432,6 +4444,49 @@ async def delete_backup(bid: str, request: Request, user=Depends(require_roles("
     await db.backups.delete_one({"id": bid})
     await write_audit(user["id"], "backup_deleted", target=bid, request=request)
     return {"ok": True}
+
+
+# ---------- HEADLINES / ANNOUNCEMENTS ----------
+@api.get("/admin/headlines")
+async def admin_get_headlines(user=Depends(require_roles("admin"))):
+    return await db.headlines.find({"is_deleted": False}).sort("created_at", -1).to_list(1000)
+
+@api.post("/admin/headlines")
+async def admin_create_headline(body: HeadlineIn, request: Request, user=Depends(require_roles("admin"))):
+    h = {
+        "id": new_id(),
+        "message": body.message.strip(),
+        "active": True,
+        "is_deleted": False,
+        "created_at": now_iso()
+    }
+    await db.headlines.insert_one(h)
+    await write_audit(user["id"], "headline_created", target=h["id"], meta={"message": h["message"]}, request=request)
+    return h
+
+@api.put("/admin/headlines/{hid}/toggle")
+async def admin_toggle_headline(hid: str, request: Request, user=Depends(require_roles("admin"))):
+    h = await db.headlines.find_one({"id": hid, "is_deleted": False})
+    if not h:
+        raise HTTPException(404, "Headline not found")
+    new_active = not h.get("active", True)
+    await db.headlines.update_one({"id": hid}, {"$set": {"active": new_active}})
+    await write_audit(user["id"], "headline_toggled", target=hid, meta={"active": new_active}, request=request)
+    return {"id": hid, "active": new_active}
+
+@api.delete("/admin/headlines/{hid}")
+async def admin_delete_headline(hid: str, request: Request, user=Depends(require_roles("admin"))):
+    h = await db.headlines.find_one({"id": hid, "is_deleted": False})
+    if not h:
+        raise HTTPException(404, "Headline not found")
+    await db.headlines.update_one({"id": hid}, {"$set": {"is_deleted": True}})
+    await write_audit(user["id"], "headline_deleted", target=hid, request=request)
+    return {"ok": True}
+
+@api.get("/headlines/active")
+async def get_active_headlines(user=Depends(get_current_user)):
+    items = await db.headlines.find({"is_deleted": False, "active": True}).sort("created_at", -1).to_list(100)
+    return [i["message"] for i in items if i.get("message")]
 
 
 app.include_router(api)

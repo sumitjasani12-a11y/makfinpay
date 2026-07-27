@@ -22,6 +22,20 @@ export default function DashboardLayout() {
   }
   const [open, setOpen] = useState(false);
   const [balance, setBalance] = useState(null);
+  const [headlines, setHeadlines] = useState([]);
+
+  // Fetch active headlines for marquee news sticker
+  useEffect(() => {
+    if (!user) return;
+    const fetchHeadlines = () => {
+      api.get("/headlines/active")
+        .then((r) => setHeadlines(r.data || []))
+        .catch((e) => console.log("Failed to fetch active headlines:", e.message));
+    };
+    fetchHeadlines();
+    const interval = setInterval(fetchHeadlines, 15000);
+    return () => clearInterval(interval);
+  }, [user]);
 
   // redirect to base overview page if not fully approved/setup
   useEffect(() => {
@@ -68,6 +82,16 @@ export default function DashboardLayout() {
       </aside>
 
       <main className="flex-1 min-w-0">
+        {headlines.length > 0 && (
+          <div className="bg-[#FFF9E6] border-b border-amber-100 py-1.5 px-4 flex items-center gap-3 overflow-hidden select-none">
+            <span className="shrink-0 text-[10px] font-black uppercase bg-[#CC5500] text-white px-2 py-0.5 rounded-md tracking-wider">
+              News
+            </span>
+            <marquee className="text-xs font-semibold text-[#CC5500]" scrollamount="3">
+              {headlines.join("     •     ")}
+            </marquee>
+          </div>
+        )}
         <header className="h-16 px-4 sm:px-8 border-b border-black/5 flex items-center justify-between bg-[#FDFCF8]/80 backdrop-blur-xl sticky top-0 z-30">
           <div className="flex items-center gap-3 min-w-0">
             <button

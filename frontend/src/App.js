@@ -21,6 +21,7 @@ import AdminAudit from "@/pages/admin/Audit";
 import AdminBackups from "@/pages/admin/Backups";
 import AdminQrNameEntry from "@/pages/admin/QrNameEntry";
 import AdminQRGallery from "@/pages/admin/QRGallery";
+import AdminHeadlines from "@/pages/admin/Headlines";
 import AdminServiceSlabs from "@/pages/admin/ServiceSlabs";
 import AdminBanks from "@/pages/admin/Banks";
 import AdminSettings from "@/pages/admin/Settings";
@@ -88,6 +89,7 @@ export default function App() {
             <Route path="qrcodes" element={<AdminQRCodes />} />
             <Route path="qr-name-entry" element={<AdminQrNameEntry />} />
             <Route path="qr-gallery" element={<AdminQRGallery />} />
+            <Route path="headlines" element={<AdminHeadlines />} />
             <Route path="commission" element={<AdminCommission />} />
             <Route path="service-slabs" element={<AdminServiceSlabs />} />
             <Route path="banks" element={<AdminBanks />} />
