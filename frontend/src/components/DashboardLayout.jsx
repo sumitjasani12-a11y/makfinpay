@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
-import { Menu, Megaphone } from "lucide-react";
+import { Menu, Megaphone, ChevronLeft, ChevronRight } from "lucide-react";
 import { NAV } from "./dashboardNav";
 import { SidebarContent } from "./SidebarContent";
 import Logo from "./Logo";
@@ -23,6 +23,24 @@ export default function DashboardLayout() {
   const [open, setOpen] = useState(false);
   const [balance, setBalance] = useState(null);
   const [headlines, setHeadlines] = useState([]);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+
+  // Extract active image messages
+  const imageMessages = useMemo(() => {
+    return headlines.filter(h => h.type === "image").map(h => h.message);
+  }, [headlines]);
+
+  // Autoplay image headlines slider rotation
+  useEffect(() => {
+    if (imageMessages.length <= 1) {
+      setActiveImageIndex(0);
+      return;
+    }
+    const timer = setInterval(() => {
+      setActiveImageIndex((prev) => (prev + 1) % imageMessages.length);
+    }, 5000); // Rotate every 5 seconds
+    return () => clearInterval(timer);
+  }, [imageMessages]);
 
   // Fetch active headlines for marquee news sticker
   useEffect(() => {
@@ -110,7 +128,6 @@ export default function DashboardLayout() {
         </header>
         {(() => {
           const textMessages = headlines.filter(h => h.type === "text" || !h.type).map(h => h.message);
-          const imageMessages = headlines.filter(h => h.type === "image").map(h => h.message);
           return (
             <>
               {/* TEXT HEADLINES MARQUEE */}
@@ -131,18 +148,56 @@ export default function DashboardLayout() {
                 </div>
               )}
 
-              {/* IMAGE HEADLINES BANNER AREA */}
+              {/* IMAGE HEADLINES BANNER AREA (SLIDER VIEW) */}
               {user.role !== "admin" && imageMessages.length > 0 && (
-                <div className="px-4 sm:px-8 pt-4 flex flex-col gap-4">
-                  {imageMessages.map((path, idx) => (
-                    <div key={idx} className="w-full bg-white rounded-3xl border border-black/5 overflow-hidden shadow-sm aspect-[21/9] sm:aspect-[32/9] md:max-h-[140px] relative transition-transform hover:scale-[1.002]">
-                      <img
-                        src={fileUrl(path)}
-                        alt="Announcement Banner"
-                        className="h-full w-full object-cover"
-                      />
+                <div className="px-4 sm:px-8 pt-4">
+                  <div className="w-full bg-white rounded-3xl border border-black/5 overflow-hidden shadow-sm aspect-[21/9] sm:aspect-[32/9] md:max-h-[140px] relative group">
+                    <div
+                      className="flex transition-transform duration-500 ease-out h-full"
+                      style={{ transform: `translateX(-${activeImageIndex * 100}%)` }}
+                    >
+                      {imageMessages.map((path, idx) => (
+                        <div key={idx} className="w-full h-full shrink-0">
+                          <img
+                            src={fileUrl(path)}
+                            alt={`Announcement Banner ${idx + 1}`}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                      ))}
                     </div>
-                  ))}
+
+                    {/* Navigation Arrows */}
+                    {imageMessages.length > 1 && (
+                      <>
+                        <button
+                          onClick={() => setActiveImageIndex((prev) => (prev === 0 ? imageMessages.length - 1 : prev - 1))}
+                          className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/60 text-white p-1.5 rounded-full transition-all opacity-0 group-hover:opacity-100 flex items-center justify-center"
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => setActiveImageIndex((prev) => (prev + 1) % imageMessages.length)}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/60 text-white p-1.5 rounded-full transition-all opacity-0 group-hover:opacity-100 flex items-center justify-center"
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+
+                        {/* Pagination Indicator Dots */}
+                        <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+                          {imageMessages.map((_, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => setActiveImageIndex(idx)}
+                              className={`w-1.5 h-1.5 rounded-full transition-all ${
+                                activeImageIndex === idx ? "bg-white w-3" : "bg-white/50"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               )}
             </>
