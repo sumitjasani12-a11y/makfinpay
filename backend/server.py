@@ -3062,6 +3062,13 @@ def _resolve_range(range_key: str, from_date: Optional[str], to_date: Optional[s
         return (today_start - timedelta(days=7)).isoformat(), (today_start + timedelta(days=1)).isoformat()
     if range_key == "last30":
         return (today_start - timedelta(days=30)).isoformat(), (today_start + timedelta(days=1)).isoformat()
+    if range_key == "this_month":
+        first_day = today_start.replace(day=1)
+        if first_day.month == 12:
+            next_month = first_day.replace(year=first_day.year + 1, month=1)
+        else:
+            next_month = first_day.replace(month=first_day.month + 1)
+        return first_day.isoformat(), next_month.isoformat()
     if range_key == "custom":
         if not from_date or not to_date:
             raise HTTPException(400, "Custom range requires 'from' and 'to' dates")

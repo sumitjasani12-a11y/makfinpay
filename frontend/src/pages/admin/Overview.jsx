@@ -18,6 +18,7 @@ const RANGES = [
   { key: "yesterday", label: "Yesterday" },
   { key: "last7", label: "Last 7 Days" },
   { key: "last30", label: "Last 30 Days" },
+  { key: "this_month", label: "This Month" },
   { key: "lifetime", label: "Lifetime" },
   { key: "custom", label: "Custom" },
 ];
@@ -163,16 +164,11 @@ export default function AdminOverview() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Platform overview" subtitle="Real-time fintech operations at a glance." />
-
-      {/* SECTION 1 — Financial Overview (filtered) */}
-      <section data-testid="section-financial">
-        <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
-          <div>
-            <h2 className="text-base font-bold tracking-tight text-neutral-800">Financial Overview</h2>
-            <p className="text-xs text-neutral-400">Data filtered by selected date range</p>
-          </div>
-          <div className="flex items-center gap-3">
+      <PageHeader
+        title="Platform overview"
+        subtitle="Real-time fintech operations at a glance."
+        actions={
+          <div className="flex items-center gap-3 pr-4 md:pr-6">
             {loadingFin && (
               <span className="inline-flex items-center gap-2 text-xs text-neutral-400 animate-pulse">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
@@ -189,6 +185,14 @@ export default function AdminOverview() {
               ))}
             </select>
           </div>
+        }
+      />
+
+      {/* SECTION 1 — Financial Overview (filtered) */}
+      <section data-testid="section-financial">
+        <div className="mb-6">
+          <h2 className="text-base font-bold tracking-tight text-neutral-800">Financial Overview</h2>
+          <p className="text-xs text-neutral-400">Data filtered by selected date range</p>
         </div>
 
         {/* Custom date inputs */}
