@@ -10,6 +10,7 @@ import bcrypt
 import jwt
 import secrets
 import requests
+import httpx
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Literal
@@ -268,6 +269,23 @@ class BillPaymentIn(BaseModel):
     operator: str
     customer_phone: str
     amount: float
+
+class LiveBillFetchIn(BaseModel):
+    operator_id: str
+    customer_number: str
+    ad1: Optional[str] = None
+    ad2: Optional[str] = None
+    ad3: Optional[str] = None
+
+class LiveBillPayIn(BaseModel):
+    operator_id: str
+    customer_number: str
+    bill_amount: float
+    customer_name: str
+    due_date: str
+    ad1: Optional[str] = None
+    ad2: Optional[str] = None
+    ad3: Optional[str] = None
 
 class WithdrawalIn(BaseModel):
     amount: float
@@ -2473,6 +2491,202 @@ async def agent_bill_payment(body: BillPaymentIn, user=Depends(require_approved_
 @api.get("/agent/transactions")
 async def agent_transactions(user=Depends(require_roles("agent"))):
     return await db.transactions.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(500)
+
+# ---------- LIVE BILL PAYMENTS (Irise API Integration) ----------
+IRISE_BASE_URL = os.getenv("IRISE_BASE_URL", "https://irise.co.in/api/v2/")
+IRISE_PUBLIC_KEY = os.getenv("IRISE_PUBLIC_KEY", "")
+IRISE_SECRET_KEY = os.getenv("IRISE_SECRET_KEY", "")
+
+async def call_irise_api(method: str, endpoint: str, params: dict = None, json_data: dict = None):
+    # Fallback to mock data for local testing/walkthrough if credentials are missing
+    if not IRISE_PUBLIC_KEY or not IRISE_SECRET_KEY:
+        ep = endpoint.strip("/")
+        if ep == "category":
+            return {
+                "status": "success",
+                "data": [
+                    {"id": 1, "name": "Electricity"},
+                    {"id": 2, "name": "Water"},
+                    {"id": 3, "name": "Gas"},
+                    {"id": 4, "name": "Mobile Postpaid"}
+                ]
+            }
+        elif ep == "operator":
+            cat_id = str(params.get("category_id") if params else "1")
+            if cat_id == "1":
+                return {
+                    "status": "success",
+                    "data": [
+                        {"id": 10, "name": "Torrent Power"},
+                        {"id": 11, "name": "PGVCL"},
+                        {"id": 12, "name": "UGVCL"}
+                    ]
+                }
+            elif cat_id == "2":
+                return {
+                    "status": "success",
+                    "data": [
+                        {"id": 20, "name": "Delhi Jal Board"},
+                        {"id": 21, "name": "BMC Water Department"}
+                    ]
+                }
+            else:
+                return {
+                    "status": "success",
+                    "data": [
+                        {"id": 30, "name": "Adani Gas"},
+                        {"id": 31, "name": "Indraprastha Gas"}
+                    ]
+                }
+        elif ep == "fetch-bill":
+            cust_num = json_data.get("customer_number", "")
+            return {
+                "status": "success",
+                "customer_name": "Test Customer",
+                "bill_amount": "450.00",
+                "due_date": "2026-08-15",
+                "bill_number": f"BILL-{cust_num}"
+            }
+        elif ep == "pay-bill":
+            return {
+                "status": "success",
+                "transaction_id": f"TXN-{uuid.uuid4().hex[:8].upper()}",
+                "operator_ref_id": f"REF-{uuid.uuid4().hex[:8].upper()}",
+                "payment_status": "success"
+            }
+        return {"status": "failed", "message": "Mock API endpoint not found"}
+
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "public-key": IRISE_PUBLIC_KEY,
+        "secret-key": IRISE_SECRET_KEY
+    }
+    url = f"{IRISE_BASE_URL.rstrip('/')}/{endpoint.lstrip('/')}"
+    async with httpx.AsyncClient(timeout=30) as client:
+        try:
+            if method.upper() == "GET":
+                r = await client.get(url, headers=headers, params=params)
+            else:
+                r = await client.post(url, headers=headers, json=json_data)
+            r.raise_for_status()
+            return r.json()
+        except httpx.HTTPStatusError as e:
+            try:
+                err_data = r.json()
+                detail = err_data.get("message") or err_data.get("detail") or str(e)
+            except Exception:
+                detail = r.text or str(e)
+            raise HTTPException(status_code=r.status_code, detail=f"Irise API Error: {detail}")
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Failed to connect to Irise API: {str(e)}")
+
+@api.get("/agent/live-billpay/categories")
+async def get_live_billpay_categories(user=Depends(require_approved_agent())):
+    res = await call_irise_api("GET", "category")
+    return res
+
+@api.get("/agent/live-billpay/operators")
+async def get_live_billpay_operators(category_id: str, user=Depends(require_approved_agent())):
+    res = await call_irise_api("GET", "operator", params={"category_id": category_id})
+    return res
+
+@api.post("/agent/live-billpay/fetch")
+async def post_live_billpay_fetch(body: LiveBillFetchIn, user=Depends(require_approved_agent())):
+    payload = {
+        "operator_id": body.operator_id,
+        "customer_number": body.customer_number
+    }
+    if body.ad1 is not None:
+        payload["ad1"] = body.ad1
+    if body.ad2 is not None:
+        payload["ad2"] = body.ad2
+    if body.ad3 is not None:
+        payload["ad3"] = body.ad3
+        
+    res = await call_irise_api("POST", "fetch-bill", json_data=payload)
+    return res
+
+@api.post("/agent/live-billpay/pay")
+async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depends(require_approved_agent())):
+    s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    if not s.get("bill_pay_enabled", True):
+        raise HTTPException(status_code=400, detail="Live Bill Payment service is temporarily disabled by administrator.")
+        
+    if body.bill_amount <= 0:
+        raise HTTPException(status_code=400, detail="Invalid bill amount")
+        
+    wallet = await get_or_create_wallet(user["id"])
+    if wallet["balance"] < body.bill_amount:
+        raise HTTPException(status_code=400, detail="Insufficient wallet balance")
+        
+    tid = new_id()
+    new_balance = await adjust_balance(user["id"], -body.bill_amount)
+    
+    tx = {
+        "id": tid,
+        "user_id": user["id"],
+        "user_name": user["full_name"],
+        "type": "live_bill",
+        "customer_name": body.customer_name,
+        "card_last4": None,
+        "operator": body.operator_id,
+        "customer_phone": body.customer_number,
+        "bill_amount": round(body.bill_amount, 2),
+        "service_charge": 0.0,
+        "total_amount": round(body.bill_amount, 2),
+        "amount": round(body.bill_amount, 2),
+        "status": "pending",
+        "created_at": now_iso(),
+        "reviewed_at": None,
+        "reviewed_by": None,
+        "note": f"Live Bill Payment - {body.customer_number}"
+    }
+    await db.transactions.insert_one(dict(tx))
+    
+    await ledger_entry(
+        user["id"], "debit", body.bill_amount, new_balance, "live_bill_pay", tid,
+        f"Live Bill Pay: ₹{body.bill_amount:.2f} — Operator: {body.operator_id} for {body.customer_number}"
+    )
+    
+    payload = {
+        "operator_id": body.operator_id,
+        "customer_number": body.customer_number,
+        "bill_amount": str(body.bill_amount),
+        "customer_name": body.customer_name,
+        "due_date": body.due_date,
+        "reference_id": tid
+    }
+    if body.ad1 is not None:
+        payload["ad1"] = body.ad1
+    if body.ad2 is not None:
+        payload["ad2"] = body.ad2
+    if body.ad3 is not None:
+        payload["ad3"] = body.ad3
+        
+    try:
+        res = await call_irise_api("POST", "pay-bill", json_data=payload)
+        status = res.get("payment_status") or res.get("status")
+        if status == "success":
+            await db.transactions.update_one({"id": tid}, {"$set": {"status": "approved", "reviewed_at": now_iso(), "reviewed_by": "system"}})
+            return {"status": "success", "transaction_id": tid, "operator_ref_id": res.get("operator_ref_id")}
+        elif status == "pending":
+            return {"status": "pending", "transaction_id": tid}
+        else:
+            new_balance_refund = await adjust_balance(user["id"], body.bill_amount)
+            await db.transactions.update_one({"id": tid}, {"$set": {"status": "rejected", "reviewed_at": now_iso(), "reviewed_by": "system", "note": f"Payment failed: {res.get('message', 'Rejected by operator')}"}})
+            await ledger_entry(
+                user["id"], "refund", body.bill_amount, new_balance_refund, "live_bill_refund", tid,
+                f"Refund: Failed Live Bill Pay for {body.customer_number}"
+            )
+            return {"status": "failed", "message": res.get("message", "Payment failed by operator")}
+    except Exception as e:
+        await db.transactions.update_one({"id": tid}, {"$set": {"note": f"API Connection error: {str(e)}"}})
+        return {"status": "pending", "transaction_id": tid, "message": f"Connection check pending: {str(e)}"}
+
+@api.get("/agent/live-billpay/transactions")
+async def get_live_billpay_transactions(user=Depends(require_roles("agent"))):
+    return await db.transactions.find({"user_id": user["id"], "type": "live_bill"}, {"_id": 0}).sort("created_at", -1).to_list(500)
 
 @api.get("/admin/transactions")
 async def admin_transactions(
