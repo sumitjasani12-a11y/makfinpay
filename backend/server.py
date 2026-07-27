@@ -287,6 +287,7 @@ class RechargeTogglesIn(BaseModel):
 
 class HeadlineIn(BaseModel):
     message: str
+    type: Optional[str] = "text"
 
 class HeadlineReorderIn(BaseModel):
     ids: List[str]
@@ -3285,6 +3286,7 @@ async def _ensure_indexes() -> None:
             CREATE TABLE IF NOT EXISTS headlines (
                 id VARCHAR(255) PRIMARY KEY,
                 message TEXT NOT NULL,
+                type VARCHAR(20) DEFAULT 'text',
                 active BOOLEAN DEFAULT TRUE,
                 position INTEGER DEFAULT 0,
                 is_deleted BOOLEAN DEFAULT FALSE,
@@ -3292,6 +3294,7 @@ async def _ensure_indexes() -> None:
             )
         ''')
         await conn.execute('ALTER TABLE headlines ADD COLUMN IF NOT EXISTS position INTEGER DEFAULT 0')
+        await conn.execute("ALTER TABLE headlines ADD COLUMN IF NOT EXISTS type VARCHAR(20) DEFAULT 'text'")
         await conn.execute('ALTER TABLE qr_codes ADD COLUMN IF NOT EXISTS mobile_number VARCHAR(50)')
         await conn.execute('ALTER TABLE qr_name_entries ADD COLUMN IF NOT EXISTS qr_percent NUMERIC(15, 4) DEFAULT 0')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS min_recharge_limit NUMERIC(15, 2) DEFAULT 100')
@@ -4464,13 +4467,14 @@ async def admin_create_headline(body: HeadlineIn, request: Request, user=Depends
     h = {
         "id": new_id(),
         "message": body.message.strip(),
+        "type": body.type or "text",
         "active": True,
         "position": new_pos,
         "is_deleted": False,
         "created_at": now_iso()
     }
     await db.headlines.insert_one(h)
-    await write_audit(user["id"], "headline_created", target=h["id"], meta={"message": h["message"]}, request=request)
+    await write_audit(user["id"], "headline_created", target=h["id"], meta={"message": h["message"], "type": h["type"]}, request=request)
     return h
 
 @api.put("/admin/headlines/{hid}/toggle")
@@ -4502,7 +4506,7 @@ async def admin_delete_headline(hid: str, request: Request, user=Depends(require
 @api.get("/headlines/active")
 async def get_active_headlines(user=Depends(get_current_user)):
     items = await db.headlines.find({"is_deleted": False, "active": True}).sort([("position", 1), ("created_at", -1)]).to_list(100)
-    return [i["message"] for i in items if i.get("message")]
+    return [{"message": i["message"], "type": i.get("type", "text")} for i in items if i.get("message")]
 
 
 app.include_router(api)

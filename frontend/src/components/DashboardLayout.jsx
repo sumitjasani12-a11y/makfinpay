@@ -5,7 +5,7 @@ import { Menu, Megaphone } from "lucide-react";
 import { NAV } from "./dashboardNav";
 import { SidebarContent } from "./SidebarContent";
 import Logo from "./Logo";
-import { api, fmtMoney } from "@/lib/api";
+import { api, fmtMoney, fileUrl } from "@/lib/api";
 
 const ROLE_LABELS = { master_distributor: "Master Distributor" };
 export function roleLabel(r) { return ROLE_LABELS[r] || r; }
@@ -108,22 +108,46 @@ export default function DashboardLayout() {
             <span className="mfp-pill bg-[#E8E5D7] text-[#1B4332] capitalize">{roleLabel(user.role)}</span>
           </div>
         </header>
-        {user.role !== "admin" && headlines.length > 0 && (
-          <div className="bg-[#FFF9E6] border-b border-amber-100 flex items-center overflow-hidden select-none h-10 relative">
-            <div
-              className="shrink-0 flex items-center gap-2 bg-[#CC5500] text-white pl-4 pr-7 h-full font-black uppercase text-[10px] tracking-wider relative"
-              style={{
-                clipPath: "polygon(0 0, 88% 0, 100% 50%, 88% 100%, 0 100%)"
-              }}
-            >
-              <Megaphone className="h-3.5 w-3.5" />
-              <span>Announcements</span>
-            </div>
-            <marquee className="text-xs font-bold text-[#CC5500] self-center" scrollamount="3">
-              {headlines.map(msg => `${msg} | `).join("     ")}
-            </marquee>
-          </div>
-        )}
+        {(() => {
+          const textMessages = headlines.filter(h => h.type === "text" || !h.type).map(h => h.message);
+          const imageMessages = headlines.filter(h => h.type === "image").map(h => h.message);
+          return (
+            <>
+              {/* TEXT HEADLINES MARQUEE */}
+              {user.role !== "admin" && textMessages.length > 0 && (
+                <div className="bg-[#FFF9E6] border-b border-amber-100 flex items-center overflow-hidden select-none h-10 relative">
+                  <div
+                    className="shrink-0 flex items-center gap-2 bg-[#CC5500] text-white pl-4 pr-7 h-full font-black uppercase text-[10px] tracking-wider relative"
+                    style={{
+                      clipPath: "polygon(0 0, 88% 0, 100% 50%, 88% 100%, 0 100%)"
+                    }}
+                  >
+                    <Megaphone className="h-3.5 w-3.5" />
+                    <span>Announcements</span>
+                  </div>
+                  <marquee className="text-xs font-bold text-[#CC5500] self-center" scrollamount="3">
+                    {textMessages.map(msg => `${msg} | `).join("     ")}
+                  </marquee>
+                </div>
+              )}
+
+              {/* IMAGE HEADLINES BANNER AREA */}
+              {user.role !== "admin" && imageMessages.length > 0 && (
+                <div className="px-4 sm:px-8 pt-4 flex flex-col gap-4">
+                  {imageMessages.map((path, idx) => (
+                    <div key={idx} className="w-full bg-white rounded-3xl border border-black/5 overflow-hidden shadow-sm aspect-[21/9] sm:aspect-[32/9] md:max-h-[140px] relative transition-transform hover:scale-[1.002]">
+                      <img
+                        src={fileUrl(path)}
+                        alt="Announcement Banner"
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          );
+        })()}
         <div className="p-4 sm:p-6 lg:p-8">
           <Outlet />
         </div>

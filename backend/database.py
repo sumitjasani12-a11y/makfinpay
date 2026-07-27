@@ -25,7 +25,7 @@ TABLE_COLUMNS = {
     "bank_details": ["id", "user_id", "account_holder", "account_number", "ifsc", "bank_name", "phone_number", "updated_at"],
     "settings": ["id", "default_percent", "updated_at", "min_recharge_limit", "max_recharge_limit", "qr_enabled", "recharge_enabled", "withdrawal_enabled", "bill_pay_enabled"],
     "files": ["id", "storage_path", "original_filename", "content_type", "size", "uploaded_by", "is_deleted", "created_at"],
-    "headlines": ["id", "message", "active", "position", "is_deleted", "created_at"],
+    "headlines": ["id", "message", "type", "active", "position", "is_deleted", "created_at"],
     "audit_logs": ["id", "user_id", "action", "target", "meta", "ip", "created_at"],
     "backup_settings": ["id", "enabled", "retention_days", "updated_at"],
     "backups": ["id", "gridfs_id", "filename", "label", "kind", "size_bytes", "status", "manifest", "error", "started_at", "completed_at", "created_at", "created_by", "version", "restore_status", "restore_started_at", "restore_completed_at", "restore_error", "restore_safety_backup_id", "restore_result"],
