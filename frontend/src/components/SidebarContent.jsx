@@ -63,7 +63,7 @@ export function SidebarContent({ user, items, onLogout }) {
             to={it.to}
             end={it.end}
             className={({ isActive }) =>
-              `flex items-center gap-3.5 px-4 py-2.5 rounded-2xl transition-all font-bold text-xs tracking-wider uppercase ` +
+              `flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all font-bold text-[10px] tracking-wider uppercase ` +
               `${isActive
                 ? "bg-white/10 text-white shadow-sm border border-white/5"
                 : "text-white/70 hover:bg-white/5 hover:text-white"
@@ -71,7 +71,7 @@ export function SidebarContent({ user, items, onLogout }) {
             }
             data-testid={`nav-${it.label.replace(/\s+/g, "-").toLowerCase()}`}
           >
-            <it.icon className={`h-4.5 w-4.5 shrink-0 ${getIconColor(it.label)}`} strokeWidth={2.3} />
+            <it.icon className={`h-3.5 w-3.5 shrink-0 ${getIconColor(it.label)}`} strokeWidth={2.3} />
             <span>{it.label}</span>
           </NavLink>
         ))}
@@ -90,10 +90,10 @@ export function SidebarContent({ user, items, onLogout }) {
         
         <button
           onClick={onLogout}
-          className="w-full flex items-center gap-3.5 px-4 py-2.5 rounded-2xl text-xs font-bold text-white/70 hover:bg-white/5 hover:text-white hover:text-rose-400 hover:bg-rose-500/5 transition-all select-none border border-transparent hover:border-rose-500/10 uppercase tracking-wider"
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[10px] font-bold text-white/70 hover:bg-white/5 hover:text-white hover:text-rose-400 hover:bg-rose-500/5 transition-all select-none border border-transparent hover:border-rose-500/10 uppercase tracking-wider"
           data-testid="logout-btn"
         >
-          <LogOut className="h-4.5 w-4.5 shrink-0 text-rose-400" strokeWidth={2.3} />
+          <LogOut className="h-3.5 w-3.5 shrink-0 text-rose-400" strokeWidth={2.3} />
           <span>Sign out</span>
         </button>
       </div>
