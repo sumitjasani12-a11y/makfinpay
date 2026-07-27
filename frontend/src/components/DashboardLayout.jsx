@@ -90,7 +90,7 @@ export default function DashboardLayout() {
   return (
     <div className="min-h-screen bg-[#FDFCF8] md:flex">
       {/* Desktop / tablet sidebar (≥ md) */}
-      <aside className="hidden md:flex w-64 shrink-0 border-r border-black/5 bg-[#FDFCF8] sticky top-0 h-screen flex-col">
+      <aside className="hidden md:flex w-64 shrink-0 border-r border-white/5 bg-[#1B4332] text-white sticky top-0 h-screen flex-col">
         <SidebarContent user={user} items={items} onLogout={handleLogout} />
       </aside>
 
@@ -99,7 +99,7 @@ export default function DashboardLayout() {
         <div className="md:hidden fixed inset-0 z-40 bg-black/50" onClick={() => setOpen(false)} data-testid="mobile-drawer-overlay" />
       )}
       <aside
-        className={`md:hidden fixed inset-y-0 left-0 z-50 w-72 bg-[#FDFCF8] border-r border-black/5 flex flex-col transform transition-transform duration-300 ${open ? "translate-x-0" : "-translate-x-full"}`}
+        className={`md:hidden fixed inset-y-0 left-0 z-50 w-72 bg-[#1B4332] text-white border-r border-white/5 flex flex-col transform transition-transform duration-300 ${open ? "translate-x-0" : "-translate-x-full"}`}
         data-testid="mobile-drawer"
       >
         <SidebarContent user={user} items={items} onLogout={handleLogout} />
