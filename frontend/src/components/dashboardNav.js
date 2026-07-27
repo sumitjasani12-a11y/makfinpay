@@ -8,7 +8,7 @@ import {
 /** Static navigation map per role — referenced by DashboardLayout. */
 export const NAV = {
   admin: [
-    { to: "/admin", label: "Overview", icon: LayoutDashboard, end: true },
+    { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
     { to: "/admin/master-distributors", label: "Master Distributors", icon: Crown },
     { to: "/admin/distributors", label: "Distributors", icon: Users },
     { to: "/admin/agents", label: "Agents", icon: UserCog },
@@ -31,7 +31,7 @@ export const NAV = {
     { to: "/admin/policies", label: "Rules & Policies", icon: ScrollText },
   ],
   master_distributor: [
-    { to: "/md", label: "Overview", icon: LayoutDashboard, end: true },
+    { to: "/md", label: "Dashboard", icon: LayoutDashboard, end: true },
     { to: "/md/distributors", label: "My Distributors", icon: Users },
     { to: "/md/agents", label: "My Agents", icon: UserCog },
     { to: "/md/recharges", label: "Recharge Activity", icon: ArrowDownToLine },
@@ -40,7 +40,7 @@ export const NAV = {
     { to: "/md/policies", label: "Rules & Policies", icon: ScrollText },
   ],
   distributor: [
-    { to: "/distributor", label: "Overview", icon: LayoutDashboard, end: true },
+    { to: "/distributor", label: "Dashboard", icon: LayoutDashboard, end: true },
     { to: "/distributor/agents", label: "My Agents", icon: UserCog },
     { to: "/distributor/recharges", label: "Recharge Activity", icon: ArrowDownToLine },
     { to: "/distributor/withdrawal", label: "Withdrawal", icon: ArrowUpFromLine },
