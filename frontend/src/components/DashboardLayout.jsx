@@ -109,9 +109,9 @@ export default function DashboardLayout() {
           </div>
         </header>
         {user.role !== "admin" && headlines.length > 0 && (
-          <div className="bg-white border-b border-black/5 flex items-center overflow-hidden select-none h-10 relative">
+          <div className="bg-[#FFF9E6] border-b border-amber-100 flex items-center overflow-hidden select-none h-10 relative">
             <div
-              className="shrink-0 flex items-center gap-2 bg-[#E6003F] text-white pl-4 pr-7 h-full font-black uppercase text-[10px] tracking-wider relative"
+              className="shrink-0 flex items-center gap-2 bg-[#CC5500] text-white pl-4 pr-7 h-full font-black uppercase text-[10px] tracking-wider relative"
               style={{
                 clipPath: "polygon(0 0, 88% 0, 100% 50%, 88% 100%, 0 100%)"
               }}
@@ -119,7 +119,7 @@ export default function DashboardLayout() {
               <Megaphone className="h-3.5 w-3.5" />
               <span>Announcements</span>
             </div>
-            <marquee className="text-xs font-bold text-neutral-800 self-center" scrollamount="3">
+            <marquee className="text-xs font-bold text-[#CC5500] self-center" scrollamount="3">
               {headlines.map(msg => `${msg} | `).join("     ")}
             </marquee>
           </div>
