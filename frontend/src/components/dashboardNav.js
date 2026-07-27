@@ -33,7 +33,6 @@ export const NAV = {
   master_distributor: [
     { to: "/md", label: "Dashboard", icon: LayoutDashboard, end: true },
     { to: "/md/distributors", label: "My Distributors", icon: Users },
-    { to: "/md/agents", label: "My Agents", icon: UserCog },
     { to: "/md/recharges", label: "Agent QR Requests", icon: ArrowDownToLine },
     { to: "/md/withdrawal", label: "Pay Withdrawal", icon: ArrowUpFromLine },
     { to: "/md/change-password", label: "Change Password", icon: KeyRound },

@@ -37,7 +37,6 @@ import DistWithdrawal from "@/pages/distributor/Withdrawal";
 
 import MdOverview from "@/pages/md/Overview";
 import MdDistributors from "@/pages/md/Distributors";
-import MdAgents from "@/pages/md/Agents";
 import MdRecharges from "@/pages/md/Recharges";
 import MdWithdrawal from "@/pages/md/Withdrawal";
 
@@ -118,7 +117,6 @@ export default function App() {
           <Route path="/md" element={<Protected roles={["master_distributor"]}><DashboardLayout /></Protected>}>
             <Route index element={<MdOverview />} />
             <Route path="distributors" element={<MdDistributors />} />
-            <Route path="agents" element={<MdAgents />} />
             <Route path="recharges" element={<MdRecharges />} />
             <Route path="withdrawal" element={<MdWithdrawal />} />
             <Route path="change-password" element={<ChangePassword />} />
