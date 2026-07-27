@@ -1620,6 +1620,19 @@ async def admin_list_recharges(
     # Legacy caller (no pagination requested) — full list, no cap.
     return await db.recharges.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
 
+@api.get("/admin/recharge-gallery")
+async def get_recharge_gallery(user=Depends(require_roles("admin"))):
+    query = {"screenshot_path": {"$ne": "", "$exists": True}}
+    items = await db.recharges.find(query, {
+        "id": 1,
+        "amount": 1,
+        "screenshot_path": 1,
+        "created_at": 1,
+        "qr_code_label": 1,
+        "status": 1
+    }).sort("created_at", -1).to_list(10000)
+    return items
+
 @api.get("/distributor/recharges")
 async def distributor_list_recharges(user=Depends(require_approved_distributor())):
     agent_ids = [u["id"] async for u in db.users.find({"parent_id": user["id"]}, {"_id": 0, "id": 1})]

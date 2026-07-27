@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Users, UserCog, ArrowDownToLine, ArrowUpFromLine, Wallet,
   QrCode, Percent, FileCheck2, ScrollText, CreditCard, History,
   FilePlus2, KeyRound, DatabaseBackup, Crown, FileText, Layers, Landmark,
-  Settings,
+  Settings, FolderOpen,
 } from "lucide-react";
 
 /** Static navigation map per role — referenced by DashboardLayout. */
@@ -17,6 +17,7 @@ export const NAV = {
     { to: "/admin/transactions", label: "Transactions", icon: CreditCard },
     { to: "/admin/qrcodes", label: "QR Codes", icon: QrCode },
     { to: "/admin/qr-name-entry", label: "QR Name Entry", icon: FileText },
+    { to: "/admin/qr-gallery", label: "QR Gallery", icon: FolderOpen },
     { to: "/admin/commission", label: "Commission", icon: Percent },
     { to: "/admin/service-slabs", label: "Service Slabs", icon: Layers },
     { to: "/admin/banks", label: "Bank Entry", icon: Landmark },
