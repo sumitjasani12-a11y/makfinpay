@@ -153,7 +153,7 @@ export default function LiveBillPay() {
     }
   };
 
-  const activeOp = operators.find(o => String(o.id) === String(selectedOp));
+  const activeOp = operators.find(o => String(o.operator_id) === String(selectedOp));
 
   const paginatedTransactions = React.useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -196,7 +196,7 @@ export default function LiveBillPay() {
                   >
                     <option value="">Choose category...</option>
                     {categories.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
+                      <option key={c.category_id} value={c.category_id}>{c.category_name}</option>
                     ))}
                   </select>
                 </div>
@@ -222,7 +222,7 @@ export default function LiveBillPay() {
                     >
                       <option value="">Choose operator...</option>
                       {operators.map((o) => (
-                        <option key={o.id} value={o.id}>{o.name}</option>
+                        <option key={o.operator_id} value={o.operator_id}>{o.operator_name}</option>
                       ))}
                     </select>
                   </div>
