@@ -270,22 +270,21 @@ class BillPaymentIn(BaseModel):
     customer_phone: str
     amount: float
 
+class CustomerParamItem(BaseModel):
+    name: str
+    value: str
+
 class LiveBillFetchIn(BaseModel):
-    operator_id: str
-    customer_number: str
-    ad1: Optional[str] = None
-    ad2: Optional[str] = None
-    ad3: Optional[str] = None
+    billerId: str
+    mobile: str
+    customerParams: List[CustomerParamItem]
 
 class LiveBillPayIn(BaseModel):
-    operator_id: str
-    customer_number: str
-    bill_amount: float
-    customer_name: str
-    due_date: str
-    ad1: Optional[str] = None
-    ad2: Optional[str] = None
-    ad3: Optional[str] = None
+    billerId: str
+    amount: float
+    mobile: str
+    customerParams: List[CustomerParamItem]
+    billerResponseInfo: dict
 
 class WithdrawalIn(BaseModel):
     amount: float
@@ -2510,54 +2509,66 @@ async def call_irise_api(method: str, endpoint: str, params: dict = None, json_d
             return {
                 "status": "success",
                 "data": [
-                    {"id": 1, "name": "Electricity"},
-                    {"id": 2, "name": "Water"},
-                    {"id": 3, "name": "Gas"},
-                    {"id": 4, "name": "Mobile Postpaid"}
+                    {"category_id": 1, "category_name": "Electricity"},
+                    {"category_id": 2, "category_name": "Water"},
+                    {"category_id": 3, "category_name": "Gas"},
+                    {"category_id": 4, "category_name": "Mobile Postpaid"}
                 ]
             }
-        elif ep == "operators":
+        elif ep == "billers":
             cat_id = str(params.get("category_id") if params else "1")
             if cat_id == "1":
                 return {
                     "status": "success",
                     "data": [
-                        {"id": 10, "name": "Torrent Power"},
-                        {"id": 11, "name": "PGVCL"},
-                        {"id": 12, "name": "UGVCL"}
+                        {"biller_id": "10", "biller_name": "Torrent Power", "category_id": 1, "status": "active"},
+                        {"biller_id": "11", "biller_name": "PGVCL", "category_id": 1, "status": "active"},
+                        {"biller_id": "12", "biller_name": "UGVCL", "category_id": 1, "status": "active"}
                     ]
                 }
             elif cat_id == "2":
                 return {
                     "status": "success",
                     "data": [
-                        {"id": 20, "name": "Delhi Jal Board"},
-                        {"id": 21, "name": "BMC Water Department"}
+                        {"biller_id": "20", "biller_name": "Delhi Jal Board", "category_id": 2, "status": "active"},
+                        {"biller_id": "21", "biller_name": "BMC Water Department", "category_id": 2, "status": "active"}
                     ]
                 }
             else:
                 return {
                     "status": "success",
                     "data": [
-                        {"id": 30, "name": "Adani Gas"},
-                        {"id": 31, "name": "Indraprastha Gas"}
+                        {"biller_id": "30", "biller_name": "Adani Gas", "category_id": 3, "status": "active"},
+                        {"biller_id": "31", "biller_name": "Indraprastha Gas", "category_id": 3, "status": "active"}
                     ]
                 }
         elif ep == "fetch-bill":
-            cust_num = json_data.get("customer_number", "")
+            cust_num = ""
+            if json_data and json_data.get("customerParams"):
+                cust_num = json_data.get("customerParams")[0].get("value", "")
             return {
                 "status": "success",
-                "customer_name": "Test Customer",
-                "bill_amount": "450.00",
-                "due_date": "2026-08-15",
-                "bill_number": f"BILL-{cust_num}"
+                "data": {
+                    "responseCode": "000",
+                    "billerResponse": {
+                        "customerName": "JOHN DOE",
+                        "amount": "1500.00",
+                        "dueDate": "2026-08-15"
+                    }
+                }
             }
         elif ep == "pay-bill":
             return {
                 "status": "success",
-                "transaction_id": f"TXN-{uuid.uuid4().hex[:8].upper()}",
-                "operator_ref_id": f"REF-{uuid.uuid4().hex[:8].upper()}",
-                "payment_status": "success"
+                "transaction_id": f"USEPAY{uuid.uuid4().hex[:8].upper()}",
+                "payment_status": "success",
+                "data": {
+                    "responseCode": "000",
+                    "billPayResponse": {
+                        "txnReferenceId": f"BBPS{uuid.uuid4().hex[:8].upper()}",
+                        "txnStatus": "SUCCESS"
+                    }
+                }
             }
         return {"status": "failed", "message": "Mock API endpoint not found"}
 
@@ -2593,22 +2604,16 @@ async def get_live_billpay_categories(user=Depends(require_approved_agent())):
 
 @api.get("/agent/live-billpay/operators")
 async def get_live_billpay_operators(category_id: str, user=Depends(require_approved_agent())):
-    res = await call_irise_api("GET", "operators", params={"category_id": category_id})
+    res = await call_irise_api("GET", "billers", params={"category_id": category_id})
     return res
 
 @api.post("/agent/live-billpay/fetch")
 async def post_live_billpay_fetch(body: LiveBillFetchIn, user=Depends(require_approved_agent())):
     payload = {
-        "operator_id": body.operator_id,
-        "customer_number": body.customer_number
+        "billerId": body.billerId,
+        "mobile": body.mobile,
+        "customerParams": [dict(x) for x in body.customerParams]
     }
-    if body.ad1 is not None:
-        payload["ad1"] = body.ad1
-    if body.ad2 is not None:
-        payload["ad2"] = body.ad2
-    if body.ad3 is not None:
-        payload["ad3"] = body.ad3
-        
     res = await call_irise_api("POST", "fetch-bill", json_data=payload)
     return res
 
@@ -2618,71 +2623,64 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
     if not s.get("bill_pay_enabled", True):
         raise HTTPException(status_code=400, detail="Live Bill Payment service is temporarily disabled by administrator.")
         
-    if body.bill_amount <= 0:
+    if body.amount <= 0:
         raise HTTPException(status_code=400, detail="Invalid bill amount")
         
     wallet = await get_or_create_wallet(user["id"])
-    if wallet["balance"] < body.bill_amount:
+    if wallet["balance"] < body.amount:
         raise HTTPException(status_code=400, detail="Insufficient wallet balance")
         
     tid = new_id()
-    new_balance = await adjust_balance(user["id"], -body.bill_amount)
+    new_balance = await adjust_balance(user["id"], -body.amount)
     
     tx = {
         "id": tid,
         "user_id": user["id"],
         "user_name": user["full_name"],
         "type": "live_bill",
-        "customer_name": body.customer_name,
+        "customer_name": "N/A",
         "card_last4": None,
-        "operator": body.operator_id,
-        "customer_phone": body.customer_number,
-        "bill_amount": round(body.bill_amount, 2),
+        "operator": body.billerId,
+        "customer_phone": body.mobile,
+        "bill_amount": round(body.amount, 2),
         "service_charge": 0.0,
-        "total_amount": round(body.bill_amount, 2),
-        "amount": round(body.bill_amount, 2),
+        "total_amount": round(body.amount, 2),
+        "amount": round(body.amount, 2),
         "status": "pending",
         "created_at": now_iso(),
         "reviewed_at": None,
         "reviewed_by": None,
-        "note": f"Live Bill Payment - {body.customer_number}"
+        "note": f"Live Bill Payment - {body.mobile}"
     }
     await db.transactions.insert_one(dict(tx))
     
     await ledger_entry(
-        user["id"], "debit", body.bill_amount, new_balance, "live_bill_pay", tid,
-        f"Live Bill Pay: ₹{body.bill_amount:.2f} — Operator: {body.operator_id} for {body.customer_number}"
+        user["id"], "debit", body.amount, new_balance, "live_bill_pay", tid,
+        f"Live Bill Pay: ₹{body.amount:.2f} — Biller: {body.billerId} for {body.mobile}"
     )
     
     payload = {
-        "operator_id": body.operator_id,
-        "customer_number": body.customer_number,
-        "bill_amount": str(body.bill_amount),
-        "customer_name": body.customer_name,
-        "due_date": body.due_date,
-        "reference_id": tid
+        "billerId": body.billerId,
+        "amount": body.amount,
+        "mobile": body.mobile,
+        "customerParams": [dict(x) for x in body.customerParams],
+        "billerResponseInfo": body.billerResponseInfo
     }
-    if body.ad1 is not None:
-        payload["ad1"] = body.ad1
-    if body.ad2 is not None:
-        payload["ad2"] = body.ad2
-    if body.ad3 is not None:
-        payload["ad3"] = body.ad3
-        
+    
     try:
         res = await call_irise_api("POST", "pay-bill", json_data=payload)
         status = res.get("payment_status") or res.get("status")
         if status == "success":
             await db.transactions.update_one({"id": tid}, {"$set": {"status": "approved", "reviewed_at": now_iso(), "reviewed_by": "system"}})
-            return {"status": "success", "transaction_id": tid, "operator_ref_id": res.get("operator_ref_id")}
+            return {"status": "success", "transaction_id": tid}
         elif status == "pending":
             return {"status": "pending", "transaction_id": tid}
         else:
-            new_balance_refund = await adjust_balance(user["id"], body.bill_amount)
+            new_balance_refund = await adjust_balance(user["id"], body.amount)
             await db.transactions.update_one({"id": tid}, {"$set": {"status": "rejected", "reviewed_at": now_iso(), "reviewed_by": "system", "note": f"Payment failed: {res.get('message', 'Rejected by operator')}"}})
             await ledger_entry(
-                user["id"], "refund", body.bill_amount, new_balance_refund, "live_bill_refund", tid,
-                f"Refund: Failed Live Bill Pay for {body.customer_number}"
+                user["id"], "refund", body.amount, new_balance_refund, "live_bill_refund", tid,
+                f"Refund: Failed Live Bill Pay for {body.mobile}"
             )
             return {"status": "failed", "message": res.get("message", "Payment failed by operator")}
     except Exception as e:

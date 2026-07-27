@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { api, formatErr, fmtMoney, fmtDate } from "@/lib/api";
-import { PageHeader, DataTable, StatusBadge, EmptyState } from "@/components/Shared";
+import { useAuth } from "@/lib/auth";
+import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import { toast } from "sonner";
-import { Loader2, CreditCard, HelpCircle, History, Check, X, ShieldAlert, Sparkles, Send, Receipt, FileText } from "lucide-react";
+import { Loader2, CreditCard, History, Send, Receipt } from "lucide-react";
 
 export default function LiveBillPay() {
+  const { user } = useAuth();
   const [categories, setCategories] = useState([]);
-  const [operators, setOperators] = useState([]);
+  const [billers, setBillers] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [loadingCats, setLoadingCats] = useState(false);
   const [loadingOps, setLoadingOps] = useState(false);
@@ -16,10 +18,11 @@ export default function LiveBillPay() {
   // Form states
   const [selectedCat, setSelectedCat] = useState("");
   const [selectedOp, setSelectedOp] = useState("");
-  const [customerNumber, setCustomerNumber] = useState("");
-  const [ad1, setAd1] = useState("");
-  const [ad2, setAd2] = useState("");
-  const [ad3, setAd3] = useState("");
+  const [mobileNumber, setMobileNumber] = useState(user?.phone || "");
+  const [paramLabel, setParamLabel] = useState("Consumer Number");
+  const [paramValue, setParamValue] = useState("");
+  const [adLabel, setAdLabel] = useState("");
+  const [adValue, setAdValue] = useState("");
 
   // Fetched bill details
   const [fetchedBill, setFetchedBill] = useState(null);
@@ -40,13 +43,13 @@ export default function LiveBillPay() {
     }
   };
 
-  const fetchOperators = async (catId) => {
+  const fetchBillers = async (catId) => {
     setLoadingOps(true);
     try {
       const res = await api.get(`/agent/live-billpay/operators?category_id=${catId}`);
-      setOperators(res.data?.data || []);
+      setBillers(res.data?.data || []);
     } catch (e) {
-      toast.error(formatErr(e.response?.data?.detail) || "Failed to load operators");
+      toast.error(formatErr(e.response?.data?.detail) || "Failed to load billers");
     } finally {
       setLoadingOps(false);
     }
@@ -69,10 +72,10 @@ export default function LiveBillPay() {
   const handleCategoryChange = (catId) => {
     setSelectedCat(catId);
     setSelectedOp("");
-    setOperators([]);
+    setBillers([]);
     setFetchedBill(null);
     if (catId) {
-      fetchOperators(catId);
+      fetchBillers(catId);
     }
   };
 
@@ -83,23 +86,29 @@ export default function LiveBillPay() {
 
   const fetchBill = async (e) => {
     if (e) e.preventDefault();
-    if (!selectedOp || !customerNumber) {
-      return toast.error("Please select an operator and enter your Customer Number");
+    if (!selectedOp || !paramValue || !mobileNumber) {
+      return toast.error("Please fill all required fields (Biller, Consumer Number, and Mobile)");
     }
     setLoadingFetch(true);
     setFetchedBill(null);
     try {
+      const customerParams = [
+        { name: paramLabel, value: paramValue }
+      ];
+      if (adLabel && adValue) {
+        customerParams.push({ name: adLabel, value: adValue });
+      }
+
       const payload = {
-        operator_id: selectedOp,
-        customer_number: customerNumber
+        billerId: selectedOp,
+        mobile: mobileNumber,
+        customerParams: customerParams
       };
-      if (ad1) payload.ad1 = ad1;
-      if (ad2) payload.ad2 = ad2;
-      if (ad3) payload.ad3 = ad3;
 
       const res = await api.post("/agent/live-billpay/fetch", payload);
-      if (res.data?.status === "success") {
-        setFetchedBill(res.data);
+      if (res.data?.status === "success" && res.data?.data?.billerResponse) {
+        // Save the response info which is needed for pay-bill
+        setFetchedBill(res.data.data.billerResponse);
         toast.success("Bill details fetched successfully!");
       } else {
         toast.error(res.data?.message || "Failed to fetch bill. Please verify details.");
@@ -115,33 +124,33 @@ export default function LiveBillPay() {
     if (!fetchedBill) return;
     setLoadingPay(true);
     try {
+      const customerParams = [
+        { name: paramLabel, value: paramValue }
+      ];
+      if (adLabel && adValue) {
+        customerParams.push({ name: adLabel, value: adValue });
+      }
+
       const payload = {
-        operator_id: selectedOp,
-        customer_number: customerNumber,
-        bill_amount: parseFloat(fetchedBill.bill_amount),
-        customer_name: fetchedBill.customer_name || "N/A",
-        due_date: fetchedBill.due_date || "N/A"
+        billerId: selectedOp,
+        amount: parseFloat(fetchedBill.amount),
+        mobile: mobileNumber,
+        customerParams: customerParams,
+        billerResponseInfo: fetchedBill
       };
-      if (ad1) payload.ad1 = ad1;
-      if (ad2) payload.ad2 = ad2;
-      if (ad3) payload.ad3 = ad3;
 
       const res = await api.post("/agent/live-billpay/pay", payload);
       if (res.data?.status === "success") {
-        toast.success(`Bill payment of ₹${payload.bill_amount} successful!`);
+        toast.success(`Bill payment of ₹${payload.amount} successful!`);
         setFetchedBill(null);
-        setCustomerNumber("");
-        setAd1("");
-        setAd2("");
-        setAd3("");
+        setParamValue("");
+        setAdValue("");
         reloadHistory();
       } else if (res.data?.status === "pending") {
         toast.warning("Payment submitted. Current status: PENDING.");
         setFetchedBill(null);
-        setCustomerNumber("");
-        setAd1("");
-        setAd2("");
-        setAd3("");
+        setParamValue("");
+        setAdValue("");
         reloadHistory();
       } else {
         toast.error(res.data?.message || "Payment rejected by operator.");
@@ -153,7 +162,7 @@ export default function LiveBillPay() {
     }
   };
 
-  const activeOp = operators.find(o => String(o.operator_id) === String(selectedOp));
+  const activeOp = billers.find(o => String(o.biller_id) === String(selectedOp));
 
   const paginatedTransactions = React.useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -221,56 +230,87 @@ export default function LiveBillPay() {
                       required
                     >
                       <option value="">Choose operator...</option>
-                      {operators.map((o) => (
-                        <option key={o.operator_id} value={o.operator_id}>{o.operator_name}</option>
+                      {billers.map((o) => (
+                        <option key={o.biller_id} value={o.biller_id}>{o.biller_name}</option>
                       ))}
                     </select>
                   </div>
                 </div>
               )}
 
-              {/* Customer Number & Optional BBPS fields */}
+              {/* Customer Mobile Number */}
               {selectedOp && (
                 <div className="space-y-4 pt-1 animate-fadeIn">
                   <div className="space-y-1">
                     <label className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest block">
-                      Customer / Consumer Number
+                      Customer Mobile Number
                     </label>
                     <input
                       className="mfp-input text-xs bg-neutral-50/50"
                       type="text"
                       required
-                      value={customerNumber}
-                      onChange={(e) => setCustomerNumber(e.target.value)}
-                      placeholder="Enter customer account number"
+                      value={mobileNumber}
+                      onChange={(e) => setMobileNumber(e.target.value)}
+                      placeholder="e.g. 9876543210"
                     />
                   </div>
 
-                  {/* Render Optional Custom BBPS Fields if operator metadata suggests it */}
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest block">
-                      Additional Field 1 (Optional)
-                    </label>
-                    <input
-                      className="mfp-input text-xs bg-neutral-50/50"
-                      type="text"
-                      value={ad1}
-                      onChange={(e) => setAd1(e.target.value)}
-                      placeholder="e.g. Cycle Number / Billing Unit"
-                    />
+                  {/* Primary Param Input (e.g. Consumer Number) */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest block">
+                        Parameter Label
+                      </label>
+                      <input
+                        className="mfp-input text-xs bg-white"
+                        type="text"
+                        required
+                        value={paramLabel}
+                        onChange={(e) => setParamLabel(e.target.value)}
+                        placeholder="e.g. Consumer Number"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest block">
+                        Parameter Value
+                      </label>
+                      <input
+                        className="mfp-input text-xs bg-neutral-50/50"
+                        type="text"
+                        required
+                        value={paramValue}
+                        onChange={(e) => setParamValue(e.target.value)}
+                        placeholder="Enter value"
+                      />
+                    </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest block">
-                      Additional Field 2 (Optional)
-                    </label>
-                    <input
-                      className="mfp-input text-xs bg-neutral-50/50"
-                      type="text"
-                      value={ad2}
-                      onChange={(e) => setAd2(e.target.value)}
-                      placeholder="Optional details if operator requires"
-                    />
+                  {/* Optional Param Input 2 */}
+                  <div className="grid grid-cols-2 gap-3 border-t border-neutral-100 pt-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest block">
+                        Additional Param Label (Optional)
+                      </label>
+                      <input
+                        className="mfp-input text-xs bg-white"
+                        type="text"
+                        value={adLabel}
+                        onChange={(e) => setAdLabel(e.target.value)}
+                        placeholder="e.g. Cycle Number"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest block">
+                        Additional Param Value
+                      </label>
+                      <input
+                        className="mfp-input text-xs bg-neutral-50/50"
+                        type="text"
+                        value={adValue}
+                        onChange={(e) => setAdValue(e.target.value)}
+                        placeholder="Enter value"
+                      />
+                    </div>
                   </div>
                 </div>
               )}
@@ -278,7 +318,7 @@ export default function LiveBillPay() {
               {selectedOp && (
                 <button
                   type="submit"
-                  disabled={loadingFetch || !customerNumber}
+                  disabled={loadingFetch || !paramValue || !mobileNumber}
                   className="w-full mt-4 py-3 px-4 flex items-center justify-center gap-2 text-white text-xs font-bold rounded-xl transition-all shadow-md bg-[#00966B] hover:bg-[#007f5a] shadow-[#00966B]/10 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loadingFetch ? (
@@ -310,7 +350,7 @@ export default function LiveBillPay() {
                         Bill Fetched
                       </span>
                       <h4 className="text-sm font-bold mt-1 text-white/90">
-                        {activeOp?.name || "Utility Operator"}
+                        {activeOp?.biller_name || "Utility Provider"}
                       </h4>
                     </div>
                     <Receipt className="h-8 w-8 text-white/20" />
@@ -319,22 +359,22 @@ export default function LiveBillPay() {
                   <div className="space-y-3 text-xs text-white/70">
                     <div className="flex justify-between">
                       <span>Customer Name:</span>
-                      <strong className="text-white font-semibold">{fetchedBill.customer_name || "N/A"}</strong>
+                      <strong className="text-white font-semibold">{fetchedBill.customerName || "N/A"}</strong>
                     </div>
                     <div className="flex justify-between">
-                      <span>Bill Number:</span>
-                      <strong className="text-white font-semibold">{fetchedBill.bill_number || "N/A"}</strong>
+                      <span>Biller ID:</span>
+                      <strong className="text-white font-semibold">{selectedOp}</strong>
                     </div>
                     <div className="flex justify-between">
                       <span>Due Date:</span>
-                      <strong className="text-rose-400 font-bold">{fetchedBill.due_date || "N/A"}</strong>
+                      <strong className="text-rose-400 font-bold">{fetchedBill.dueDate || "N/A"}</strong>
                     </div>
                   </div>
 
                   <div className="bg-black/20 rounded-2xl p-4 border border-white/5 text-center space-y-1">
                     <span className="text-[9px] font-extrabold text-white/40 uppercase tracking-widest block">Total Payable Amount</span>
                     <span className="text-2xl font-black text-white tabular-nums">
-                      {fmtMoney(parseFloat(fetchedBill.bill_amount))}
+                      {fmtMoney(parseFloat(fetchedBill.amount))}
                     </span>
                   </div>
                 </div>
@@ -365,7 +405,7 @@ export default function LiveBillPay() {
                 <div className="space-y-1">
                   <h4 className="text-xs font-extrabold text-neutral-600 uppercase tracking-wider">No Active Invoice</h4>
                   <p className="text-xs text-neutral-400 max-w-[260px] mx-auto leading-relaxed">
-                    Select your utility provider and click "Fetch Bill Details" to load your invoice statement.
+                    Select your utility provider and click \"Fetch Bill Details\" to load your invoice statement.
                   </p>
                 </div>
               </div>
@@ -389,9 +429,8 @@ export default function LiveBillPay() {
           <DataTable
             columns={[
               { key: "amount", label: "Amount Paid", render: (r) => fmtMoney(r.amount) },
-              { key: "operator", label: "Operator ID" },
-              { key: "customer_phone", label: "Customer Number" },
-              { key: "customer_name", label: "Customer Name" },
+              { key: "operator", label: "Biller ID" },
+              { key: "customer_phone", label: "Mobile Number" },
               { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
               { key: "created_at", label: "Date / Time", render: (r) => fmtDate(r.created_at) }
             ]}

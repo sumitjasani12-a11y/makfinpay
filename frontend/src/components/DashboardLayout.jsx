@@ -92,7 +92,7 @@ export default function DashboardLayout() {
 
       api.get("/admin/bbps-balance")
         .then((r) => {
-          setBbpsBalance(r.data.balance);
+          setBbpsBalance(r.data.data?.balance);
         })
         .catch((e) => console.log("Failed to fetch admin BBPS balance:", e.message));
     }
