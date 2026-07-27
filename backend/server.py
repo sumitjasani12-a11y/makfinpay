@@ -288,6 +288,9 @@ class RechargeTogglesIn(BaseModel):
 class HeadlineIn(BaseModel):
     message: str
 
+class HeadlineReorderIn(BaseModel):
+    ids: List[str]
+
 class CommissionUpdateIn(BaseModel):
     commission_percent: float
 
@@ -3283,10 +3286,12 @@ async def _ensure_indexes() -> None:
                 id VARCHAR(255) PRIMARY KEY,
                 message TEXT NOT NULL,
                 active BOOLEAN DEFAULT TRUE,
+                position INTEGER DEFAULT 0,
                 is_deleted BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMPTZ
             )
         ''')
+        await conn.execute('ALTER TABLE headlines ADD COLUMN IF NOT EXISTS position INTEGER DEFAULT 0')
         await conn.execute('ALTER TABLE qr_codes ADD COLUMN IF NOT EXISTS mobile_number VARCHAR(50)')
         await conn.execute('ALTER TABLE qr_name_entries ADD COLUMN IF NOT EXISTS qr_percent NUMERIC(15, 4) DEFAULT 0')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS min_recharge_limit NUMERIC(15, 2) DEFAULT 100')
@@ -4449,14 +4454,18 @@ async def delete_backup(bid: str, request: Request, user=Depends(require_roles("
 # ---------- HEADLINES / ANNOUNCEMENTS ----------
 @api.get("/admin/headlines")
 async def admin_get_headlines(user=Depends(require_roles("admin"))):
-    return await db.headlines.find({"is_deleted": False}).sort("created_at", -1).to_list(1000)
+    return await db.headlines.find({"is_deleted": False}).sort([("position", 1), ("created_at", -1)]).to_list(1000)
 
 @api.post("/admin/headlines")
 async def admin_create_headline(body: HeadlineIn, request: Request, user=Depends(require_roles("admin"))):
+    # Get current max position to place new headline at the end
+    max_h = await db.headlines.find({"is_deleted": False}).sort("position", -1).to_list(1)
+    new_pos = (max_h[0].get("position", 0) + 1) if max_h else 0
     h = {
         "id": new_id(),
         "message": body.message.strip(),
         "active": True,
+        "position": new_pos,
         "is_deleted": False,
         "created_at": now_iso()
     }
@@ -4474,6 +4483,13 @@ async def admin_toggle_headline(hid: str, request: Request, user=Depends(require
     await write_audit(user["id"], "headline_toggled", target=hid, meta={"active": new_active}, request=request)
     return {"id": hid, "active": new_active}
 
+@api.put("/admin/headlines/reorder")
+async def admin_reorder_headlines(body: HeadlineReorderIn, request: Request, user=Depends(require_roles("admin"))):
+    for idx, hid in enumerate(body.ids):
+        await db.headlines.update_one({"id": hid}, {"$set": {"position": idx}})
+    await write_audit(user["id"], "headlines_reordered", target="headlines", meta={"ids": body.ids}, request=request)
+    return {"ok": True}
+
 @api.delete("/admin/headlines/{hid}")
 async def admin_delete_headline(hid: str, request: Request, user=Depends(require_roles("admin"))):
     h = await db.headlines.find_one({"id": hid, "is_deleted": False})
@@ -4485,7 +4501,7 @@ async def admin_delete_headline(hid: str, request: Request, user=Depends(require
 
 @api.get("/headlines/active")
 async def get_active_headlines(user=Depends(get_current_user)):
-    items = await db.headlines.find({"is_deleted": False, "active": True}).sort("created_at", -1).to_list(100)
+    items = await db.headlines.find({"is_deleted": False, "active": True}).sort([("position", 1), ("created_at", -1)]).to_list(100)
     return [i["message"] for i in items if i.get("message")]
 
 

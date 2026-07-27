@@ -2,13 +2,14 @@ import React, { useEffect, useState } from "react";
 import { api, formatErr } from "@/lib/api";
 import { PageHeader } from "@/components/Shared";
 import { toast } from "sonner";
-import { ScrollText, RefreshCw, Trash2, ToggleLeft, ToggleRight, Loader2, Plus } from "lucide-react";
+import { ScrollText, RefreshCw, Trash2, Loader2, Plus, GripVertical } from "lucide-react";
 
 export default function AdminHeadlines() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [draggedIndex, setDraggedIndex] = useState(null);
 
   const reload = () => {
     setLoading(true);
@@ -59,6 +60,37 @@ export default function AdminHeadlines() {
       reload();
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Failed to delete headline");
+    }
+  };
+
+  // Drag and Drop handlers
+  const handleDragStart = (e, index) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === index) return;
+    
+    const list = [...items];
+    const draggedItem = list[draggedIndex];
+    list.splice(draggedIndex, 1);
+    list.splice(index, 0, draggedItem);
+    
+    setDraggedIndex(index);
+    setItems(list);
+  };
+
+  const handleDragEnd = async () => {
+    setDraggedIndex(null);
+    const orderedIds = items.map((h) => h.id);
+    try {
+      await api.put("/admin/headlines/reorder", { ids: orderedIds });
+      toast.success("Headline priority order updated");
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail) || "Failed to update priority order");
+      reload();
     }
   };
 
@@ -133,6 +165,10 @@ export default function AdminHeadlines() {
             </button>
           </div>
 
+          <p className="text-[10px] font-semibold text-neutral-400 mb-3 bg-neutral-50 px-3.5 py-2 rounded-xl border border-black/5 inline-block">
+            💡 Drag and drop headline rows by their handles to set priority/number-wise order.
+          </p>
+
           {loading ? (
             <div className="space-y-3 py-6">
               {[...Array(4)].map((_, i) => (
@@ -145,21 +181,30 @@ export default function AdminHeadlines() {
             </div>
           ) : (
             <div className="divide-y divide-black/5">
-              {items.map((item) => (
+              {items.map((item, idx) => (
                 <div
                   key={item.id}
-                  className="flex items-center justify-between py-4 first:pt-0 last:pb-0 gap-6"
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, idx)}
+                  onDragOver={(e) => handleDragOver(e, idx)}
+                  onDragEnd={handleDragEnd}
+                  className={`flex items-center justify-between py-4 first:pt-0 last:pb-0 gap-6 transition-all duration-150 rounded-xl px-2 -mx-2 ${
+                    draggedIndex === idx ? "opacity-30 bg-neutral-100 scale-[0.99]" : "hover:bg-neutral-50/50"
+                  }`}
                 >
-                  <div className="space-y-1.5 flex-1 min-w-0">
-                    <p className="text-sm font-bold text-neutral-800 break-words leading-relaxed">
-                      {item.message}
-                    </p>
-                    <span className="text-[10px] text-neutral-400 font-semibold block">
-                      Added on {formatDateTime(item.created_at)}
-                    </span>
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <GripVertical className="h-4.5 w-4.5 text-neutral-300 shrink-0 cursor-grab active:cursor-grabbing hover:text-neutral-500 transition-colors" />
+                    <div className="space-y-1.5 flex-1 min-w-0">
+                      <p className="text-sm font-bold text-neutral-800 break-words leading-relaxed">
+                        {item.message}
+                      </p>
+                      <span className="text-[10px] text-neutral-400 font-semibold block">
+                        Added on {formatDateTime(item.created_at)}
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-3 shrink-0">
+                  <div className="flex items-center gap-3 shrink-0" draggable={false} onDragStart={(e) => e.preventDefault()}>
                     <button
                       onClick={() => toggleHeadline(item.id)}
                       className={`px-3.5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all select-none border ${
