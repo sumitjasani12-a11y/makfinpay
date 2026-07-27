@@ -24,6 +24,12 @@ export default function AdminQRCodes() {
   const [history, setHistory] = useState([]);
   const [historySearch, setHistorySearch] = useState("");
   const [dateFilter, setDateFilter] = useState("all");
+  const [historyPage, setHistoryPage] = useState(1);
+  const historyPageSize = 10;
+
+  useEffect(() => {
+    setHistoryPage(1);
+  }, [historySearch, dateFilter]);
 
   const [qrEnabled, setQrEnabled] = useState(true);
   const [rechargeEnabled, setRechargeEnabled] = useState(true);
@@ -169,6 +175,11 @@ export default function AdminQRCodes() {
       item.upi_id?.toLowerCase().includes(searchLower);
     return matchesSearch && matchesDate(item.activated_at);
   });
+
+  const paginatedHistory = React.useMemo(() => {
+    const start = (historyPage - 1) * historyPageSize;
+    return filteredHistory.slice(start, start + historyPageSize);
+  }, [filteredHistory, historyPage]);
 
   const formatDate = (isoStr) => {
     if (!isoStr) return "—";
@@ -546,14 +557,14 @@ export default function AdminQRCodes() {
               </tr>
             </thead>
             <tbody className="divide-y divide-black/5">
-              {filteredHistory.length === 0 ? (
+              {paginatedHistory.length === 0 ? (
                 <tr>
                   <td colSpan={12} className="py-8 text-center text-neutral-400">
                     No tracking records found matching the criteria.
                   </td>
                 </tr>
               ) : (
-                filteredHistory.map((item) => (
+                paginatedHistory.map((item) => (
                   <tr key={item.id} className="hover:bg-neutral-50/50 transition-colors">
                     {/* QR Name / Info */}
                     <td className="py-3 px-4">
@@ -661,6 +672,33 @@ export default function AdminQRCodes() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        {filteredHistory.length > historyPageSize && (
+          <div className="flex items-center justify-between border-t border-black/5 pt-4 mt-5">
+            <span className="text-xs text-neutral-500">
+              Showing <span className="font-bold">{((historyPage - 1) * historyPageSize) + 1}</span> to{" "}
+              <span className="font-bold">{Math.min(historyPage * historyPageSize, filteredHistory.length)}</span> of{" "}
+              <span className="font-bold">{filteredHistory.length}</span> entries
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                disabled={historyPage === 1}
+                onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+                className="px-3 py-1.5 text-xs font-semibold bg-[#F4F3ED] hover:bg-[#E8E5D7] text-neutral-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed select-none transition-all active:scale-98"
+              >
+                Previous
+              </button>
+              <button
+                disabled={historyPage * historyPageSize >= filteredHistory.length}
+                onClick={() => setHistoryPage(p => p + 1)}
+                className="px-3 py-1.5 text-xs font-semibold bg-[#F4F3ED] hover:bg-[#E8E5D7] text-neutral-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed select-none transition-all active:scale-98"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
