@@ -2564,7 +2564,7 @@ async def call_irise_api(method: str, endpoint: str, params: dict = None, json_d
     headers = {
         "Accept": "application/json",
         "Content-Type": "application/json",
-        "public-key": IRISE_PUBLIC_KEY,
+        "api-key": IRISE_PUBLIC_KEY,
         "secret-key": IRISE_SECRET_KEY
     }
     url = f"{IRISE_BASE_URL.rstrip('/')}/{endpoint.lstrip('/')}"
