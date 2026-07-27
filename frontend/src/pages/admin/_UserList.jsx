@@ -130,6 +130,8 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
 function MdDetailModal({ md, onClose }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [selectedDistributorForAgents, setSelectedDistributorForAgents] = useState(null);
+
   useEffect(() => {
     api.get(`/admin/master-distributors/${md.id}/downline`)
       .then((r) => setData(r.data))
@@ -176,7 +178,7 @@ function MdDetailModal({ md, onClose }) {
                 <h3 className="text-base font-medium mb-3">Distributors under {md.full_name} ({distributors.length})</h3>
                 {distributors.length === 0 ? <EmptyState>No distributors yet.</EmptyState> : (
                   <div className="mfp-card overflow-hidden"><div className="overflow-x-auto"><table className="w-full mfp-table">
-                    <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Earnings</th><th>Markup %</th><th>Total %</th><th>Status</th><th>Created</th></tr></thead>
+                    <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Earnings</th><th>Markup %</th><th>Total %</th><th>Status</th><th>Created</th><th className="text-center">Actions</th></tr></thead>
                     <tbody>{distributors.map((d) => (
                       <tr key={d.id} data-testid={`md-dist-row-${d.id}`}>
                         <td className="px-4 py-3 text-sm">{d.full_name}</td>
@@ -187,6 +189,16 @@ function MdDetailModal({ md, onClose }) {
                         <td className="px-4 py-3 text-sm"><span className="font-semibold text-[#1B4332]">{d.commission_percent}%</span></td>
                         <td className="px-4 py-3 text-sm"><StatusBadge status={d.frozen ? "rejected" : "approved"} /></td>
                         <td className="px-4 py-3 text-sm">{fmtDate(d.created_at)}</td>
+                        <td className="px-4 py-3 text-sm text-center">
+                          <button
+                            onClick={() => setSelectedDistributorForAgents(d)}
+                            className="px-2.5 py-1 text-xs inline-flex items-center gap-1.5 bg-[#1B4332]/5 text-[#1B4332] hover:bg-[#1B4332] hover:text-white border border-[#1B4332]/10 rounded-lg transition-colors font-bold shadow-sm"
+                            title="View Agents"
+                            data-testid={`view-dist-agents-${d.id}`}
+                          >
+                            <Eye className="h-3 w-3" /> View Agents
+                          </button>
+                        </td>
                       </tr>
                     ))}</tbody>
                   </table></div></div>
@@ -232,6 +244,12 @@ function MdDetailModal({ md, onClose }) {
           )}
         </div>
       </div>
+      {selectedDistributorForAgents && (
+        <DistributorDetailModal
+          distributor={selectedDistributorForAgents}
+          onClose={() => setSelectedDistributorForAgents(null)}
+        />
+      )}
     </div>
   );
 }
