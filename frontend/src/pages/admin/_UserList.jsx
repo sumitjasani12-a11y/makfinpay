@@ -336,10 +336,10 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
           </button>
           <div>
             <div className="text-[10px] uppercase font-black tracking-widest text-[#1B4332]/60">
-              {editingUser ? "Edit" : "Create"} {role.replace("_", " ")}
+              Add New User
             </div>
             <h2 className="text-xl font-black text-neutral-800">
-              {editingUser ? `Update ${editingUser.full_name}` : `New ${role.replace("_", " ")}`}
+              Fill in the details below to register a new {role.replace("_", " ")} in the system
             </h2>
           </div>
         </div>
@@ -348,34 +348,151 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
         </button>
       </div>
 
-      <div className="p-8 max-w-4xl w-full mx-auto flex-1">
-        <form onSubmit={submit} className="bg-white border border-black/5 rounded-3xl p-8 shadow-sm grid sm:grid-cols-2 gap-5">
-          {fields.map((f) => (
-            <div key={f.key}>
-              <label className="mfp-label font-bold text-neutral-700">{f.label}</label>
-              <input 
-                className="mfp-input mt-1.5" 
-                required={f.required} 
-                type={f.type}
-                step={f.type === "number" ? "0.01" : undefined}
-                min={f.type === "number" ? "0" : undefined}
-                value={form[f.key]} 
-                onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} 
-                placeholder={f.placeholder}
-                data-testid={`form-${f.key}`} 
-              />
+      <div className="p-8 max-w-7xl w-full mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1">
+        {/* Left Column: Basic Details Card */}
+        <div className="lg:col-span-4 space-y-6">
+          <div className="bg-white border border-black/5 rounded-3xl p-6 shadow-sm flex flex-col items-center space-y-6">
+            {/* Dotted Circle for Avatar */}
+            <div className="h-28 w-28 rounded-full border-2 border-dashed border-neutral-300 bg-neutral-50 flex flex-col items-center justify-center text-neutral-400 select-none">
+              <Users className="h-8 w-8 text-neutral-400 mb-1" />
+              <span className="text-[9px] font-black uppercase tracking-wider text-neutral-400">User Profile</span>
             </div>
-          ))}
-          <div className="sm:col-span-2 flex gap-3 border-t border-neutral-100 pt-6 mt-4">
-            <button disabled={busy} className="mfp-btn-primary px-6 py-3 font-bold flex items-center justify-center gap-2" data-testid="form-submit">
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} 
-              {busy ? "Saving…" : editingUser ? `Update ${role.replace("_", " ")}` : `Create ${role.replace("_", " ")}`}
-            </button>
-            <button type="button" onClick={onCancel} className="mfp-btn-outline px-6 py-3 font-bold">
+
+            <div className="w-full space-y-4 text-left">
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Full Name</label>
+                <input 
+                  type="text" 
+                  required 
+                  className="w-full mfp-input text-xs font-bold mt-1 bg-[#F8F7F2]" 
+                  placeholder="Enter Full Name" 
+                  value={form.full_name}
+                  onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Email Address</label>
+                <input 
+                  type="email" 
+                  required 
+                  className="w-full mfp-input text-xs font-bold mt-1 bg-[#F8F7F2]" 
+                  placeholder="Enter Email Address" 
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Mobile Number</label>
+                <input 
+                  type="text" 
+                  required 
+                  className="w-full mfp-input text-xs font-bold mt-1 bg-[#F8F7F2]" 
+                  placeholder="Enter Mobile Number" 
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Password</label>
+                <input 
+                  type="password" 
+                  required 
+                  className="w-full mfp-input text-xs font-bold mt-1 bg-[#F8F7F2]" 
+                  placeholder="Enter Account Password" 
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: Address, Business & Rate Settings */}
+        <div className="lg:col-span-8 space-y-6">
+          {/* Card 1: Address & Business Details */}
+          <div className="bg-white border border-black/5 rounded-3xl p-6 shadow-sm space-y-6">
+            <h3 className="text-sm font-black text-neutral-800 flex items-center gap-2 border-b border-neutral-100 pb-3">
+              <Building2 className="h-4 w-4 text-[#1B4332]" /> Address & Business Details
+            </h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Personal Address</label>
+                <input 
+                  type="text" 
+                  required 
+                  className="w-full mfp-input text-xs font-bold mt-1 bg-[#F8F7F2]" 
+                  placeholder="Enter Personal Address" 
+                  value={form.address}
+                  onChange={(e) => setForm({ ...form, address: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Firm Name</label>
+                <input 
+                  type="text" 
+                  required 
+                  className="w-full mfp-input text-xs font-bold mt-1 bg-[#F8F7F2]" 
+                  placeholder="Enter Registered Business/Firm Name" 
+                  value={form.firm_name}
+                  onChange={(e) => setForm({ ...form, firm_name: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Firm Address</label>
+                <input 
+                  type="text" 
+                  required 
+                  className="w-full mfp-input text-xs font-bold mt-1 bg-[#F8F7F2]" 
+                  placeholder="Enter Firm Address" 
+                  value={form.firm_address}
+                  onChange={(e) => setForm({ ...form, firm_address: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Commission & Rate Settings */}
+          <div className="bg-white border border-black/5 rounded-3xl p-6 shadow-sm space-y-6">
+            <h3 className="text-sm font-black text-neutral-800 flex items-center gap-2 border-b border-neutral-100 pb-3">
+              <Percent className="h-4 w-4 text-[#1B4332]" /> Rate & Account Settings
+            </h3>
+
+            <div>
+              <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
+                {role === "agent" ? "Commission % (Charges)" : "Commission %"}
+              </label>
+              <div className="flex items-center mt-1 bg-[#F8F7F2] rounded-xl px-3 border border-neutral-200">
+                <span className="text-sm font-black text-[#1B4332] select-none">%</span>
+                <input 
+                  type="number" 
+                  step="0.01"
+                  min="0"
+                  className="w-full bg-transparent border-0 focus:outline-none focus:ring-0 text-xs font-bold p-3" 
+                  placeholder="e.g. 1.2" 
+                  value={form.commission_percent}
+                  onChange={(e) => setForm({ ...form, commission_percent: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Action buttons at the bottom */}
+          <div className="flex justify-end gap-3 pt-4">
+            <button type="button" onClick={onCancel} className="mfp-btn-outline px-8 py-3.5 font-bold">
               Cancel
             </button>
+            <button type="button" onClick={submit} disabled={busy} className="mfp-btn-primary px-8 py-3.5 font-bold flex items-center justify-center gap-2 shadow-sm" data-testid="form-submit">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} 
+              {busy ? "Saving…" : `Save ${role.replace("_", " ")}`}
+            </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );
