@@ -3,6 +3,42 @@ import { Link, NavLink } from "react-router-dom";
 import { LogOut } from "lucide-react";
 import Logo from "./Logo";
 
+const getIconColor = (label) => {
+  const colors = {
+    "Overview": "text-[#4CC9F0]", // Cyan
+    "Dashboard": "text-[#4CC9F0]",
+    "Master Distributors": "text-[#FFB703]", // Amber/Gold
+    "Distributors": "text-[#FFB703]",
+    "My Distributors": "text-[#FFB703]",
+    "Agents": "text-[#F72585]", // Pink/Rose
+    "My Agents": "text-[#F72585]",
+    "Recharge Approvals": "text-[#06D6A0]", // Teal/Emerald
+    "Recharge Activity": "text-[#06D6A0]",
+    "Recharge Wallet": "text-[#06D6A0]",
+    "Withdrawals": "text-[#FF5A5F]", // Soft Red
+    "Withdrawal": "text-[#FF5A5F]",
+    "Transactions": "text-[#FF9F1C]", // Orange
+    "Transaction History": "text-[#FF9F1C]",
+    "Credit Card Bill": "text-[#7209B7]", // Purple
+    "Wallet Ledger": "text-[#3F37C9]", // Indigo/Blue
+    "QR Codes": "text-[#00B4D8]", // Sky Blue
+    "QR Name Entry": "text-[#00F5D4]", // Bright Cyan/Teal
+    "QR Gallery": "text-[#FF007F]", // Neon Pink
+    "Add Announcement": "text-[#EF476F]", // Bright Red
+    "Commission": "text-[#F15BB5]", // Pink
+    "Service Slabs": "text-[#2A9D8F]", // Dark Sage
+    "Bank Entry": "text-[#E9D8A6]", // Soft Yellow
+    "KYC Review": "text-[#EE9B00]", // Ochre
+    "Reason Entry": "text-[#9B5DE5]", // Light Violet
+    "Audit Logs": "text-[#90A955]", // Soft Green
+    "Backup & Restore": "text-[#B5E2FA]", // Ice Blue
+    "Change Password": "text-[#DDA15E]", // Light Copper
+    "Settings": "text-[#A8DADC]", // Pastel Blue
+    "Rules & Policies": "text-[#FCA311]" // Tangerine
+  };
+  return colors[label] || "text-indigo-400";
+};
+
 export function SidebarContent({ user, items, onLogout }) {
   return (
     <>
@@ -27,7 +63,7 @@ export function SidebarContent({ user, items, onLogout }) {
             to={it.to}
             end={it.end}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-2.5 rounded-2xl transition-all font-bold text-xs tracking-wider uppercase ` +
+              `flex items-center gap-3.5 px-4 py-2.5 rounded-2xl transition-all font-bold text-xs tracking-wider uppercase ` +
               `${isActive
                 ? "bg-white/10 text-white shadow-sm border border-white/5"
                 : "text-white/70 hover:bg-white/5 hover:text-white"
@@ -35,7 +71,7 @@ export function SidebarContent({ user, items, onLogout }) {
             }
             data-testid={`nav-${it.label.replace(/\s+/g, "-").toLowerCase()}`}
           >
-            <it.icon className="h-4 w-4 shrink-0" strokeWidth={2} />
+            <it.icon className={`h-4.5 w-4.5 shrink-0 ${getIconColor(it.label)}`} strokeWidth={2.3} />
             <span>{it.label}</span>
           </NavLink>
         ))}
@@ -54,10 +90,10 @@ export function SidebarContent({ user, items, onLogout }) {
         
         <button
           onClick={onLogout}
-          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-bold text-white/70 hover:bg-white/5 hover:text-white hover:text-rose-400 hover:bg-rose-500/5 transition-all select-none border border-transparent hover:border-rose-500/10 uppercase tracking-wider"
+          className="w-full flex items-center gap-3.5 px-4 py-2.5 rounded-2xl text-xs font-bold text-white/70 hover:bg-white/5 hover:text-white hover:text-rose-400 hover:bg-rose-500/5 transition-all select-none border border-transparent hover:border-rose-500/10 uppercase tracking-wider"
           data-testid="logout-btn"
         >
-          <LogOut className="h-4 w-4 shrink-0" strokeWidth={2} />
+          <LogOut className="h-4.5 w-4.5 shrink-0 text-rose-400" strokeWidth={2.3} />
           <span>Sign out</span>
         </button>
       </div>
