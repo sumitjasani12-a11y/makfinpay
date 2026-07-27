@@ -2506,7 +2506,7 @@ async def call_irise_api(method: str, endpoint: str, params: dict = None, json_d
     # Fallback to mock data for local testing/walkthrough if credentials are missing
     if not IRISE_PUBLIC_KEY or not IRISE_SECRET_KEY:
         ep = endpoint.strip("/")
-        if ep == "category":
+        if ep == "categories":
             return {
                 "status": "success",
                 "data": [
@@ -2516,7 +2516,7 @@ async def call_irise_api(method: str, endpoint: str, params: dict = None, json_d
                     {"id": 4, "name": "Mobile Postpaid"}
                 ]
             }
-        elif ep == "operator":
+        elif ep == "operators":
             cat_id = str(params.get("category_id") if params else "1")
             if cat_id == "1":
                 return {
@@ -2588,12 +2588,12 @@ async def call_irise_api(method: str, endpoint: str, params: dict = None, json_d
 
 @api.get("/agent/live-billpay/categories")
 async def get_live_billpay_categories(user=Depends(require_approved_agent())):
-    res = await call_irise_api("GET", "category")
+    res = await call_irise_api("GET", "categories")
     return res
 
 @api.get("/agent/live-billpay/operators")
 async def get_live_billpay_operators(category_id: str, user=Depends(require_approved_agent())):
-    res = await call_irise_api("GET", "operator", params={"category_id": category_id})
+    res = await call_irise_api("GET", "operators", params={"category_id": category_id})
     return res
 
 @api.post("/agent/live-billpay/fetch")
