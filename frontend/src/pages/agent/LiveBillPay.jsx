@@ -172,6 +172,7 @@ export default function LiveBillPay() {
         amount: parseFloat(fetchedBill.billerResponse.amount),
         mobile: mobileNumber,
         fetchRequestId: fetchRequestId,
+        additionalInfo: fetchedBill.billFetchResponse?.additionalInfo || fetchedBill.additionalInfo || {},
         customerParams: customerParams,
         billerResponseInfo: fetchedBill.billFetchResponse?.billerResponse || fetchedBill.billerResponse
       };

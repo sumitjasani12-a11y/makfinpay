@@ -284,6 +284,7 @@ class LiveBillPayIn(BaseModel):
     amount: float
     mobile: str
     fetchRequestId: Optional[str] = None
+    additionalInfo: Optional[dict] = None
     customerParams: List[CustomerParamItem]
     billerResponseInfo: dict
 
@@ -2880,6 +2881,8 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
     }
     if body.fetchRequestId:
         payload["fetchRequestId"] = body.fetchRequestId
+    if body.additionalInfo:
+        payload["additionalInfo"] = body.additionalInfo
     
     try:
         res = await call_irise_api("POST", "pay-bill", json_data=payload)
