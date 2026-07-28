@@ -2932,50 +2932,62 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
         await db.transactions.update_one({"id": tid}, {"$set": {"note": f"API Connection error: {str(e)}"}})
         return {"status": "pending", "transaction_id": tid, "message": f"Connection check pending: {str(e)}"}
 
-class UsepayWebhookIn(BaseModel):
-    event: str
-    transaction_id: str
-    status: str
-    amount: float
-    bbps_status: Optional[str] = None
-    timestamp: Optional[str] = None
-
 @api.post("/usepay/webhook")
-async def usepay_webhook(body: UsepayWebhookIn):
-    # Log incoming webhook
-    print(f"\n[USEPAY WEBHOOK RECEIVED] ID: {body.transaction_id} | Status: {body.status} | Event: {body.event} | BBPS Status: {body.bbps_status}")
+async def usepay_webhook(request: Request):
+    # Read raw body safely
+    try:
+        payload = await request.json()
+    except Exception as e:
+        print(f"\n[USEPAY WEBHOOK ERROR] Failed to parse JSON body: {str(e)}")
+        return {"status": "error", "message": "Invalid JSON body"}
+        
+    print("\n================== USEPAY WEBHOOK RECEIVED ==================")
+    import json
+    print(json.dumps(payload, indent=2))
+    print("=============================================================")
     
+    event = payload.get("event")
+    transaction_id = payload.get("transaction_id")
+    status = payload.get("status")
+    bbps_status = payload.get("bbps_status")
+    
+    if not transaction_id:
+        print("[USEPAY WEBHOOK ERROR] Missing transaction_id in webhook payload.")
+        return {"status": "ignored", "message": "Missing transaction_id"}
+        
     # 1. Find the transaction in our database by external/operator transaction ID
-    tx = await db.transactions.find_one({"operator_txn_id": body.transaction_id})
+    tx = await db.transactions.find_one({"operator_txn_id": transaction_id})
     if not tx:
-        print(f"[USEPAY WEBHOOK] Transaction {body.transaction_id} not found in database.")
+        print(f"[USEPAY WEBHOOK] Transaction {transaction_id} not found in database.")
         # Return 200 to acknowledge receipt anyway (as required by most webhooks)
         return {"status": "ignored", "message": "Transaction not found"}
         
-    # 2. Process webhook event
-    if body.status == "success":
+    # 2. Process webhook event with case-insensitive status check
+    status_lower = str(status).lower() if status else ""
+    
+    if status_lower == "success":
         # Update status to approved (success) if not already approved
         if tx.get("status") != "approved":
             await db.transactions.update_one({"id": tx["id"]}, {"$set": {
                 "status": "approved",
                 "reviewed_at": now_iso(),
-                "note": f"Payment success confirmed by Usepay Webhook (Status: {body.bbps_status or 'SUCCESS'})"
+                "note": f"Payment success confirmed by Usepay Webhook (Status: {bbps_status or 'SUCCESS'})"
             }})
-            print(f"[USEPAY WEBHOOK] Transaction {tx['id']} updated to approved.")
-    elif body.status in ["failed", "error"]:
+            print(f"[USEPAY WEBHOOK SUCCESS] Transaction {tx['id']} updated to approved.")
+    elif status_lower in ["failed", "error", "failure"]:
         # If it failed, refund the agent's wallet and mark as rejected
         if tx.get("status") != "rejected":
             new_balance = await adjust_balance(tx["user_id"], tx["amount"])
             await db.transactions.update_one({"id": tx["id"]}, {"$set": {
                 "status": "rejected",
                 "reviewed_at": now_iso(),
-                "note": f"Payment failed: {body.bbps_status or 'BBPS Failure'} (Webhook Callback)"
+                "note": f"Payment failed: {bbps_status or 'BBPS Failure'} (Webhook Callback)"
             }})
             await ledger_entry(
                 tx["user_id"], "refund", tx["amount"], new_balance, "live_bill_refund", tx["id"],
-                f"Refund: Failed Live Bill Pay (Webhook Callback: {body.bbps_status or 'Failed'})"
+                f"Refund: Failed Live Bill Pay (Webhook Callback: {bbps_status or 'Failed'})"
             )
-            print(f"[USEPAY WEBHOOK] Transaction {tx['id']} refunded and updated to rejected.")
+            print(f"[USEPAY WEBHOOK FAILED] Transaction {tx['id']} refunded and updated to rejected.")
             
     return {"status": "processed"}
 
