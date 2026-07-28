@@ -2887,11 +2887,9 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
     try:
         res = await call_irise_api("POST", "pay-bill", json_data=payload)
         status = res.get("payment_status") or res.get("status")
-        if status == "success":
+        if status in ["success", "pending"]:
             await db.transactions.update_one({"id": tid}, {"$set": {"status": "approved", "reviewed_at": now_iso(), "reviewed_by": None}})
-            return {"status": "success", "transaction_id": tid}
-        elif status == "pending":
-            return {"status": "pending", "transaction_id": tid}
+            return {"status": "success" if status == "success" else "pending", "transaction_id": tid}
         else:
             new_balance_refund = await adjust_balance(user["id"], body.amount)
             await db.transactions.update_one({"id": tid}, {"$set": {"status": "rejected", "reviewed_at": now_iso(), "reviewed_by": None, "note": f"Payment failed: {res.get('message', 'Rejected by operator')}"}})
