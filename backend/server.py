@@ -2621,8 +2621,11 @@ async def sync_billers_from_usepay():
     if all_billers:
         # Clear existing
         await db.billers.delete_many({})
-        # Insert all
-        await db.billers.insert_many(all_billers)
+        # Insert in chunks of 1000 to prevent exceeding PostgreSQL parameter limit
+        chunk_size = 1000
+        for i in range(0, len(all_billers), chunk_size):
+            chunk = all_billers[i : i + chunk_size]
+            await db.billers.insert_many(chunk)
         
     return total_synced
 

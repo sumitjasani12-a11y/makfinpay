@@ -394,6 +394,38 @@ class PostgresCollection:
             logger.error(f"insert_one SQL failed: {sql} with {params}. Error: {e}")
             raise e
 
+    async def insert_many(self, docs):
+        if not docs:
+            return
+        table_cols = TABLE_COLUMNS.get(self.table_name, [])
+        if not table_cols:
+            return
+            
+        cols = [col for col in table_cols]
+        safe_table = f'"{self.table_name}"' if "." in self.table_name else self.table_name
+        
+        value_groups = []
+        params = []
+        for doc in docs:
+            group = []
+            for col in cols:
+                val = doc.get(col)
+                if isinstance(val, (dict, list)):
+                    val = json.dumps(val)
+                params.append(convert_val(col, val))
+                group.append(f"${len(params)}")
+            value_groups.append(f"({', '.join(group)})")
+            
+        sql = f"INSERT INTO {safe_table} ({', '.join(cols)}) VALUES {', '.join(value_groups)}"
+        try:
+            async with self.db.pool.acquire() as conn:
+                await conn.execute(sql, *params)
+        except asyncpg.exceptions.UniqueViolationError:
+            raise DuplicateKeyError("Unique constraint violation in Supabase PostgreSQL during insert_many")
+        except Exception as e:
+            logger.error(f"insert_many SQL failed: {sql[:1000]}... with {len(params)} params. Error: {e}")
+            raise e
+
     async def update_one(self, filter_dict, update_dict, upsert=False):
         exists = await self.find_one(filter_dict)
         if not exists:
