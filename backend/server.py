@@ -2602,7 +2602,7 @@ async def sync_billers_from_usepay():
     total_synced = 0
     all_billers = []
     
-    while page <= 30:
+    while page <= 100:
         try:
             res = await call_irise_api("GET", "billers", params={"page": page, "limit": 500})
             if res.get("status") == "success" and "data" in res:
