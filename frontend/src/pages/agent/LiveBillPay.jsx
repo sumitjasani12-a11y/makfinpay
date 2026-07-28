@@ -23,6 +23,7 @@ export default function LiveBillPay() {
 
   // Fetched bill details
   const [fetchedBill, setFetchedBill] = useState(null);
+  const [fetchRequestId, setFetchRequestId] = useState("");
 
   // Pagination states for history
   const [page, setPage] = useState(1);
@@ -71,6 +72,7 @@ export default function LiveBillPay() {
     setSelectedOp("");
     setBillers([]);
     setFetchedBill(null);
+    setFetchRequestId("");
     setParamValues({});
     if (catId) {
       fetchBillers(catId);
@@ -80,6 +82,7 @@ export default function LiveBillPay() {
   const handleOperatorChange = (opId) => {
     setSelectedOp(opId);
     setFetchedBill(null);
+    setFetchRequestId("");
     setParamValues({});
   };
 
@@ -143,6 +146,7 @@ export default function LiveBillPay() {
       const res = await api.post("/agent/live-billpay/fetch", payload);
       if (res.data?.status === "success" && res.data?.data?.billerResponse) {
         setFetchedBill(res.data.data);
+        setFetchRequestId(res.data.data.requestId || "");
         toast.success("Bill details fetched successfully!");
       } else {
         toast.error(res.data?.message || "Failed to fetch bill. Please verify details.");
@@ -167,6 +171,7 @@ export default function LiveBillPay() {
         billerId: selectedOp,
         amount: parseFloat(fetchedBill.billerResponse.amount),
         mobile: mobileNumber,
+        fetchRequestId: fetchRequestId,
         customerParams: customerParams,
         billerResponseInfo: fetchedBill.billFetchResponse?.billerResponse || fetchedBill.billerResponse
       };
@@ -175,11 +180,13 @@ export default function LiveBillPay() {
       if (res.data?.status === "success") {
         toast.success(`Bill payment of ₹${payload.amount} successful!`);
         setFetchedBill(null);
+        setFetchRequestId("");
         setParamValues({});
         reloadHistory();
       } else if (res.data?.status === "pending") {
         toast.warning("Payment submitted. Current status: PENDING.");
         setFetchedBill(null);
+        setFetchRequestId("");
         setParamValues({});
         reloadHistory();
       } else {
