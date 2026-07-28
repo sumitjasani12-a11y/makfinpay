@@ -86,20 +86,29 @@ export default function LiveBillPay() {
   const activeOp = billers.find(o => String(o.biller_id) === String(selectedOp));
 
   const getParamsList = (op) => {
+    let list = [];
     const raw = op?.metadata?.billerInputParams?.paramInfo;
     if (!raw) {
       const fallback = op?.metadata?.customerParams;
-      if (Array.isArray(fallback)) return fallback;
-      if (fallback && typeof fallback === "object") return [fallback];
-      return [{ paramName: "Consumer Number", dataType: "ALPHANUMERIC", isOptional: false }];
+      if (Array.isArray(fallback)) list = fallback;
+      else if (fallback && typeof fallback === "object") list = [fallback];
+      else list = [{ paramName: "Consumer Number", dataType: "ALPHANUMERIC", isOptional: false }];
+    } else if (Array.isArray(raw)) {
+      list = raw;
+    } else if (typeof raw === "object") {
+      list = [raw];
+    } else {
+      list = [{ paramName: "Consumer Number", dataType: "ALPHANUMERIC", isOptional: false }];
     }
-    if (Array.isArray(raw)) {
-      return raw;
-    }
-    if (typeof raw === "object") {
-      return [raw];
-    }
-    return [{ paramName: "Consumer Number", dataType: "ALPHANUMERIC", isOptional: false }];
+
+    // Normalize isOptional string ('true' / 'false') to real boolean
+    return list.map(p => {
+      let isOpt = false;
+      if (p.isOptional === true || p.isOptional === "true") {
+        isOpt = true;
+      }
+      return { ...p, isOptional: isOpt };
+    });
   };
 
   const paramsList = React.useMemo(() => getParamsList(activeOp), [activeOp]);
