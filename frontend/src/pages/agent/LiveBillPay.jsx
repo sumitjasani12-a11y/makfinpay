@@ -212,7 +212,7 @@ export default function LiveBillPay() {
         subtitle="Fetch and pay electricity, gas, water bills instantly in real time." 
       />
 
-      <div className="max-w-[1100px] mx-auto px-4 mb-8">
+      <div className="w-full max-w-none px-4 lg:px-8 mb-8">
         <div className="grid lg:grid-cols-2 gap-10 items-start">
           
           {/* Left Card: Input Form */}
