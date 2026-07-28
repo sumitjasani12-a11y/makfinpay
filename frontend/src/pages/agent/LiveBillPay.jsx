@@ -432,10 +432,10 @@ export default function LiveBillPay() {
                 label: "Tx ID",
                 render: (r) => (
                   <span 
-                    className="bg-neutral-100 text-neutral-600 font-mono text-[10px] px-2.5 py-1 rounded-md uppercase select-all tracking-wider border border-neutral-200/50 cursor-pointer hover:bg-neutral-200 transition-colors"
-                    title="Click to select / copy full ID: @r.id"
+                    className="bg-neutral-100 text-neutral-600 font-mono text-[10px] px-2.5 py-1 rounded-md uppercase select-all tracking-wider border border-neutral-200/50 cursor-pointer hover:bg-neutral-200 transition-colors whitespace-nowrap"
+                    title="Click to select / copy full Transaction ID"
                   >
-                    {r.id ? r.id.split("-")[0] : "—"}
+                    {r.id || "—"}
                   </span>
                 )
               },
