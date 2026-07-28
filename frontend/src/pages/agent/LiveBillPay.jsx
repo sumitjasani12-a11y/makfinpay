@@ -425,33 +425,93 @@ export default function LiveBillPay() {
           </div>
 
           <DataTable
+            className="min-w-[1300px]"
             columns={[
               {
                 key: "id",
                 label: "Tx ID",
                 render: (r) => (
-                  <span className="font-mono text-[10px] text-neutral-500 uppercase" title={r.id}>
-                    {r.id ? r.id.split("-")[0] : "-"}
+                  <span 
+                    className="bg-neutral-100 text-neutral-600 font-mono text-[10px] px-2.5 py-1 rounded-md uppercase select-all tracking-wider border border-neutral-200/50 cursor-pointer hover:bg-neutral-200 transition-colors"
+                    title="Click to select / copy full ID: @r.id"
+                  >
+                    {r.id ? r.id.split("-")[0] : "—"}
                   </span>
                 )
               },
-              { key: "customer_name", label: "Customer", render: (r) => <span className="font-semibold text-neutral-800 capitalize">{r.customer_name || "N/A"}</span> },
-              { key: "card_last4", label: "Card Last 4", render: (r) => <span className="font-mono text-neutral-600">{r.card_last4 || "-"}</span> },
-              { key: "operator", label: "Biller ID" },
-              { key: "customer_phone", label: "Mobile" },
-              { key: "bill_amount", label: "Bill Amt", render: (r) => fmtMoney(r.bill_amount) },
-              { key: "service_charge", label: "Charges", render: (r) => fmtMoney(r.service_charge) },
-              { key: "amount", label: "Total Paid", render: (r) => fmtMoney(r.amount) },
+              {
+                key: "customer_name",
+                label: "Customer",
+                render: (r) => (
+                  <div className="flex items-center gap-2">
+                    <div className="h-6 w-6 rounded-full bg-indigo-50 text-indigo-600 text-[10px] font-black flex items-center justify-center border border-indigo-100/80 flex-shrink-0">
+                      {(r.customer_name || "N")[0].toUpperCase()}
+                    </div>
+                    <span className="font-semibold text-neutral-800 text-xs capitalize whitespace-nowrap">
+                      {r.customer_name || "N/A"}
+                    </span>
+                  </div>
+                )
+              },
+              {
+                key: "card_last4",
+                label: "Card Last 4",
+                render: (r) => r.card_last4 ? (
+                  <span className="inline-flex items-center gap-1 bg-slate-50 text-slate-700 text-[10px] px-2 py-0.5 rounded border border-slate-200/60 font-mono whitespace-nowrap">
+                    💳 •••• {r.card_last4}
+                  </span>
+                ) : (
+                  <span className="text-neutral-300">—</span>
+                )
+              },
+              { 
+                key: "operator", 
+                label: "Biller ID",
+                render: (r) => (
+                  <span className="font-medium text-neutral-700 whitespace-nowrap">
+                    {r.operator}
+                  </span>
+                )
+              },
+              { 
+                key: "customer_phone", 
+                label: "Mobile",
+                render: (r) => (
+                  <span className="font-mono text-neutral-600">
+                    {r.customer_phone}
+                  </span>
+                )
+              },
+              { key: "bill_amount", label: "Bill Amt", render: (r) => <span className="font-semibold text-neutral-800 tabular-nums">{fmtMoney(r.bill_amount)}</span> },
+              { key: "service_charge", label: "Charges", render: (r) => <span className="text-neutral-500 tabular-nums">{fmtMoney(r.service_charge)}</span> },
+              { 
+                key: "amount", 
+                label: "Total Paid", 
+                render: (r) => (
+                  <span className="font-bold text-emerald-700 bg-emerald-50/80 px-2 py-0.5 rounded border border-emerald-100/80 tabular-nums">
+                    {fmtMoney(r.amount)}
+                  </span>
+                ) 
+              },
               { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
-              { key: "created_at", label: "Date / Time", render: (r) => fmtDate(r.created_at) },
+              { key: "created_at", label: "Date / Time", render: (r) => <span className="text-neutral-500 text-[11px] whitespace-nowrap">{fmtDate(r.created_at)}</span> },
               {
                 key: "note",
                 label: "Response / Note",
-                render: (r) => (
-                  <span className="text-[11px] text-neutral-500 max-w-[180px] block truncate" title={r.note}>
-                    {r.note || "-"}
-                  </span>
-                )
+                render: (r) => {
+                  if (!r.note) return <span className="text-neutral-300">—</span>;
+                  const colorClass = r.status === "rejected" ? "bg-rose-50/70 text-rose-600 border-rose-100/80" :
+                                     r.status === "pending" ? "bg-amber-50/70 text-amber-600 border-amber-100/80" :
+                                     "bg-emerald-50/70 text-emerald-600 border-emerald-100/80";
+                  return (
+                    <span 
+                      className={`text-[11px] px-2 py-1 rounded-lg border max-w-[200px] block truncate font-medium ${colorClass} cursor-help`} 
+                      title={r.note}
+                    >
+                      {r.note}
+                    </span>
+                  );
+                }
               }
             ]}
             rows={paginatedTransactions}

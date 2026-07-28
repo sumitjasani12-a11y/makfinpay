@@ -39,11 +39,11 @@ export function EmptyState({ children }) {
   return <div className="text-center text-neutral-500 py-12 text-sm">{children}</div>;
 }
 
-export function DataTable({ columns, rows, empty = "No data", pagination }) {
+export function DataTable({ columns, rows, empty = "No data", pagination, className = "" }) {
   return (
     <div className="mfp-card overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full mfp-table">
+        <table className={`w-full mfp-table ${className}`}>
           <thead>
             <tr>{columns.map((c) => <th key={c.key}>{c.label}</th>)}</tr>
           </thead>
