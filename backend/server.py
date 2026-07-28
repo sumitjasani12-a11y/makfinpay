@@ -2684,12 +2684,28 @@ async def call_irise_api(method: str, endpoint: str, params: dict = None, json_d
         "x-secret-key": IRISE_SECRET_KEY
     }
     url = f"{IRISE_BASE_URL.rstrip('/')}/{endpoint.lstrip('/')}"
+    print(f"\n[USEPAY API REQUEST] Method: {method} | Endpoint: {endpoint} | URL: {url}")
+    if params:
+        print(f"[USEPAY API REQUEST PARAMS]: {params}")
+    if json_data:
+        import json as _json
+        print(f"[USEPAY API REQUEST BODY]: {_json.dumps(json_data, indent=2)}")
+        
     async with httpx.AsyncClient(timeout=30) as client:
         try:
             if method.upper() == "GET":
                 r = await client.get(url, headers=headers, params=params)
             else:
                 r = await client.post(url, headers=headers, json=json_data)
+                
+            print(f"[USEPAY API RESPONSE] Status Code: {r.status_code}")
+            try:
+                res_json = r.json()
+                import json as _json
+                print(f"[USEPAY API RESPONSE BODY]: {_json.dumps(res_json, indent=2)}")
+            except Exception:
+                print(f"[USEPAY API RESPONSE TEXT]: {r.text}")
+                
             r.raise_for_status()
             return r.json()
         except httpx.HTTPStatusError as e:
@@ -2698,8 +2714,10 @@ async def call_irise_api(method: str, endpoint: str, params: dict = None, json_d
                 detail = err_data.get("message") or err_data.get("detail") or str(e)
             except Exception:
                 detail = r.text or str(e)
+            print(f"[USEPAY API ERROR]: {detail}")
             raise HTTPException(status_code=r.status_code, detail=f"Irise API Error: {detail}")
         except Exception as e:
+            print(f"[USEPAY API ERROR]: {str(e)}")
             raise HTTPException(status_code=502, detail=f"Failed to connect to Irise API: {str(e)}")
 
 async def sync_billers_from_usepay():
