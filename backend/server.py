@@ -2887,12 +2887,25 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
     try:
         res = await call_irise_api("POST", "pay-bill", json_data=payload)
         status = res.get("payment_status") or res.get("status")
+        usepay_txn_id = res.get("transaction_id")
+        
         if status in ["success", "pending"]:
-            await db.transactions.update_one({"id": tid}, {"$set": {"status": "approved", "reviewed_at": now_iso(), "reviewed_by": None}})
+            await db.transactions.update_one({"id": tid}, {"$set": {
+                "status": "approved", 
+                "reviewed_at": now_iso(), 
+                "reviewed_by": None,
+                "operator_txn_id": usepay_txn_id
+            }})
             return {"status": "success" if status == "success" else "pending", "transaction_id": tid}
         else:
             new_balance_refund = await adjust_balance(user["id"], body.amount)
-            await db.transactions.update_one({"id": tid}, {"$set": {"status": "rejected", "reviewed_at": now_iso(), "reviewed_by": None, "note": f"Payment failed: {res.get('message', 'Rejected by operator')}"}})
+            await db.transactions.update_one({"id": tid}, {"$set": {
+                "status": "rejected", 
+                "reviewed_at": now_iso(), 
+                "reviewed_by": None, 
+                "operator_txn_id": usepay_txn_id,
+                "note": f"Payment failed: {res.get('message', 'Rejected by operator')}"
+            }})
             await ledger_entry(
                 user["id"], "refund", body.amount, new_balance_refund, "live_bill_refund", tid,
                 f"Refund: Failed Live Bill Pay for {body.mobile}"
@@ -2918,6 +2931,53 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
     except Exception as e:
         await db.transactions.update_one({"id": tid}, {"$set": {"note": f"API Connection error: {str(e)}"}})
         return {"status": "pending", "transaction_id": tid, "message": f"Connection check pending: {str(e)}"}
+
+class UsepayWebhookIn(BaseModel):
+    event: str
+    transaction_id: str
+    status: str
+    amount: float
+    bbps_status: Optional[str] = None
+    timestamp: Optional[str] = None
+
+@api.post("/usepay/webhook")
+async def usepay_webhook(body: UsepayWebhookIn):
+    # Log incoming webhook
+    print(f"\n[USEPAY WEBHOOK RECEIVED] ID: {body.transaction_id} | Status: {body.status} | Event: {body.event} | BBPS Status: {body.bbps_status}")
+    
+    # 1. Find the transaction in our database by external/operator transaction ID
+    tx = await db.transactions.find_one({"operator_txn_id": body.transaction_id})
+    if not tx:
+        print(f"[USEPAY WEBHOOK] Transaction {body.transaction_id} not found in database.")
+        # Return 200 to acknowledge receipt anyway (as required by most webhooks)
+        return {"status": "ignored", "message": "Transaction not found"}
+        
+    # 2. Process webhook event
+    if body.status == "success":
+        # Update status to approved (success) if not already approved
+        if tx.get("status") != "approved":
+            await db.transactions.update_one({"id": tx["id"]}, {"$set": {
+                "status": "approved",
+                "reviewed_at": now_iso(),
+                "note": f"Payment success confirmed by Usepay Webhook (Status: {body.bbps_status or 'SUCCESS'})"
+            }})
+            print(f"[USEPAY WEBHOOK] Transaction {tx['id']} updated to approved.")
+    elif body.status in ["failed", "error"]:
+        # If it failed, refund the agent's wallet and mark as rejected
+        if tx.get("status") != "rejected":
+            new_balance = await adjust_balance(tx["user_id"], tx["amount"])
+            await db.transactions.update_one({"id": tx["id"]}, {"$set": {
+                "status": "rejected",
+                "reviewed_at": now_iso(),
+                "note": f"Payment failed: {body.bbps_status or 'BBPS Failure'} (Webhook Callback)"
+            }})
+            await ledger_entry(
+                tx["user_id"], "refund", tx["amount"], new_balance, "live_bill_refund", tx["id"],
+                f"Refund: Failed Live Bill Pay (Webhook Callback: {body.bbps_status or 'Failed'})"
+            )
+            print(f"[USEPAY WEBHOOK] Transaction {tx['id']} refunded and updated to rejected.")
+            
+    return {"status": "processed"}
 
 @api.get("/agent/live-billpay/transactions")
 async def get_live_billpay_transactions(user=Depends(require_roles("agent"))):
