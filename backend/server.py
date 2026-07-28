@@ -2814,13 +2814,22 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
     tid = new_id()
     new_balance = await adjust_balance(user["id"], -body.amount)
     
+    card_last4 = ""
+    for p in body.customerParams:
+        name_lower = p.name.lower()
+        if any(x in name_lower for x in ["last 4", "card_last4", "last4", "credit card", "last_4"]):
+            val = "".join(c for c in p.value if c.isdigit())
+            if val:
+                card_last4 = val[-4:]
+                break
+
     tx = {
         "id": tid,
         "user_id": user["id"],
         "user_name": user["full_name"],
         "type": "live_bill",
         "customer_name": "N/A",
-        "card_last4": None,
+        "card_last4": card_last4,
         "operator": body.billerId,
         "customer_phone": body.mobile,
         "bill_amount": round(body.amount, 2),
