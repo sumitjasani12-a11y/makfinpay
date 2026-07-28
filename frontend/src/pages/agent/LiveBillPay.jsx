@@ -5,6 +5,17 @@ import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import { toast } from "sonner";
 import { Loader2, CreditCard, History, Send, Receipt } from "lucide-react";
 
+const getShortTxnId = (id) => {
+  if (!id) return "—";
+  if (id.startsWith("Txn")) return id;
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  }
+  const padded = String(hash).padStart(10, "0");
+  return `Txn${padded}`;
+};
+
 export default function LiveBillPay() {
   const { user } = useAuth();
   const [categories, setCategories] = useState([]);
@@ -433,9 +444,9 @@ export default function LiveBillPay() {
                 render: (r) => (
                   <span 
                     className="bg-neutral-100 text-neutral-600 font-mono text-[10px] px-2.5 py-1 rounded-md uppercase select-all tracking-wider border border-neutral-200/50 cursor-pointer hover:bg-neutral-200 transition-colors whitespace-nowrap"
-                    title="Click to select / copy full Transaction ID"
+                    title={`Original ID: ${r.id}`}
                   >
-                    {r.id || "—"}
+                    {getShortTxnId(r.id)}
                   </span>
                 )
               },
