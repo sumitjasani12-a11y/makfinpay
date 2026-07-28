@@ -2864,6 +2864,23 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
                 f"Refund: Failed Live Bill Pay for {body.mobile}"
             )
             return {"status": "failed", "message": res.get("message", "Payment failed by operator")}
+    except HTTPException as e:
+        if e.status_code < 500:
+            new_balance_refund = await adjust_balance(user["id"], body.amount)
+            await db.transactions.update_one({"id": tid}, {"$set": {
+                "status": "rejected",
+                "reviewed_at": now_iso(),
+                "reviewed_by": "system",
+                "note": f"Payment failed: {e.detail}"
+            }})
+            await ledger_entry(
+                user["id"], "refund", body.amount, new_balance_refund, "live_bill_refund", tid,
+                f"Refund: Failed Live Bill Pay for {body.mobile} - {e.detail}"
+            )
+            raise e
+        else:
+            await db.transactions.update_one({"id": tid}, {"$set": {"note": f"API Connection error: {e.detail}"}})
+            return {"status": "pending", "transaction_id": tid, "message": f"Connection check pending: {e.detail}"}
     except Exception as e:
         await db.transactions.update_one({"id": tid}, {"$set": {"note": f"API Connection error: {str(e)}"}})
         return {"status": "pending", "transaction_id": tid, "message": f"Connection check pending: {str(e)}"}
