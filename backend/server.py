@@ -2849,12 +2849,15 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
         f"Live Bill Pay: ₹{body.amount:.2f} — Biller: {body.billerId} for {body.mobile}"
     )
     
+    biller_info = dict(body.billerResponseInfo) if body.billerResponseInfo else {}
+    biller_info.pop("amount", None)
+    
     payload = {
         "billerId": body.billerId,
         "amount": body.amount,
         "mobile": body.mobile,
         "customerParams": [dict(x) for x in body.customerParams],
-        "billerResponseInfo": body.billerResponseInfo
+        "billerResponseInfo": biller_info
     }
     
     try:
