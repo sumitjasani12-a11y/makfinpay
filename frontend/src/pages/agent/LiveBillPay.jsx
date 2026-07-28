@@ -426,11 +426,33 @@ export default function LiveBillPay() {
 
           <DataTable
             columns={[
-              { key: "amount", label: "Amount Paid", render: (r) => fmtMoney(r.amount) },
+              {
+                key: "id",
+                label: "Tx ID",
+                render: (r) => (
+                  <span className="font-mono text-[10px] text-neutral-500 uppercase" title={r.id}>
+                    {r.id ? r.id.split("-")[0] : "-"}
+                  </span>
+                )
+              },
+              { key: "customer_name", label: "Customer", render: (r) => <span className="font-semibold text-neutral-800 capitalize">{r.customer_name || "N/A"}</span> },
+              { key: "card_last4", label: "Card Last 4", render: (r) => <span className="font-mono text-neutral-600">{r.card_last4 || "-"}</span> },
               { key: "operator", label: "Biller ID" },
-              { key: "customer_phone", label: "Mobile Number" },
+              { key: "customer_phone", label: "Mobile" },
+              { key: "bill_amount", label: "Bill Amt", render: (r) => fmtMoney(r.bill_amount) },
+              { key: "service_charge", label: "Charges", render: (r) => fmtMoney(r.service_charge) },
+              { key: "amount", label: "Total Paid", render: (r) => fmtMoney(r.amount) },
               { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
-              { key: "created_at", label: "Date / Time", render: (r) => fmtDate(r.created_at) }
+              { key: "created_at", label: "Date / Time", render: (r) => fmtDate(r.created_at) },
+              {
+                key: "note",
+                label: "Response / Note",
+                render: (r) => (
+                  <span className="text-[11px] text-neutral-500 max-w-[180px] block truncate" title={r.note}>
+                    {r.note || "-"}
+                  </span>
+                )
+              }
             ]}
             rows={paginatedTransactions}
             empty="No live bill payments found."
