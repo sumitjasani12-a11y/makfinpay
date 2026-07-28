@@ -35,6 +35,7 @@ export default function LiveBillPay() {
   // Fetched bill details
   const [fetchedBill, setFetchedBill] = useState(null);
   const [fetchRequestId, setFetchRequestId] = useState("");
+  const [payAmount, setPayAmount] = useState("");
 
   // Pagination states for history
   const [page, setPage] = useState(1);
@@ -84,6 +85,7 @@ export default function LiveBillPay() {
     setBillers([]);
     setFetchedBill(null);
     setFetchRequestId("");
+    setPayAmount("");
     setParamValues({});
     if (catId) {
       fetchBillers(catId);
@@ -94,6 +96,7 @@ export default function LiveBillPay() {
     setSelectedOp(opId);
     setFetchedBill(null);
     setFetchRequestId("");
+    setPayAmount("");
     setParamValues({});
   };
 
@@ -158,6 +161,7 @@ export default function LiveBillPay() {
       if (res.data?.status === "success" && res.data?.data?.billerResponse) {
         setFetchedBill(res.data.data);
         setFetchRequestId(res.data.data.requestId || "");
+        setPayAmount(res.data.data.billerResponse.amount || "");
         toast.success("Bill details fetched successfully!");
       } else {
         toast.error(res.data?.message || "Failed to fetch bill. Please verify details.");
@@ -178,14 +182,26 @@ export default function LiveBillPay() {
         value: paramValues[p.paramName] || ""
       }));
 
+      const amountVal = parseFloat(payAmount);
+      if (isNaN(amountVal) || amountVal <= 0) {
+        setLoadingPay(false);
+        return toast.error("Please enter a valid payment amount");
+      }
+
+      const baseBillerInfo = fetchedBill.billFetchResponse?.billerResponse || fetchedBill.billerResponse;
+      const billerResponseInfo = {
+        ...baseBillerInfo,
+        amount: String(amountVal)
+      };
+
       const payload = {
         billerId: selectedOp,
-        amount: parseFloat(fetchedBill.billerResponse.amount),
+        amount: amountVal,
         mobile: mobileNumber,
         fetchRequestId: fetchRequestId,
         additionalInfo: fetchedBill.billFetchResponse?.additionalInfo || fetchedBill.additionalInfo || {},
         customerParams: customerParams,
-        billerResponseInfo: fetchedBill.billFetchResponse?.billerResponse || fetchedBill.billerResponse
+        billerResponseInfo: billerResponseInfo
       };
 
       const res = await api.post("/agent/live-billpay/pay", payload);
@@ -193,12 +209,14 @@ export default function LiveBillPay() {
         toast.success(`Bill payment of ₹${payload.amount} successful!`);
         setFetchedBill(null);
         setFetchRequestId("");
+        setPayAmount("");
         setParamValues({});
         reloadHistory();
       } else if (res.data?.status === "pending") {
         toast.warning("Payment submitted. Current status: PENDING.");
         setFetchedBill(null);
         setFetchRequestId("");
+        setPayAmount("");
         setParamValues({});
         reloadHistory();
       } else {
@@ -380,11 +398,18 @@ export default function LiveBillPay() {
                     </div>
                   </div>
 
-                  <div className="bg-black/20 rounded-2xl p-4 border border-white/5 text-center space-y-1">
-                    <span className="text-[9px] font-extrabold text-white/40 uppercase tracking-widest block">Total Payable Amount</span>
-                    <span className="text-2xl font-black text-white tabular-nums">
-                      {fmtMoney(parseFloat(fetchedBill.billerResponse.amount))}
-                    </span>
+                  <div className="bg-black/20 rounded-2xl p-4 border border-white/5 text-center space-y-1 animate-pulseFocus">
+                    <span className="text-[9px] font-extrabold text-white/40 uppercase tracking-widest block">Payable Amount (Edit if custom)</span>
+                    <div className="flex items-center justify-center gap-1.5 text-2xl font-black text-white">
+                      <span>₹</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        className="bg-transparent border-b border-white/20 focus:border-white text-center outline-none w-48 text-2xl font-black text-white focus:ring-0 focus:outline-none"
+                        value={payAmount}
+                        onChange={(e) => setPayAmount(e.target.value)}
+                      />
+                    </div>
                   </div>
                 </div>
 
