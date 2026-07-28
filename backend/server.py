@@ -2521,25 +2521,130 @@ async def call_irise_api(method: str, endpoint: str, params: dict = None, json_d
                 return {
                     "status": "success",
                     "data": [
-                        {"biller_id": "10", "biller_name": "Torrent Power", "category_id": 1, "status": "active"},
-                        {"biller_id": "11", "biller_name": "PGVCL", "category_id": 1, "status": "active"},
-                        {"biller_id": "12", "biller_name": "UGVCL", "category_id": 1, "status": "active"}
+                        {
+                            "biller_id": "10", 
+                            "biller_name": "Torrent Power", 
+                            "category_id": 1, 
+                            "status": "active",
+                            "metadata": {
+                                "billerId": "10",
+                                "billerName": "Torrent Power",
+                                "billerCategoryName": "Electricity",
+                                "billerInputParams": {
+                                    "paramInfo": [
+                                        {"paramName": "Service Number", "dataType": "NUMERIC", "isOptional": False}
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "biller_id": "11", 
+                            "biller_name": "PGVCL", 
+                            "category_id": 1, 
+                            "status": "active",
+                            "metadata": {
+                                "billerId": "11",
+                                "billerName": "PGVCL",
+                                "billerCategoryName": "Electricity",
+                                "billerInputParams": {
+                                    "paramInfo": [
+                                        {"paramName": "Consumer Number", "dataType": "NUMERIC", "isOptional": False}
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "biller_id": "12", 
+                            "biller_name": "UGVCL", 
+                            "category_id": 1, 
+                            "status": "active",
+                            "metadata": {
+                                "billerId": "12",
+                                "billerName": "UGVCL",
+                                "billerCategoryName": "Electricity",
+                                "billerInputParams": {
+                                    "paramInfo": [
+                                        {"paramName": "Consumer Number", "dataType": "NUMERIC", "isOptional": False}
+                                    ]
+                                }
+                            }
+                        }
                     ]
                 }
             elif cat_id == "2":
                 return {
                     "status": "success",
                     "data": [
-                        {"biller_id": "20", "biller_name": "Delhi Jal Board", "category_id": 2, "status": "active"},
-                        {"biller_id": "21", "biller_name": "BMC Water Department", "category_id": 2, "status": "active"}
+                        {
+                            "biller_id": "20", 
+                            "biller_name": "Delhi Jal Board", 
+                            "category_id": 2, 
+                            "status": "active",
+                            "metadata": {
+                                "billerId": "20",
+                                "billerName": "Delhi Jal Board",
+                                "billerCategoryName": "Water",
+                                "billerInputParams": {
+                                    "paramInfo": [
+                                        {"paramName": "K Number", "dataType": "NUMERIC", "isOptional": False}
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "biller_id": "21", 
+                            "biller_name": "BMC Water Department", 
+                            "category_id": 2, 
+                            "status": "active",
+                            "metadata": {
+                                "billerId": "21",
+                                "billerName": "BMC Water Department",
+                                "billerCategoryName": "Water",
+                                "billerInputParams": {
+                                    "paramInfo": [
+                                        {"paramName": "Consumer Number", "dataType": "NUMERIC", "isOptional": False}
+                                    ]
+                                }
+                            }
+                        }
                     ]
                 }
             else:
                 return {
                     "status": "success",
                     "data": [
-                        {"biller_id": "30", "biller_name": "Adani Gas", "category_id": 3, "status": "active"},
-                        {"biller_id": "31", "biller_name": "Indraprastha Gas", "category_id": 3, "status": "active"}
+                        {
+                            "biller_id": "30", 
+                            "biller_name": "Adani Gas", 
+                            "category_id": 3, 
+                            "status": "active",
+                            "metadata": {
+                                "billerId": "30",
+                                "billerName": "Adani Gas",
+                                "billerCategoryName": "Gas",
+                                "billerInputParams": {
+                                    "paramInfo": [
+                                        {"paramName": "Customer ID", "dataType": "NUMERIC", "isOptional": False}
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "biller_id": "31", 
+                            "biller_name": "Indraprastha Gas", 
+                            "category_id": 3, 
+                            "status": "active",
+                            "metadata": {
+                                "billerId": "31",
+                                "billerName": "Indraprastha Gas",
+                                "billerCategoryName": "Gas",
+                                "billerInputParams": {
+                                    "paramInfo": [
+                                        {"paramName": "BP Number", "dataType": "NUMERIC", "isOptional": False}
+                                    ]
+                                }
+                            }
+                        }
                     ]
                 }
         elif ep == "fetch-bill":

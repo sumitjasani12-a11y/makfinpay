@@ -85,9 +85,24 @@ export default function LiveBillPay() {
 
   const activeOp = billers.find(o => String(o.biller_id) === String(selectedOp));
 
-  const paramsList = activeOp?.metadata?.customerParams || [
-    { paramName: "Consumer Number", dataType: "ALPHANUMERIC", isOptional: false }
-  ];
+  const getParamsList = (op) => {
+    const raw = op?.metadata?.billerInputParams?.paramInfo;
+    if (!raw) {
+      const fallback = op?.metadata?.customerParams;
+      if (Array.isArray(fallback)) return fallback;
+      if (fallback && typeof fallback === "object") return [fallback];
+      return [{ paramName: "Consumer Number", dataType: "ALPHANUMERIC", isOptional: false }];
+    }
+    if (Array.isArray(raw)) {
+      return raw;
+    }
+    if (typeof raw === "object") {
+      return [raw];
+    }
+    return [{ paramName: "Consumer Number", dataType: "ALPHANUMERIC", isOptional: false }];
+  };
+
+  const paramsList = React.useMemo(() => getParamsList(activeOp), [activeOp]);
 
   const fetchBill = async (e) => {
     if (e) e.preventDefault();
