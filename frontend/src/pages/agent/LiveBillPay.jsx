@@ -19,10 +19,7 @@ export default function LiveBillPay() {
   const [selectedCat, setSelectedCat] = useState("");
   const [selectedOp, setSelectedOp] = useState("");
   const [mobileNumber, setMobileNumber] = useState(user?.phone || "");
-  const [paramLabel, setParamLabel] = useState("Consumer Number");
-  const [paramValue, setParamValue] = useState("");
-  const [adLabel, setAdLabel] = useState("");
-  const [adValue, setAdValue] = useState("");
+  const [paramValues, setParamValues] = useState({});
 
   // Fetched bill details
   const [fetchedBill, setFetchedBill] = useState(null);
@@ -74,6 +71,7 @@ export default function LiveBillPay() {
     setSelectedOp("");
     setBillers([]);
     setFetchedBill(null);
+    setParamValues({});
     if (catId) {
       fetchBillers(catId);
     }
@@ -82,22 +80,35 @@ export default function LiveBillPay() {
   const handleOperatorChange = (opId) => {
     setSelectedOp(opId);
     setFetchedBill(null);
+    setParamValues({});
   };
+
+  const activeOp = billers.find(o => String(o.biller_id) === String(selectedOp));
+
+  const paramsList = activeOp?.metadata?.customerParams || [
+    { paramName: "Consumer Number", dataType: "ALPHANUMERIC", isOptional: false }
+  ];
 
   const fetchBill = async (e) => {
     if (e) e.preventDefault();
-    if (!selectedOp || !paramValue || !mobileNumber) {
-      return toast.error("Please fill all required fields (Biller, Consumer Number, and Mobile)");
+    if (!selectedOp || !mobileNumber) {
+      return toast.error("Please fill all required fields");
     }
+
+    // Verify required parameters
+    for (const p of paramsList) {
+      if (!p.isOptional && !paramValues[p.paramName]) {
+        return toast.error(`Please enter ${p.paramName}`);
+      }
+    }
+
     setLoadingFetch(true);
     setFetchedBill(null);
     try {
-      const customerParams = [
-        { name: paramLabel, value: paramValue }
-      ];
-      if (adLabel && adValue) {
-        customerParams.push({ name: adLabel, value: adValue });
-      }
+      const customerParams = paramsList.map(p => ({
+        name: p.paramName,
+        value: paramValues[p.paramName] || ""
+      }));
 
       const payload = {
         billerId: selectedOp,
@@ -107,7 +118,6 @@ export default function LiveBillPay() {
 
       const res = await api.post("/agent/live-billpay/fetch", payload);
       if (res.data?.status === "success" && res.data?.data?.billerResponse) {
-        // Save the response info which is needed for pay-bill
         setFetchedBill(res.data.data.billerResponse);
         toast.success("Bill details fetched successfully!");
       } else {
@@ -124,12 +134,10 @@ export default function LiveBillPay() {
     if (!fetchedBill) return;
     setLoadingPay(true);
     try {
-      const customerParams = [
-        { name: paramLabel, value: paramValue }
-      ];
-      if (adLabel && adValue) {
-        customerParams.push({ name: adLabel, value: adValue });
-      }
+      const customerParams = paramsList.map(p => ({
+        name: p.paramName,
+        value: paramValues[p.paramName] || ""
+      }));
 
       const payload = {
         billerId: selectedOp,
@@ -143,14 +151,12 @@ export default function LiveBillPay() {
       if (res.data?.status === "success") {
         toast.success(`Bill payment of ₹${payload.amount} successful!`);
         setFetchedBill(null);
-        setParamValue("");
-        setAdValue("");
+        setParamValues({});
         reloadHistory();
       } else if (res.data?.status === "pending") {
         toast.warning("Payment submitted. Current status: PENDING.");
         setFetchedBill(null);
-        setParamValue("");
-        setAdValue("");
+        setParamValues({});
         reloadHistory();
       } else {
         toast.error(res.data?.message || "Payment rejected by operator.");
@@ -161,8 +167,6 @@ export default function LiveBillPay() {
       setLoadingPay(false);
     }
   };
-
-  const activeOp = billers.find(o => String(o.biller_id) === String(selectedOp));
 
   const paginatedTransactions = React.useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -238,7 +242,7 @@ export default function LiveBillPay() {
                 </div>
               )}
 
-              {/* Customer Mobile Number */}
+              {/* Customer Mobile Number & Dynamic Biller Parameters */}
               {selectedOp && (
                 <div className="space-y-4 pt-1 animate-fadeIn">
                   <div className="space-y-1">
@@ -255,70 +259,32 @@ export default function LiveBillPay() {
                     />
                   </div>
 
-                  {/* Primary Param Input (e.g. Consumer Number) */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
+                  {/* Render Dynamic Metadata Fields */}
+                  {paramsList.map((p) => (
+                    <div className="space-y-1" key={p.paramName}>
                       <label className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest block">
-                        Parameter Label
-                      </label>
-                      <input
-                        className="mfp-input text-xs bg-white"
-                        type="text"
-                        required
-                        value={paramLabel}
-                        onChange={(e) => setParamLabel(e.target.value)}
-                        placeholder="e.g. Consumer Number"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest block">
-                        Parameter Value
+                        {p.paramName} {p.isOptional ? "(Optional)" : ""}
                       </label>
                       <input
                         className="mfp-input text-xs bg-neutral-50/50"
-                        type="text"
-                        required
-                        value={paramValue}
-                        onChange={(e) => setParamValue(e.target.value)}
-                        placeholder="Enter value"
+                        type={p.dataType === "NUMERIC" ? "number" : "text"}
+                        required={!p.isOptional}
+                        value={paramValues[p.paramName] || ""}
+                        onChange={(e) => setParamValues({
+                          ...paramValues,
+                          [p.paramName]: e.target.value
+                        })}
+                        placeholder={`Enter ${p.paramName.toLowerCase()}`}
                       />
                     </div>
-                  </div>
-
-                  {/* Optional Param Input 2 */}
-                  <div className="grid grid-cols-2 gap-3 border-t border-neutral-100 pt-3">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest block">
-                        Additional Param Label (Optional)
-                      </label>
-                      <input
-                        className="mfp-input text-xs bg-white"
-                        type="text"
-                        value={adLabel}
-                        onChange={(e) => setAdLabel(e.target.value)}
-                        placeholder="e.g. Cycle Number"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest block">
-                        Additional Param Value
-                      </label>
-                      <input
-                        className="mfp-input text-xs bg-neutral-50/50"
-                        type="text"
-                        value={adValue}
-                        onChange={(e) => setAdValue(e.target.value)}
-                        placeholder="Enter value"
-                      />
-                    </div>
-                  </div>
+                  ))}
                 </div>
               )}
 
               {selectedOp && (
                 <button
                   type="submit"
-                  disabled={loadingFetch || !paramValue || !mobileNumber}
+                  disabled={loadingFetch || !mobileNumber}
                   className="w-full mt-4 py-3 px-4 flex items-center justify-center gap-2 text-white text-xs font-bold rounded-xl transition-all shadow-md bg-[#00966B] hover:bg-[#007f5a] shadow-[#00966B]/10 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loadingFetch ? (

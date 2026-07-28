@@ -2597,6 +2597,40 @@ async def call_irise_api(method: str, endpoint: str, params: dict = None, json_d
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"Failed to connect to Irise API: {str(e)}")
 
+async def sync_billers_from_usepay():
+    page = 1
+    total_synced = 0
+    all_billers = []
+    
+    while page <= 30:
+        try:
+            res = await call_irise_api("GET", "billers", params={"page": page, "limit": 500})
+            if res.get("status") == "success" and "data" in res:
+                data = res["data"]
+                if not data:
+                    break
+                all_billers.extend(data)
+                total_synced += len(data)
+                page += 1
+            else:
+                break
+        except Exception as e:
+            print(f"Error syncing page {page}: {str(e)}")
+            break
+            
+    if all_billers:
+        # Clear existing
+        await db.billers.delete_many({})
+        # Insert all
+        await db.billers.insert_many(all_billers)
+        
+    return total_synced
+
+@api.post("/admin/live-billpay/sync-billers")
+async def post_sync_billers(user=Depends(require_roles("admin"))):
+    count = await sync_billers_from_usepay()
+    return {"status": "success", "message": f"Successfully synced {count} billers from Usepay API"}
+
 @api.get("/agent/live-billpay/categories")
 async def get_live_billpay_categories(user=Depends(require_approved_agent())):
     res = await call_irise_api("GET", "categories")
@@ -2604,8 +2638,47 @@ async def get_live_billpay_categories(user=Depends(require_approved_agent())):
 
 @api.get("/agent/live-billpay/operators")
 async def get_live_billpay_operators(category_id: str, user=Depends(require_approved_agent())):
-    res = await call_irise_api("GET", "billers", params={"category_id": category_id})
-    return res
+    count = await db.billers.count_documents({})
+    if count == 0:
+        await sync_billers_from_usepay()
+        
+    cat_name = ""
+    try:
+        cats_res = await call_irise_api("GET", "categories")
+        if cats_res.get("status") == "success" and "data" in cats_res:
+            for c in cats_res["data"]:
+                if str(c.get("id")) == str(category_id):
+                    cat_name = c.get("category_name", "")
+                    break
+    except Exception:
+        pass
+        
+    if not cat_name:
+        fallback_cats = {
+            "1": "Agent Collection", "2": "Broadband Postpaid", "3": "Cable TV",
+            "4": "Clubs and Associations", "5": "Credit Card", "6": "DTH",
+            "7": "eChallan", "8": "Education Fees", "9": "Electricity",
+            "10": "EV Recharge", "11": "Fastag", "12": "Fleet Card Recharge",
+            "13": "Gas", "14": "Housing Society", "15": "Insurance",
+            "16": "Landline Postpaid", "17": "Loan Repayment", "18": "LPG Gas",
+            "19": "Mobile Postpaid", "20": "Mobile Prepaid", "21": "Municipal Services",
+            "22": "Municipal Taxes", "23": "National Pension System", "24": "NCMC Recharge",
+            "25": "Prepaid Meter", "26": "Rental", "27": "Subscription", "28": "Water"
+        }
+        cat_name = fallback_cats.get(str(category_id), "")
+        
+    cursor = db.billers.find({"category": cat_name}, {"_id": 0})
+    billers_list = await cursor.to_list(1000)
+    
+    if not billers_list:
+        try:
+            res = await call_irise_api("GET", "billers", params={"category_id": category_id})
+            if res.get("status") == "success" and "data" in res:
+                return res
+        except Exception:
+            pass
+            
+    return {"status": "success", "data": billers_list}
 
 @api.post("/agent/live-billpay/fetch")
 async def post_live_billpay_fetch(body: LiveBillFetchIn, user=Depends(require_approved_agent())):
