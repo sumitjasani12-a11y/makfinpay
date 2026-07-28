@@ -140,8 +140,9 @@ export default function LiveBillPay() {
         customerParams: customerParams
       };
 
+      const res = await api.post("/agent/live-billpay/fetch", payload);
       if (res.data?.status === "success" && res.data?.data?.billerResponse) {
-        setFetchedBill(res.data.data);
+        setFetchedBill(res.data.data.billerResponse);
         toast.success("Bill details fetched successfully!");
       } else {
         toast.error(res.data?.message || "Failed to fetch bill. Please verify details.");
@@ -164,10 +165,10 @@ export default function LiveBillPay() {
 
       const payload = {
         billerId: selectedOp,
-        amount: parseFloat(fetchedBill.billerResponse.amount),
+        amount: parseFloat(fetchedBill.amount),
         mobile: mobileNumber,
         customerParams: customerParams,
-        billerResponseInfo: fetchedBill.billFetchResponse?.billerResponse || fetchedBill.billerResponse
+        billerResponseInfo: fetchedBill
       };
 
       const res = await api.post("/agent/live-billpay/pay", payload);
@@ -348,7 +349,7 @@ export default function LiveBillPay() {
                   <div className="space-y-3 text-xs text-white/70">
                     <div className="flex justify-between">
                       <span>Customer Name:</span>
-                      <strong className="text-white font-semibold">{fetchedBill.billerResponse.customerName || "N/A"}</strong>
+                      <strong className="text-white font-semibold">{fetchedBill.customerName || "N/A"}</strong>
                     </div>
                     <div className="flex justify-between">
                       <span>Biller ID:</span>
@@ -356,14 +357,14 @@ export default function LiveBillPay() {
                     </div>
                     <div className="flex justify-between">
                       <span>Due Date:</span>
-                      <strong className="text-rose-400 font-bold">{fetchedBill.billerResponse.dueDate || "N/A"}</strong>
+                      <strong className="text-rose-400 font-bold">{fetchedBill.dueDate || "N/A"}</strong>
                     </div>
                   </div>
 
                   <div className="bg-black/20 rounded-2xl p-4 border border-white/5 text-center space-y-1">
                     <span className="text-[9px] font-extrabold text-white/40 uppercase tracking-widest block">Total Payable Amount</span>
                     <span className="text-2xl font-black text-white tabular-nums">
-                      {fmtMoney(parseFloat(fetchedBill.billerResponse.amount))}
+                      {fmtMoney(parseFloat(fetchedBill.amount))}
                     </span>
                   </div>
                 </div>
