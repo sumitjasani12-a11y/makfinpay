@@ -37,7 +37,8 @@ TABLE_COLUMNS = {
     "banks": ["id", "name", "active", "bill_pay_enabled", "payout_enabled", "is_deleted", "created_at"],
     "rejection_categories": ["id", "name", "show_bill", "show_qr", "show_kyc", "is_deleted", "created_at"],
     "rejection_reasons": ["id", "category_id", "reason_text", "active", "is_deleted", "created_at"],
-    "policies": ["id", "title", "content", "active", "is_deleted", "created_at"]
+    "policies": ["id", "title", "content", "active", "is_deleted", "created_at"],
+    "billers": ["biller_id", "biller_name", "category", "metadata", "created_at"]
 }
 
 DATETIME_COLUMNS = {

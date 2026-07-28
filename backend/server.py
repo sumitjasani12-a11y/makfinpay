@@ -4177,6 +4177,15 @@ async def reset_demo_data(body: DemoResetIn, request: Request, user=Depends(requ
 async def _ensure_indexes() -> None:
     async with db.pool.acquire() as conn:
         await conn.execute('''
+            CREATE TABLE IF NOT EXISTS billers (
+                biller_id VARCHAR(255) PRIMARY KEY,
+                biller_name VARCHAR(255) NOT NULL,
+                category VARCHAR(255) NOT NULL,
+                metadata JSONB,
+                created_at TIMESTAMPTZ
+            )
+        ''')
+        await conn.execute('''
             CREATE TABLE IF NOT EXISTS policies (
                 id VARCHAR(255) PRIMARY KEY,
                 title VARCHAR(255) NOT NULL,
