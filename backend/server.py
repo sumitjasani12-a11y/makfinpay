@@ -2891,7 +2891,7 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
         
         if status in ["success", "pending"]:
             await db.transactions.update_one({"id": tid}, {"$set": {
-                "status": "approved", 
+                "status": "success", 
                 "reviewed_at": now_iso(), 
                 "reviewed_by": None,
                 "operator_txn_id": usepay_txn_id
@@ -2900,7 +2900,7 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
         else:
             new_balance_refund = await adjust_balance(user["id"], body.amount)
             await db.transactions.update_one({"id": tid}, {"$set": {
-                "status": "rejected", 
+                "status": "reversed", 
                 "reviewed_at": now_iso(), 
                 "reviewed_by": None, 
                 "operator_txn_id": usepay_txn_id,
@@ -2915,7 +2915,7 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
         if e.status_code < 500:
             new_balance_refund = await adjust_balance(user["id"], body.amount)
             await db.transactions.update_one({"id": tid}, {"$set": {
-                "status": "rejected",
+                "status": "reversed",
                 "reviewed_at": now_iso(),
                 "reviewed_by": None,
                 "note": f"Payment failed: {e.detail}"
@@ -2966,20 +2966,20 @@ async def usepay_webhook(request: Request):
     status_lower = str(status).lower() if status else ""
     
     if status_lower == "success":
-        # Update status to approved (success) if not already approved
-        if tx.get("status") != "approved":
+        # Update status to success if not already success
+        if tx.get("status") != "success":
             await db.transactions.update_one({"id": tx["id"]}, {"$set": {
-                "status": "approved",
+                "status": "success",
                 "reviewed_at": now_iso(),
                 "note": f"Payment success confirmed by Usepay Webhook (Status: {bbps_status or 'SUCCESS'})"
             }})
-            print(f"[USEPAY WEBHOOK SUCCESS] Transaction {tx['id']} updated to approved.")
+            print(f"[USEPAY WEBHOOK SUCCESS] Transaction {tx['id']} updated to success.")
     elif status_lower in ["failed", "error", "failure"]:
-        # If it failed, refund the agent's wallet and mark as rejected
-        if tx.get("status") != "rejected":
+        # If it failed, refund the agent's wallet and mark as reversed
+        if tx.get("status") != "reversed":
             new_balance = await adjust_balance(tx["user_id"], tx["amount"])
             await db.transactions.update_one({"id": tx["id"]}, {"$set": {
-                "status": "rejected",
+                "status": "reversed",
                 "reviewed_at": now_iso(),
                 "note": f"Payment failed: {bbps_status or 'BBPS Failure'} (Webhook Callback)"
             }})
