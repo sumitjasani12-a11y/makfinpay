@@ -2814,18 +2814,13 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
     tid = new_id()
     new_balance = await adjust_balance(user["id"], -body.amount)
     
-    card_last4 = ""
-    for p in body.customerParams:
-        if "creditcard" in p.name.lower() or "credit card" in p.name.lower():
-            card_last4 = p.value[-4:] if len(p.value) >= 4 else p.value
-
     tx = {
         "id": tid,
         "user_id": user["id"],
         "user_name": user["full_name"],
         "type": "live_bill",
         "customer_name": "N/A",
-        "card_last4": card_last4,
+        "card_last4": None,
         "operator": body.billerId,
         "customer_phone": body.mobile,
         "bill_amount": round(body.amount, 2),
@@ -2857,29 +2852,18 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
         res = await call_irise_api("POST", "pay-bill", json_data=payload)
         status = res.get("payment_status") or res.get("status")
         if status == "success":
-            await db.transactions.update_one({"id": tid}, {"$set": {"status": "success", "reviewed_at": now_iso(), "reviewed_by": None}})
+            await db.transactions.update_one({"id": tid}, {"$set": {"status": "approved", "reviewed_at": now_iso(), "reviewed_by": "system"}})
             return {"status": "success", "transaction_id": tid}
         elif status == "pending":
             return {"status": "pending", "transaction_id": tid}
         else:
             new_balance_refund = await adjust_balance(user["id"], body.amount)
-            await db.transactions.update_one({"id": tid}, {"$set": {"status": "reversed", "reviewed_at": now_iso(), "reviewed_by": None, "note": f"Payment failed: {res.get('message', 'Rejected by operator')}"}})
+            await db.transactions.update_one({"id": tid}, {"$set": {"status": "rejected", "reviewed_at": now_iso(), "reviewed_by": "system", "note": f"Payment failed: {res.get('message', 'Rejected by operator')}"}})
             await ledger_entry(
                 user["id"], "refund", body.amount, new_balance_refund, "live_bill_refund", tid,
                 f"Refund: Failed Live Bill Pay for {body.mobile}"
             )
             return {"status": "failed", "message": res.get("message", "Payment failed by operator")}
-    except HTTPException as e:
-        new_balance_refund = await adjust_balance(user["id"], body.amount)
-        await db.transactions.update_one(
-            {"id": tid},
-            {"$set": {"status": "reversed", "reviewed_at": now_iso(), "reviewed_by": None, "note": f"Payment failed: {e.detail}"}}
-        )
-        await ledger_entry(
-            user["id"], "refund", body.amount, new_balance_refund, "live_bill_refund", tid,
-            f"Refund: Failed Live Bill Pay for {body.mobile}"
-        )
-        return {"status": "failed", "message": e.detail}
     except Exception as e:
         await db.transactions.update_one({"id": tid}, {"$set": {"note": f"API Connection error: {str(e)}"}})
         return {"status": "pending", "transaction_id": tid, "message": f"Connection check pending: {str(e)}"}
