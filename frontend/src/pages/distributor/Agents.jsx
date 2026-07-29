@@ -3,7 +3,7 @@ import { api, formatErr, fmtMoney, fmtDate } from "@/lib/api";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
-import { Plus, PencilLine, X } from "lucide-react";
+import { Plus, PencilLine, X, ArrowLeft, Building2, Percent, ShieldCheck, Users, Coins } from "lucide-react";
 
 function MarkupModal({ agent, base, onClose, onSaved }) {
   const [val, setVal] = useState(String(agent.markup_commission ?? 0));
@@ -102,33 +102,185 @@ export default function DistAgents() {
         actions={<button className="mfp-btn-primary" onClick={() => setShow(!show)} data-testid="new-agent-btn"><Plus className="h-4 w-4" /> New Agent</button>} />
 
       {show && (
-        <form onSubmit={create} className="mfp-card p-6 grid sm:grid-cols-2 gap-4 mb-8">
-          {[
-            ["Full Name", "full_name", "text"],
-            ["Email Address", "email", "email"],
-            ["Phone Number", "phone", "text"],
-            ["Personal Address", "address", "text"],
-            ["Firm Name", "firm_name", "text"],
-            ["Firm Address", "firm_address", "text"]
-          ].map(([l, k, t]) => (
-            <div key={k}>
-              <label className="mfp-label">{l}</label>
-              <input className="mfp-input" type={t} required value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} data-testid={`dist-form-${k}`} />
+        <div className="fixed inset-y-0 right-0 left-0 md:left-64 bg-[#F8F7F2] z-50 overflow-y-auto flex flex-col">
+          {/* Header */}
+          <div className="bg-white border-b border-black/5 px-8 py-5 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+            <div className="flex items-center gap-4">
+              <button type="button" onClick={() => setShow(false)} className="p-2.5 hover:bg-neutral-100 rounded-2xl transition-all border border-neutral-200 text-neutral-600 inline-flex items-center justify-center">
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+              <div>
+                <div className="text-[10px] uppercase font-black tracking-widest text-[#2D6A4F]/60">
+                  Create Agent
+                </div>
+                <h2 className="text-xl font-black text-neutral-800">
+                  Register a new agent in your distributor network
+                </h2>
+              </div>
             </div>
-          ))}
-          <div>
-            <label className="mfp-label">Add Your Markup %</label>
-            <input className="mfp-input" type="number" step="0.01" min="0" value={form.markup} onChange={(e) => setForm({ ...form, markup: e.target.value })} placeholder="Enter markup percentage" data-testid="dist-form-markup" />
-            <div className="mt-1 text-xs text-neutral-500">This will be added on top of base commission</div>
+            <button type="button" onClick={() => setShow(false)} className="p-2 hover:bg-neutral-100 rounded-xl transition-all text-neutral-400 hover:text-neutral-700">
+              <X className="h-6 w-6" />
+            </button>
           </div>
-          <div className="sm:col-span-2 rounded-xl bg-[#F4F3ED] p-4 text-sm space-y-1.5" data-testid="markup-preview">
-            <div className="flex justify-between"><span className="text-neutral-600">Base Commission</span><span className="font-medium">{base}%</span></div>
-            <div className="flex justify-between"><span className="text-neutral-600">Your Markup</span><span className="font-medium">{markupNum}%</span></div>
-            <div className="border-t border-black/10 my-1" />
-            <div className="flex justify-between text-base"><span className="font-semibold">Agent Total Commission</span><span className="font-semibold text-[#1B4332]" data-testid="markup-preview-total">{previewTotal}%</span></div>
-          </div>
-          <div className="sm:col-span-2"><button className="mfp-btn-primary" data-testid="dist-form-submit">Create Agent</button></div>
-        </form>
+
+          <form onSubmit={create} className="p-8 max-w-7xl w-full mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1">
+            {/* Left Column: Basic Details Card */}
+            <div className="lg:col-span-4 space-y-6">
+              <div className="bg-white border border-black/5 rounded-3xl p-6 shadow-sm flex flex-col items-center space-y-6">
+                <div className="h-28 w-28 rounded-full border-2 border-dashed border-neutral-300 bg-neutral-50 flex flex-col items-center justify-center text-neutral-400 select-none">
+                  <Users className="h-8 w-8 text-neutral-400 mb-1" />
+                  <span className="text-[9px] font-black uppercase tracking-wider text-neutral-400">Agent Profile</span>
+                </div>
+
+                <div className="w-full space-y-4 text-left">
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Full Name</label>
+                    <input 
+                      type="text" 
+                      required 
+                      className="w-full mfp-input text-xs font-bold mt-1 bg-[#F8F7F2]" 
+                      placeholder="Enter Full Name" 
+                      value={form.full_name}
+                      onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+                      data-testid="dist-form-full_name"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Email Address</label>
+                    <input 
+                      type="email" 
+                      required 
+                      className="w-full mfp-input text-xs font-bold mt-1 bg-[#F8F7F2]" 
+                      placeholder="Enter Email Address" 
+                      value={form.email}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      data-testid="dist-form-email"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Phone Number</label>
+                    <input 
+                      type="text" 
+                      required 
+                      className="w-full mfp-input text-xs font-bold mt-1 bg-[#F8F7F2]" 
+                      placeholder="Enter Phone Number" 
+                      value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      data-testid="dist-form-phone"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: Address, Business & Rate Settings */}
+            <div className="lg:col-span-8 space-y-6">
+              {/* Card 1: Address & Business Details */}
+              <div className="bg-white border border-black/5 rounded-3xl p-6 shadow-sm space-y-6">
+                <h3 className="text-sm font-black text-neutral-800 flex items-center gap-2 border-b border-neutral-100 pb-3">
+                  <Building2 className="h-4 w-4 text-[#2D6A4F]" /> Address & Business Details
+                </h3>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Personal Address</label>
+                    <input 
+                      type="text" 
+                      required 
+                      className="w-full mfp-input text-xs font-bold mt-1 bg-[#F8F7F2]" 
+                      placeholder="Enter Personal Address" 
+                      value={form.address}
+                      onChange={(e) => setForm({ ...form, address: e.target.value })}
+                      data-testid="dist-form-address"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Firm Name</label>
+                    <input 
+                      type="text" 
+                      required 
+                      className="w-full mfp-input text-xs font-bold mt-1 bg-[#F8F7F2]" 
+                      placeholder="Enter Registered Business/Firm Name" 
+                      value={form.firm_name}
+                      onChange={(e) => setForm({ ...form, firm_name: e.target.value })}
+                      data-testid="dist-form-firm_name"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Firm Address</label>
+                    <input 
+                      type="text" 
+                      required 
+                      className="w-full mfp-input text-xs font-bold mt-1 bg-[#F8F7F2]" 
+                      placeholder="Enter Firm Address" 
+                      value={form.firm_address}
+                      onChange={(e) => setForm({ ...form, firm_address: e.target.value })}
+                      data-testid="dist-form-firm_address"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 2: Commission & Rate Settings */}
+              <div className="bg-white border border-black/5 rounded-3xl p-6 shadow-sm space-y-6">
+                <h3 className="text-sm font-black text-neutral-800 flex items-center gap-2 border-b border-neutral-100 pb-3">
+                  <Percent className="h-4 w-4 text-[#2D6A4F]" /> Rate & Account Settings
+                </h3>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400 font-extrabold">
+                    Add Your Markup %
+                  </label>
+                  <div className="flex items-center mt-1 bg-[#F8F7F2] rounded-xl px-3 border border-neutral-200">
+                    <span className="text-sm font-black text-[#2D6A4F] select-none">%</span>
+                    <input 
+                      type="number" 
+                      step="0.01"
+                      min="0"
+                      className="w-full bg-transparent border-0 focus:outline-none focus:ring-0 text-xs font-bold p-3" 
+                      placeholder="Enter markup percentage" 
+                      value={form.markup}
+                      onChange={(e) => setForm({ ...form, markup: e.target.value })}
+                      data-testid="dist-form-markup"
+                    />
+                  </div>
+                  <div className="mt-1 text-xs text-neutral-500 font-semibold">This will be added on top of base commission</div>
+                </div>
+
+                {/* Markup calculation preview */}
+                <div className="rounded-xl bg-[#F4F3ED] p-4 text-xs space-y-1.5" data-testid="markup-preview">
+                  <div className="flex justify-between">
+                    <span className="text-neutral-600 font-semibold">Base Commission</span>
+                    <span className="font-bold text-neutral-800">{base}%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-neutral-600 font-semibold">Your Markup</span>
+                    <span className="font-bold text-neutral-800">{markupNum}%</span>
+                  </div>
+                  <div className="border-t border-black/10 my-1" />
+                  <div className="flex justify-between text-sm">
+                    <span className="font-extrabold text-neutral-800">Agent Total Commission</span>
+                    <span className="font-extrabold text-[#1B4332]" data-testid="markup-preview-total">{previewTotal}%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action buttons at the bottom */}
+              <div className="flex justify-end gap-3 pt-4">
+                <button type="button" onClick={() => setShow(false)} className="mfp-btn-outline px-8 py-3.5 font-bold">
+                  Cancel
+                </button>
+                <button type="submit" className="mfp-btn-primary px-8 py-3.5 font-bold flex items-center justify-center gap-2 shadow-sm" data-testid="dist-form-submit">
+                  <ShieldCheck className="h-4 w-4" /> Create Agent
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
       )}
 
       <DataTable
