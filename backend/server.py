@@ -1334,6 +1334,8 @@ async def export_transactions_pdf(
     type: Optional[str] = None,
     txn_id: Optional[str] = None,
     api_txn_id: Optional[str] = None,
+    agent_search: Optional[str] = None,
+    bank_search: Optional[str] = None,
     user=Depends(require_roles("admin")),
 ):
     matched_ids = None
@@ -1345,7 +1347,8 @@ async def export_transactions_pdf(
     query = _build_transaction_query(
         status=status, agent_id=agent_id, operator=operator,
         from_ts=from_ts, to_ts=to_ts, q=q, amount=amount, txn_type=type,
-        txn_id=txn_id, api_txn_id=api_txn_id, matched_ids=matched_ids
+        txn_id=txn_id, api_txn_id=api_txn_id, matched_ids=matched_ids,
+        agent_search=agent_search, bank_search=bank_search
     )
     items = await db.transactions.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
     
@@ -1373,6 +1376,8 @@ async def export_transactions_csv(
     type: Optional[str] = None,
     txn_id: Optional[str] = None,
     api_txn_id: Optional[str] = None,
+    agent_search: Optional[str] = None,
+    bank_search: Optional[str] = None,
     user=Depends(require_roles("admin")),
 ):
     matched_ids = None
@@ -1384,7 +1389,8 @@ async def export_transactions_csv(
     query = _build_transaction_query(
         status=status, agent_id=agent_id, operator=operator,
         from_ts=from_ts, to_ts=to_ts, q=q, amount=amount, txn_type=type,
-        txn_id=txn_id, api_txn_id=api_txn_id, matched_ids=matched_ids
+        txn_id=txn_id, api_txn_id=api_txn_id, matched_ids=matched_ids,
+        agent_search=agent_search, bank_search=bank_search
     )
     items = await db.transactions.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
     
@@ -2277,7 +2283,8 @@ def get_short_txn_id(id_str: str) -> str:
 
 def _build_transaction_query(*, status=None, agent_id=None, operator=None,
                               from_ts=None, to_ts=None, q=None, amount=None, txn_type=None,
-                              txn_id=None, api_txn_id=None, matched_ids=None) -> dict:
+                              txn_id=None, api_txn_id=None, matched_ids=None,
+                              agent_search=None, bank_search=None) -> dict:
     query: dict = {}
     if txn_type and txn_type != "all":
         query["type"] = txn_type
@@ -2287,6 +2294,10 @@ def _build_transaction_query(*, status=None, agent_id=None, operator=None,
         query["user_id"] = agent_id
     if operator and operator != "all":
         query["operator"] = operator
+    if agent_search and agent_search.strip():
+        query["user_name"] = {"$regex": agent_search.strip(), "$options": "i"}
+    if bank_search and bank_search.strip():
+        query["operator"] = {"$regex": bank_search.strip(), "$options": "i"}
     if txn_id and txn_id.strip():
         if matched_ids is not None:
             query["id"] = {"$in": matched_ids}
@@ -3261,6 +3272,8 @@ async def admin_transactions(
     type: Optional[str] = None,
     txn_id: Optional[str] = None,
     api_txn_id: Optional[str] = None,
+    agent_search: Optional[str] = None,
+    bank_search: Optional[str] = None,
     page: int = 1,
     page_size: int = 50,
     paginated: bool = False,
@@ -3275,7 +3288,8 @@ async def admin_transactions(
     query = _build_transaction_query(
         status=status, agent_id=agent_id, operator=operator,
         from_ts=from_ts, to_ts=to_ts, q=q, amount=amount, txn_type=type,
-        txn_id=txn_id, api_txn_id=api_txn_id, matched_ids=matched_ids
+        txn_id=txn_id, api_txn_id=api_txn_id, matched_ids=matched_ids,
+        agent_search=agent_search, bank_search=bank_search
     )
     if paginated:
         page = max(1, page); page_size = max(1, min(200, page_size))

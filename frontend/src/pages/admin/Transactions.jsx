@@ -102,8 +102,10 @@ export default function AdminTransactions() {
   const [from, setFrom] = useState(todayStr(-7));
   const [to, setTo] = useState(todayStr());
   const [customApplied, setCustomApplied] = useState(false);
-  const [agentFilter, setAgentFilter] = useState("all");
-  const [bankFilter, setBankFilter] = useState("all");
+  const [agentQuery, setAgentQuery] = useState("");
+  const debouncedAgent = useDebounced(agentQuery, 350);
+  const [bankQuery, setBankQuery] = useState("");
+  const debouncedBank = useDebounced(bankQuery, 350);
   const [amtQuery, setAmtQuery] = useState("");
   const debouncedAmt = useDebounced(amtQuery, 350);
 
@@ -116,9 +118,6 @@ export default function AdminTransactions() {
   const [rejectTargetId, setRejectTargetId] = useState(null);
 
   useEffect(() => {
-    api.get("/admin/users", { params: { role: "agent" } })
-      .then((r) => setAgents(Array.isArray(r.data) ? r.data : (r.data?.items || [])));
-    api.get("/billing/banks").then((r) => setBanks(r.data.map(b => b.name))).catch((e) => console.log("Failed to fetch banks:", e.message));
     fetchToggles();
   }, [fetchToggles]);
 
@@ -128,14 +127,14 @@ export default function AdminTransactions() {
       : rangeWindowIso(range, from, to);
     const p = { paginated: true, page, page_size: pageSize, type: "bill" };
     if (status !== "all") p.status = status;
-    if (agentFilter !== "all") p.agent_id = agentFilter;
-    if (bankFilter !== "all") p.operator = bankFilter;
     if (from_ts) p.from_ts = from_ts;
     if (to_ts) p.to_ts = to_ts;
     if (debouncedQ.trim()) p.q = debouncedQ.trim();
     if (debouncedAmt.trim()) p.amount = debouncedAmt.trim();
+    if (debouncedAgent.trim()) p.agent_search = debouncedAgent.trim();
+    if (debouncedBank.trim()) p.bank_search = debouncedBank.trim();
     return p;
-  }, [status, agentFilter, bankFilter, range, from, to, customApplied, debouncedQ, debouncedAmt, page, pageSize]);
+  }, [status, range, from, to, customApplied, debouncedQ, debouncedAmt, debouncedAgent, debouncedBank, page, pageSize]);
 
   const reload = useCallback(() => {
     setLoading(true);
@@ -179,10 +178,10 @@ export default function AdminTransactions() {
   }, [params]);
 
   useEffect(() => { reload(); }, [reload]);
-  useEffect(() => { setPage(1); }, [status, agentFilter, bankFilter, range, from, to, customApplied, debouncedQ, debouncedAmt, pageSize]);
+  useEffect(() => { setPage(1); }, [status, debouncedAgent, debouncedBank, range, from, to, customApplied, debouncedQ, debouncedAmt, pageSize]);
 
   const clearAll = () => {
-    setQ(""); setStatus("all"); setRange("today"); setAgentFilter("all"); setBankFilter("all"); setAmtQuery("");
+    setQ(""); setStatus("all"); setRange("today"); setAgentQuery(""); setBankQuery(""); setAmtQuery("");
     setFrom(todayStr(-7)); setTo(todayStr()); setCustomApplied(false); setPage(1);
   };
 
@@ -402,8 +401,8 @@ export default function AdminTransactions() {
 
       {/* Filter / Search bar */}
       <div className="mfp-card p-5 mb-6 space-y-4" data-testid="tx-filter-bar">
-        {/* Row 1: Search & Dropdowns */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Filter Row: Consolidated 6 filters in 1 row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
           <div className="relative">
             <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
               <Search className="h-4 w-4 text-neutral-400" />
@@ -411,7 +410,7 @@ export default function AdminTransactions() {
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search Name, Phone, Card..."
+              placeholder="Search Customer, Mobile..."
               className="mfp-input !pl-11 !pr-10"
               data-testid="tx-search"
             />
@@ -420,8 +419,45 @@ export default function AdminTransactions() {
                 type="button"
                 onClick={() => setQ("")}
                 className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-[#1B4332]"
-                data-testid="tx-search-clear"
                 aria-label="Clear search"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          <div className="relative">
+            <input
+              type="text"
+              value={agentQuery}
+              onChange={(e) => setAgentQuery(e.target.value)}
+              placeholder="Search Agent Name"
+              className="mfp-input !pr-10"
+            />
+            {agentQuery && (
+              <button
+                type="button"
+                onClick={() => setAgentQuery("")}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-[#1B4332]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          <div className="relative">
+            <input
+              type="text"
+              value={bankQuery}
+              onChange={(e) => setBankQuery(e.target.value)}
+              placeholder="Search Bank Name"
+              className="mfp-input !pr-10"
+            />
+            {bankQuery && (
+              <button
+                type="button"
+                onClick={() => setBankQuery("")}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-[#1B4332]"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -465,37 +501,6 @@ export default function AdminTransactions() {
             >
               {DATE_RANGES.map((r) => (
                 <option key={r.key} value={r.key}>{r.label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Row 2: Secondary Dropdowns */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <select
-              value={agentFilter}
-              onChange={(e) => setAgentFilter(e.target.value)}
-              className="mfp-input w-full"
-              data-testid="tx-agent-filter"
-            >
-              <option value="all">All Agents</option>
-              {agents.map((a) => (
-                <option key={a.id} value={a.id}>{a.full_name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <select
-              value={bankFilter}
-              onChange={(e) => setBankFilter(e.target.value)}
-              className="mfp-input w-full"
-              data-testid="tx-bank-filter"
-            >
-              <option value="all">All Banks</option>
-              {banks.map((b) => (
-                <option key={b} value={b}>{b}</option>
               ))}
             </select>
           </div>
