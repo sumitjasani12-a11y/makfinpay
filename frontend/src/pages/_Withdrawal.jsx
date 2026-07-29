@@ -142,12 +142,12 @@ export default function Withdrawal() {
 
               <div className="mb-4">
                 <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Withdrawal Amount</label>
-                <div className="relative mt-1.5">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-base font-black text-[#2D6A4F] select-none">
+                <div className="flex items-center mt-1.5 bg-[#F8F7F2] rounded-xl px-4 border border-neutral-200 focus-within:border-[#2D6A4F] focus-within:bg-white transition-all">
+                  <span className="text-base font-black text-[#2D6A4F] select-none mr-2">
                     ₹
                   </span>
                   <input
-                    className="w-full mfp-input pl-9 text-base font-black text-neutral-800 bg-[#F8F7F2] focus:bg-white"
+                    className="w-full bg-transparent border-0 focus:outline-none focus:ring-0 text-base font-black text-neutral-800 py-3"
                     type="number" min="1" step="0.01" required
                     placeholder="Enter amount to withdraw"
                     value={amount}
