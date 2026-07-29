@@ -37,76 +37,76 @@ export default function MdOverview() {
             {/* 2x2 grid for counts */}
             <div className="grid grid-cols-2 gap-4">
               {/* Card 1: My Distributors */}
-              <div className="bg-gradient-to-br from-indigo-50/60 to-indigo-100/20 border border-indigo-100/80 rounded-[24px] p-4.5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between min-h-[125px]" data-testid="kpi-md-distributors">
+              <div className="bg-gradient-to-br from-[#1d1b4c] to-[#4f46e5] text-white border border-indigo-500/20 rounded-[24px] p-4.5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between min-h-[125px]" data-testid="kpi-md-distributors">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-indigo-800">My Distributors</span>
-                  <div className="p-2 rounded-xl bg-indigo-100/50 text-indigo-700">
+                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-indigo-100/80">My Distributors</span>
+                  <div className="p-2 bg-white/10 text-indigo-300 border border-white/10 rounded-xl shrink-0">
                     <Users className="h-4 w-4" />
                   </div>
                 </div>
                 <div>
-                  <div className="text-2xl font-black text-indigo-955 mt-3">{s.distributors ?? 0}</div>
-                  <p className="text-[9.5px] text-indigo-600 font-semibold mt-0.5">Distributors registered</p>
+                  <div className="text-2xl font-black text-white mt-3">{s.distributors ?? 0}</div>
+                  <p className="text-[9.5px] text-indigo-200/80 font-semibold mt-0.5">Distributors registered</p>
                 </div>
               </div>
 
               {/* Card 2: My Agents */}
-              <div className="bg-gradient-to-br from-fuchsia-50/60 to-fuchsia-100/20 border border-fuchsia-100/80 rounded-[24px] p-4.5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between min-h-[125px]" data-testid="kpi-md-agents">
+              <div className="bg-gradient-to-br from-[#3B0066] to-[#6F42C1] text-white border border-purple-500/20 rounded-[24px] p-4.5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between min-h-[125px]" data-testid="kpi-md-agents">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-fuchsia-800">My Agents</span>
-                  <div className="p-2 rounded-xl bg-fuchsia-100/50 text-fuchsia-700">
+                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-purple-100/80">My Agents</span>
+                  <div className="p-2 bg-white/10 text-purple-300 border border-white/10 rounded-xl shrink-0">
                     <UserCog className="h-4 w-4" />
                   </div>
                 </div>
                 <div>
-                  <div className="text-2xl font-black text-fuchsia-955 mt-3">{s.agents ?? 0}</div>
-                  <p className="text-[9.5px] text-fuchsia-600 font-semibold mt-0.5">Agents registered</p>
+                  <div className="text-2xl font-black text-white mt-3">{s.agents ?? 0}</div>
+                  <p className="text-[9.5px] text-purple-200/80 font-semibold mt-0.5">Agents registered</p>
                 </div>
               </div>
 
               {/* Card 3: Pending Recharges */}
-              <div className="bg-gradient-to-br from-amber-50/60 to-amber-100/20 border border-amber-100/80 rounded-[24px] p-4.5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between min-h-[125px]" data-testid="kpi-md-pending-recharges">
+              <div className="bg-gradient-to-br from-[#664D03] to-[#FD7E14] text-white border border-orange-500/20 rounded-[24px] p-4.5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between min-h-[125px]" data-testid="kpi-md-pending-recharges">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-amber-800">Pending Recharges</span>
-                  <div className="p-2 rounded-xl bg-amber-100/50 text-amber-700">
+                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-orange-100/80">Pending Recharges</span>
+                  <div className="p-2 bg-white/10 text-orange-300 border border-white/10 rounded-xl shrink-0">
                     <Clock className="h-4 w-4" />
                   </div>
                 </div>
                 <div>
-                  <div className="text-2xl font-black text-amber-955 mt-3">{s.pending_recharges ?? 0}</div>
-                  <p className="text-[9.5px] text-amber-600 font-semibold mt-0.5">Awaiting review</p>
+                  <div className="text-2xl font-black text-white mt-3">{s.pending_recharges ?? 0}</div>
+                  <p className="text-[9.5px] text-orange-200/80 font-semibold mt-0.5">Awaiting review</p>
                 </div>
               </div>
 
               {/* Card 4: Approved Recharges */}
-              <div className="bg-gradient-to-br from-emerald-50/60 to-emerald-100/20 border border-emerald-100/80 rounded-[24px] p-4.5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between min-h-[125px]" data-testid="kpi-md-approved-recharges">
+              <div className="bg-gradient-to-br from-[#0F5132] to-[#198754] text-white border border-emerald-500/20 rounded-[24px] p-4.5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between min-h-[125px]" data-testid="kpi-md-approved-recharges">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-emerald-800">Approved Recharges</span>
-                  <div className="p-2 rounded-xl bg-emerald-100/50 text-emerald-700">
+                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-emerald-100/80">Approved Recharges</span>
+                  <div className="p-2 bg-white/10 text-emerald-300 border border-white/10 rounded-xl shrink-0">
                     <ShieldCheck className="h-4 w-4" />
                   </div>
                 </div>
                 <div>
-                  <div className="text-2xl font-black text-emerald-955 mt-3">{s.approved_recharges ?? 0}</div>
-                  <p className="text-[9.5px] text-emerald-600 font-semibold mt-0.5">Approved all-time</p>
+                  <div className="text-2xl font-black text-white mt-3">{s.approved_recharges ?? 0}</div>
+                  <p className="text-[9.5px] text-emerald-200/80 font-semibold mt-0.5">Approved all-time</p>
                 </div>
               </div>
             </div>
 
             {/* Full-width Card 5: Total Earnings */}
-            <div className="bg-gradient-to-br from-cyan-50/60 to-cyan-100/20 border border-cyan-100/80 rounded-[24px] p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex items-center justify-between min-h-[96px]" data-testid="kpi-md-earnings">
+            <div className="bg-gradient-to-br from-[#0A3641] to-[#0D6EFD] text-white border border-blue-500/20 rounded-[24px] p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex items-center justify-between min-h-[96px]" data-testid="kpi-md-earnings">
               <div className="flex items-center gap-4">
-                <div className="p-3 rounded-2xl bg-cyan-100/50 text-cyan-700 shrink-0">
+                <div className="p-3 bg-white/10 text-blue-300 border border-white/10 rounded-2xl shrink-0">
                   <Coins className="h-6 w-6" />
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-cyan-800">Total Earnings</span>
-                  <div className="text-2xl font-black text-cyan-955 mt-0.5">{fmtMoney(s.earnings ?? 0)}</div>
+                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-blue-100/80">Total Earnings</span>
+                  <div className="text-2xl font-black text-white mt-0.5">{fmtMoney(s.earnings ?? 0)}</div>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-[9.5px] text-cyan-600 font-semibold">Live dynamic earnings</p>
-                <p className="text-[8px] text-cyan-500 font-bold uppercase tracking-wider mt-0.5">All time</p>
+                <p className="text-[9.5px] text-blue-200/80 font-semibold">Live dynamic earnings</p>
+                <p className="text-[8px] text-blue-100/60 font-bold uppercase tracking-wider mt-0.5">All time</p>
               </div>
             </div>
           </div>
