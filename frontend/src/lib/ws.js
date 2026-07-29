@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 let ws = null;
 let reconnectTimer = null;
@@ -71,13 +71,21 @@ export function closeWebSocket() {
 }
 
 export function useWebSocketListener(eventName, callback) {
+  const callbackRef = useRef(callback);
+
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
+
   useEffect(() => {
     const handler = (event) => {
-      callback(event.detail);
+      if (callbackRef.current) {
+        callbackRef.current(event.detail);
+      }
     };
     window.addEventListener(`ws:${eventName}`, handler);
     return () => {
       window.removeEventListener(`ws:${eventName}`, handler);
     };
-  }, [eventName, callback]);
+  }, [eventName]);
 }
