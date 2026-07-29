@@ -306,25 +306,6 @@ export default function LiveBillHistory() {
               key: "created_at",
               label: "Date & Time",
               render: (r) => <span className="text-neutral-500 text-[11px] whitespace-nowrap">{fmtDate(r.created_at)}</span>
-            },
-            {
-              key: "note",
-              label: "Note / API Response",
-              render: (r) => {
-                if (!r.note) return <span className="text-neutral-300">—</span>;
-                const colorClass = 
-                  r.status === "rejected" || r.status === "failed" ? "bg-rose-50/70 text-rose-600 border-rose-100/80" :
-                  r.status === "pending" ? "bg-amber-50/70 text-amber-600 border-amber-100/80" :
-                  "bg-emerald-50/70 text-emerald-600 border-emerald-100/80";
-                return (
-                  <span 
-                    className={`text-[11px] px-2 py-1 rounded-lg border max-w-[250px] block truncate font-medium ${colorClass} cursor-help`} 
-                    title={r.note}
-                  >
-                    {r.note}
-                  </span>
-                );
-              }
             }
           ]}
           rows={paginatedItems}
