@@ -82,10 +82,10 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
       if (!body.selfie_path) {
         delete body.selfie_path;
       }
-      
       if (!body.password) {
         delete body.password;
       }
+      
       if (editingUser) {
         await api.put(`/admin/users/${editingUser.id}`, body);
         toast.success(`${role.replace("_", " ")} updated`);
@@ -100,65 +100,7 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
     } finally { setBusy(false); }
   };
 
-  const handleAutoResetPassword = async () => {
-    if (!window.confirm("Are you sure you want to reset and auto-generate a new password for this user?")) return;
-    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%";
-    let randomPassword = "";
-    for (let i = 0; i < 9; i++) {
-      randomPassword += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    setBusy(true);
-    try {
-      const body = { ...form, password: randomPassword };
-      if (body.commission_percent !== "") {
-        body.commission_percent = parseFloat(body.commission_percent);
-      } else {
-        delete body.commission_percent;
-      }
-      if (body.t1_commission_percent !== "") {
-        body.t1_commission_percent = parseFloat(body.t1_commission_percent);
-      } else {
-        delete body.t1_commission_percent;
-      }
-      if (!body.selfie_path) {
-        delete body.selfie_path;
-      }
-      await api.put(`/admin/users/${editingUser.id}`, body);
-      toast.success("Password reset successfully!");
-      onCreated({ email: editingUser.email, password: randomPassword });
-    } catch (err) {
-      toast.error(formatErr(err.response?.data?.detail) || err.message);
-    } finally {
-      setBusy(false);
-    }
-  };
 
-  const fields = [
-    { label: "Full Name", key: "full_name", type: "text", required: true },
-    { label: "Email", key: "email", type: "email", required: true },
-    { label: "Phone", key: "phone", type: "text", required: true },
-    { label: "Address", key: "address", type: "text", required: true },
-    { label: "Firm Name", key: "firm_name", type: "text", required: true },
-    { label: "Firm Address", key: "firm_address", type: "text", required: true }
-  ];
-  
-  if (editingUser) {
-    fields.push({ 
-      label: "Password", 
-      key: "password", 
-      type: "password", 
-      required: false,
-      placeholder: "Leave empty to keep current" 
-    });
-  }
-  
-  fields.push({
-    label: role === "agent" ? "Commission % (Charges)" : "Commission %",
-    key: "commission_percent",
-    type: "number",
-    required: false,
-    placeholder: "e.g. 1.2"
-  });
 
   if (editingUser) {
     return (
@@ -268,25 +210,6 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
               </div>
             </div>
 
-            {/* Access Credentials */}
-            <div className="bg-white border border-black/5 rounded-3xl p-6 shadow-sm space-y-4">
-              <h4 className="text-xs font-black uppercase tracking-wider text-neutral-400 flex items-center gap-1.5 border-b border-black/5 pb-2.5">
-                <ShieldCheck className="h-4 w-4 text-emerald-600" /> Access Credentials
-              </h4>
-              <div className="space-y-2">
-                <p className="text-[10.5px] text-neutral-500 font-semibold leading-relaxed">
-                  Password input is disabled for security. Click below to automatically generate a new secure password.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleAutoResetPassword}
-                  className="w-full mfp-btn-outline hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 font-bold py-2.5 text-xs flex items-center justify-center gap-2 transition-all duration-300 rounded-xl"
-                  data-testid="auto-reset-password-btn"
-                >
-                  <Sparkles className="h-3.5 w-3.5" /> Auto-Reset Password
-                </button>
-              </div>
-            </div>
           </div>
 
           {/* Right Column: Tabs Menu (Firm Details, KYC Documents) */}
