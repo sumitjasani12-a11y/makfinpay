@@ -357,117 +357,80 @@ export default function AdminOverview() {
         </div>
       </section>
 
-      <div className="border-t border-black/5" />
-
-      {/* SECTION 2 — Platform Statistics (static) */}
+      {/* SECTION 2 — Pending Queue Overview (Compact Cards & Bar Chart Side-by-Side) */}
       <section data-testid="section-statistics" className="space-y-5">
         <div>
           <h2 className="text-base font-bold tracking-tight text-neutral-800">Platform Statistics</h2>
           <p className="text-xs text-neutral-400">Overall platform activity and pending queue</p>
         </div>
         
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          <StatsCard
-            label="Pending Recharges"
-            value={stats.pending_recharges ?? 0}
-            onClick={() => nav("/admin/recharges")}
-            actionLabel="Click to review"
-            icon={Clock}
-            testid="kpi-pending-recharges"
-          />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+          {/* Pending items cards: 2x2 grid */}
+          <div className="lg:col-span-6 bg-white border border-black/5 rounded-[28px] p-6 shadow-sm flex flex-col justify-between min-h-[340px]">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-4">Pending Review Items</h3>
+            
+            <div className="grid grid-cols-2 gap-4 flex-1">
+              <button 
+                onClick={() => nav("/admin/recharges")} 
+                className="text-left bg-slate-50/50 hover:bg-slate-50/90 border border-black/5 hover:border-black/10 rounded-2xl p-4 flex items-center justify-between transition-all hover:-translate-y-0.5"
+                data-testid="kpi-pending-recharges"
+              >
+                <div className="space-y-1">
+                  <span className="text-[9.5px] uppercase font-bold tracking-wider text-neutral-400">Pending Recharges</span>
+                  <div className="text-2xl font-black text-neutral-800">{stats.pending_recharges ?? 0}</div>
+                </div>
+                <div className="p-2 rounded-xl bg-emerald-100/60 text-emerald-700">
+                  <Clock className="h-4 w-4" />
+                </div>
+              </button>
 
-          <StatsCard
-            label="Pending Withdrawals"
-            value={stats.pending_withdrawals ?? 0}
-            onClick={() => nav("/admin/withdrawals")}
-            actionLabel="Click to review"
-            icon={Clock}
-            testid="kpi-pending-withdrawals"
-          />
+              <button 
+                onClick={() => nav("/admin/withdrawals")} 
+                className="text-left bg-slate-50/50 hover:bg-slate-50/90 border border-black/5 hover:border-black/10 rounded-2xl p-4 flex items-center justify-between transition-all hover:-translate-y-0.5"
+                data-testid="kpi-pending-withdrawals"
+              >
+                <div className="space-y-1">
+                  <span className="text-[9.5px] uppercase font-bold tracking-wider text-neutral-400">Pending Withdrawals</span>
+                  <div className="text-2xl font-black text-neutral-800">{stats.pending_withdrawals ?? 0}</div>
+                </div>
+                <div className="p-2 rounded-xl bg-rose-100/60 text-rose-700">
+                  <Clock className="h-4 w-4" />
+                </div>
+              </button>
 
-          <StatsCard
-            label="Pending Transactions"
-            value={stats.pending_transactions ?? 0}
-            onClick={() => nav("/admin/transactions")}
-            actionLabel="Click to review"
-            icon={Clock}
-            theme="amber"
-            testid="kpi-pending-tx"
-          />
+              <button 
+                onClick={() => nav("/admin/transactions")} 
+                className="text-left bg-amber-50/30 hover:bg-amber-50/70 border border-amber-200/50 rounded-2xl p-4 flex items-center justify-between transition-all hover:-translate-y-0.5"
+                data-testid="kpi-pending-tx"
+              >
+                <div className="space-y-1">
+                  <span className="text-[9.5px] uppercase font-bold tracking-wider text-amber-800/80">Pending Txns</span>
+                  <div className="text-2xl font-black text-amber-900">{stats.pending_transactions ?? 0}</div>
+                </div>
+                <div className="p-2 rounded-xl bg-amber-100/75 text-amber-800">
+                  <Clock className="h-4 w-4" />
+                </div>
+              </button>
 
-          <StatsCard
-            label="Pending KYC"
-            value={financial.pending_kyc_count ?? 0}
-            onClick={() => nav("/admin/kyc")}
-            actionLabel="Click to review"
-            icon={ShieldCheck}
-            theme="amber"
-            testid="kpi-pending-kyc"
-          />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
-          <InfoCard
-            label="Master Distributors"
-            value={stats.total_master_distributors ?? 0}
-            icon={Crown}
-            iconBg="bg-amber-50 text-amber-500"
-            testid="kpi-total-master-distributors"
-          />
-          <InfoCard
-            label="Distributors"
-            value={stats.total_distributors ?? 0}
-            icon={Users}
-            iconBg="bg-indigo-50 text-indigo-500"
-          />
-          <InfoCard
-            label="Agents"
-            value={stats.total_agents ?? 0}
-            icon={UserCog}
-            iconBg="bg-rose-50 text-rose-500"
-          />
-        </div>
-      </section>
-
-      <div className="border-t border-black/5" />
-
-      {/* SECTION 4 — Platform Graphical Insights */}
-      <section className="space-y-5">
-        <div>
-          <h2 className="text-base font-bold tracking-tight text-neutral-800">Visual Insights</h2>
-          <p className="text-xs text-neutral-400">Graphical analysis of platform users and pending operations</p>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* User Distribution */}
-          <div className="bg-white border border-black/5 rounded-[28px] p-6 shadow-sm flex flex-col h-[320px]">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-4">User Distribution</h3>
-            <div className="flex-1 w-full h-full relative min-h-0">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={userData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={85}
-                    paddingAngle={4}
-                    dataKey="value"
-                  >
-                    {userData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => [`${value} Users`, "Count"]} />
-                  <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                </PieChart>
-              </ResponsiveContainer>
+              <button 
+                onClick={() => nav("/admin/kyc")} 
+                className="text-left bg-amber-50/30 hover:bg-amber-50/70 border border-amber-200/50 rounded-2xl p-4 flex items-center justify-between transition-all hover:-translate-y-0.5"
+                data-testid="kpi-pending-kyc"
+              >
+                <div className="space-y-1">
+                  <span className="text-[9.5px] uppercase font-bold tracking-wider text-amber-800/80">Pending KYC</span>
+                  <div className="text-2xl font-black text-amber-900">{financial.pending_kyc_count ?? 0}</div>
+                </div>
+                <div className="p-2 rounded-xl bg-amber-100/75 text-amber-800">
+                  <ShieldCheck className="h-4 w-4" />
+                </div>
+              </button>
             </div>
           </div>
 
-          {/* Pending Queue Metrics */}
-          <div className="bg-white border border-black/5 rounded-[28px] p-6 shadow-sm flex flex-col h-[320px]">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-4">Pending Review Queue</h3>
+          {/* Pending Queue Metrics Bar Chart */}
+          <div className="lg:col-span-6 bg-white border border-black/5 rounded-[28px] p-6 shadow-sm flex flex-col h-[340px]">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-4">Pending Queue Distribution</h3>
             <div className="flex-1 w-full h-full min-h-0">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={pendingData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
@@ -480,6 +443,84 @@ export default function AdminOverview() {
                     ))}
                   </Bar>
                 </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="border-t border-black/5" />
+
+      {/* SECTION 3 — User Stats & Distribution Donut (Side-by-Side at Bottom) */}
+      <section className="space-y-5">
+        <div>
+          <h2 className="text-base font-bold tracking-tight text-neutral-800">Platform Users Insights</h2>
+          <p className="text-xs text-neutral-400">Total users demographic and graphical representation</p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+          {/* User counts (3 cards stack) */}
+          <div className="lg:col-span-6 bg-white border border-black/5 rounded-[28px] p-6 shadow-sm flex flex-col justify-between min-h-[340px]">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-4">Registered User Roles</h3>
+            
+            <div className="flex flex-col gap-4 flex-1 justify-center">
+              <div 
+                className="bg-slate-50/50 border border-black/5 rounded-2xl p-4.5 flex items-center justify-between transition-all hover:bg-slate-50/80 hover:-translate-y-0.5"
+                data-testid="kpi-total-master-distributors"
+              >
+                <div className="space-y-1">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Master Distributors</span>
+                  <div className="text-2xl font-black text-neutral-800">{stats.total_master_distributors ?? 0}</div>
+                </div>
+                <div className="p-3 rounded-2xl bg-amber-50 text-amber-500">
+                  <Crown className="h-5 w-5" />
+                </div>
+              </div>
+
+              <div className="bg-slate-50/50 border border-black/5 rounded-2xl p-4.5 flex items-center justify-between transition-all hover:bg-slate-50/80 hover:-translate-y-0.5">
+                <div className="space-y-1">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Distributors</span>
+                  <div className="text-2xl font-black text-neutral-800">{stats.total_distributors ?? 0}</div>
+                </div>
+                <div className="p-3 rounded-2xl bg-indigo-50 text-indigo-500">
+                  <Users className="h-5 w-5" />
+                </div>
+              </div>
+
+              <div className="bg-slate-50/50 border border-black/5 rounded-2xl p-4.5 flex items-center justify-between transition-all hover:bg-slate-50/80 hover:-translate-y-0.5">
+                <div className="space-y-1">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Agents</span>
+                  <div className="text-2xl font-black text-neutral-800">{stats.total_agents ?? 0}</div>
+                </div>
+                <div className="p-3 rounded-2xl bg-rose-50 text-rose-500">
+                  <UserCog className="h-5 w-5" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* User Distribution Pie/Donut Chart */}
+          <div className="lg:col-span-6 bg-white border border-black/5 rounded-[28px] p-6 shadow-sm flex flex-col h-[340px]">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-4">User Distribution</h3>
+            <div className="flex-1 w-full h-full relative min-h-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={userData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={65}
+                    outerRadius={90}
+                    paddingAngle={4}
+                    dataKey="value"
+                  >
+                    {userData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value) => [`${value} Users`, "Count"]} />
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                </PieChart>
               </ResponsiveContainer>
             </div>
           </div>
