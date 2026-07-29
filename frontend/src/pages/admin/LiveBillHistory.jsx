@@ -166,21 +166,6 @@ export default function AdminLiveBillHistory() {
     setPage(1);
   };
 
-  const handleRejectConfirm = async (note) => {
-    try {
-      await api.post(`/admin/transactions/${rejectTargetId}/reject`, { note });
-      toast.success("Transaction reversed; wallet refunded");
-      setRejectTargetId(null);
-      reload();
-    } catch (e) {
-      toast.error(formatErr(e.response?.data?.detail));
-    }
-  };
-
-  const reverse = useCallback(async (id) => {
-    setRejectTargetId(id);
-  }, []);
-
   const columns = useMemo(() => [
     { key: "id", label: "TX ID" },
     { key: "user_name", label: "Agent" },
@@ -197,19 +182,7 @@ export default function AdminLiveBillHistory() {
         {r.note || "—"}
       </div>
     ) },
-    { key: "actions", label: "Action", render: (r) => {
-      if (r.status === "pending" || r.status === "success") {
-        return (
-          <button
-            className="rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 px-3 py-1.5 text-xs font-semibold inline-flex items-center gap-1"
-            onClick={() => reverse(r.id)}
-            data-testid={`tx-reverse-${r.id}`}
-          ><RotateCcw className="h-3 w-3" /> Reverse</button>
-        );
-      }
-      return <span className="text-xs text-neutral-500">—</span>;
-    } },
-  ], [reverse]);
+  ], []);
 
   const [exportingPdf, setExportingPdf] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
@@ -455,12 +428,6 @@ export default function AdminLiveBillHistory() {
           onPageSizeChange: (n) => { setPageSize(n); setPage(1); },
         }}
       />
-      {rejectTargetId && (
-        <RejectModal
-          onClose={() => setRejectTargetId(null)}
-          onConfirm={handleRejectConfirm}
-        />
-      )}
     </div>
   );
 }
