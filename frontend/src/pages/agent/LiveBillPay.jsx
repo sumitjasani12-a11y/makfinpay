@@ -251,9 +251,20 @@ export default function LiveBillPay() {
 
   const paramsList = React.useMemo(() => getParamsList(activeOp), [activeOp]);
 
+  const dynamicMobileParam = React.useMemo(() => {
+    return paramsList.find(p => {
+      const name = p.paramName.toLowerCase();
+      return name.includes("mobile") || name.includes("phone");
+    });
+  }, [paramsList]);
+
+  const actualMobile = dynamicMobileParam
+    ? (paramValues[dynamicMobileParam.paramName] || "")
+    : mobileNumber;
+
   const fetchBill = async (e) => {
     if (e) e.preventDefault();
-    if (!selectedOp || !mobileNumber) {
+    if (!selectedOp || !actualMobile) {
       return toast.error("Please fill all required fields");
     }
 
@@ -274,7 +285,7 @@ export default function LiveBillPay() {
 
       const payload = {
         billerId: selectedOp,
-        mobile: mobileNumber,
+        mobile: actualMobile,
         customerParams: customerParams
       };
 
@@ -318,7 +329,7 @@ export default function LiveBillPay() {
       const payload = {
         billerId: selectedOp,
         amount: amountVal,
-        mobile: mobileNumber,
+        mobile: actualMobile,
         fetchRequestId: fetchRequestId,
         additionalInfo: fetchedBill.billFetchResponse?.additionalInfo || fetchedBill.additionalInfo || {},
         customerParams: customerParams,
@@ -580,24 +591,26 @@ export default function LiveBillPay() {
 
                 <form onSubmit={fetchBill} className="space-y-4">
                   {/* Customer Mobile Number */}
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold text-slate-500 block mb-1">
-                      Customer Mobile Number
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
-                        <Smartphone className="h-4 w-4 stroke-[1.8]" />
-                      </span>
-                      <input
-                        className="w-full pl-10 pr-4 py-3 bg-slate-50/50 hover:bg-slate-50/80 border border-slate-200/80 focus:border-indigo-500/50 focus:bg-white text-slate-700 text-xs rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all font-medium"
-                        type="text"
-                        required
-                        value={mobileNumber}
-                        onChange={(e) => setMobileNumber(e.target.value)}
-                        placeholder="e.g. 9876543210"
-                      />
+                  {!dynamicMobileParam && (
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-semibold text-slate-500 block mb-1">
+                        Customer Mobile Number
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                          <Smartphone className="h-4 w-4 stroke-[1.8]" />
+                        </span>
+                        <input
+                          className="w-full pl-10 pr-4 py-3 bg-slate-50/50 hover:bg-slate-50/80 border border-slate-200/80 focus:border-indigo-500/50 focus:bg-white text-slate-700 text-xs rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all font-medium"
+                          type="text"
+                          required
+                          value={mobileNumber}
+                          onChange={(e) => setMobileNumber(e.target.value)}
+                          placeholder="e.g. 9876543210"
+                        />
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Render Dynamic Metadata Fields */}
                   <div className="space-y-4 pt-1 animate-fadeIn">
@@ -628,7 +641,7 @@ export default function LiveBillPay() {
 
                   <button
                     type="submit"
-                    disabled={loadingFetch || !mobileNumber}
+                    disabled={loadingFetch || !actualMobile}
                     className="w-full mt-5 py-3 px-4 flex items-center justify-center gap-2 text-white text-xs font-bold rounded-xl transition-all shadow-md bg-[#00966B] hover:bg-[#007f5a] shadow-[#00966B]/15 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loadingFetch ? (
