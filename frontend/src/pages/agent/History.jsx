@@ -182,7 +182,7 @@ export default function AgentHistory() {
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
               placeholder="Start Date"
-              className="mfp-input text-xs bg-[#FDFCF8] border border-black/10 focus:border-[#1b4332] py-2 px-3 rounded-xl cursor-pointer w-full sm:w-36 h-[38px]"
+              className="mfp-input text-xs bg-white border border-black/10 focus:border-[#1b4332] py-2 px-3 rounded-xl cursor-pointer w-full sm:w-36 h-[38px]"
             />
           </div>
 
@@ -193,7 +193,7 @@ export default function AgentHistory() {
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
               placeholder="End Date"
-              className="mfp-input text-xs bg-[#FDFCF8] border border-black/10 focus:border-[#1b4332] py-2 px-3 rounded-xl cursor-pointer w-full sm:w-36 h-[38px]"
+              className="mfp-input text-xs bg-white border border-black/10 focus:border-[#1b4332] py-2 px-3 rounded-xl cursor-pointer w-full sm:w-36 h-[38px]"
             />
           </div>
           
@@ -202,7 +202,7 @@ export default function AgentHistory() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="mfp-input bg-[#FDFCF8] text-xs font-bold rounded-xl py-2 px-3 outline-none cursor-pointer border border-black/10 focus:border-[#1b4332] w-full sm:w-36 h-[38px]"
+              className="mfp-input bg-white text-xs font-bold rounded-xl py-2 px-3 outline-none cursor-pointer border border-black/10 focus:border-[#1b4332] w-full sm:w-36 h-[38px]"
             >
               {STATUS_TABS.map((tab) => (
                 <option key={tab.key} value={tab.key}>

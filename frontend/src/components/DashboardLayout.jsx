@@ -107,7 +107,7 @@ export default function DashboardLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FDFCF8] md:flex">
+    <div className="min-h-screen bg-background md:flex">
       {/* Desktop / tablet sidebar (≥ md) */}
       <aside className="hidden md:flex w-64 shrink-0 border-r border-white/5 bg-[#0F172A] text-white sticky top-0 h-screen flex-col">
         <SidebarContent user={user} items={items} onLogout={handleLogout} />
@@ -125,7 +125,7 @@ export default function DashboardLayout() {
       </aside>
 
       <main className="flex-1 min-w-0">
-        <header className="h-16 px-4 sm:px-8 border-b border-black/5 flex items-center justify-between bg-[#FDFCF8]/80 backdrop-blur-xl sticky top-0 z-30">
+        <header className="h-16 px-4 sm:px-8 border-b border-black/5 flex items-center justify-between bg-white/80 backdrop-blur-xl sticky top-0 z-30">
           <div className="flex items-center gap-3 min-w-0">
             <button
               className="md:hidden mfp-btn-ghost p-2 -ml-1 min-h-[44px] min-w-[44px]"

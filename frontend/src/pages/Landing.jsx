@@ -6,7 +6,7 @@ import {
 
 export default function Landing() {
   return (
-    <div className="min-h-screen bg-[#FDFCF8] text-[#1B4332]">
+    <div className="min-h-screen bg-white text-[#1B4332]">
       <LandingNav />
       <HeroSection />
       <AboutSection />

@@ -61,7 +61,7 @@ export const BENEFITS = [
 
 export function LandingNav() {
   return (
-    <header className="sticky top-0 z-50 bg-[#FDFCF8]/80 backdrop-blur-xl border-b border-black/5">
+    <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-black/5">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2" data-testid="nav-logo">
           <Logo variant="dark" size={36} />
@@ -91,7 +91,7 @@ export function HeroSection() {
         className="absolute inset-0 -z-10 opacity-60"
         style={{ backgroundImage: `url(${HERO_BG})`, backgroundSize: "cover", backgroundPosition: "right center" }}
       />
-      <div className="absolute inset-0 -z-10 bg-gradient-to-r from-[#FDFCF8] via-[#FDFCF8]/95 to-transparent" />
+      <div className="absolute inset-0 -z-10 bg-gradient-to-r from-white via-white/95 to-transparent" />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 lg:py-32 grid lg:grid-cols-12 gap-12 items-center">
         <div className="lg:col-span-7 fade-up">
           <div className="mfp-pill bg-[#E8E5D7] text-[#1B4332] mb-6">

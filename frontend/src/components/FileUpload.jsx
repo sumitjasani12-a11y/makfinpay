@@ -27,7 +27,7 @@ export default function FileUpload({ onUploaded, accept = "image/*,application/p
 
   return (
     <label className="block cursor-pointer">
-      <div className="border-2 border-dashed border-black/15 rounded-xl p-5 bg-[#FDFCF8] hover:border-[#1B4332]/40 transition-colors text-center">
+      <div className="border-2 border-dashed border-black/15 rounded-xl p-5 bg-white hover:border-[#1B4332]/40 transition-colors text-center">
         <Upload className="h-5 w-5 mx-auto text-neutral-500" />
         <div className="text-sm mt-2 font-medium">{busy ? "Uploading…" : label}</div>
         <div className="text-xs text-neutral-500 mt-1">{preview || "Click to choose a file"}</div>

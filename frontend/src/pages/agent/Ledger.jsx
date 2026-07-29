@@ -140,14 +140,14 @@ export default function AgentLedger() {
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 placeholder="Start Date"
-                className="mfp-input text-xs bg-[#FDFCF8] border border-black/10 focus:border-[#1b4332] py-1.5 px-3 rounded-xl cursor-pointer w-32 h-[36px]"
+                className="mfp-input text-xs bg-white border border-black/10 focus:border-[#1b4332] py-1.5 px-3 rounded-xl cursor-pointer w-32 h-[36px]"
               />
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
                 placeholder="End Date"
-                className="mfp-input text-xs bg-[#FDFCF8] border border-black/10 focus:border-[#1b4332] py-1.5 px-3 rounded-xl cursor-pointer w-32 h-[36px]"
+                className="mfp-input text-xs bg-white border border-black/10 focus:border-[#1b4332] py-1.5 px-3 rounded-xl cursor-pointer w-32 h-[36px]"
               />
               {(startDate || endDate) && (
                 <button

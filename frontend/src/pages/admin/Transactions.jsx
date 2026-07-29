@@ -24,7 +24,7 @@ function RejectModal({ onClose, onConfirm }) {
   };
   return (
     <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4" onClick={onClose}>
-      <div className="bg-[#FDFCF8] rounded-2xl max-w-md w-full border border-black/5 shadow-2xl animate-scaleUp" onClick={(e) => e.stopPropagation()} data-testid="tx-reject-modal">
+      <div className="bg-white rounded-2xl max-w-md w-full border border-black/5 shadow-2xl animate-scaleUp" onClick={(e) => e.stopPropagation()} data-testid="tx-reject-modal">
         <div className="px-5 py-4 border-b border-black/5 flex items-center justify-between">
           <div className="text-base font-semibold">Reverse Transaction</div>
           <button onClick={onClose} className="mfp-btn-ghost p-2"><X className="h-4 w-4" /></button>

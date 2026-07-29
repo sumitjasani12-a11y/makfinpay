@@ -75,7 +75,7 @@ export default function DangerZone({ adminEmail }) {
           data-testid="reset-modal-overlay"
         >
           <div
-            className="bg-[#FDFCF8] rounded-2xl max-w-md w-full"
+            className="bg-white rounded-2xl max-w-md w-full"
             onClick={(e) => e.stopPropagation()}
             data-testid="reset-modal"
           >

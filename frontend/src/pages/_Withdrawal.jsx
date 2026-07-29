@@ -110,7 +110,7 @@ export default function Withdrawal() {
             <div className="flex-1">
               <h3 className="text-base font-medium mb-4">Request Withdrawal</h3>
               <div
-                className="mb-4 flex items-center justify-between rounded-lg bg-[#FDFCF8] border border-black/5 px-4 py-3"
+                className="mb-4 flex items-center justify-between rounded-lg bg-white border border-black/5 px-4 py-3"
                 data-testid="withdraw-available-balance"
               >
                 <span className="mfp-overline">{balanceLabel}</span>

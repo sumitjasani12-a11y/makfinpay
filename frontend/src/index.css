@@ -6,34 +6,34 @@
 
 @layer base {
   :root {
-    --background: 48 38% 98%;
+    --background: 0 0% 100%;
     --foreground: 158 42% 13%;
-    --card: 48 38% 98%;
+    --card: 0 0% 100%;
     --card-foreground: 158 42% 13%;
-    --popover: 48 38% 98%;
+    --popover: 0 0% 100%;
     --popover-foreground: 158 42% 13%;
     --primary: 158 42% 16%;
     --primary-foreground: 0 0% 100%;
     --secondary: 25 100% 40%;
     --secondary-foreground: 0 0% 100%;
-    --muted: 48 22% 92%;
+    --muted: 210 40% 96.1%;
     --muted-foreground: 158 12% 35%;
-    --accent: 48 22% 90%;
+    --accent: 210 40% 96.1%;
     --accent-foreground: 158 42% 16%;
     --destructive: 0 70% 35%;
     --destructive-foreground: 0 0% 100%;
-    --border: 158 30% 88%;
-    --input: 158 30% 88%;
+    --border: 210 14.3% 90%;
+    --input: 210 14.3% 90%;
     --ring: 158 42% 16%;
     --radius: 0.75rem;
 
-    --color-bg: #fdfcf8;
-    --color-surface: #f4f3ed;
+    --color-bg: #ffffff;
+    --color-surface: #ffffff;
     --color-primary: #1b4332;
     --color-primary-hover: #2d6a4f;
     --color-secondary: #cc5500;
     --color-secondary-hover: #a64500;
-    --color-accent: #e8e5d7;
+    --color-accent: #f1f5f9;
   }
 }
 
@@ -52,18 +52,18 @@
   }
   ::selection {
     background: #1b4332;
-    color: #fdfcf8;
+    color: #ffffff;
   }
 }
 
 .mfp-card {
-  @apply bg-[#FDFCF8] border border-black/5 rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] transition-all duration-300;
+  @apply bg-card border border-black/5 rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] transition-all duration-300;
 }
 .mfp-card:hover {
   @apply -translate-y-0.5 shadow-[0_12px_24px_-8px_rgba(0,0,0,0.08)];
 }
 .mfp-kpi {
-  @apply bg-[#FDFCF8] border border-black/5 rounded-2xl p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)];
+  @apply bg-card border border-black/5 rounded-2xl p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)];
 }
 .mfp-pill {
   @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold;
@@ -72,7 +72,7 @@
   @apply text-xs uppercase tracking-[0.2em] font-semibold text-neutral-500;
 }
 .mfp-input {
-  @apply bg-[#FDFCF8] border border-black/10 rounded-xl px-4 py-2.5 text-sm outline-none w-full focus:border-[#1b4332] focus:ring-2 focus:ring-[#1b4332]/15 transition-all;
+  @apply bg-card border border-black/10 rounded-xl px-4 py-2.5 text-sm outline-none w-full focus:border-[#1b4332] focus:ring-2 focus:ring-[#1b4332]/15 transition-all;
 }
 .mfp-label {
   @apply block text-sm font-medium text-neutral-700 mb-1.5;

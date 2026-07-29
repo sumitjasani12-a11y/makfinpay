@@ -32,7 +32,7 @@ function RejectModal({ onClose, onConfirm }) {
   };
   return (
     <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4" onClick={onClose}>
-      <div className="bg-[#FDFCF8] rounded-2xl max-w-md w-full border border-black/5 shadow-2xl animate-scaleUp" onClick={(e) => e.stopPropagation()} data-testid="recharge-reject-modal">
+      <div className="bg-white rounded-2xl max-w-md w-full border border-black/5 shadow-2xl animate-scaleUp" onClick={(e) => e.stopPropagation()} data-testid="recharge-reject-modal">
         <div className="px-5 py-4 border-b border-black/5 flex items-center justify-between">
           <div className="text-base font-semibold">Reject Recharge Request</div>
           <button onClick={onClose} className="mfp-btn-ghost p-2"><X className="h-4 w-4" /></button>
@@ -487,7 +487,7 @@ export default function AdminRecharges() {
       {/* Detail modal */}
       {detail && (
         <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4" onClick={() => setDetail(null)}>
-          <div className="bg-[#FDFCF8] rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} data-testid="recharge-detail-modal">
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} data-testid="recharge-detail-modal">
             <div className="px-6 py-4 border-b border-black/5 flex items-center justify-between">
               <div>
                 <div className="mfp-overline">Recharge Request</div>

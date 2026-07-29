@@ -131,7 +131,7 @@ export default function BankDetailsCard({ onSaved, highlightMissing = [] }) {
                 {highlightMissing.includes("bank_name") && <span className="ml-1 text-rose-600 font-black text-sm">*</span>}
               </label>
               <select
-                className={`mfp-input bg-[#FDFCF8] ${highlightMissing.includes("bank_name") ? "border-rose-400 focus:border-rose-500" : ""}`}
+                className={`mfp-input bg-white ${highlightMissing.includes("bank_name") ? "border-rose-400 focus:border-rose-500" : ""}`}
                 required
                 value={b.bank_name}
                 onChange={(e) => setB({ ...b, bank_name: e.target.value })}
@@ -180,7 +180,7 @@ export default function BankDetailsCard({ onSaved, highlightMissing = [] }) {
                 type="button"
                 onClick={() => setB({ account_holder: "", account_number: "", ifsc: "", bank_name: "", phone_number: "" })}
                 disabled={saving || !loaded}
-                className="border border-black/15 text-neutral-600 hover:bg-neutral-50 bg-[#FDFCF8] flex-1 h-[42px] py-0 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                className="border border-black/15 text-neutral-600 hover:bg-neutral-50 bg-white flex-1 h-[42px] py-0 text-xs font-bold rounded-xl transition-colors cursor-pointer"
               >
                 Clear
               </button>

@@ -30,7 +30,7 @@ function PasswordGate({ user, onDone }) {
     }
   };
   return (
-    <div className="max-w-md mx-auto my-16 p-8 bg-[#FDFCF8] border border-black/5 rounded-3xl shadow-xl text-center">
+    <div className="max-w-md mx-auto my-16 p-8 bg-white border border-black/5 rounded-3xl shadow-xl text-center">
       <div className="h-14 w-14 rounded-2xl bg-amber-50 text-amber-600 grid place-items-center mx-auto mb-6">
         <KeyRound className="h-7 w-7 animate-bounce" />
       </div>
@@ -257,7 +257,7 @@ export default function KycPasswordGate({ children }) {
 
       {showWelcome && (
         <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4 animate-fade-in" data-testid="kyc-welcome-modal">
-          <div className="bg-[#FDFCF8] rounded-3xl max-w-md w-full border border-black/5 shadow-2xl p-6 text-center relative overflow-hidden">
+          <div className="bg-white rounded-3xl max-w-md w-full border border-black/5 shadow-2xl p-6 text-center relative overflow-hidden">
             <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-emerald-400 via-teal-500 to-green-600" />
             <div className="h-16 w-16 rounded-2xl bg-emerald-50 text-emerald-600 grid place-items-center mx-auto mb-6 mt-2">
               <PartyPopper className="h-8 w-8" />

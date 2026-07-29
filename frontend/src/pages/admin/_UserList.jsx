@@ -1197,7 +1197,7 @@ export function AdminUserList({ role }) {
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {items.map((r) => (
-                  <div className="bg-[#FDFCF8] border border-black/5 hover:border-[#1B4332]/20 rounded-3xl p-6 shadow-sm hover:shadow-xl hover:shadow-[#1B4332]/5 transition-all duration-300 transform hover:-translate-y-1 flex flex-col justify-between relative overflow-hidden group" key={r.id}>
+                  <div className="bg-white border border-black/5 hover:border-[#1B4332]/20 rounded-3xl p-6 shadow-sm hover:shadow-xl hover:shadow-[#1B4332]/5 transition-all duration-300 transform hover:-translate-y-1 flex flex-col justify-between relative overflow-hidden group" key={r.id}>
                     {/* Top Accent Gradient Bar on Hover */}
                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-[#1B4332] opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                     
@@ -1340,7 +1340,7 @@ export function AdminUserList({ role }) {
                     <select
                       value={pageSize}
                       onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
-                      className="bg-[#FDFCF8] border border-black/10 rounded-lg px-2 py-1 outline-none text-xs"
+                      className="bg-white border border-black/10 rounded-lg px-2 py-1 outline-none text-xs"
                     >
                       <option value={10}>10</option>
                       <option value={25}>25</option>
@@ -1376,7 +1376,7 @@ export function AdminUserList({ role }) {
 
       {createdCreds && (
         <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4">
-          <div className="bg-[#FDFCF8] rounded-2xl p-6 max-w-md w-full border border-black/5 shadow-2xl" data-testid="creds-modal">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full border border-black/5 shadow-2xl" data-testid="creds-modal">
             <h3 className="text-lg font-semibold text-neutral-800 mb-2">User Created Successfully!</h3>
             <p className="text-xs text-neutral-500 mb-4">Please copy these credentials and share them with the user. The password will not be shown again.</p>
             

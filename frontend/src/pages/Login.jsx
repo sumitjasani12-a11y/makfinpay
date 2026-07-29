@@ -41,7 +41,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen grid md:grid-cols-2 bg-[#FDFCF8]">
+    <div className="min-h-screen grid md:grid-cols-2 bg-background">
       <div className="hidden md:flex login-side-panel flex-col justify-between p-12 bg-[#1B4332] text-white">
         <Link to="/" className="flex items-center gap-2" data-testid="login-back-home">
           <Logo variant="light" size={40} />

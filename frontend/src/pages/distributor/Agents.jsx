@@ -22,7 +22,7 @@ function MarkupModal({ agent, base, onClose, onSaved }) {
   };
   return (
     <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4" onClick={onClose}>
-      <div className="bg-[#FDFCF8] rounded-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()} data-testid="edit-markup-modal">
+      <div className="bg-white rounded-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()} data-testid="edit-markup-modal">
         <div className="px-5 py-4 border-b border-black/5 flex items-center justify-between">
           <div>
             <div className="mfp-overline">Edit Markup</div>
@@ -173,7 +173,7 @@ export default function DistAgents() {
 
       {createdCreds && (
         <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4">
-          <div className="bg-[#FDFCF8] rounded-2xl p-6 max-w-md w-full border border-black/5 shadow-2xl animate-fade-in" data-testid="creds-modal">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full border border-black/5 shadow-2xl animate-fade-in" data-testid="creds-modal">
             <h3 className="text-lg font-semibold text-neutral-800 mb-2">Agent Created Successfully!</h3>
             <p className="text-xs text-neutral-500 mb-4">Please copy these credentials and share them with the agent. The password will not be shown again.</p>
 

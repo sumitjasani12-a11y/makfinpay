@@ -28,7 +28,7 @@ function BankCombobox({ value, onChange, options = [] }) {
       {open && (
         <>
           <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
-          <div className="absolute z-30 mt-2 w-full bg-[#FDFCF8] border border-black/10 rounded-xl shadow-xl overflow-hidden" data-testid="bill-operator-popover">
+          <div className="absolute z-30 mt-2 w-full bg-white border border-black/10 rounded-xl shadow-xl overflow-hidden" data-testid="bill-operator-popover">
             <div className="px-3 py-2 border-b border-black/5 flex items-center gap-2">
               <Search className="h-4 w-4 text-neutral-400" />
               <input
@@ -411,7 +411,7 @@ export default function AgentBillPay() {
           </div>
 
           {/* Wallet & Charges panel */}
-          <aside className="lg:col-span-4 mfp-card p-6 bg-[#FDFCF8]">
+          <aside className="lg:col-span-4 mfp-card p-6 bg-white">
             <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-neutral-500">
               <Wallet className="h-4 w-4" /> Available Wallet
             </div>
@@ -576,7 +576,7 @@ export default function AgentBillPay() {
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 placeholder="Start Date"
-                className="mfp-input text-xs bg-[#FDFCF8] border border-black/10 focus:border-[#1b4332] py-2 px-3 rounded-xl cursor-pointer w-full sm:w-36 h-[38px]"
+                className="mfp-input text-xs bg-white border border-black/10 focus:border-[#1b4332] py-2 px-3 rounded-xl cursor-pointer w-full sm:w-36 h-[38px]"
               />
             </div>
 
@@ -587,7 +587,7 @@ export default function AgentBillPay() {
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
                 placeholder="End Date"
-                className="mfp-input text-xs bg-[#FDFCF8] border border-black/10 focus:border-[#1b4332] py-2 px-3 rounded-xl cursor-pointer w-full sm:w-36 h-[38px]"
+                className="mfp-input text-xs bg-white border border-black/10 focus:border-[#1b4332] py-2 px-3 rounded-xl cursor-pointer w-full sm:w-36 h-[38px]"
               />
             </div>
 
@@ -596,7 +596,7 @@ export default function AgentBillPay() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="mfp-input bg-[#FDFCF8] text-xs font-bold rounded-xl py-2 px-3 outline-none cursor-pointer border border-black/10 focus:border-[#1b4332] w-full sm:w-36 h-[38px]"
+                className="mfp-input bg-white text-xs font-bold rounded-xl py-2 px-3 outline-none cursor-pointer border border-black/10 focus:border-[#1b4332] w-full sm:w-36 h-[38px]"
               >
                 <option value="all">All Status</option>
                 <option value="pending">Pending</option>

@@ -43,7 +43,7 @@ function SlabModal({ slab, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4" onClick={onClose}>
-      <form onSubmit={save} className="bg-[#FDFCF8] rounded-2xl max-w-md w-full border border-black/5 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <form onSubmit={save} className="bg-white rounded-2xl max-w-md w-full border border-black/5 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-black/5 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-neutral-800">{slab ? "Edit Service Slab" : "New Service Slab"}</h3>
           <button type="button" onClick={onClose} className="mfp-btn-ghost p-2"><X className="h-4 w-4" /></button>
@@ -145,7 +145,7 @@ export default function AdminServiceSlabs() {
           </div>
         ) : (
           slabs.map((s) => (
-            <div key={s.id} className={`mfp-card px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 border transition-all ${s.active ? "border-emerald-100 bg-[#FDFCF8]" : "border-neutral-200 bg-neutral-50/50 opacity-75"}`}>
+            <div key={s.id} className={`mfp-card px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 border transition-all ${s.active ? "border-emerald-100 bg-white" : "border-neutral-200 bg-neutral-50/50 opacity-75"}`}>
               <div className="flex items-center gap-4">
                 <div className={`p-3 rounded-xl ${s.active ? "bg-emerald-50 text-[#1B4332]" : "bg-neutral-100 text-neutral-400"}`}>
                   <Layers className="h-6 w-6" />

@@ -51,7 +51,7 @@ function RestoreModal({ targetLabel, onClose, onConfirm }) {
   const ok = text === "RESTORE";
   return (
     <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4" onClick={busy ? undefined : onClose}>
-      <div className="bg-[#FDFCF8] rounded-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()} data-testid="restore-modal">
+      <div className="bg-white rounded-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()} data-testid="restore-modal">
         <div className="px-5 py-4 border-b border-black/5 flex items-center justify-between">
           <div className="text-base font-semibold flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-rose-600" /> Restore Database?</div>
           {!busy && <button onClick={onClose} className="mfp-btn-ghost p-2"><X className="h-4 w-4" /></button>}
