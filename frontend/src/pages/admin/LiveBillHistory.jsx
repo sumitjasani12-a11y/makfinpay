@@ -137,6 +137,11 @@ export default function AdminLiveBillHistory() {
     { key: "user_name", label: "Agent" },
     { key: "customer_phone", label: "Mobile", render: (r) => r.customer_phone || "—" },
     { key: "operator", label: "Biller / Operator" },
+    { key: "operator_txn_id", label: "Operator Txn ID", render: (r) => (
+      <span className="font-mono text-[10px] text-neutral-600 font-bold whitespace-nowrap bg-neutral-50 px-2 py-0.5 rounded border border-neutral-200/40">
+        {r.operator_txn_id || "—"}
+      </span>
+    ) },
     { key: "bill_amount", label: "Bill Amount", render: (r) => (
       <div className="font-semibold text-right">{fmtMoney(r.bill_amount ?? r.amount)}</div>
     ) },
