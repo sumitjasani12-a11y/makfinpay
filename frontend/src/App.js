@@ -14,6 +14,7 @@ import AdminAgents from "@/pages/admin/Agents";
 import AdminRecharges from "@/pages/admin/Recharges";
 import AdminWithdrawals from "@/pages/admin/Withdrawals";
 import AdminTransactions from "@/pages/admin/Transactions";
+import AdminLiveBillHistory from "@/pages/admin/LiveBillHistory";
 import AdminQRCodes from "@/pages/admin/QRCodes";
 import AdminCommission from "@/pages/admin/Commission";
 import AdminKyc from "@/pages/admin/Kyc";
@@ -95,6 +96,7 @@ export default function App() {
             <Route path="recharges" element={<AdminRecharges />} />
             <Route path="withdrawals" element={<AdminWithdrawals />} />
             <Route path="transactions" element={<AdminTransactions />} />
+            <Route path="live-bill-history" element={<AdminLiveBillHistory />} />
             <Route path="qrcodes" element={<AdminQRCodes />} />
             <Route path="qr-name-entry" element={<AdminQrNameEntry />} />
             <Route path="qr-gallery" element={<AdminQRGallery />} />

@@ -14,7 +14,7 @@ function RejectModal({ onClose, onConfirm }) {
   useEffect(() => {
     api.get("/rejection-reasons/active?target=bill")
       .then((res) => setPredefined(res.data || []))
-      .catch((e) => console.log("Failed to fetch bill reversal reasons:", e));
+      .catch((e) => console.log("Failed to fetch reversal reasons:", e));
   }, []);
 
   const confirm = async () => {
@@ -63,36 +63,11 @@ function RejectModal({ onClose, onConfirm }) {
   );
 }
 
-export default function AdminTransactions() {
+export default function AdminLiveBillHistory() {
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [agents, setAgents] = useState([]);
-  const [banks, setBanks] = useState([]);
-  const [billPayEnabled, setBillPayEnabled] = useState(true);
-
-  const fetchToggles = useCallback(() => {
-    api.get("/admin/settings/recharge-limits").then((r) => {
-      setBillPayEnabled(r.data.bill_pay_enabled ?? true);
-    });
-  }, []);
-
-  const handleToggleBillPay = async (val) => {
-    setBillPayEnabled(val);
-    try {
-      const res = await api.get("/admin/settings/recharge-limits");
-      await api.put("/admin/settings/recharge-toggles", {
-        qr_enabled: res.data.qr_enabled ?? true,
-        recharge_enabled: res.data.recharge_enabled ?? true,
-        withdrawal_enabled: res.data.withdrawal_enabled ?? true,
-        bill_pay_enabled: val
-      });
-      toast.success(`Agent Bill Payment requests ${val ? "Enabled" : "Disabled"}`);
-    } catch (e) {
-      toast.error(formatErr(e.response?.data?.detail) || "Failed to update toggle");
-      setBillPayEnabled(!val);
-    }
-  };
 
   // filter state
   const [q, setQ] = useState("");
@@ -103,7 +78,6 @@ export default function AdminTransactions() {
   const [to, setTo] = useState(todayStr());
   const [customApplied, setCustomApplied] = useState(false);
   const [agentFilter, setAgentFilter] = useState("all");
-  const [bankFilter, setBankFilter] = useState("all");
   const [amtQuery, setAmtQuery] = useState("");
   const debouncedAmt = useDebounced(amtQuery, 350);
 
@@ -118,31 +92,26 @@ export default function AdminTransactions() {
   useEffect(() => {
     api.get("/admin/users", { params: { role: "agent" } })
       .then((r) => setAgents(Array.isArray(r.data) ? r.data : (r.data?.items || [])));
-    api.get("/billing/banks").then((r) => setBanks(r.data.map(b => b.name))).catch((e) => console.log("Failed to fetch banks:", e.message));
-    fetchToggles();
-  }, [fetchToggles]);
+  }, []);
 
   const params = useMemo(() => {
     const { from_ts, to_ts } = range === "custom" && !customApplied
       ? { from_ts: null, to_ts: null }
       : rangeWindowIso(range, from, to);
-    const p = { paginated: true, page, page_size: pageSize, type: "bill" };
+    const p = { paginated: true, page, page_size: pageSize, type: "live_bill" };
     if (status !== "all") p.status = status;
     if (agentFilter !== "all") p.agent_id = agentFilter;
-    if (bankFilter !== "all") p.operator = bankFilter;
     if (from_ts) p.from_ts = from_ts;
     if (to_ts) p.to_ts = to_ts;
     if (debouncedQ.trim()) p.q = debouncedQ.trim();
     if (debouncedAmt.trim()) p.amount = debouncedAmt.trim();
     return p;
-  }, [status, agentFilter, bankFilter, range, from, to, customApplied, debouncedQ, debouncedAmt, page, pageSize]);
+  }, [status, agentFilter, range, from, to, customApplied, debouncedQ, debouncedAmt, page, pageSize]);
 
   const reload = useCallback(() => {
     setLoading(true);
-    // paginated list
     const pagePromise = api.get("/admin/transactions", { params });
 
-    // unpaginated list for correct totals
     const statsParams = { ...params };
     delete statsParams.paginated;
     delete statsParams.page;
@@ -167,7 +136,7 @@ export default function AdminTransactions() {
           } else if (item.status === "pending") {
             pending += amt;
             pendingCount++;
-          } else if (item.status === "reversed") {
+          } else if (item.status === "reversed" || item.status === "failed") {
             reversed += amt;
             reversedCount++;
           }
@@ -178,24 +147,24 @@ export default function AdminTransactions() {
       .finally(() => setLoading(false));
   }, [params]);
 
-  useEffect(() => { reload(); }, [reload]);
-  useEffect(() => { setPage(1); }, [status, agentFilter, bankFilter, range, from, to, customApplied, debouncedQ, debouncedAmt, pageSize]);
-
-  const clearAll = () => {
-    setQ(""); setStatus("all"); setRange("today"); setAgentFilter("all"); setBankFilter("all"); setAmtQuery("");
-    setFrom(todayStr(-7)); setTo(todayStr()); setCustomApplied(false); setPage(1);
-  };
+  useEffect(() => {
+    reload();
+  }, [reload]);
 
   const applyCustom = () => {
-    if (!from || !to) return toast.error("Pick both From and To dates");
-    if (from > to) return toast.error("From date cannot be after To date");
     setCustomApplied(true);
+    setPage(1);
   };
 
-  const approve = useCallback(async (id) => {
-    try { await api.post(`/admin/transactions/${id}/approve`, { note: "" }); toast.success("Transaction marked as Success"); reload(); }
-    catch (e) { toast.error(formatErr(e.response?.data?.detail)); }
-  }, [reload]);
+  const clearAll = () => {
+    setQ("");
+    setStatus("all");
+    setRange("today");
+    setAgentFilter("all");
+    setAmtQuery("");
+    setCustomApplied(false);
+    setPage(1);
+  };
 
   const handleRejectConfirm = async (note) => {
     try {
@@ -213,42 +182,23 @@ export default function AdminTransactions() {
   }, []);
 
   const columns = useMemo(() => [
+    { key: "id", label: "TX ID" },
     { key: "user_name", label: "Agent" },
     { key: "customer_name", label: "Customer" },
-    { key: "customer_phone", label: "Customer Phone", render: (r) => r.customer_phone || "—" },
-    { key: "operator", label: "Bank" },
-    { key: "card_last4", label: "Card", render: (r) => `**** ${r.card_last4}` },
+    { key: "customer_phone", label: "Mobile", render: (r) => r.customer_phone || "—" },
+    { key: "operator", label: "Biller / Operator" },
     { key: "bill_amount", label: "Bill Amount", render: (r) => (
-      <div className="text-right">
-        <div className="font-semibold">{fmtMoney(r.bill_amount ?? r.amount)}</div>
-        {r.total_amount != null && (
-          <div className="text-[10px] text-neutral-500">Total: {fmtMoney(r.total_amount)}</div>
-        )}
-      </div>
-    ) },
-    { key: "service_charge", label: "Charge", render: (r) => (
-      <span className="font-medium">{fmtMoney(r.service_charge ?? 0)}</span>
+      <div className="font-semibold text-right">{fmtMoney(r.bill_amount ?? r.amount)}</div>
     ) },
     { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
     { key: "created_at", label: "Date", render: (r) => fmtDate(r.created_at) },
+    { key: "note", label: "API Response / Note", render: (r) => (
+      <div className="max-w-[200px] truncate text-xs text-neutral-500" title={r.note || ""}>
+        {r.note || "—"}
+      </div>
+    ) },
     { key: "actions", label: "Action", render: (r) => {
-      if (r.status === "pending") {
-        return (
-          <div className="flex gap-2">
-            <button
-              className="rounded-lg bg-[#2D6A4F]/10 text-[#2D6A4F] hover:bg-[#2D6A4F]/20 px-3 py-1.5 text-xs font-semibold inline-flex items-center gap-1"
-              onClick={() => approve(r.id)}
-              data-testid={`tx-approve-${r.id}`}
-            ><Check className="h-3 w-3" /> Mark Success</button>
-            <button
-              className="rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 px-3 py-1.5 text-xs font-semibold inline-flex items-center gap-1"
-              onClick={() => reverse(r.id)}
-              data-testid={`tx-reverse-${r.id}`}
-            ><RotateCcw className="h-3 w-3" /> Reverse</button>
-          </div>
-        );
-      }
-      if (r.status === "success") {
+      if (r.status === "pending" || r.status === "success") {
         return (
           <button
             className="rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 px-3 py-1.5 text-xs font-semibold inline-flex items-center gap-1"
@@ -259,7 +209,7 @@ export default function AdminTransactions() {
       }
       return <span className="text-xs text-neutral-500">—</span>;
     } },
-  ], [approve, reverse]);
+  ], [reverse]);
 
   const [exportingPdf, setExportingPdf] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
@@ -277,12 +227,12 @@ export default function AdminTransactions() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `MAK_FIN_PAY_Bill_Payments_${new Date().toISOString().slice(0, 10)}.pdf`;
+      a.download = `MAK_FIN_PAY_Live_Bills_${new Date().toISOString().slice(0, 10)}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      toast.success("Bill Payments PDF downloaded");
+      toast.success("Live Bill Payments PDF downloaded");
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Failed to download PDF");
     } finally {
@@ -303,12 +253,12 @@ export default function AdminTransactions() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `MAK_FIN_PAY_Bill_Payments_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = `MAK_FIN_PAY_Live_Bills_${new Date().toISOString().slice(0, 10)}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      toast.success("Bill Payments Excel downloaded");
+      toast.success("Live Bill Payments Excel downloaded");
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Failed to download Excel");
     } finally {
@@ -319,8 +269,8 @@ export default function AdminTransactions() {
   return (
     <div>
       <PageHeader
-        title="Bill Payments"
-        subtitle="Approve or reverse credit card bill payments submitted by agents."
+        title="Live Bill History"
+        subtitle="Monitor, verify status, and manage refunds for live utility bill payments."
         actions={
           <div className="flex flex-wrap items-center gap-4">
             <button
@@ -345,24 +295,6 @@ export default function AdminTransactions() {
                 : <><FileSpreadsheet className="h-4 w-4 text-emerald-600" /> Export Excel</>
               }
             </button>
-            <div className="flex flex-wrap items-center gap-6 bg-white px-5 py-2.5 rounded-2xl border border-black/5 shadow-sm">
-              <div className="flex items-center gap-2.5">
-                <span className="text-xs font-bold text-neutral-600 uppercase tracking-wider">Bill Pay Service</span>
-                <button
-                  onClick={() => handleToggleBillPay(!billPayEnabled)}
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                    billPayEnabled ? "bg-[#2D6A4F]" : "bg-neutral-200"
-                  }`}
-                  type="button"
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                      billPayEnabled ? "translate-x-5" : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
-            </div>
           </div>
         }
       />
@@ -385,7 +317,7 @@ export default function AdminTransactions() {
             <h3 className="text-2xl font-bold text-amber-900">{fmtMoney(stats.pending)}</h3>
           </div>
           <div className="text-xs text-amber-700 mt-2 font-medium">
-            {stats.pendingCount} Awaiting Status
+            {stats.pendingCount} Processing Bills
           </div>
         </div>
 
@@ -411,7 +343,7 @@ export default function AdminTransactions() {
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search Name, Phone, Card..."
+              placeholder="Search Name, Phone, ID..."
               className="mfp-input !pl-11 !pr-10"
               data-testid="tx-search"
             />
@@ -471,7 +403,7 @@ export default function AdminTransactions() {
         </div>
 
         {/* Row 2: Secondary Dropdowns */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1">
           <div>
             <select
               value={agentFilter}
@@ -482,20 +414,6 @@ export default function AdminTransactions() {
               <option value="all">All Agents</option>
               {agents.map((a) => (
                 <option key={a.id} value={a.id}>{a.full_name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <select
-              value={bankFilter}
-              onChange={(e) => setBankFilter(e.target.value)}
-              className="mfp-input w-full"
-              data-testid="tx-bank-filter"
-            >
-              <option value="all">All Banks</option>
-              {banks.map((b) => (
-                <option key={b} value={b}>{b}</option>
               ))}
             </select>
           </div>
@@ -546,5 +464,3 @@ export default function AdminTransactions() {
     </div>
   );
 }
-
-

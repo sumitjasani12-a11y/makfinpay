@@ -1321,10 +1321,11 @@ async def export_transactions_pdf(
     to_ts: Optional[str] = None,
     q: Optional[str] = None,
     amount: Optional[str] = None,
+    type: Optional[str] = None,
     user=Depends(require_roles("admin")),
 ):
     query = _build_transaction_query(status=status, agent_id=agent_id, operator=operator,
-                                      from_ts=from_ts, to_ts=to_ts, q=q, amount=amount)
+                                      from_ts=from_ts, to_ts=to_ts, q=q, amount=amount, txn_type=type)
     items = await db.transactions.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
     
     from starlette.responses import StreamingResponse
@@ -1348,10 +1349,11 @@ async def export_transactions_csv(
     to_ts: Optional[str] = None,
     q: Optional[str] = None,
     amount: Optional[str] = None,
+    type: Optional[str] = None,
     user=Depends(require_roles("admin")),
 ):
     query = _build_transaction_query(status=status, agent_id=agent_id, operator=operator,
-                                      from_ts=from_ts, to_ts=to_ts, q=q, amount=amount)
+                                      from_ts=from_ts, to_ts=to_ts, q=q, amount=amount, txn_type=type)
     items = await db.transactions.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
     
     import csv
@@ -2225,8 +2227,10 @@ def _build_recharge_query(*, status=None, agent_id=None, qr_code_id=None,
 
 
 def _build_transaction_query(*, status=None, agent_id=None, operator=None,
-                              from_ts=None, to_ts=None, q=None, amount=None) -> dict:
+                              from_ts=None, to_ts=None, q=None, amount=None, txn_type=None) -> dict:
     query: dict = {}
+    if txn_type and txn_type != "all":
+        query["type"] = txn_type
     if status and status != "all":
         query["status"] = status
     if agent_id and agent_id != "all":
@@ -3192,13 +3196,14 @@ async def admin_transactions(
     to_ts: Optional[str] = None,
     q: Optional[str] = None,
     amount: Optional[str] = None,
+    type: Optional[str] = None,
     page: int = 1,
     page_size: int = 50,
     paginated: bool = False,
     user=Depends(require_roles("admin")),
 ):
     query = _build_transaction_query(status=status, agent_id=agent_id, operator=operator,
-                                      from_ts=from_ts, to_ts=to_ts, q=q, amount=amount)
+                                      from_ts=from_ts, to_ts=to_ts, q=q, amount=amount, txn_type=type)
     if paginated:
         page = max(1, page); page_size = max(1, min(200, page_size))
         total = await db.transactions.count_documents(query)

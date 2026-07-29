@@ -33,6 +33,7 @@ const ROUTE_META = {
   "/admin/recharges": { title: "Recharge Approvals | MAK FIN PAY" },
   "/admin/withdrawals": { title: "Withdrawals | MAK FIN PAY" },
   "/admin/transactions": { title: "Transactions | MAK FIN PAY" },
+  "/admin/live-bill-history": { title: "Live Bill History | MAK FIN PAY" },
   "/admin/qrcodes": { title: "QR Codes | MAK FIN PAY" },
   "/admin/qr-name-entry": { title: "QR Name Entry | MAK FIN PAY" },
   "/admin/commission": { title: "Commission Settings | MAK FIN PAY" },
