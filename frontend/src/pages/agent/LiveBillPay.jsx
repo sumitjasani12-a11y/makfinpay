@@ -8,7 +8,7 @@ import {
   Lightbulb, Smartphone, Car, Flame, Wifi, Tv,
   ShieldCheck, GraduationCap, Landmark, Droplet,
   Home, UserCheck, FileText, Zap, PlaySquare,
-  Building, ChevronLeft
+  Building, ChevronLeft, AlertCircle
 } from "lucide-react";
 
 const getCategoryIcon = (catName) => {
@@ -399,6 +399,11 @@ export default function LiveBillPay() {
     return transactions.slice(start, start + pageSize);
   }, [transactions, page, pageSize]);
 
+  const billDate = fetchedBill?.billerResponse?.billDate || fetchedBill?.billDate || fetchedBill?.additionalInfo?.billDate || fetchedBill?.billFetchResponse?.additionalInfo?.billDate;
+  const billNumber = fetchedBill?.billerResponse?.billNumber || fetchedBill?.billNumber || fetchedBill?.additionalInfo?.billNumber || fetchedBill?.billFetchResponse?.additionalInfo?.billNumber;
+  const minAmount = fetchedBill?.billerResponse?.minimumAmountDue || fetchedBill?.minimumAmountDue || fetchedBill?.additionalInfo?.minimumAmountDue || fetchedBill?.billFetchResponse?.additionalInfo?.minimumAmountDue;
+  const outstanding = fetchedBill?.billerResponse?.currentOutstandingAmount || fetchedBill?.currentOutstandingAmount || fetchedBill?.additionalInfo?.currentOutstandingAmount || fetchedBill?.billFetchResponse?.additionalInfo?.currentOutstandingAmount || fetchedBill?.billerResponse?.outstandingAmount || fetchedBill?.additionalInfo?.outstandingAmount;
+
   return (
     <div className="w-full">
       <PageHeader 
@@ -690,65 +695,106 @@ export default function LiveBillPay() {
                 </form>
               </div>
 
-              {/* Right Card: Bill Receipt / Invoice Preview */}
+              {/* Right Card: Bill Summary */}
               <div className="w-full">
                 {fetchedBill ? (
-                  <div className="bg-[#0F172A] text-white rounded-3xl p-6 lg:p-8 shadow-xl shadow-slate-900/10 flex flex-col justify-between min-h-[360px] relative overflow-hidden animate-fadeIn border border-slate-800">
-                    {/* Decorative background gradients */}
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl"></div>
-                    <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl"></div>
+                  <div className="bg-white border border-slate-200/80 rounded-3xl p-6 lg:p-8 shadow-sm flex flex-col justify-between min-h-[380px] relative overflow-hidden animate-fadeIn">
+                    <div className="space-y-4">
+                      {/* Header */}
+                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-3">
+                        BILL SUMMARY
+                      </h3>
 
-                    <div className="space-y-5">
-                      <div className="flex justify-between items-start border-b border-white/10 pb-4">
-                        <div>
-                          <span className="inline-flex items-center text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/30 tracking-wider">
-                            Bill Fetched
+                      {/* Verified Info */}
+                      <div className="bg-[#E8F5E9] border border-[#C8E6C9]/80 rounded-2xl p-4 flex flex-col relative overflow-hidden">
+                        <span className="text-[9px] font-black uppercase text-[#00966B] tracking-widest block mb-1">
+                          VERIFIED INFO
+                        </span>
+                        <span className="text-sm font-black text-slate-800 uppercase tracking-tight">
+                          {fetchedBill.billerResponse?.customerName || fetchedBill.customerName || "N/A"}
+                        </span>
+                        <div className="absolute right-0 bottom-0 opacity-10 translate-x-1.5 translate-y-1.5 text-[#00966B]">
+                          <ShieldCheck className="h-16 w-16 stroke-1.5" />
+                        </div>
+                      </div>
+
+                      {/* Due Amount */}
+                      <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">DUE AMOUNT</span>
+                        <span className="text-xl font-black text-slate-800">
+                          {fmtMoney(fetchedBill.billerResponse?.amount || fetchedBill.amount || 0)}
+                        </span>
+                      </div>
+
+                      {/* Payment Amount Input */}
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                          PAYMENT AMOUNT (₹)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          className="w-full bg-[#F8F7F2] border border-neutral-200 focus:border-[#2D6A4F] text-base font-black text-slate-800 rounded-2xl px-4 py-3.5 outline-none transition-colors focus:bg-white"
+                          value={payAmount}
+                          onChange={(e) => setPayAmount(e.target.value)}
+                        />
+                      </div>
+
+                      {/* Over 50k warning alert */}
+                      {parseFloat(payAmount) > 50000 && (
+                        <div className="flex items-start gap-2 bg-rose-50 border border-rose-200 text-rose-800 text-[10px] p-3 rounded-2xl animate-fadeIn">
+                          <AlertCircle className="h-4.5 w-4.5 shrink-0 mt-0.5 text-rose-600" />
+                          <span className="font-semibold leading-relaxed">
+                            Amount must be less than ₹50,000 per transaction. Please split your payment.
                           </span>
-                          <h4 className="text-sm font-bold mt-2 text-white/90 leading-tight">
-                            {activeOp?.biller_name || "Utility Provider"}
-                          </h4>
                         </div>
-                        <Receipt className="h-7 w-7 text-white/20 stroke-[1.5]" />
-                      </div>
+                      )}
 
-                      <div className="space-y-3.5 text-xs text-white/70">
+                      {/* Bill details table list */}
+                      <div className="space-y-3 pt-2 text-xs border-t border-slate-100">
+                        {/* Due Date */}
                         <div className="flex justify-between items-center">
-                          <span className="font-medium text-slate-400">Customer Name:</span>
-                          <strong className="text-white font-bold tracking-tight">{fetchedBill.billerResponse.customerName || "N/A"}</strong>
+                          <span className="font-extrabold text-slate-400 uppercase tracking-wider text-[9px]">DUE DATE</span>
+                          <span className="text-rose-600 font-extrabold">
+                            {fetchedBill.billerResponse?.dueDate || fetchedBill.dueDate || "N/A"}
+                          </span>
                         </div>
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium text-slate-400">Biller ID:</span>
-                          <strong className="text-white font-mono text-[11px] bg-slate-800/40 px-2 py-0.5 rounded border border-white/5">{selectedOp}</strong>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium text-slate-400">Due Date:</span>
-                          <strong className="text-rose-400 font-bold bg-rose-500/10 px-2.5 py-0.5 rounded border border-rose-500/20">{fetchedBill.billerResponse.dueDate || "N/A"}</strong>
-                        </div>
-                      </div>
 
-                      {/* Dashed Separator Line with punched ticket holes */}
-                      <div className="relative my-6">
-                        <div className="border-t-2 border-dashed border-white/10 w-full"></div>
-                        <div className="absolute -left-10 lg:-left-12 top-1/2 -translate-y-1/2 w-4 h-8 bg-[#f8fafc] rounded-r-full border-r border-slate-200/40"></div>
-                        <div className="absolute -right-10 lg:-right-12 top-1/2 -translate-y-1/2 w-4 h-8 bg-[#f8fafc] rounded-l-full border-l border-slate-200/40"></div>
-                      </div>
+                        {/* Bill Date */}
+                        {billDate && (
+                          <div className="flex justify-between items-center animate-fadeIn">
+                            <span className="font-extrabold text-slate-400 uppercase tracking-wider text-[9px]">BILL DATE</span>
+                            <span className="text-slate-800 font-extrabold">{billDate}</span>
+                          </div>
+                        )}
 
-                      <div className="bg-black/20 rounded-2xl p-4 border border-white/5 text-center space-y-1.5">
-                        <span className="text-[9px] font-extrabold text-white/40 uppercase tracking-widest block">Payable Amount (Edit if custom)</span>
-                        <div className="flex items-center justify-center gap-1.5 text-2xl font-black text-white">
-                          <span className="text-emerald-400">₹</span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            className="bg-transparent border-b-2 border-white/20 focus:border-emerald-400 text-center outline-none w-48 text-2xl font-black text-white focus:ring-0 focus:outline-none transition-colors"
-                            value={payAmount}
-                            onChange={(e) => setPayAmount(e.target.value)}
-                          />
-                        </div>
+                        {/* Bill Number */}
+                        {billNumber && (
+                          <div className="flex justify-between items-center animate-fadeIn">
+                            <span className="font-extrabold text-slate-400 uppercase tracking-wider text-[9px]">BILL NUMBER</span>
+                            <span className="text-slate-800 font-extrabold">{billNumber}</span>
+                          </div>
+                        )}
+
+                        {/* Minimum Amount Due */}
+                        {minAmount && (
+                          <div className="flex justify-between items-center animate-fadeIn">
+                            <span className="font-extrabold text-slate-400 uppercase tracking-wider text-[9px]">MINIMUM AMOUNT DUE</span>
+                            <span className="text-slate-800 font-extrabold">{fmtMoney(minAmount)}</span>
+                          </div>
+                        )}
+
+                        {/* Current Outstanding */}
+                        {outstanding && (
+                          <div className="flex justify-between items-center animate-fadeIn">
+                            <span className="font-extrabold text-slate-400 uppercase tracking-wider text-[9px]">CURRENT OUTSTANDING AMOUNT DUE</span>
+                            <span className="text-slate-800 font-extrabold">{fmtMoney(outstanding)}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
-                    <div className="pt-6">
+                    <div className="pt-5">
                       <button
                         onClick={() => {
                           if (!user?.tpin_hash) {
@@ -758,8 +804,8 @@ export default function LiveBillPay() {
                           setEnteredTpin("");
                           setShowTpinModal(true);
                         }}
-                        disabled={loadingPay}
-                        className="w-full py-3.5 px-4 flex items-center justify-center gap-2 text-slate-900 text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-lg bg-white hover:bg-neutral-50 hover:-translate-y-0.5 active:translate-y-0 shadow-white/5 disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={loadingPay || parseFloat(payAmount) > 50000 || !payAmount}
+                        className="w-full py-3.5 px-4 flex items-center justify-center gap-2 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md bg-[#00966B] hover:bg-[#007f5a] shadow-[#00966B]/15 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed active:scale-98"
                       >
                         {loadingPay ? (
                           <>
@@ -767,7 +813,7 @@ export default function LiveBillPay() {
                           </>
                         ) : (
                           <>
-                            <Send className="h-4 w-4" /> Pay & Settle Now
+                            <Send className="h-4 w-4" /> PAY SECURELY NOW
                           </>
                         )}
                       </button>
