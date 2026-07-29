@@ -64,26 +64,27 @@ export default function BankDetailsCard({ onSaved, highlightMissing = [] }) {
     .every((k) => (b[k] || "").toString().trim());
 
   return (
-    <form onSubmit={save} className="mfp-card p-6 h-full flex flex-col justify-between" data-testid="bank-details-card">
+    <form onSubmit={save} className="bg-white border border-black/5 rounded-[28px] p-6 shadow-sm flex flex-col justify-between h-full min-h-[380px]" data-testid="bank-details-card">
       <div className="flex-1 flex flex-col justify-between">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Landmark className="h-4 w-4 text-[#1B4332]" />
-            <h3 className="text-base font-medium">Bank Details</h3>
+          <div className="flex items-center gap-2 border-b border-neutral-100 pb-3 mb-5">
+            <Landmark className="h-4.5 w-4.5 text-[#2D6A4F]" />
+            <h3 className="text-sm font-bold uppercase tracking-wider text-[#2D6A4F]">Bank Details</h3>
           </div>
-          <p className="text-sm text-neutral-500 mb-4">Required to process withdrawals.</p>
+          <p className="text-xs text-neutral-400 font-semibold mb-6 -mt-3">Required to process settlements and withdrawals.</p>
           
           <div className="grid sm:grid-cols-2 gap-4">
             {/* Row 1 */}
             <div>
-              <label className="mfp-label flex items-center">
+              <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
                 Account Holder
                 {highlightMissing.includes("account_holder") && <span className="ml-1 text-rose-600 font-black text-sm">*</span>}
               </label>
               <input
-                className={`mfp-input ${highlightMissing.includes("account_holder") ? "border-rose-400 focus:border-rose-500" : ""}`}
+                className={`w-full mfp-input mt-1.5 bg-[#F8F7F2] focus:bg-white ${highlightMissing.includes("account_holder") ? "border-rose-400 focus:border-rose-500" : ""}`}
                 required
                 type="text"
+                placeholder="Enter account holder name"
                 value={b.account_holder}
                 onChange={(e) => setB({ ...b, account_holder: e.target.value })}
                 disabled={saving || !loaded}
@@ -92,15 +93,16 @@ export default function BankDetailsCard({ onSaved, highlightMissing = [] }) {
             </div>
 
             <div>
-              <label className="mfp-label flex items-center">
+              <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
                 Account Number
                 {highlightMissing.includes("account_number") && <span className="ml-1 text-rose-600 font-black text-sm">*</span>}
               </label>
               <input
-                className={`mfp-input ${highlightMissing.includes("account_number") ? "border-rose-400 focus:border-rose-500" : ""}`}
+                className={`w-full mfp-input mt-1.5 bg-[#F8F7F2] focus:bg-white ${highlightMissing.includes("account_number") ? "border-rose-400 focus:border-rose-500" : ""}`}
                 required
                 type="text"
                 inputMode="numeric"
+                placeholder="Enter account number"
                 value={b.account_number}
                 onChange={(e) => setB({ ...b, account_number: e.target.value })}
                 disabled={saving || !loaded}
@@ -110,14 +112,15 @@ export default function BankDetailsCard({ onSaved, highlightMissing = [] }) {
 
             {/* Row 2 */}
             <div>
-              <label className="mfp-label flex items-center">
+              <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
                 IFSC
                 {highlightMissing.includes("ifsc") && <span className="ml-1 text-rose-600 font-black text-sm">*</span>}
               </label>
               <input
-                className={`mfp-input ${highlightMissing.includes("ifsc") ? "border-rose-400 focus:border-rose-500" : ""}`}
+                className={`w-full mfp-input mt-1.5 bg-[#F8F7F2] focus:bg-white ${highlightMissing.includes("ifsc") ? "border-rose-400 focus:border-rose-500" : ""}`}
                 required
                 type="text"
+                placeholder="Enter bank IFSC code"
                 value={b.ifsc}
                 onChange={(e) => setB({ ...b, ifsc: e.target.value })}
                 disabled={saving || !loaded}
@@ -126,12 +129,12 @@ export default function BankDetailsCard({ onSaved, highlightMissing = [] }) {
             </div>
 
             <div>
-              <label className="mfp-label flex items-center">
+              <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
                 Bank Name
                 {highlightMissing.includes("bank_name") && <span className="ml-1 text-rose-600 font-black text-sm">*</span>}
               </label>
               <select
-                className={`mfp-input bg-white ${highlightMissing.includes("bank_name") ? "border-rose-400 focus:border-rose-500" : ""}`}
+                className={`w-full mfp-input mt-1.5 bg-white border border-neutral-200 focus:border-[#2d6a4f] ${highlightMissing.includes("bank_name") ? "border-rose-400 focus:border-rose-500" : ""}`}
                 required
                 value={b.bank_name}
                 onChange={(e) => setB({ ...b, bank_name: e.target.value })}
@@ -149,16 +152,17 @@ export default function BankDetailsCard({ onSaved, highlightMissing = [] }) {
 
             {/* Row 3 */}
             <div>
-              <label className="mfp-label flex items-center">
+              <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
                 Phone Number
                 {highlightMissing.includes("phone_number") && <span className="ml-1 text-rose-600 font-black text-sm">*</span>}
               </label>
               <input
-                className={`mfp-input ${highlightMissing.includes("phone_number") ? "border-rose-400 focus:border-rose-500" : ""}`}
+                className={`w-full mfp-input mt-1.5 bg-[#F8F7F2] focus:bg-white ${highlightMissing.includes("phone_number") ? "border-rose-400 focus:border-rose-500" : ""}`}
                 required
                 type="tel"
                 inputMode="numeric"
                 maxLength={13}
+                placeholder="Enter bank linked phone"
                 value={b.phone_number}
                 onChange={(e) => setB({ ...b, phone_number: e.target.value })}
                 disabled={saving || !loaded}
@@ -170,17 +174,17 @@ export default function BankDetailsCard({ onSaved, highlightMissing = [] }) {
               <button
                 type="submit"
                 disabled={saving || !loaded || !allFilled}
-                className="mfp-btn-primary flex-1 h-[42px] py-0 text-xs font-bold rounded-xl inline-flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="mfp-btn-primary flex-1 h-[46px] py-0 text-xs font-bold rounded-2xl inline-flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm active:scale-98"
                 data-testid="bank-save"
               >
-                {saving && <Loader2 className="h-3 w-3 animate-spin" />}
+                {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 {saving ? "Saving…" : "Save Bank"}
               </button>
               <button
                 type="button"
                 onClick={() => setB({ account_holder: "", account_number: "", ifsc: "", bank_name: "", phone_number: "" })}
                 disabled={saving || !loaded}
-                className="border border-black/15 text-neutral-600 hover:bg-neutral-50 bg-white flex-1 h-[42px] py-0 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                className="border border-black/15 text-neutral-600 hover:bg-neutral-50 bg-white flex-1 h-[46px] py-0 text-xs font-bold rounded-2xl transition-colors cursor-pointer active:scale-98"
               >
                 Clear
               </button>
