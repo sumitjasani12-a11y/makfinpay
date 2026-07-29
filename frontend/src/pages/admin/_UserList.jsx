@@ -83,10 +83,10 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
         delete body.selfie_path;
       }
       
+      if (!body.password) {
+        delete body.password;
+      }
       if (editingUser) {
-        if (!body.password) {
-          delete body.password;
-        }
         await api.put(`/admin/users/${editingUser.id}`, body);
         toast.success(`${role.replace("_", " ")} updated`);
         onCreated();
@@ -98,6 +98,39 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || e.message);
     } finally { setBusy(false); }
+  };
+
+  const handleAutoResetPassword = async () => {
+    if (!window.confirm("Are you sure you want to reset and auto-generate a new password for this user?")) return;
+    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%";
+    let randomPassword = "";
+    for (let i = 0; i < 9; i++) {
+      randomPassword += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setBusy(true);
+    try {
+      const body = { ...form, password: randomPassword };
+      if (body.commission_percent !== "") {
+        body.commission_percent = parseFloat(body.commission_percent);
+      } else {
+        delete body.commission_percent;
+      }
+      if (body.t1_commission_percent !== "") {
+        body.t1_commission_percent = parseFloat(body.t1_commission_percent);
+      } else {
+        delete body.t1_commission_percent;
+      }
+      if (!body.selfie_path) {
+        delete body.selfie_path;
+      }
+      await api.put(`/admin/users/${editingUser.id}`, body);
+      toast.success("Password reset successfully!");
+      onCreated({ email: editingUser.email, password: randomPassword });
+    } catch (err) {
+      toast.error(formatErr(err.response?.data?.detail) || err.message);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const fields = [
@@ -235,21 +268,23 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
               </div>
             </div>
 
-            {/* Access Credentials / Update Password */}
+            {/* Access Credentials */}
             <div className="bg-white border border-black/5 rounded-3xl p-6 shadow-sm space-y-4">
-              <h4 className="text-xs font-black uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
+              <h4 className="text-xs font-black uppercase tracking-wider text-neutral-400 flex items-center gap-1.5 border-b border-black/5 pb-2.5">
                 <ShieldCheck className="h-4 w-4 text-emerald-600" /> Access Credentials
               </h4>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Update Password</label>
-                <input 
-                  type="password" 
-                  className="w-full mfp-input text-xs font-bold mt-1 bg-[#F8F7F2]" 
-                  placeholder="Enter new password to change" 
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                />
-                <span className="text-[10px] text-neutral-400 block mt-1">Leave empty to keep the current password.</span>
+              <div className="space-y-2">
+                <p className="text-[10.5px] text-neutral-500 font-semibold leading-relaxed">
+                  Password input is disabled for security. Click below to automatically generate a new secure password.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleAutoResetPassword}
+                  className="w-full mfp-btn-outline hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 font-bold py-2.5 text-xs flex items-center justify-center gap-2 transition-all duration-300 rounded-xl"
+                  data-testid="auto-reset-password-btn"
+                >
+                  <Sparkles className="h-3.5 w-3.5" /> Auto-Reset Password
+                </button>
               </div>
             </div>
           </div>
@@ -505,17 +540,6 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
                 />
               </div>
 
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Password</label>
-                <input 
-                  type="password" 
-                  required 
-                  className="w-full mfp-input text-xs font-bold mt-1 bg-[#F8F7F2]" 
-                  placeholder="Enter Account Password" 
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                />
-              </div>
             </div>
           </div>
         </div>
