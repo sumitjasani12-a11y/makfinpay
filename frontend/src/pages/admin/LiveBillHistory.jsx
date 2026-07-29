@@ -285,8 +285,8 @@ export default function AdminLiveBillHistory() {
 
       {/* Filter / Search bar */}
       <div className="mfp-card p-5 mb-6 space-y-4" data-testid="tx-filter-bar">
-        {/* Row 1: Search Queries */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Filter Row: Consolidated 6 filters in 1 row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
           <div className="relative">
             <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
               <Search className="h-4 w-4 text-neutral-400" />
@@ -334,7 +334,7 @@ export default function AdminLiveBillHistory() {
               type="text"
               value={apiTxnIdQuery}
               onChange={(e) => setApiTxnIdQuery(e.target.value)}
-              placeholder="Search API TXN ID (USEPAY...)"
+              placeholder="Search API TXN ID"
               className="mfp-input !pr-10"
             />
             {apiTxnIdQuery && (
@@ -347,10 +347,7 @@ export default function AdminLiveBillHistory() {
               </button>
             )}
           </div>
-        </div>
 
-        {/* Row 2: Secondary Dropdowns & Amount */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <input
               type="text"
@@ -388,20 +385,6 @@ export default function AdminLiveBillHistory() {
             >
               {DATE_RANGES.map((r) => (
                 <option key={r.key} value={r.key}>{r.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <select
-              value={agentFilter}
-              onChange={(e) => setAgentFilter(e.target.value)}
-              className="mfp-input w-full"
-              data-testid="tx-agent-filter"
-            >
-              <option value="all">All Agents</option>
-              {agents.map((a) => (
-                <option key={a.id} value={a.id}>{a.full_name}</option>
               ))}
             </select>
           </div>
