@@ -183,7 +183,7 @@ export default function AdminOverview() {
   const lifetimeData = [
     { name: "Wallet Balance", value: financial.total_wallet ?? 0, color: "#0891b2" },
     { name: "MD Earnings", value: financial.total_md_earnings ?? 0, color: "#7c3aed" },
-    { name: "Distributor Earnings", value: financial.total_distributor_earnings ?? 0, color: "#9333ea" },
+    { name: "Distributor Earnings", value: financial.total_distributor_earnings ?? 0, color: "#d946ef" },
   ];
 
   return (
@@ -379,13 +379,13 @@ export default function AdminOverview() {
               </div>
 
               {/* Distributor Earnings */}
-              <div className="p-3 bg-gradient-to-r from-purple-50/60 to-purple-100/20 border border-purple-100 rounded-2xl flex items-center justify-between hover:-translate-y-0.5 transition-all" data-testid="kpi-total-distributor-earnings">
+              <div className="p-3 bg-gradient-to-r from-fuchsia-50/60 to-fuchsia-100/20 border border-fuchsia-100 rounded-2xl flex items-center justify-between hover:-translate-y-0.5 transition-all" data-testid="kpi-total-distributor-earnings">
                 <div>
-                  <p className="text-[10.5px] text-purple-800 font-extrabold uppercase tracking-wide">Total Distributor Earnings</p>
-                  <p className="text-xl font-black text-purple-950 mt-0.5">{fmtMoney(financial.total_distributor_earnings)}</p>
-                  <p className="text-[9px] text-purple-600 font-medium mt-0.5">All time • Live balance</p>
+                  <p className="text-[10.5px] text-fuchsia-800 font-extrabold uppercase tracking-wide">Total Distributor Earnings</p>
+                  <p className="text-xl font-black text-fuchsia-950 mt-0.5">{fmtMoney(financial.total_distributor_earnings)}</p>
+                  <p className="text-[9px] text-fuchsia-600 font-medium mt-0.5">All time • Live balance</p>
                 </div>
-                <div className="p-2.5 rounded-xl bg-purple-100/50 text-purple-750">
+                <div className="p-2.5 rounded-xl bg-fuchsia-100/50 text-fuchsia-750">
                   <Coins className="h-5 w-5" />
                 </div>
               </div>
