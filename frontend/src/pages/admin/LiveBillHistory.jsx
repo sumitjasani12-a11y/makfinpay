@@ -196,11 +196,6 @@ export default function AdminLiveBillHistory() {
     } },
     { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
     { key: "created_at", label: "Date", render: (r) => fmtDate(r.created_at) },
-    { key: "note", label: "API Response / Note", render: (r) => (
-      <div className="max-w-[200px] truncate text-xs text-neutral-500" title={r.note || ""}>
-        {r.note || "—"}
-      </div>
-    ) },
   ], []);
 
   const [exportingPdf, setExportingPdf] = useState(false);
