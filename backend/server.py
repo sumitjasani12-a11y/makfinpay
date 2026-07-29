@@ -2496,7 +2496,7 @@ async def agent_bill_payment(body: BillPaymentIn, user=Depends(require_approved_
 
 @api.get("/agent/transactions")
 async def agent_transactions(user=Depends(require_roles("agent"))):
-    return await db.transactions.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return await db.transactions.find({"user_id": user["id"], "type": "credit_card"}, {"_id": 0}).sort("created_at", -1).to_list(500)
 
 # ---------- LIVE BILL PAYMENTS (Irise API Integration) ----------
 IRISE_BASE_URL = os.getenv("IRISE_BASE_URL", "https://irise.co.in/api/v2/")
