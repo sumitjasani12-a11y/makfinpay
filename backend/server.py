@@ -3122,8 +3122,26 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
     if body.amount <= 0:
         raise HTTPException(status_code=400, detail="Invalid bill amount")
         
+    # Calculate service charge based on active slabs
+    slabs = await db.service_charge_slabs.find({"is_deleted": False, "active": True}).sort("min_amount", 1).to_list(100)
+    service_charge = 0.0
+    matched = False
+    for slab in slabs:
+        if float(slab["min_amount"]) <= body.amount <= float(slab["max_amount"]):
+            if slab.get("charge_type") == "percent":
+                service_charge = round((body.amount * float(slab["charge_amount"])) / 100.0, 2)
+            else:
+                service_charge = float(slab["charge_amount"])
+            matched = True
+            break
+            
+    if not matched:
+        service_charge = 15.0 if body.amount <= 50000 else 25.0
+        
+    total_amount = round(body.amount + service_charge, 2)
+
     wallet = await get_or_create_wallet(user["id"])
-    if wallet["balance"] < body.amount:
+    if wallet["balance"] < total_amount:
         raise HTTPException(status_code=400, detail="Insufficient wallet balance")
         
     # Verify TPIN
@@ -3134,7 +3152,7 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
         raise HTTPException(status_code=400, detail="Invalid Transaction PIN (TPIN)")
 
     tid = new_id()
-    new_balance = await adjust_balance(user["id"], -body.amount)
+    new_balance = await adjust_balance(user["id"], -total_amount)
     
     card_last4 = ""
     for p in body.customerParams:
@@ -3156,21 +3174,21 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
         "operator": body.billerId,
         "customer_phone": body.mobile,
         "bill_amount": round(body.amount, 2),
-        "service_charge": 0.0,
-        "total_amount": round(body.amount, 2),
-        "amount": round(body.amount, 2),
+        "service_charge": service_charge,
+        "total_amount": total_amount,
+        "amount": total_amount,
         "status": "pending",
         "created_at": now_iso(),
         "reviewed_at": None,
         "reviewed_by": None,
         "note": f"Live Bill Payment - {body.mobile}",
-        "api_charge": api_charge
+        "api_charge": 0.0
     }
     await db.transactions.insert_one(dict(tx))
     
     await ledger_entry(
-        user["id"], "debit", body.amount, new_balance, "live_bill_pay", tid,
-        f"Live Bill Pay: ₹{body.amount:.2f} — Biller: {body.billerId} for {body.mobile}"
+        user["id"], "debit", total_amount, new_balance, "live_bill_pay", tid,
+        f"Live Bill Pay: ₹{body.amount:.2f} (Charge ₹{service_charge:.2f}) — Biller: {body.billerId} for {body.mobile}"
     )
     
     biller_info = dict(body.billerResponseInfo) if body.billerResponseInfo else {}
@@ -3198,10 +3216,13 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
                 "status": "success", 
                 "reviewed_at": now_iso(), 
                 "reviewed_by": None,
-                "operator_txn_id": usepay_txn_id
+                "operator_txn_id": usepay_txn_id,
+                "api_charge": api_charge
             }})
             # Log to Admin Statement
             await log_admin_cashbook("debit", body.amount, "bbps_payout", tid, f"Paid Live Bill for {user['full_name']} ({body.billerId})")
+            profit = round(service_charge - api_charge, 2)
+            await log_admin_profit("credit", profit, "live_bill_fee", tid, f"Profit margin from Live Bill ({user['full_name']})")
             return {"status": "success", "transaction_id": tid}
         elif status == "pending":
             await db.transactions.update_one({"id": tid}, {"$set": {
@@ -3212,30 +3233,32 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
             }})
             return {"status": "pending", "transaction_id": tid}
         else:
-            new_balance_refund = await adjust_balance(user["id"], body.amount)
+            new_balance_refund = await adjust_balance(user["id"], total_amount)
             await db.transactions.update_one({"id": tid}, {"$set": {
                 "status": "reversed", 
                 "reviewed_at": now_iso(), 
                 "reviewed_by": None, 
                 "operator_txn_id": usepay_txn_id,
+                "api_charge": 0.0,
                 "note": f"Payment failed: {res.get('message', 'Rejected by operator')}"
             }})
             await ledger_entry(
-                user["id"], "refund", body.amount, new_balance_refund, "live_bill_refund", tid,
+                user["id"], "refund", total_amount, new_balance_refund, "live_bill_refund", tid,
                 f"Refund: Failed Live Bill Pay for {body.mobile}"
             )
             return {"status": "failed", "message": res.get("message", "Payment failed by operator")}
     except HTTPException as e:
         if e.status_code < 500:
-            new_balance_refund = await adjust_balance(user["id"], body.amount)
+            new_balance_refund = await adjust_balance(user["id"], total_amount)
             await db.transactions.update_one({"id": tid}, {"$set": {
                 "status": "reversed",
                 "reviewed_at": now_iso(),
                 "reviewed_by": None,
+                "api_charge": 0.0,
                 "note": f"Payment failed: {e.detail}"
             }})
             await ledger_entry(
-                user["id"], "refund", body.amount, new_balance_refund, "live_bill_refund", tid,
+                user["id"], "refund", total_amount, new_balance_refund, "live_bill_refund", tid,
                 f"Refund: Failed Live Bill Pay for {body.mobile} - {e.detail}"
             )
             raise e
@@ -3282,13 +3305,20 @@ async def usepay_webhook(request: Request):
     if status_lower == "success":
         # Update status to success if not already success
         if tx.get("status") != "success":
+            s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+            api_charge_val = float(s.get("live_bill_api_charge", 0.0))
             await db.transactions.update_one({"id": tx["id"]}, {"$set": {
                 "status": "success",
                 "reviewed_at": now_iso(),
+                "api_charge": api_charge_val,
                 "note": f"Payment success confirmed by Usepay Webhook (Status: {bbps_status or 'SUCCESS'})"
             }})
             # Log to Admin Statement
-            await log_admin_cashbook("debit", tx["amount"], "bbps_payout", tx["id"], f"Paid Live Bill for {tx.get('user_name', 'Agent')} ({tx.get('operator', 'Biller')})")
+            bill_amount = float(tx.get("bill_amount", tx["amount"]))
+            await log_admin_cashbook("debit", bill_amount, "bbps_payout", tx["id"], f"Paid Live Bill for {tx.get('user_name', 'Agent')} ({tx.get('operator', 'Biller')})")
+            service_charge = float(tx.get("service_charge", 0.0))
+            profit = round(service_charge - api_charge_val, 2)
+            await log_admin_profit("credit", profit, "live_bill_fee", tx["id"], f"Profit margin from Live Bill ({tx.get('user_name', 'Agent')})")
             print(f"[USEPAY WEBHOOK SUCCESS] Transaction {tx['id']} updated to success.")
     elif status_lower in ["failed", "error", "failure"]:
         # If it failed, refund the agent's wallet and mark as reversed
@@ -3297,11 +3327,17 @@ async def usepay_webhook(request: Request):
             
             # Log to Admin Statement (if it was previously marked success, refund)
             if tx.get("status") == "success":
-                await log_admin_cashbook("credit", tx["amount"], "bbps_refund", tx["id"], f"Reversal of BBPS payout ({tx.get('operator', 'Biller')})")
+                bill_amount = float(tx.get("bill_amount", tx["amount"]))
+                await log_admin_cashbook("credit", bill_amount, "bbps_refund", tx["id"], f"Reversal of BBPS payout ({tx.get('operator', 'Biller')})")
+                api_charge_val = float(tx.get("api_charge", 0.0))
+                service_charge = float(tx.get("service_charge", 0.0))
+                profit = round(service_charge - api_charge_val, 2)
+                await log_admin_profit("debit", profit, "live_bill_reversal", tx["id"], f"Reversal of Live Bill profit ({tx.get('user_name', 'Agent')})")
                 
             await db.transactions.update_one({"id": tx["id"]}, {"$set": {
                 "status": "reversed",
                 "reviewed_at": now_iso(),
+                "api_charge": 0.0,
                 "note": f"Payment failed: {bbps_status or 'BBPS Failure'} (Webhook Callback)"
             }})
             await ledger_entry(
