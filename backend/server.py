@@ -2761,8 +2761,25 @@ async def post_sync_billers(user=Depends(require_roles("admin"))):
 
 @api.get("/agent/live-billpay/categories")
 async def get_live_billpay_categories(user=Depends(require_approved_agent())):
-    res = await call_irise_api("GET", "categories")
-    return res
+    count = await db.billers.count_documents({})
+    if count == 0:
+        await sync_billers_from_usepay()
+        
+    try:
+        async with db.pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT DISTINCT category FROM billers WHERE category IS NOT NULL AND category != '' ORDER BY category ASC"
+            )
+            categories_list = []
+            for r in rows:
+                cat_name = r["category"]
+                categories_list.append({
+                    "id": cat_name,
+                    "category_name": cat_name
+                })
+            return {"status": "success", "data": categories_list}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch categories from database: {str(e)}")
 
 @api.get("/agent/live-billpay/operators")
 async def get_live_billpay_operators(category_id: str, user=Depends(require_approved_agent())):
@@ -2770,30 +2787,33 @@ async def get_live_billpay_operators(category_id: str, user=Depends(require_appr
     if count == 0:
         await sync_billers_from_usepay()
         
-    cat_name = ""
-    try:
-        cats_res = await call_irise_api("GET", "categories")
-        if cats_res.get("status") == "success" and "data" in cats_res:
-            for c in cats_res["data"]:
-                if str(c.get("id")) == str(category_id):
-                    cat_name = c.get("category_name", "")
-                    break
-    except Exception:
-        pass
-        
-    if not cat_name:
-        fallback_cats = {
-            "1": "Agent Collection", "2": "Broadband Postpaid", "3": "Cable TV",
-            "4": "Clubs and Associations", "5": "Credit Card", "6": "DTH",
-            "7": "eChallan", "8": "Education Fees", "9": "Electricity",
-            "10": "EV Recharge", "11": "Fastag", "12": "Fleet Card Recharge",
-            "13": "Gas", "14": "Housing Society", "15": "Insurance",
-            "16": "Landline Postpaid", "17": "Loan Repayment", "18": "LPG Gas",
-            "19": "Mobile Postpaid", "20": "Mobile Prepaid", "21": "Municipal Services",
-            "22": "Municipal Taxes", "23": "National Pension System", "24": "NCMC Recharge",
-            "25": "Prepaid Meter", "26": "Rental", "27": "Subscription", "28": "Water"
-        }
-        cat_name = fallback_cats.get(str(category_id), "")
+    if category_id.isdigit():
+        cat_name = ""
+        try:
+            cats_res = await call_irise_api("GET", "categories")
+            if cats_res.get("status") == "success" and "data" in cats_res:
+                for c in cats_res["data"]:
+                    if str(c.get("id")) == str(category_id):
+                        cat_name = c.get("category_name", "")
+                        break
+        except Exception:
+            pass
+            
+        if not cat_name:
+            fallback_cats = {
+                "1": "Agent Collection", "2": "Broadband Postpaid", "3": "Cable TV",
+                "4": "Clubs and Associations", "5": "Credit Card", "6": "DTH",
+                "7": "eChallan", "8": "Education Fees", "9": "Electricity",
+                "10": "EV Recharge", "11": "Fastag", "12": "Fleet Card Recharge",
+                "13": "Gas", "14": "Housing Society", "15": "Insurance",
+                "16": "Landline Postpaid", "17": "Loan Repayment", "18": "LPG Gas",
+                "19": "Mobile Postpaid", "20": "Mobile Prepaid", "21": "Municipal Services",
+                "22": "Municipal Taxes", "23": "National Pension System", "24": "NCMC Recharge",
+                "25": "Prepaid Meter", "26": "Rental", "27": "Subscription", "28": "Water"
+            }
+            cat_name = fallback_cats.get(str(category_id), "")
+    else:
+        cat_name = category_id
         
     cursor = db.billers.find({"category": cat_name}, {"_id": 0})
     billers_list = await cursor.to_list(1000)

@@ -11,106 +11,97 @@ import {
   Building, ChevronLeft
 } from "lucide-react";
 
-const getCategoryIcon = (catId) => {
-  const map = {
-    "1": UserCheck,      // Agent Collection
-    "2": Wifi,           // Broadband Postpaid
-    "3": Tv,             // Cable TV
-    "4": Landmark,       // Clubs and Associations
-    "5": CreditCard,     // Credit Card
-    "6": Tv,             // DTH
-    "7": FileText,       // eChallan
-    "8": GraduationCap,  // Education Fees
-    "9": Lightbulb,      // Electricity
-    "10": Zap,           // EV Recharge
-    "11": Car,           // Fastag
-    "12": CreditCard,    // Fleet Card Recharge
-    "13": Flame,         // Gas
-    "14": Home,          // Housing Society
-    "15": ShieldCheck,   // Insurance
-    "16": Smartphone,    // Landline Postpaid
-    "17": Landmark,      // Loan Repayment
-    "18": Flame,         // LPG Gas
-    "19": Smartphone,    // Mobile Postpaid
-    "20": Smartphone,    // Mobile Prepaid
-    "21": Landmark,      // Municipal Services
-    "22": Landmark,      // Municipal Taxes
-    "23": Landmark,      // National Pension System
-    "24": CreditCard,    // NCMC Recharge
-    "25": Zap,           // Prepaid Meter
-    "26": Home,          // Rental
-    "27": PlaySquare,    // Subscription
-    "28": Droplet,       // Water
-  };
-  return map[String(catId)] || Receipt;
+const getCategoryIcon = (catName) => {
+  const name = String(catName).toLowerCase();
+  if (name.includes("agent")) return UserCheck;
+  if (name.includes("broadband")) return Wifi;
+  if (name.includes("cable")) return Tv;
+  if (name.includes("club") || name.includes("association")) return Landmark;
+  if (name.includes("credit card")) return CreditCard;
+  if (name.includes("dth")) return Tv;
+  if (name.includes("challan")) return FileText;
+  if (name.includes("education")) return GraduationCap;
+  if (name.includes("electricity")) return Lightbulb;
+  if (name.includes("ev")) return Zap;
+  if (name.includes("fastag")) return Car;
+  if (name.includes("fleet")) return CreditCard;
+  if (name.includes("lpg") || name.includes("piped") || name.includes("gas")) return Flame;
+  if (name.includes("housing")) return Home;
+  if (name.includes("insurance")) return ShieldCheck;
+  if (name.includes("landline")) return Smartphone;
+  if (name.includes("loan")) return Landmark;
+  if (name.includes("postpaid")) return Smartphone;
+  if (name.includes("prepaid")) return Smartphone;
+  if (name.includes("municipal")) return Landmark;
+  if (name.includes("pension")) return Landmark;
+  if (name.includes("ncmc")) return CreditCard;
+  if (name.includes("meter")) return Zap;
+  if (name.includes("rental")) return Home;
+  if (name.includes("subscription")) return PlaySquare;
+  if (name.includes("water")) return Droplet;
+  return Receipt;
 };
 
-const getCategoryDesc = (catId, catName) => {
-  const map = {
-    "1": "Pay agent collections",
-    "2": "Pay broadband bills instantly",
-    "3": "Pay cable TV operator bills",
-    "4": "Pay club & association dues",
-    "5": "Pay credit card bills instantly",
-    "6": "Recharge DTH connections",
-    "7": "Pay traffic challans online",
-    "8": "Pay school and college fees",
-    "9": "Pay state power & electricity bills",
-    "10": "Recharge EV charging stations",
-    "11": "Recharge FASTag accounts instantly",
-    "12": "Recharge fleet cards",
-    "13": "Pay piped gas utility bills",
-    "14": "Pay housing society maintenance",
-    "15": "Pay insurance policy premiums",
-    "16": "Pay landline bills instantly",
-    "17": "Repay active loan EMIs",
-    "18": "Book or pay for LPG cylinders",
-    "19": "Pay postpaid mobile bills",
-    "20": "Recharge prepaid mobile plans",
-    "21": "Pay municipal utility charges",
-    "22": "Pay municipal property taxes",
-    "23": "Contribute to NPS account",
-    "24": "Recharge NCMC travel cards",
-    "25": "Recharge prepaid utility meters",
-    "26": "Pay monthly rental charges",
-    "27": "Pay subscriptions & recurring fees",
-    "28": "Pay municipal water bills",
-  };
-  return map[String(catId)] || `Pay ${catName} bills`;
+const getCategoryDesc = (catName) => {
+  const name = String(catName).toLowerCase();
+  if (name.includes("agent")) return "Pay agent collections";
+  if (name.includes("broadband")) return "Pay broadband bills instantly";
+  if (name.includes("cable")) return "Pay cable TV operator bills";
+  if (name.includes("club") || name.includes("association")) return "Pay club & association dues";
+  if (name.includes("credit card")) return "Pay credit card bills instantly";
+  if (name.includes("dth")) return "Recharge DTH connections";
+  if (name.includes("challan")) return "Pay traffic challans online";
+  if (name.includes("education")) return "Pay school and college fees";
+  if (name.includes("electricity")) return "Pay state power & electricity bills";
+  if (name.includes("ev")) return "Recharge EV charging stations";
+  if (name.includes("fastag")) return "Recharge FASTag accounts instantly";
+  if (name.includes("fleet")) return "Recharge fleet cards";
+  if (name.includes("gas")) return "Pay piped or LPG gas bills";
+  if (name.includes("housing")) return "Pay housing society maintenance";
+  if (name.includes("insurance")) return "Pay insurance policy premiums";
+  if (name.includes("landline")) return "Pay landline bills instantly";
+  if (name.includes("loan")) return "Repay EMIs and active loans";
+  if (name.includes("postpaid")) return "Pay postpaid mobile bills";
+  if (name.includes("prepaid")) return "Recharge prepaid mobile plans";
+  if (name.includes("municipal")) return "Pay municipal utility charges";
+  if (name.includes("pension")) return "Contribute to NPS account";
+  if (name.includes("ncmc")) return "Recharge NCMC travel cards";
+  if (name.includes("meter")) return "Recharge prepaid utility meters";
+  if (name.includes("rental")) return "Pay monthly rental charges";
+  if (name.includes("subscription")) return "Pay subscriptions & recurring fees";
+  if (name.includes("water")) return "Pay municipal water bills";
+  return `Pay ${catName} bills`;
 };
 
-const getCategoryColor = (catId) => {
-  const map = {
-    "1": "bg-indigo-100 text-indigo-600 border-indigo-200/50",
-    "2": "bg-sky-100 text-sky-600 border-sky-200/50",
-    "3": "bg-pink-100 text-pink-600 border-pink-200/50",
-    "4": "bg-amber-100 text-amber-600 border-amber-200/50",
-    "5": "bg-rose-100 text-rose-600 border-rose-200/50",
-    "6": "bg-orange-100 text-orange-600 border-orange-200/50",
-    "7": "bg-red-100 text-red-600 border-red-200/50",
-    "8": "bg-teal-100 text-teal-600 border-teal-200/50",
-    "9": "bg-yellow-100 text-yellow-600 border-yellow-200/50",
-    "10": "bg-emerald-100 text-emerald-600 border-emerald-200/50",
-    "11": "bg-blue-100 text-blue-600 border-blue-200/50",
-    "12": "bg-indigo-100 text-indigo-600 border-indigo-200/50",
-    "13": "bg-orange-100 text-orange-600 border-orange-200/50",
-    "14": "bg-purple-100 text-purple-600 border-purple-200/50",
-    "15": "bg-cyan-100 text-cyan-600 border-cyan-200/50",
-    "16": "bg-sky-100 text-sky-600 border-sky-200/50",
-    "17": "bg-lime-100 text-lime-600 border-lime-200/50",
-    "18": "bg-red-100 text-red-600 border-red-200/50",
-    "19": "bg-blue-100 text-blue-600 border-blue-200/50",
-    "20": "bg-green-100 text-green-600 border-green-200/50",
-    "21": "bg-zinc-100 text-zinc-600 border-zinc-200/50",
-    "22": "bg-stone-100 text-stone-600 border-stone-200/50",
-    "23": "bg-emerald-100 text-emerald-600 border-emerald-200/50",
-    "24": "bg-indigo-100 text-indigo-600 border-indigo-200/50",
-    "25": "bg-teal-100 text-teal-600 border-teal-200/50",
-    "26": "bg-amber-100 text-amber-600 border-amber-200/50",
-    "27": "bg-fuchsia-100 text-fuchsia-600 border-fuchsia-200/50",
-    "28": "bg-blue-100 text-blue-600 border-blue-200/50",
-  };
-  return map[String(catId)] || "bg-neutral-100 text-neutral-600 border-neutral-200/50";
+const getCategoryColor = (catName) => {
+  const name = String(catName).toLowerCase();
+  if (name.includes("agent")) return "bg-indigo-100 text-indigo-600 border-indigo-200/50";
+  if (name.includes("broadband")) return "bg-sky-100 text-sky-600 border-sky-200/50";
+  if (name.includes("cable")) return "bg-pink-100 text-pink-600 border-pink-200/50";
+  if (name.includes("club") || name.includes("association")) return "bg-amber-100 text-amber-600 border-amber-200/50";
+  if (name.includes("credit card")) return "bg-rose-100 text-rose-600 border-rose-200/50";
+  if (name.includes("dth")) return "bg-orange-100 text-orange-600 border-orange-200/50";
+  if (name.includes("challan")) return "bg-red-100 text-red-600 border-red-200/50";
+  if (name.includes("education")) return "bg-teal-100 text-teal-600 border-teal-200/50";
+  if (name.includes("electricity")) return "bg-yellow-100 text-yellow-600 border-yellow-200/50";
+  if (name.includes("ev")) return "bg-emerald-100 text-emerald-600 border-emerald-200/50";
+  if (name.includes("fastag")) return "bg-blue-100 text-blue-600 border-blue-200/50";
+  if (name.includes("fleet")) return "bg-indigo-100 text-indigo-600 border-indigo-200/50";
+  if (name.includes("gas")) return "bg-orange-100 text-orange-600 border-orange-200/50";
+  if (name.includes("housing")) return "bg-purple-100 text-purple-600 border-purple-200/50";
+  if (name.includes("insurance")) return "bg-cyan-100 text-cyan-600 border-cyan-200/50";
+  if (name.includes("landline")) return "bg-sky-100 text-sky-600 border-sky-200/50";
+  if (name.includes("loan")) return "bg-lime-100 text-lime-600 border-lime-200/50";
+  if (name.includes("postpaid")) return "bg-blue-100 text-blue-600 border-blue-200/50";
+  if (name.includes("prepaid")) return "bg-green-100 text-green-600 border-green-200/50";
+  if (name.includes("municipal")) return "bg-zinc-100 text-zinc-600 border-zinc-200/50";
+  if (name.includes("pension")) return "bg-emerald-100 text-emerald-600 border-emerald-200/50";
+  if (name.includes("ncmc")) return "bg-indigo-100 text-indigo-600 border-indigo-200/50";
+  if (name.includes("meter")) return "bg-teal-100 text-teal-600 border-teal-200/50";
+  if (name.includes("rental")) return "bg-amber-100 text-amber-600 border-amber-200/50";
+  if (name.includes("subscription")) return "bg-fuchsia-100 text-fuchsia-600 border-fuchsia-200/50";
+  if (name.includes("water")) return "bg-blue-100 text-blue-600 border-blue-200/50";
+  return "bg-neutral-100 text-neutral-600 border-neutral-200/50";
 };
 
 const getShortTxnId = (id) => {
