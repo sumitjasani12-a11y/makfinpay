@@ -29,35 +29,35 @@ function todayStr(offset = 0) {
   return d.toISOString().slice(0, 10);
 }
 
-function FinancialCard({ label, value, hint, breakdowns, icon: Icon, colorClass = "text-neutral-800", iconBg = "bg-neutral-50 text-neutral-500", borderClass = "border-black/5", testid, badge }) {
+function FinancialCard({ label, value, hint, breakdowns, icon: Icon, colorClass = "text-neutral-850", iconBg = "bg-neutral-50 text-neutral-500", borderClass = "border-black/5", testid, badge, bgClass = "bg-white" }) {
   return (
-    <div className={`bg-white border ${borderClass} rounded-3xl p-6 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between`} data-testid={testid}>
+    <div className={`${bgClass} border ${borderClass} rounded-[28px] p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between`} data-testid={testid}>
       <div>
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[10px] uppercase font-black tracking-widest text-neutral-400">{label}</span>
+          <span className="text-[9.5px] uppercase font-bold tracking-widest text-neutral-400">{label}</span>
           <div className="flex items-center gap-2">
             {badge && (
-              <span className="text-[10.5px] font-black bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded-full whitespace-nowrap tracking-wide">
+              <span className="text-[10px] font-bold bg-white/80 border border-black/5 px-2 py-0.5 rounded-full whitespace-nowrap tracking-wide">
                 {badge}
               </span>
             )}
             {Icon && (
               <div className={`p-2 rounded-xl shrink-0 ${iconBg}`}>
-                <Icon className="h-4.5 w-4.5" />
+                <Icon className="h-4 w-4" />
               </div>
             )}
           </div>
         </div>
-        <div className={`text-2xl font-black tracking-tight mt-3 ${colorClass}`}>{value}</div>
-        {hint && <p className="text-[11px] text-neutral-400 font-semibold mt-1">{hint}</p>}
+        <div className={`text-[21px] font-black tracking-tight mt-3 ${colorClass}`}>{value}</div>
+        {hint && <p className="text-[10.5px] text-neutral-400 font-medium mt-1">{hint}</p>}
       </div>
 
       {breakdowns && breakdowns.length > 0 && (
-        <div className="mt-5 pt-4 border-t border-black/5 space-y-2 text-[11px] text-neutral-400 font-semibold">
+        <div className="mt-4 pt-3.5 border-t border-black/5 space-y-2 text-[10.5px] text-neutral-400 font-medium">
           {breakdowns.map((b, idx) => (
             <div key={idx} className="flex justify-between items-center" data-testid={b.testid}>
               <span>{b.label}</span>
-              <span className="text-neutral-700 font-black">{b.value}</span>
+              <span className="text-neutral-800 font-bold">{b.value}</span>
             </div>
           ))}
         </div>
@@ -219,15 +219,16 @@ export default function AdminOverview() {
         )}
 
         {/* Filtered cards */}
-        <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 transition-opacity duration-300 ${loadingFin ? "opacity-60" : "opacity-100"}`}>
+        <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5 transition-opacity duration-300 ${loadingFin ? "opacity-60" : "opacity-100"}`}>
           
           <FinancialCard
             label="Total Revenue (Commission)"
             value={fmtMoney(financial.total_revenue)}
-            colorClass="text-[#CC5500]"
+            colorClass="text-amber-800"
             borderClass="border-amber-100"
+            bgClass="bg-gradient-to-br from-amber-50/60 to-amber-100/20"
             icon={TrendingUp}
-            iconBg="bg-amber-50 text-amber-600"
+            iconBg="bg-amber-100/50 text-amber-700"
             breakdowns={[
               { label: "Admin Revenue", value: fmtMoney(financial.admin_revenue) },
               { label: "Master Distributor Earnings", value: fmtMoney(financial.md_earnings ?? 0), testid: "revenue-md-earnings" },
@@ -239,9 +240,11 @@ export default function AdminOverview() {
             label="Transaction Revenue"
             value={fmtMoney(financial.transaction_revenue)}
             hint="From service charges"
-            colorClass="text-indigo-600"
+            colorClass="text-indigo-800"
+            borderClass="border-indigo-100"
+            bgClass="bg-gradient-to-br from-indigo-50/60 to-indigo-100/20"
             icon={Activity}
-            iconBg="bg-indigo-50 text-indigo-600"
+            iconBg="bg-indigo-100/50 text-indigo-700"
             breakdowns={[
               { label: "CC Bill Charge", value: fmtMoney(financial.cc_bill_revenue ?? 0) },
               { label: "Live Bill Profit", value: fmtMoney(financial.live_bill_profit ?? 0) }
@@ -252,18 +255,22 @@ export default function AdminOverview() {
             label="Recharge Approved"
             value={fmtMoney(financial.recharge_approved)}
             hint="Gross approved in range"
-            colorClass="text-emerald-600"
+            colorClass="text-emerald-800"
+            borderClass="border-emerald-100"
+            bgClass="bg-gradient-to-br from-emerald-50/60 to-emerald-100/20"
             icon={ArrowUpRight}
-            iconBg="bg-emerald-50 text-emerald-600"
+            iconBg="bg-emerald-100/50 text-emerald-700"
           />
 
           <FinancialCard
             label="Bill Payments"
             value={fmtMoney(financial.total_txn_amount)}
             hint="Total volume approved"
-            colorClass="text-blue-700"
+            colorClass="text-blue-800"
+            borderClass="border-blue-100"
+            bgClass="bg-gradient-to-br from-blue-50/60 to-blue-100/20"
             icon={FileText}
-            iconBg="bg-blue-50 text-blue-600"
+            iconBg="bg-blue-100/50 text-blue-700"
             badge={`${financial.total_txn_count ?? 0} txns`}
             breakdowns={[
               { label: "CC Bill Volume", value: fmtMoney(financial.cc_bill_volume ?? 0) },
@@ -274,10 +281,11 @@ export default function AdminOverview() {
           <FinancialCard
             label="Withdrawals"
             value={fmtMoney(financial.total_withdrawals_approved)}
-            colorClass="text-rose-600"
+            colorClass="text-rose-800"
             borderClass="border-rose-100"
+            bgClass="bg-gradient-to-br from-rose-50/60 to-rose-100/20"
             icon={ArrowUpFromLine}
-            iconBg="bg-rose-50 text-rose-600"
+            iconBg="bg-rose-100/50 text-rose-700"
             testid="kpi-withdrawals"
             breakdowns={[
               { label: "Agent Withdrawals", value: fmtMoney(financial.agent_withdrawals_approved), testid: "kpi-withdrawals-agent" },
@@ -302,18 +310,22 @@ export default function AdminOverview() {
             label="Total Wallet Balance"
             value={fmtMoney(financial.total_wallet)}
             hint="All time • Live balance"
-            colorClass="text-cyan-700"
+            colorClass="text-cyan-800"
+            borderClass="border-cyan-100"
+            bgClass="bg-gradient-to-br from-cyan-50/60 to-cyan-100/20"
             icon={Wallet}
-            iconBg="bg-cyan-50 text-cyan-600"
+            iconBg="bg-cyan-100/50 text-cyan-700"
           />
 
           <FinancialCard
             label="Total MD Earnings"
             value={fmtMoney(financial.total_md_earnings ?? 0)}
             hint="All time • Live balance"
-            colorClass="text-violet-700"
+            colorClass="text-violet-850"
+            borderClass="border-violet-100"
+            bgClass="bg-gradient-to-br from-violet-50/60 to-violet-100/20"
             icon={Coins}
-            iconBg="bg-violet-50 text-violet-600"
+            iconBg="bg-violet-100/50 text-violet-700"
             testid="kpi-total-md-earnings"
           />
 
@@ -321,9 +333,11 @@ export default function AdminOverview() {
             label="Total Distributor Earnings"
             value={fmtMoney(financial.total_distributor_earnings)}
             hint="All time • Live balance"
-            colorClass="text-purple-700"
+            colorClass="text-purple-850"
+            borderClass="border-purple-100"
+            bgClass="bg-gradient-to-br from-purple-50/60 to-purple-100/20"
             icon={Coins}
-            iconBg="bg-purple-50 text-purple-600"
+            iconBg="bg-purple-100/50 text-purple-700"
             testid="kpi-total-distributor-earnings"
           />
         </div>
