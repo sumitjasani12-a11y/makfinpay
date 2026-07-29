@@ -180,6 +180,12 @@ export default function AdminOverview() {
     { name: "Agents", value: stats.total_agents ?? 0, fill: "#6366f1" },
   ];
 
+  const lifetimeData = [
+    { name: "Wallet Balance", value: financial.total_wallet ?? 0, color: "#0891b2" },
+    { name: "MD Earnings", value: financial.total_md_earnings ?? 0, color: "#7c3aed" },
+    { name: "Distributor Earnings", value: financial.total_distributor_earnings ?? 0, color: "#9333ea" },
+  ];
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -316,41 +322,70 @@ export default function AdminOverview() {
           <p className="text-xs text-neutral-400">Static lifetime balances (All Time)</p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          <FinancialCard
-            label="Total Wallet Balance"
-            value={fmtMoney(financial.total_wallet)}
-            hint="All time • Live balance"
-            colorClass="text-cyan-800"
-            borderClass="border-cyan-100"
-            bgClass="bg-gradient-to-br from-cyan-50/60 to-cyan-100/20"
-            icon={Wallet}
-            iconBg="bg-cyan-100/50 text-cyan-700"
-          />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+          {/* Left Side: Lifetime Pie/Donut Chart */}
+          <div className="lg:col-span-6 bg-white border border-black/5 rounded-[28px] p-6 shadow-sm flex flex-col h-[340px]">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-4">Lifetime Balances Distribution</h3>
+            <div className="flex-1 w-full h-full relative min-h-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={lifetimeData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={65}
+                    outerRadius={90}
+                    paddingAngle={4}
+                    dataKey="value"
+                  >
+                    {lifetimeData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value) => [fmtMoney(value), "Amount"]} />
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
 
-          <FinancialCard
-            label="Total MD Earnings"
-            value={fmtMoney(financial.total_md_earnings ?? 0)}
-            hint="All time • Live balance"
-            colorClass="text-violet-850"
-            borderClass="border-violet-100"
-            bgClass="bg-gradient-to-br from-violet-50/60 to-violet-100/20"
-            icon={Coins}
-            iconBg="bg-violet-100/50 text-violet-700"
-            testid="kpi-total-md-earnings"
-          />
+          {/* Right Side: Lifetime Cards stacked vertically */}
+          <div className="lg:col-span-6 flex flex-col gap-3.5 h-[340px]">
+            <FinancialCard
+              label="Total Wallet Balance"
+              value={fmtMoney(financial.total_wallet)}
+              hint="All time • Live balance"
+              colorClass="text-cyan-800"
+              borderClass="border-cyan-100"
+              bgClass="bg-gradient-to-br from-cyan-50/60 to-cyan-100/20"
+              icon={Wallet}
+              iconBg="bg-cyan-100/50 text-cyan-700"
+            />
 
-          <FinancialCard
-            label="Total Distributor Earnings"
-            value={fmtMoney(financial.total_distributor_earnings)}
-            hint="All time • Live balance"
-            colorClass="text-purple-850"
-            borderClass="border-purple-100"
-            bgClass="bg-gradient-to-br from-purple-50/60 to-purple-100/20"
-            icon={Coins}
-            iconBg="bg-purple-100/50 text-purple-700"
-            testid="kpi-total-distributor-earnings"
-          />
+            <FinancialCard
+              label="Total MD Earnings"
+              value={fmtMoney(financial.total_md_earnings ?? 0)}
+              hint="All time • Live balance"
+              colorClass="text-violet-850"
+              borderClass="border-violet-100"
+              bgClass="bg-gradient-to-br from-violet-50/60 to-violet-100/20"
+              icon={Coins}
+              iconBg="bg-violet-100/50 text-violet-700"
+              testid="kpi-total-md-earnings"
+            />
+
+            <FinancialCard
+              label="Total Distributor Earnings"
+              value={fmtMoney(financial.total_distributor_earnings)}
+              hint="All time • Live balance"
+              colorClass="text-purple-850"
+              borderClass="border-purple-100"
+              bgClass="bg-gradient-to-br from-purple-50/60 to-purple-100/20"
+              icon={Coins}
+              iconBg="bg-purple-100/50 text-purple-700"
+              testid="kpi-total-distributor-earnings"
+            />
+          </div>
         </div>
       </section>
 
