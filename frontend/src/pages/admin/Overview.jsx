@@ -309,12 +309,12 @@ export default function AdminOverview() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
           {/* Left Side: Lifetime Pie/Donut Chart */}
-          <div className="lg:col-span-6 bg-white border border-black/5 rounded-[28px] p-6 shadow-sm flex flex-col h-[340px]">
+          <div className="lg:col-span-6 bg-white border border-black/5 rounded-[28px] p-6 shadow-sm flex flex-col min-h-[380px]">
             <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2">Lifetime Balances Distribution</h3>
-            <div className="flex-1 w-full relative min-h-0 mt-2">
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
-                <span className="text-[10px] uppercase font-extrabold text-neutral-450 tracking-wider">Total Funds</span>
-                <span className="text-xl font-black text-neutral-850 mt-0.5">
+            <div className="flex-1 w-full relative min-h-0 mt-4 flex items-center justify-center">
+              <div className="absolute flex flex-col items-center justify-center pointer-events-none z-10">
+                <span className="text-[10px] uppercase font-extrabold text-neutral-400 tracking-wider">Total Funds</span>
+                <span className="text-2xl font-black text-neutral-850 mt-0.5">
                   {fmtMoney(
                     (financial.total_wallet ?? 0) + 
                     (financial.total_md_earnings ?? 0) + 
@@ -322,7 +322,7 @@ export default function AdminOverview() {
                   )}
                 </span>
               </div>
-              <ResponsiveContainer width="100%" height="90%">
+              <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
                   <defs>
                     <linearGradient id="walletGrad" x1="0" y1="0" x2="0" y2="1">
@@ -357,7 +357,7 @@ export default function AdminOverview() {
             </div>
             
             {/* Custom Premium HTML Legend */}
-            <div className="flex justify-center items-center gap-6 text-[11px] font-bold text-neutral-600 mt-2">
+            <div className="flex justify-center items-center gap-6 text-[11px] font-bold text-neutral-600 mt-4 border-t border-black/5 pt-4">
               <div className="flex items-center gap-1.5">
                 <span className="h-2.5 w-2.5 rounded-full bg-gradient-to-br from-[#06b6d4] to-[#0891b2] shrink-0" />
                 <span>Wallet Balance</span>
@@ -373,50 +373,50 @@ export default function AdminOverview() {
             </div>
           </div>
 
-          {/* Right Side: Lifetime Cards in a single unified card matching h-[340px] */}
-          <div className="lg:col-span-6 bg-white border border-black/5 rounded-[28px] p-5 shadow-sm flex flex-col justify-between h-[340px]">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2">Live Balances & Earnings</h3>
+          {/* Right Side: Lifetime Cards in a single unified card matching min-h-[380px] */}
+          <div className="lg:col-span-6 bg-white border border-black/5 rounded-[28px] p-6 shadow-sm flex flex-col justify-between min-h-[380px]">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-4">Live Balances & Earnings</h3>
             
-            <div className="flex flex-col gap-3 flex-1 justify-center">
+            <div className="flex flex-col gap-4 flex-1 justify-center">
               {/* Wallet Balance */}
-              <div className="p-4 bg-slate-50/30 hover:bg-white border border-slate-100/80 rounded-2xl flex items-center justify-between hover:-translate-y-0.5 transition-all duration-300 shadow-[0_4px_12px_rgba(0,0,0,0.01)] hover:shadow-[0_16px_32px_-8px_rgba(0,0,0,0.05)] group">
+              <div className="p-4 bg-slate-50/20 hover:bg-slate-50/50 border-l-4 border-l-[#06b6d4] border border-y-slate-100 border-r-slate-100 rounded-r-2xl rounded-l-md flex items-center justify-between hover:-translate-y-0.5 transition-all duration-300 shadow-[0_4px_12px_rgba(0,0,0,0.01)] hover:shadow-[0_16px_32px_-8px_rgba(0,0,0,0.05)] group">
                 <div>
                   <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-cyan-50 text-cyan-600 border border-cyan-100/50 rounded-full">
                     Wallet Balance
                   </span>
-                  <p className="text-xl font-black text-neutral-800 mt-2">{fmtMoney(financial.total_wallet)}</p>
-                  <p className="text-[9px] text-neutral-400 font-semibold mt-0.5">Live system-wide user funds</p>
+                  <p className="text-2xl font-black text-neutral-800 mt-2">{fmtMoney(financial.total_wallet)}</p>
+                  <p className="text-[9px] text-neutral-450 font-medium mt-1">Live system-wide user funds</p>
                 </div>
                 <div className="p-3 rounded-xl bg-cyan-50 text-cyan-600 border border-cyan-100/40 group-hover:scale-110 transition-transform">
-                  <Wallet className="h-5 w-5" />
+                  <Wallet className="h-5.5 w-5.5" />
                 </div>
               </div>
 
               {/* MD Earnings */}
-              <div className="p-4 bg-slate-50/30 hover:bg-white border border-slate-100/80 rounded-2xl flex items-center justify-between hover:-translate-y-0.5 transition-all duration-300 shadow-[0_4px_12px_rgba(0,0,0,0.01)] hover:shadow-[0_16px_32px_-8px_rgba(0,0,0,0.05)] group" data-testid="kpi-total-md-earnings">
+              <div className="p-4 bg-slate-50/20 hover:bg-slate-50/50 border-l-4 border-l-[#7c3aed] border border-y-slate-100 border-r-slate-100 rounded-r-2xl rounded-l-md flex items-center justify-between hover:-translate-y-0.5 transition-all duration-300 shadow-[0_4px_12px_rgba(0,0,0,0.01)] hover:shadow-[0_16px_32px_-8px_rgba(0,0,0,0.05)] group" data-testid="kpi-total-md-earnings">
                 <div>
                   <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-violet-50 text-violet-600 border border-violet-100/50 rounded-full">
                     MD Earnings
                   </span>
-                  <p className="text-xl font-black text-neutral-800 mt-2">{fmtMoney(financial.total_md_earnings ?? 0)}</p>
-                  <p className="text-[9px] text-neutral-400 font-semibold mt-0.5">Accumulated Master Distributor earnings</p>
+                  <p className="text-2xl font-black text-neutral-800 mt-2">{fmtMoney(financial.total_md_earnings ?? 0)}</p>
+                  <p className="text-[9px] text-neutral-450 font-medium mt-1">Accumulated Master Distributor earnings</p>
                 </div>
                 <div className="p-3 rounded-xl bg-violet-50 text-violet-600 border border-violet-100/40 group-hover:scale-110 transition-transform">
-                  <Coins className="h-5 w-5" />
+                  <Coins className="h-5.5 w-5.5" />
                 </div>
               </div>
 
               {/* Distributor Earnings */}
-              <div className="p-4 bg-slate-50/30 hover:bg-white border border-slate-100/80 rounded-2xl flex items-center justify-between hover:-translate-y-0.5 transition-all duration-300 shadow-[0_4px_12px_rgba(0,0,0,0.01)] hover:shadow-[0_16px_32px_-8px_rgba(0,0,0,0.05)] group" data-testid="kpi-total-distributor-earnings">
+              <div className="p-4 bg-slate-50/20 hover:bg-slate-50/50 border-l-4 border-l-[#ec4899] border border-y-slate-100 border-r-slate-100 rounded-r-2xl rounded-l-md flex items-center justify-between hover:-translate-y-0.5 transition-all duration-300 shadow-[0_4px_12px_rgba(0,0,0,0.01)] hover:shadow-[0_16px_32px_-8px_rgba(0,0,0,0.05)] group" data-testid="kpi-total-distributor-earnings">
                 <div>
                   <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-fuchsia-50 text-fuchsia-600 border border-fuchsia-100/50 rounded-full">
                     Distributor Earnings
                   </span>
-                  <p className="text-xl font-black text-neutral-800 mt-2">{fmtMoney(financial.total_distributor_earnings)}</p>
-                  <p className="text-[9px] text-neutral-400 font-semibold mt-0.5">Accumulated Distributor earnings</p>
+                  <p className="text-2xl font-black text-neutral-800 mt-2">{fmtMoney(financial.total_distributor_earnings)}</p>
+                  <p className="text-[9px] text-neutral-450 font-medium mt-1">Accumulated Distributor earnings</p>
                 </div>
                 <div className="p-3 rounded-xl bg-fuchsia-50 text-fuchsia-600 border border-fuchsia-100/40 group-hover:scale-110 transition-transform">
-                  <Coins className="h-5 w-5" />
+                  <Coins className="h-5.5 w-5.5" />
                 </div>
               </div>
             </div>
