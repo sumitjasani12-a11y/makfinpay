@@ -37,7 +37,7 @@ export default function MdOverview() {
             {/* 2x2 grid for counts */}
             <div className="grid grid-cols-2 gap-4">
               {/* Card 1: My Distributors */}
-              <div className="bg-gradient-to-br from-[#1d1b4c] to-[#4f46e5] text-white border border-indigo-500/20 rounded-[24px] p-4.5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between min-h-[125px]" data-testid="kpi-md-distributors">
+              <div className="bg-gradient-to-br from-[#1d1b4c] to-[#4f46e5] text-white border border-indigo-500/20 rounded-[24px] p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between min-h-[140px]" data-testid="kpi-md-distributors">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] uppercase font-extrabold tracking-wider text-indigo-100/80">My Distributors</span>
                   <div className="p-2 bg-white/10 text-indigo-300 border border-white/10 rounded-xl shrink-0">
@@ -45,13 +45,13 @@ export default function MdOverview() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-2xl font-black text-white mt-3">{s.distributors ?? 0}</div>
+                  <div className="text-2xl font-black text-white mt-1">{s.distributors ?? 0}</div>
                   <p className="text-[9.5px] text-indigo-200/80 font-semibold mt-0.5">Distributors registered</p>
                 </div>
               </div>
 
               {/* Card 2: My Agents */}
-              <div className="bg-gradient-to-br from-[#3B0066] to-[#6F42C1] text-white border border-purple-500/20 rounded-[24px] p-4.5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between min-h-[125px]" data-testid="kpi-md-agents">
+              <div className="bg-gradient-to-br from-[#3B0066] to-[#6F42C1] text-white border border-purple-500/20 rounded-[24px] p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between min-h-[140px]" data-testid="kpi-md-agents">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] uppercase font-extrabold tracking-wider text-purple-100/80">My Agents</span>
                   <div className="p-2 bg-white/10 text-purple-300 border border-white/10 rounded-xl shrink-0">
@@ -59,13 +59,13 @@ export default function MdOverview() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-2xl font-black text-white mt-3">{s.agents ?? 0}</div>
+                  <div className="text-2xl font-black text-white mt-1">{s.agents ?? 0}</div>
                   <p className="text-[9.5px] text-purple-200/80 font-semibold mt-0.5">Agents registered</p>
                 </div>
               </div>
 
               {/* Card 3: Pending Recharges */}
-              <div className="bg-gradient-to-br from-[#664D03] to-[#FD7E14] text-white border border-orange-500/20 rounded-[24px] p-4.5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between min-h-[125px]" data-testid="kpi-md-pending-recharges">
+              <div className="bg-gradient-to-br from-[#664D03] to-[#FD7E14] text-white border border-orange-500/20 rounded-[24px] p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between min-h-[140px]" data-testid="kpi-md-pending-recharges">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] uppercase font-extrabold tracking-wider text-orange-100/80">Pending Recharges</span>
                   <div className="p-2 bg-white/10 text-orange-300 border border-white/10 rounded-xl shrink-0">
@@ -73,13 +73,13 @@ export default function MdOverview() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-2xl font-black text-white mt-3">{s.pending_recharges ?? 0}</div>
+                  <div className="text-2xl font-black text-white mt-1">{s.pending_recharges ?? 0}</div>
                   <p className="text-[9.5px] text-orange-200/80 font-semibold mt-0.5">Awaiting review</p>
                 </div>
               </div>
 
               {/* Card 4: Approved Recharges */}
-              <div className="bg-gradient-to-br from-[#0F5132] to-[#198754] text-white border border-emerald-500/20 rounded-[24px] p-4.5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between min-h-[125px]" data-testid="kpi-md-approved-recharges">
+              <div className="bg-gradient-to-br from-[#0F5132] to-[#198754] text-white border border-emerald-500/20 rounded-[24px] p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between min-h-[140px]" data-testid="kpi-md-approved-recharges">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] uppercase font-extrabold tracking-wider text-emerald-100/80">Approved Recharges</span>
                   <div className="p-2 bg-white/10 text-emerald-300 border border-white/10 rounded-xl shrink-0">
@@ -87,7 +87,7 @@ export default function MdOverview() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-2xl font-black text-white mt-3">{s.approved_recharges ?? 0}</div>
+                  <div className="text-2xl font-black text-white mt-1">{s.approved_recharges ?? 0}</div>
                   <p className="text-[9.5px] text-emerald-200/80 font-semibold mt-0.5">Approved all-time</p>
                 </div>
               </div>
