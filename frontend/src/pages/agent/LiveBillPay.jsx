@@ -776,11 +776,16 @@ export default function LiveBillPay() {
                           PAYMENT AMOUNT (₹)
                         </label>
                         <input
-                          type="number"
-                          step="0.01"
+                          type="text"
+                          inputMode="decimal"
                           className="w-full bg-[#F8F7F2] border border-neutral-200 focus:border-[#2D6A4F] text-base font-black text-slate-800 rounded-2xl px-4 py-3.5 outline-none transition-colors focus:bg-white"
                           value={payAmount}
-                          onChange={(e) => setPayAmount(e.target.value)}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === "" || /^\d*\.?\d*$/.test(val)) {
+                              setPayAmount(val);
+                            }
+                          }}
                         />
                       </div>
 
