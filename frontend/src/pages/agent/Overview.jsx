@@ -68,72 +68,72 @@ export default function AgentOverview() {
 
         {/* Hero Section: Grid of 4 Cards + Slider Carousel */}
         <div className="grid grid-cols-1 lg:grid-cols-10 gap-5 mb-8">
-          {/* Grid of 4 Cards (Col Span 8) */}
-          <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5">
+          {/* Grid of 4 Cards (Col Span 6) */}
+          <div className="lg:col-span-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5">
             {/* Card 1: Total Balance */}
-            <div className="bg-white border border-black/5 rounded-2xl p-3.5 shadow-sm flex items-center gap-3.5 h-[84px] relative overflow-hidden transition-all hover:shadow-md animate-fadeIn">
-              <div className="p-2.5 bg-[#E8F5E9] text-[#00966B] rounded-xl shrink-0">
+            <div className="bg-gradient-to-br from-[#0F5132] to-[#198754] text-white border border-emerald-500/20 rounded-2xl p-3.5 shadow-md flex items-center gap-3.5 h-[84px] relative overflow-hidden transition-all hover:shadow-lg animate-fadeIn">
+              <div className="p-2.5 bg-white/10 text-emerald-300 border border-white/10 rounded-xl shrink-0">
                 <Wallet className="h-4.5 w-4.5" />
               </div>
               <div className="min-w-0">
-                <span className="text-[9px] text-neutral-400 font-bold tracking-wider uppercase block truncate">
+                <span className="text-[9px] text-emerald-100/80 font-bold tracking-wider uppercase block truncate">
                   Total Balance
                 </span>
-                <span className="text-base font-black text-neutral-800 mt-0.5 block truncate">
+                <span className="text-base font-black text-white mt-0.5 block truncate">
                   {fmtMoney(stats.wallet_balance)}
                 </span>
               </div>
             </div>
 
             {/* Card 2: QR Payment */}
-            <div className="bg-white border border-black/5 rounded-2xl p-3.5 shadow-sm flex items-center gap-3.5 h-[84px] relative overflow-hidden transition-all hover:shadow-md animate-fadeIn">
-              <div className="p-2.5 bg-[#E3F2FD] text-[#1E88E5] rounded-xl shrink-0">
+            <div className="bg-gradient-to-br from-[#0A3641] to-[#0D6EFD] text-white border border-blue-500/20 rounded-2xl p-3.5 shadow-md flex items-center gap-3.5 h-[84px] relative overflow-hidden transition-all hover:shadow-lg animate-fadeIn">
+              <div className="p-2.5 bg-white/10 text-blue-300 border border-white/10 rounded-xl shrink-0">
                 <QrCode className="h-4.5 w-4.5" />
               </div>
               <div className="min-w-0">
-                <span className="text-[9px] text-neutral-400 font-bold tracking-wider uppercase block truncate">
+                <span className="text-[9px] text-blue-100/80 font-bold tracking-wider uppercase block truncate">
                   QR Payment
                 </span>
-                <span className="text-base font-black text-neutral-800 mt-0.5 block truncate">
+                <span className="text-base font-black text-white mt-0.5 block truncate">
                   {fmtMoney(stats.qr_payment)}
                 </span>
               </div>
             </div>
 
             {/* Card 3: Live Bill Payment */}
-            <div className="bg-white border border-black/5 rounded-2xl p-3.5 shadow-sm flex items-center gap-3.5 h-[84px] relative overflow-hidden transition-all hover:shadow-md animate-fadeIn">
-              <div className="p-2.5 bg-[#F3E5F5] text-[#8E24AA] rounded-xl shrink-0">
+            <div className="bg-gradient-to-br from-[#3B0066] to-[#6F42C1] text-white border border-purple-500/20 rounded-2xl p-3.5 shadow-md flex items-center gap-3.5 h-[84px] relative overflow-hidden transition-all hover:shadow-lg animate-fadeIn">
+              <div className="p-2.5 bg-white/10 text-purple-300 border border-white/10 rounded-xl shrink-0">
                 <CreditCard className="h-4.5 w-4.5" />
               </div>
               <div className="min-w-0">
-                <span className="text-[9px] text-neutral-400 font-bold tracking-wider uppercase block truncate">
+                <span className="text-[9px] text-purple-100/80 font-bold tracking-wider uppercase block truncate">
                   Live Bill Payment
                 </span>
-                <span className="text-base font-black text-neutral-800 mt-0.5 block truncate">
+                <span className="text-base font-black text-white mt-0.5 block truncate">
                   {fmtMoney(stats.live_bill_payment)}
                 </span>
               </div>
             </div>
 
             {/* Card 4: Pending Requests */}
-            <div className="bg-white border border-black/5 rounded-2xl p-3.5 shadow-sm flex items-center gap-3.5 h-[84px] relative overflow-hidden transition-all hover:shadow-md animate-fadeIn">
-              <div className="p-2.5 bg-[#FFF3E0] text-[#FB8C00] rounded-xl shrink-0">
+            <div className="bg-gradient-to-br from-[#664D03] to-[#FD7E14] text-white border border-orange-500/20 rounded-2xl p-3.5 shadow-md flex items-center gap-3.5 h-[84px] relative overflow-hidden transition-all hover:shadow-lg animate-fadeIn">
+              <div className="p-2.5 bg-white/10 text-orange-300 border border-white/10 rounded-xl shrink-0">
                 <Clock className="h-4.5 w-4.5" />
               </div>
               <div className="min-w-0">
-                <span className="text-[9px] text-neutral-400 font-bold tracking-wider uppercase block truncate">
+                <span className="text-[9px] text-orange-100/80 font-bold tracking-wider uppercase block truncate">
                   Pending Requests
                 </span>
-                <span className="text-base font-black text-neutral-800 mt-0.5 block truncate">
+                <span className="text-base font-black text-white mt-0.5 block truncate">
                   {stats.pending_requests}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Slider Carousel (Col Span 2) */}
+          {/* Slider Carousel (Col Span 4) */}
           {imageMessages.length > 0 ? (
-            <div className="bg-white border border-black/5 rounded-3xl overflow-hidden shadow-sm lg:col-span-2 relative h-auto min-h-[140px] group animate-fadeIn">
+            <div className="bg-white border border-black/5 rounded-3xl overflow-hidden shadow-sm lg:col-span-4 relative h-auto min-h-[140px] group animate-fadeIn">
               <div
                 className="flex transition-transform duration-500 ease-out h-full"
                 style={{ transform: `translateX(-${activeImageIndex * 100}%)` }}
