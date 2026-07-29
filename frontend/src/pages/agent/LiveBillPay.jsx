@@ -164,6 +164,8 @@ export default function LiveBillPay() {
   const [loadingFetch, setLoadingFetch] = useState(false);
   const [loadingPay, setLoadingPay] = useState(false);
   const [walletBalance, setWalletBalance] = useState(null);
+  const [showTpinModal, setShowTpinModal] = useState(false);
+  const [enteredTpin, setEnteredTpin] = useState("");
 
   // Form states
   const [selectedCat, setSelectedCat] = useState("");
@@ -335,7 +337,7 @@ export default function LiveBillPay() {
     }
   };
 
-  const payBill = async () => {
+  const payBill = async (tpin) => {
     if (!fetchedBill) return;
     setLoadingPay(true);
     try {
@@ -363,7 +365,8 @@ export default function LiveBillPay() {
         fetchRequestId: fetchRequestId,
         additionalInfo: fetchedBill.billFetchResponse?.additionalInfo || fetchedBill.additionalInfo || {},
         customerParams: customerParams,
-        billerResponseInfo: billerResponseInfo
+        billerResponseInfo: billerResponseInfo,
+        tpin: tpin
       };
 
       const res = await api.post("/agent/live-billpay/pay", payload);
@@ -774,7 +777,14 @@ export default function LiveBillPay() {
 
                     <div className="pt-6">
                       <button
-                        onClick={payBill}
+                        onClick={() => {
+                          if (!user?.tpin_hash) {
+                            toast.error("Please set up your transaction PIN (TPIN) first in the TPIN Settings.");
+                            return;
+                          }
+                          setEnteredTpin("");
+                          setShowTpinModal(true);
+                        }}
                         disabled={loadingPay}
                         className="w-full py-3.5 px-4 flex items-center justify-center gap-2 text-slate-900 text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-lg bg-white hover:bg-neutral-50 hover:-translate-y-0.5 active:translate-y-0 shadow-white/5 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
@@ -803,6 +813,63 @@ export default function LiveBillPay() {
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+        {showTpinModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+            <div className="bg-white rounded-3xl p-6 md:p-8 max-w-sm w-full border border-slate-100/80 shadow-2xl relative space-y-5">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
+                  <ShieldCheck className="h-6 w-6 stroke-[1.8]" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-800">Security Verification</h3>
+                  <p className="text-[11px] text-slate-400">Enter your 4-digit TPIN to authorize payment</p>
+                </div>
+              </div>
+              
+              <div>
+                <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-2">Transaction PIN</label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={4}
+                  value={enteredTpin}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === "" || (/^\d+$/.test(val) && val.length <= 4)) {
+                      setEnteredTpin(val);
+                    }
+                  }}
+                  placeholder="••••"
+                  className="w-full text-center tracking-[1.5em] text-2xl font-black py-3 bg-slate-50 border-2 border-slate-200/80 focus:border-indigo-500/55 focus:bg-white rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-slate-800"
+                  autoFocus
+                />
+              </div>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowTpinModal(false)}
+                  className="w-1/2 py-3 border border-slate-200 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (enteredTpin.length !== 4) {
+                      toast.error("Please enter a valid 4-digit TPIN");
+                      return;
+                    }
+                    setShowTpinModal(false);
+                    payBill(enteredTpin);
+                  }}
+                  className="w-1/2 py-3 bg-[#0F172A] text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition-colors shadow-md shadow-slate-900/10"
+                >
+                  Confirm & Pay
+                </button>
               </div>
             </div>
           </div>

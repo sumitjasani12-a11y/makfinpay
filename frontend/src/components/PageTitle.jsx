@@ -62,6 +62,7 @@ const ROUTE_META = {
   "/agent/withdrawal": { title: "Withdrawal | MAK FIN PAY" },
   "/agent/change-password": { title: "Change Password | MAK FIN PAY" },
   "/agent/change-mpin": { title: "Change MPIN | MAK FIN PAY" },
+  "/agent/change-tpin": { title: "Manage TPIN | MAK FIN PAY" },
 };
 
 const CANONICAL_ORIGIN = "https://makfinpay.com";

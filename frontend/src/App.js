@@ -52,6 +52,7 @@ import ChangePassword from "@/pages/ChangePassword";
 import ChangeMpin from "@/pages/ChangeMpin";
 import MpinVerify from "@/pages/MpinVerify";
 import MpinSetup from "@/pages/MpinSetup";
+import ChangeTpin from "@/pages/agent/ChangeTpin";
 
 import "@/App.css";
 
@@ -143,6 +144,7 @@ export default function App() {
             <Route path="withdrawal" element={<AgentWithdrawal />} />
             <Route path="change-password" element={<ChangePassword />} />
             <Route path="change-mpin" element={<ChangeMpin />} />
+            <Route path="change-tpin" element={<ChangeTpin />} />
             <Route path="policies" element={<UserPolicies />} />
           </Route>
 

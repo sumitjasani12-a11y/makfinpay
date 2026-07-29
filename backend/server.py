@@ -247,6 +247,13 @@ class MpinChangeIn(BaseModel):
     current_mpin: str
     new_mpin: str
 
+class TpinSetupIn(BaseModel):
+    tpin: str
+
+class TpinChangeIn(BaseModel):
+    current_tpin: str
+    new_tpin: str
+
 class CreateUserIn(BaseModel):
     role: Literal["master_distributor", "distributor", "agent"]
     full_name: str
@@ -319,6 +326,7 @@ class LiveBillPayIn(BaseModel):
     additionalInfo: Optional[dict] = None
     customerParams: List[CustomerParamItem]
     billerResponseInfo: dict
+    tpin: str
 
 class WithdrawalIn(BaseModel):
     amount: float
@@ -508,6 +516,45 @@ async def change_mpin(body: MpinChangeIn, user=Depends(require_roles("agent", "d
     
     if request:
         await write_audit(user["id"], "change_mpin", request=request)
+    return {"ok": True}
+
+@api.post("/auth/setup-tpin")
+async def setup_tpin(body: TpinSetupIn, user=Depends(require_roles("agent", "distributor", "master_distributor")), request: Request = None):
+    tpin_hash = user.get("tpin_hash")
+    if tpin_hash:
+        raise HTTPException(400, "TPIN is already set up.")
+        
+    if not body.tpin.isdigit() or len(body.tpin) != 4:
+        raise HTTPException(400, "TPIN must be exactly 4 digits")
+        
+    hashed = hash_password(body.tpin)
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"tpin_hash": hashed}}
+    )
+    
+    if request:
+        await write_audit(user["id"], "setup_tpin", request=request)
+    return {"ok": True}
+
+@api.post("/auth/change-tpin")
+async def change_tpin(body: TpinChangeIn, user=Depends(require_roles("agent", "distributor", "master_distributor")), request: Request = None):
+    tpin_hash = user.get("tpin_hash")
+    if tpin_hash:
+        if not verify_password(body.current_tpin, tpin_hash):
+            raise HTTPException(400, "Incorrect current TPIN")
+            
+    if not body.new_tpin.isdigit() or len(body.new_tpin) != 4:
+        raise HTTPException(400, "New TPIN must be exactly 4 digits")
+        
+    hashed = hash_password(body.new_tpin)
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"tpin_hash": hashed}}
+    )
+    
+    if request:
+        await write_audit(user["id"], "change_tpin", request=request)
     return {"ok": True}
 
 @api.post("/auth/logout")
@@ -2957,6 +3004,13 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
     if wallet["balance"] < body.amount:
         raise HTTPException(status_code=400, detail="Insufficient wallet balance")
         
+    # Verify TPIN
+    tpin_hash = user.get("tpin_hash")
+    if not tpin_hash:
+        raise HTTPException(status_code=400, detail="Transaction PIN (TPIN) is not set up. Please set it up in the TPIN Settings first.")
+    if not verify_password(body.tpin, tpin_hash):
+        raise HTTPException(status_code=400, detail="Invalid Transaction PIN (TPIN)")
+
     tid = new_id()
     new_balance = await adjust_balance(user["id"], -body.amount)
     
@@ -3015,14 +3069,22 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
         status = res.get("payment_status") or res.get("status")
         usepay_txn_id = res.get("transaction_id")
         
-        if status in ["success", "pending"]:
+        if status == "success":
             await db.transactions.update_one({"id": tid}, {"$set": {
                 "status": "success", 
                 "reviewed_at": now_iso(), 
                 "reviewed_by": None,
                 "operator_txn_id": usepay_txn_id
             }})
-            return {"status": "success" if status == "success" else "pending", "transaction_id": tid}
+            return {"status": "success", "transaction_id": tid}
+        elif status == "pending":
+            await db.transactions.update_one({"id": tid}, {"$set": {
+                "status": "pending", 
+                "reviewed_at": now_iso(), 
+                "reviewed_by": None,
+                "operator_txn_id": usepay_txn_id
+            }})
+            return {"status": "pending", "transaction_id": tid}
         else:
             new_balance_refund = await adjust_balance(user["id"], body.amount)
             await db.transactions.update_one({"id": tid}, {"$set": {

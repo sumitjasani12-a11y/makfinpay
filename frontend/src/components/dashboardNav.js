@@ -58,6 +58,7 @@ export const NAV = {
     { to: "/agent/withdrawal", label: "Pay Withdrawal", icon: ArrowUpFromLine },
     { to: "/agent/change-password", label: "Change Password", icon: KeyRound },
     { to: "/agent/change-mpin", label: "Change MPIN", icon: KeyRound },
+    { to: "/agent/change-tpin", label: "Manage TPIN", icon: KeyRound },
     { to: "/agent/policies", label: "Rules & Policies", icon: ScrollText },
   ],
 };
