@@ -352,7 +352,7 @@ export default function AdminOverview() {
           <p className="text-xs text-neutral-400">Overall platform activity and pending queue</p>
         </div>
         
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           <StatsCard
             label="Pending Recharges"
             value={stats.pending_recharges ?? 0}
