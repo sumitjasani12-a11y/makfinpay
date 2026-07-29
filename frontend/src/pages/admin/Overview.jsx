@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { api, fmtMoney, formatErr } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { PageHeader } from "@/components/Shared";
-import DangerZone from "@/components/DangerZone";
+
 import { 
   Loader2, TrendingUp, Activity, ArrowUpRight, Wallet, 
   Coins, FileText, ArrowUpFromLine, Clock, ShieldCheck, 
@@ -527,7 +527,7 @@ export default function AdminOverview() {
         </div>
       </section>
 
-      {isSuperAdmin && <DangerZone adminEmail={SUPER_ADMIN_EMAIL} />}
+      {/* Removed Danger Zone */}
     </div>
   );
 }
