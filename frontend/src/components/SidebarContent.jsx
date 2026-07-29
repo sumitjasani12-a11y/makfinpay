@@ -70,7 +70,7 @@ export function SidebarContent({ user, items, onLogout }) {
             to={it.to}
             end={it.end}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all font-bold text-[12.5px] tracking-wider uppercase ` +
+              `flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all font-bold text-[12.5px] tracking-wide ` +
               `${isActive
                 ? "bg-white/10 text-white shadow-sm border border-white/5"
                 : "text-white/70 hover:bg-white/5 hover:text-white"
@@ -90,14 +90,14 @@ export function SidebarContent({ user, items, onLogout }) {
             {(user.full_name || "?")[0].toUpperCase()}
           </div>
           <div className="leading-tight overflow-hidden">
-            <div className="text-xs font-bold text-white truncate uppercase tracking-wider">{user.full_name}</div>
+            <div className="text-xs font-bold text-white truncate tracking-wide">{user.full_name}</div>
             <div className="text-[10px] text-neutral-300 truncate font-semibold mt-0.5">{user.email}</div>
           </div>
         </div>
         
         <button
           onClick={onLogout}
-          className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[12.5px] font-bold text-white/70 hover:bg-white/5 hover:text-white hover:text-rose-400 hover:bg-rose-500/5 transition-all select-none border border-transparent hover:border-rose-500/10 uppercase tracking-wider"
+          className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[12.5px] font-bold text-white/70 hover:bg-white/5 hover:text-white hover:text-rose-400 hover:bg-rose-500/5 transition-all select-none border border-transparent hover:border-rose-500/10 tracking-wide"
           data-testid="logout-btn"
         >
           <LogOut className="h-[18px] w-[18px] shrink-0 text-rose-400" strokeWidth={2.3} />
