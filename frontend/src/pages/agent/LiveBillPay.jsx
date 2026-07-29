@@ -410,28 +410,31 @@ export default function LiveBillPay() {
         {selectedCat === "" ? (
           <div className="space-y-8 animate-fadeIn">
             {/* Bharat Connect Banner */}
-            <div className="bg-[#0F172A] text-white rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden shadow-xl shadow-slate-900/10">
-              {/* Background patterns */}
-              <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -z-10"></div>
-              <div className="absolute bottom-0 left-0 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl -z-10"></div>
+            <div className="bg-gradient-to-r from-[#0C2419] via-[#0E3524] to-[#0A1A2F] text-white rounded-3xl p-7 md:p-9 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden shadow-xl shadow-slate-950/20 border border-emerald-500/10">
+              {/* Background glows */}
+              <div className="absolute -top-24 -left-20 w-80 h-80 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none"></div>
+              <div className="absolute -bottom-24 -right-20 w-80 h-80 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none"></div>
 
-              <div className="space-y-3 max-w-xl">
-                <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 px-2.5 py-1 rounded-md tracking-wider">
-                  ⚡ Secure Gateway
+              <div className="space-y-4 max-w-xl z-10">
+                <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase bg-emerald-500/10 text-emerald-300 border border-emerald-500/25 px-3.5 py-1.5 rounded-full tracking-wider shadow-sm shadow-emerald-500/5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  Secure Gateway
                 </span>
-                <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Bharat Connect</h2>
-                <p className="text-slate-400 text-xs md:text-sm leading-relaxed">
+                <h2 className="text-2xl md:text-3.5xl font-black tracking-tight leading-none text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-slate-300">
+                  Bharat Connect
+                </h2>
+                <p className="text-slate-300/80 text-xs md:text-sm leading-relaxed font-medium">
                   Securely recharge plans and pay all utility bills instantly with direct Bharat Connect settlement.
                 </p>
               </div>
 
-              <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 md:p-5 flex items-center gap-4 min-w-[240px]">
-                <div className="p-3 bg-indigo-500/20 text-indigo-400 rounded-xl">
-                  <Receipt className="h-6 w-6" />
+              <div className="bg-white/[0.03] backdrop-blur-md border border-white/10 rounded-2xl p-5 flex items-center gap-4.5 min-w-[250px] shadow-lg shadow-black/25 z-10">
+                <div className="p-3 bg-gradient-to-br from-emerald-500/20 to-teal-500/25 border border-emerald-500/35 text-emerald-400 rounded-xl shadow-inner">
+                  <Receipt className="h-6 w-6 stroke-[1.8]" />
                 </div>
                 <div>
                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Available Balance</span>
-                  <span className="text-lg md:text-xl font-black tracking-tight text-emerald-400 mt-1 block">
+                  <span className="text-xl md:text-2xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 to-teal-400 mt-1 block">
                     {walletBalance !== null ? fmtMoney(walletBalance) : "Fetching..."}
                   </span>
                 </div>
