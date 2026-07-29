@@ -195,11 +195,11 @@ export default function AdminOverview() {
         }
       />
 
-      {/* SECTION 1 — Financial Overview (filtered) */}
+      {/* SECTION 1 — Business Performance (Daily Basis) */}
       <section data-testid="section-financial">
         <div className="mb-6">
-          <h2 className="text-base font-bold tracking-tight text-neutral-800">Financial Overview</h2>
-          <p className="text-xs text-neutral-400">Data filtered by selected date range</p>
+          <h2 className="text-base font-bold tracking-tight text-neutral-800">Business Performance</h2>
+          <p className="text-xs text-neutral-400">Data filtered by selected date range (Daily Basis)</p>
         </div>
 
         {/* Custom date inputs */}
@@ -219,7 +219,7 @@ export default function AdminOverview() {
         )}
 
         {/* Filtered cards */}
-        <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6 transition-opacity duration-300 ${loadingFin ? "opacity-60" : "opacity-100"}`}>
+        <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 transition-opacity duration-300 ${loadingFin ? "opacity-60" : "opacity-100"}`}>
           
           <FinancialCard
             label="Total Revenue (Commission)"
@@ -258,6 +258,43 @@ export default function AdminOverview() {
           />
 
           <FinancialCard
+            label="Bill Payments"
+            value={fmtMoney(financial.total_txn_amount)}
+            hint="Total volume approved"
+            colorClass="text-blue-700"
+            icon={FileText}
+            iconBg="bg-blue-50 text-blue-600"
+            badge={`${financial.total_txn_count ?? 0} txns`}
+          />
+
+          <FinancialCard
+            label="Withdrawals"
+            value={fmtMoney(financial.total_withdrawals_approved)}
+            colorClass="text-rose-600"
+            borderClass="border-rose-100"
+            icon={ArrowUpFromLine}
+            iconBg="bg-rose-50 text-rose-600"
+            testid="kpi-withdrawals"
+            breakdowns={[
+              { label: "Agent Withdrawals", value: fmtMoney(financial.agent_withdrawals_approved), testid: "kpi-withdrawals-agent" },
+              { label: "Distributor Withdrawals", value: fmtMoney(financial.distributor_withdrawals_approved), testid: "kpi-withdrawals-distributor" },
+              { label: "Master Distributor Withdrawals", value: fmtMoney(financial.md_withdrawals_approved ?? 0), testid: "kpi-withdrawals-md" }
+            ]}
+          />
+        </div>
+      </section>
+
+      <div className="border-t border-black/5" />
+
+      {/* SECTION 2 — Lifetime Overview (All Time) */}
+      <section data-testid="section-lifetime" className="space-y-5">
+        <div>
+          <h2 className="text-base font-bold tracking-tight text-neutral-800">Lifetime Overview</h2>
+          <p className="text-xs text-neutral-400">Static lifetime balances (All Time)</p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <FinancialCard
             label="Total Wallet Balance"
             value={fmtMoney(financial.total_wallet)}
             hint="All time • Live balance"
@@ -284,31 +321,6 @@ export default function AdminOverview() {
             icon={Coins}
             iconBg="bg-purple-50 text-purple-600"
             testid="kpi-total-distributor-earnings"
-          />
-
-          <FinancialCard
-            label="Bill Payments"
-            value={fmtMoney(financial.total_txn_amount)}
-            hint="Total volume approved"
-            colorClass="text-blue-700"
-            icon={FileText}
-            iconBg="bg-blue-50 text-blue-600"
-            badge={`${financial.total_txn_count ?? 0} txns`}
-          />
-
-          <FinancialCard
-            label="Withdrawals"
-            value={fmtMoney(financial.total_withdrawals_approved)}
-            colorClass="text-rose-600"
-            borderClass="border-rose-100"
-            icon={ArrowUpFromLine}
-            iconBg="bg-rose-50 text-rose-600"
-            testid="kpi-withdrawals"
-            breakdowns={[
-              { label: "Agent Withdrawals", value: fmtMoney(financial.agent_withdrawals_approved), testid: "kpi-withdrawals-agent" },
-              { label: "Distributor Withdrawals", value: fmtMoney(financial.distributor_withdrawals_approved), testid: "kpi-withdrawals-distributor" },
-              { label: "Master Distributor Withdrawals", value: fmtMoney(financial.md_withdrawals_approved ?? 0), testid: "kpi-withdrawals-md" }
-            ]}
           />
         </div>
       </section>
