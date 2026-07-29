@@ -7,7 +7,8 @@ import {
   Loader2, CreditCard, History, Send, Receipt,
   Lightbulb, Smartphone, Car, Flame, Wifi, Tv,
   ShieldCheck, GraduationCap, Landmark, Droplet,
-  Home, UserCheck, FileText, Zap, PlaySquare
+  Home, UserCheck, FileText, Zap, PlaySquare,
+  Building, ChevronLeft
 } from "lucide-react";
 
 const getCategoryIcon = (catId) => {
@@ -464,24 +465,27 @@ export default function LiveBillPay() {
             <div className="grid lg:grid-cols-2 gap-10 items-start">
               {/* Left Card: Input Form */}
               <div className="bg-white border border-black/5 rounded-3xl p-6 lg:p-8 shadow-lg shadow-indigo-500/5">
-                <h3 className="text-sm font-black text-neutral-800 flex items-center gap-2 border-b border-neutral-100 pb-3 mb-5">
-                  <CreditCard className="h-4 w-4 text-[#00966B]" /> {categories.find(c => String(c.id) === String(selectedCat))?.category_name || "Bill"} Details
+                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3 mb-6">
+                  <CreditCard className="h-4.5 w-4.5 text-indigo-600 stroke-[1.8]" /> {categories.find(c => String(c.id) === String(selectedCat))?.category_name || "Bill"} Details
                 </h3>
 
                 <form onSubmit={fetchBill} className="space-y-4">
                   {/* Operator */}
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest block">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-semibold text-slate-500 block mb-1">
                       Select Operator / Provider
                     </label>
                     <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none z-10">
+                        <Building className="h-4 w-4 stroke-[1.8]" />
+                      </span>
                       {loadingOps && (
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <span className="absolute right-9 top-1/2 -translate-y-1/2 z-10">
                           <Loader2 className="h-4 w-4 animate-spin text-neutral-400" />
                         </span>
                       )}
                       <select
-                        className="mfp-input text-xs bg-neutral-50/50"
+                        className="w-full pl-10 pr-10 py-3 bg-slate-50/50 hover:bg-slate-50/80 border border-slate-200/80 focus:border-indigo-500/50 focus:bg-white text-slate-700 text-xs rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all appearance-none cursor-pointer font-medium"
                         value={selectedOp}
                         onChange={(e) => handleOperatorChange(e.target.value)}
                         required
@@ -491,43 +495,58 @@ export default function LiveBillPay() {
                           <option key={o.biller_id} value={o.biller_id}>{o.biller_name}</option>
                         ))}
                       </select>
+                      <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none z-10">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-3.5 h-3.5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                        </svg>
+                      </span>
                     </div>
                   </div>
 
                   {/* Customer Mobile Number & Dynamic Biller Parameters */}
                   {selectedOp && (
-                    <div className="space-y-4 pt-1 animate-fadeIn">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest block">
+                    <div className="space-y-4 pt-2 animate-fadeIn">
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-semibold text-slate-500 block mb-1">
                           Customer Mobile Number
                         </label>
-                        <input
-                          className="mfp-input text-xs bg-neutral-50/50"
-                          type="text"
-                          required
-                          value={mobileNumber}
-                          onChange={(e) => setMobileNumber(e.target.value)}
-                          placeholder="e.g. 9876543210"
-                        />
+                        <div className="relative">
+                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                            <Smartphone className="h-4 w-4 stroke-[1.8]" />
+                          </span>
+                          <input
+                            className="w-full pl-10 pr-4 py-3 bg-slate-50/50 hover:bg-slate-50/80 border border-slate-200/80 focus:border-indigo-500/50 focus:bg-white text-slate-700 text-xs rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all font-medium"
+                            type="text"
+                            required
+                            value={mobileNumber}
+                            onChange={(e) => setMobileNumber(e.target.value)}
+                            placeholder="e.g. 9876543210"
+                          />
+                        </div>
                       </div>
 
                       {/* Render Dynamic Metadata Fields */}
                       {paramsList.map((p) => (
-                        <div className="space-y-1" key={p.paramName}>
-                          <label className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest block">
+                        <div className="space-y-1.5" key={p.paramName}>
+                          <label className="text-[11px] font-semibold text-slate-500 block mb-1">
                             {p.paramName} {p.isOptional ? "(Optional)" : ""}
                           </label>
-                          <input
-                            className="mfp-input text-xs bg-neutral-50/50"
-                            type={p.dataType === "NUMERIC" ? "number" : "text"}
-                            required={!p.isOptional}
-                            value={paramValues[p.paramName] || ""}
-                            onChange={(e) => setParamValues({
-                              ...paramValues,
-                              [p.paramName]: e.target.value
-                            })}
-                            placeholder={`Enter ${p.paramName.toLowerCase()}`}
-                          />
+                          <div className="relative">
+                            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                              <FileText className="h-4 w-4 stroke-[1.8]" />
+                            </span>
+                            <input
+                              className="w-full pl-10 pr-4 py-3 bg-slate-50/50 hover:bg-slate-50/80 border border-slate-200/80 focus:border-indigo-500/50 focus:bg-white text-slate-700 text-xs rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all font-medium"
+                              type={p.dataType === "NUMERIC" ? "number" : "text"}
+                              required={!p.isOptional}
+                              value={paramValues[p.paramName] || ""}
+                              onChange={(e) => setParamValues({
+                                ...paramValues,
+                                [p.paramName]: e.target.value
+                              })}
+                              placeholder={`Enter ${p.paramName.toLowerCase()}`}
+                            />
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -537,7 +556,7 @@ export default function LiveBillPay() {
                     <button
                       type="submit"
                       disabled={loadingFetch || !mobileNumber}
-                      className="w-full mt-4 py-3 px-4 flex items-center justify-center gap-2 text-white text-xs font-bold rounded-xl transition-all shadow-md bg-[#00966B] hover:bg-[#007f5a] shadow-[#00966B]/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full mt-5 py-3 px-4 flex items-center justify-center gap-2 text-white text-xs font-bold rounded-xl transition-all shadow-md bg-[#00966B] hover:bg-[#007f5a] shadow-[#00966B]/15 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {loadingFetch ? (
                         <>
@@ -556,7 +575,7 @@ export default function LiveBillPay() {
               {/* Right Card: Bill Receipt / Invoice Preview */}
               <div className="w-full">
                 {fetchedBill ? (
-                  <div className="bg-[#1E293B] text-white rounded-3xl p-6 lg:p-8 shadow-xl shadow-slate-900/10 flex flex-col justify-between min-h-[360px] relative overflow-hidden animate-fadeIn">
+                  <div className="bg-[#0F172A] text-white rounded-3xl p-6 lg:p-8 shadow-xl shadow-slate-900/10 flex flex-col justify-between min-h-[360px] relative overflow-hidden animate-fadeIn border border-slate-800">
                     {/* Decorative background gradients */}
                     <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl"></div>
                     <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl"></div>
@@ -564,39 +583,46 @@ export default function LiveBillPay() {
                     <div className="space-y-5">
                       <div className="flex justify-between items-start border-b border-white/10 pb-4">
                         <div>
-                          <span className="text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/30 tracking-wider">
+                          <span className="inline-flex items-center text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/30 tracking-wider">
                             Bill Fetched
                           </span>
-                          <h4 className="text-sm font-bold mt-1 text-white/90">
+                          <h4 className="text-sm font-bold mt-2 text-white/90 leading-tight">
                             {activeOp?.biller_name || "Utility Provider"}
                           </h4>
                         </div>
-                        <Receipt className="h-8 w-8 text-white/20" />
+                        <Receipt className="h-7 w-7 text-white/20 stroke-[1.5]" />
                       </div>
 
-                      <div className="space-y-3 text-xs text-white/70">
-                        <div className="flex justify-between">
-                          <span>Customer Name:</span>
-                          <strong className="text-white font-semibold">{fetchedBill.billerResponse.customerName || "N/A"}</strong>
+                      <div className="space-y-3.5 text-xs text-white/70">
+                        <div className="flex justify-between items-center">
+                          <span className="font-medium text-slate-400">Customer Name:</span>
+                          <strong className="text-white font-bold tracking-tight">{fetchedBill.billerResponse.customerName || "N/A"}</strong>
                         </div>
-                        <div className="flex justify-between">
-                          <span>Biller ID:</span>
-                          <strong className="text-white font-semibold">{selectedOp}</strong>
+                        <div className="flex justify-between items-center">
+                          <span className="font-medium text-slate-400">Biller ID:</span>
+                          <strong className="text-white font-mono text-[11px] bg-slate-800/40 px-2 py-0.5 rounded border border-white/5">{selectedOp}</strong>
                         </div>
-                        <div className="flex justify-between">
-                          <span>Due Date:</span>
-                          <strong className="text-rose-400 font-bold">{fetchedBill.billerResponse.dueDate || "N/A"}</strong>
+                        <div className="flex justify-between items-center">
+                          <span className="font-medium text-slate-400">Due Date:</span>
+                          <strong className="text-rose-400 font-bold bg-rose-500/10 px-2.5 py-0.5 rounded border border-rose-500/20">{fetchedBill.billerResponse.dueDate || "N/A"}</strong>
                         </div>
                       </div>
 
-                      <div className="bg-black/20 rounded-2xl p-4 border border-white/5 text-center space-y-1 animate-pulseFocus">
+                      {/* Dashed Separator Line with punched ticket holes */}
+                      <div className="relative my-6">
+                        <div className="border-t-2 border-dashed border-white/10 w-full"></div>
+                        <div className="absolute -left-10 lg:-left-12 top-1/2 -translate-y-1/2 w-4 h-8 bg-[#f8fafc] rounded-r-full border-r border-slate-200/40"></div>
+                        <div className="absolute -right-10 lg:-right-12 top-1/2 -translate-y-1/2 w-4 h-8 bg-[#f8fafc] rounded-l-full border-l border-slate-200/40"></div>
+                      </div>
+
+                      <div className="bg-black/20 rounded-2xl p-4 border border-white/5 text-center space-y-1.5">
                         <span className="text-[9px] font-extrabold text-white/40 uppercase tracking-widest block">Payable Amount (Edit if custom)</span>
                         <div className="flex items-center justify-center gap-1.5 text-2xl font-black text-white">
-                          <span>₹</span>
+                          <span className="text-emerald-400">₹</span>
                           <input
                             type="number"
                             step="0.01"
-                            className="bg-transparent border-b border-white/20 focus:border-white text-center outline-none w-48 text-2xl font-black text-white focus:ring-0 focus:outline-none"
+                            className="bg-transparent border-b-2 border-white/20 focus:border-emerald-400 text-center outline-none w-48 text-2xl font-black text-white focus:ring-0 focus:outline-none transition-colors"
                             value={payAmount}
                             onChange={(e) => setPayAmount(e.target.value)}
                           />
@@ -608,7 +634,7 @@ export default function LiveBillPay() {
                       <button
                         onClick={payBill}
                         disabled={loadingPay}
-                        className="w-full py-3.5 px-4 flex items-center justify-center gap-2 text-neutral-900 text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-lg bg-white hover:bg-neutral-50 shadow-white/5 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full py-3.5 px-4 flex items-center justify-center gap-2 text-slate-900 text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-lg bg-white hover:bg-neutral-50 hover:-translate-y-0.5 active:translate-y-0 shadow-white/5 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {loadingPay ? (
                           <>
@@ -623,13 +649,13 @@ export default function LiveBillPay() {
                     </div>
                   </div>
                 ) : (
-                  <div className="border border-dashed border-neutral-200 rounded-3xl p-10 flex flex-col items-center justify-center text-center space-y-4 min-h-[380px] bg-neutral-50/50">
-                    <div className="p-4 bg-white rounded-2xl border border-neutral-100 shadow-sm text-neutral-400">
-                      <Receipt className="h-8 w-8 stroke-1" />
+                  <div className="border-2 border-dashed border-slate-200/60 bg-slate-50/20 rounded-3xl p-10 flex flex-col items-center justify-center text-center space-y-5 min-h-[380px] transition-all duration-300">
+                    <div className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm text-indigo-500/80 shadow-[0_8px_30px_rgb(0,0,0,0.01)]">
+                      <Receipt className="h-8 w-8 stroke-[1.5]" />
                     </div>
-                    <div className="space-y-1">
-                      <h4 className="text-xs font-extrabold text-neutral-600 uppercase tracking-wider">No Active Invoice</h4>
-                      <p className="text-xs text-neutral-400 max-w-[260px] mx-auto leading-relaxed">
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-bold text-slate-700">No Active Invoice</h4>
+                      <p className="text-xs text-slate-400 max-w-[260px] mx-auto leading-relaxed">
                         Select your utility provider and click "Fetch Bill Details" to load your invoice statement.
                       </p>
                     </div>
