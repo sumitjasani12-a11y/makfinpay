@@ -6,6 +6,7 @@ import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import ZoomableImage from "@/components/ZoomableImage";
 import { toast } from "sonner";
 import { Eye, Check, X, Search, RotateCcw, FileDown, FileSpreadsheet, Loader2 } from "lucide-react";
+import { useWebSocketListener } from "@/lib/ws";
 
 const STATUSES = [
   { key: "all", label: "All" },
@@ -158,6 +159,15 @@ export default function AdminRecharges() {
   }, [params]);
 
   useEffect(() => { reload(); }, [reload]);
+
+  useWebSocketListener("recharge_created", () => {
+    reload();
+    toast.info("New QR Load wallet request received!");
+  });
+
+  useWebSocketListener("recharge_updated", () => {
+    reload();
+  });
 
   // Reset page to 1 when any filter (other than page/pageSize) changes.
   useEffect(() => { setPage(1); }, [status, debouncedAgent, debouncedQr, range, from, to, customApplied, debouncedQ, debouncedAmt, pageSize]);

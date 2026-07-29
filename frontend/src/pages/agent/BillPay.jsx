@@ -3,6 +3,7 @@ import { api, formatErr, fmtMoney, fmtDate } from "@/lib/api";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import { toast } from "sonner";
 import { CreditCard, Check, ChevronsUpDown, Wallet, Search, Loader2, AlertCircle, History, X, Clock, RotateCcw, ShieldCheck, FileDown, FileSpreadsheet } from "lucide-react";
+import { useWebSocketListener } from "@/lib/ws";
 
 
 function BankCombobox({ value, onChange, options = [] }) {
@@ -89,6 +90,8 @@ export default function AgentBillPay() {
       .catch((e) => console.log("Failed to fetch transactions:", e.message))
       .finally(() => setLoadingHistory(false));
   };
+
+  useWebSocketListener("cc_bill_updated", fetchHistory);
 
   useEffect(() => {
     setPage(1);

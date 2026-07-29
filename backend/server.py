@@ -24,7 +24,7 @@ import json as _json
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from database import DuplicateKeyError, AsyncIOMotorGridFSBucket, AsyncIOMotorClient, convert_val
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, UploadFile, File, Form, Header, Query
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, UploadFile, File, Form, Header, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import Response as FastResponse
 from starlette.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, EmailStr
@@ -44,6 +44,79 @@ client = db
 
 app = FastAPI(title="MAK FIN PAY API")
 api = APIRouter(prefix="/api")
+
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+        self.user_connections: dict = {}
+        self.role_connections: dict = {}
+
+    async def connect(self, websocket: WebSocket, user_id: str, role: str):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        if user_id not in self.user_connections:
+            self.user_connections[user_id] = []
+        self.user_connections[user_id].append(websocket)
+        if role not in self.role_connections:
+            self.role_connections[role] = []
+        self.role_connections[role].append(websocket)
+
+    def disconnect(self, websocket: WebSocket, user_id: str, role: str):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+        if user_id in self.user_connections and websocket in self.user_connections[user_id]:
+            self.user_connections[user_id].remove(websocket)
+        if role in self.role_connections and websocket in self.role_connections[role]:
+            self.role_connections[role].remove(websocket)
+
+    async def send_to_user(self, user_id: str, message: dict):
+        if user_id in self.user_connections:
+            for connection in self.user_connections[user_id]:
+                try:
+                    await connection.send_json(message)
+                except Exception:
+                    pass
+
+    async def send_to_role(self, role: str, message: dict):
+        if role in self.role_connections:
+            for connection in self.role_connections[role]:
+                try:
+                    await connection.send_json(message)
+                except Exception:
+                    pass
+
+    async def broadcast(self, message: dict):
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(message)
+            except Exception:
+                pass
+
+manager = ConnectionManager()
+
+@app.websocket("/api/ws")
+async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+        user_id = payload.get("user_id") or payload.get("id")
+        role = payload.get("role")
+        if not user_id or not role:
+            await websocket.close(code=4001)
+            return
+    except Exception:
+        await websocket.close(code=4001)
+        return
+
+    await manager.connect(websocket, user_id, role)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, user_id, role)
+    except Exception:
+        manager.disconnect(websocket, user_id, role)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("makfinpay")
@@ -610,6 +683,7 @@ async def submit_kyc(body: SubmitKycIn, user=Depends(require_roles("agent", "dis
         "updated_at": now_iso()
     }
     await db.kyc.update_one({"user_id": user["id"]}, {"$set": kyc_upd})
+    await manager.send_to_role("admin", {"event": "kyc_submitted", "data": {"user_id": user["id"]}})
     return {"ok": True, "kyc_status": "pending"}
 
 @api.post("/agent/dismiss-welcome")
@@ -2482,6 +2556,7 @@ async def agent_create_recharge(body: RechargeIn, user=Depends(require_approved_
             409,
             "This UTR has already been submitted. If you believe this is an error, please contact the admin.",
         )
+    await manager.send_to_role("admin", {"event": "recharge_created", "data": clean(doc)})
     return clean(doc)
 
 @api.get("/agent/recharges")
@@ -2693,6 +2768,8 @@ async def admin_approve_recharge(rid: str, body: ApprovalIn, request: Request, u
     await log_admin_profit("credit", admin_revenue_amount, "recharge_commission", rid, f"Commission earned from QR Wallet Load ({r.get('user_name', 'Agent')})")
 
     await write_audit(user["id"], "approve_recharge", target=rid, request=request)
+    await manager.send_to_user(r["user_id"], {"event": "recharge_updated", "data": {"id": rid, "status": "approved"}})
+    await manager.send_to_role("admin", {"event": "recharge_updated", "data": {"id": rid, "status": "approved"}})
     return {"ok": True}
 
 @api.post("/admin/recharges/{rid}/reject")
@@ -2704,6 +2781,8 @@ async def admin_reject_recharge(rid: str, body: ApprovalIn, request: Request, us
         raise HTTPException(400, "Already processed")
     await db.recharges.update_one({"id": rid}, {"$set": {"status": "rejected", "note": body.note or "", "reviewed_at": now_iso(), "reviewed_by": user["id"]}})
     await write_audit(user["id"], "reject_recharge", target=rid, request=request)
+    await manager.send_to_user(r["user_id"], {"event": "recharge_updated", "data": {"id": rid, "status": "rejected"}})
+    await manager.send_to_role("admin", {"event": "recharge_updated", "data": {"id": rid, "status": "rejected"}})
     return {"ok": True}
 
 # ---------- BILL PAYMENTS (Credit Card) ----------
@@ -2764,6 +2843,7 @@ async def agent_bill_payment(body: BillPaymentIn, user=Depends(require_approved_
         user["id"], "debit", total_amount, new_balance, "bill_payment_hold", tx["id"],
         f"Bill: ₹{body.amount:.2f} + Charge: ₹{service_charge:.2f} — {body.operator} ****{body.card_last4}"
     )
+    await manager.send_to_role("admin", {"event": "cc_bill_created", "data": clean(tx)})
     return clean(tx)
 
 @api.get("/agent/transactions")
@@ -3406,6 +3486,8 @@ async def admin_approve_transaction(tid: str, body: ApprovalIn, request: Request
     await log_admin_profit("credit", t.get("service_charge", 0.0), "bill_payment_fee", tid, f"Fee earned from CC Bill ({t.get('user_name', 'Agent')})")
 
     await write_audit(user["id"], "transaction_approved", target=tid, meta={"amount": t["amount"]}, request=request)
+    await manager.send_to_user(t["user_id"], {"event": "cc_bill_updated", "data": {"id": tid, "status": "success"}})
+    await manager.send_to_role("admin", {"event": "cc_bill_updated", "data": {"id": tid, "status": "success"}})
     return {"ok": True}
 
 @api.post("/admin/transactions/{tid}/reject")
@@ -3425,6 +3507,8 @@ async def admin_reject_transaction(tid: str, body: ApprovalIn, request: Request,
         await log_admin_profit("debit", t.get("service_charge", 0.0), "bill_payment_reversal", tid, f"Reversal of CC Bill fee ({t.get('user_name', 'Agent')})")
 
     await write_audit(user["id"], "transaction_reversed", target=tid, meta={"amount": t["amount"]}, request=request)
+    await manager.send_to_user(t["user_id"], {"event": "cc_bill_updated", "data": {"id": tid, "status": "reversed"}})
+    await manager.send_to_role("admin", {"event": "cc_bill_updated", "data": {"id": tid, "status": "reversed"}})
     return {"ok": True}
 
 # ---------- WITHDRAWALS ----------
@@ -3688,6 +3772,8 @@ async def admin_approve_kyc(uid: str, request: Request, user=Depends(require_rol
     await write_audit(user["id"], "kyc_approved", target=uid,
                       meta={"user_id": uid, "user_name": target.get("full_name", ""), "role": target.get("role")},
                       request=request)
+    await manager.send_to_user(uid, {"event": "kyc_updated", "data": {"user_id": uid, "status": "approved"}})
+    await manager.send_to_role("admin", {"event": "kyc_updated", "data": {"user_id": uid, "status": "approved"}})
     return {"ok": True, "kyc_status": "approved"}
 
 
@@ -3710,6 +3796,8 @@ async def admin_reject_kyc(uid: str, body: ApprovalIn, request: Request, user=De
     await write_audit(user["id"], "kyc_rejected", target=uid,
                       meta={"agent_id": uid, "agent_name": target.get("full_name", ""), "reason": reason},
                       request=request)
+    await manager.send_to_user(uid, {"event": "kyc_updated", "data": {"user_id": uid, "status": "rejected"}})
+    await manager.send_to_role("admin", {"event": "kyc_updated", "data": {"user_id": uid, "status": "rejected"}})
     return {"ok": True, "kyc_status": "rejected"}
 
 # ---------- QR CODES ----------

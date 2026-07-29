@@ -5,6 +5,7 @@ import { PageHeader, DataTable, StatusBadge, EmptyState } from "@/components/Sha
 import FileUpload from "@/components/FileUpload";
 import { toast } from "sonner";
 import { Loader2, Coins, KeyRound, CreditCard, QrCode, Info, Sparkles, CheckCircle2, History, Check, ShieldAlert, FileDown, FileSpreadsheet, Clock, X } from "lucide-react";
+import { useWebSocketListener } from "@/lib/ws";
 
 export default function AgentRecharge() {
   const { user } = useAuth();
@@ -26,6 +27,10 @@ export default function AgentRecharge() {
   const [pageSize, setPageSize] = useState(10);
 
   const reload = () => api.get("/agent/recharges").then((r) => setItems(r.data || []));
+
+  useWebSocketListener("recharge_updated", () => {
+    reload();
+  });
 
   const fetchActiveQr = useCallback(() => {
     api.get(`/agent/active-qr?is_t1=${isT1}`).then((r) => setQr(r.data && r.data.image_path ? r.data : null));

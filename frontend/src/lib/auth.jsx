@@ -1,11 +1,20 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { api } from "./api";
+import { initWebSocket, closeWebSocket } from "./ws";
 
 const AuthCtx = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const reloadMe = useCallback(() => {
+    const t = localStorage.getItem("mfp_token");
+    if (!t) return;
+    api.get("/auth/me")
+      .then((r) => setUser(r.data))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const t = localStorage.getItem("mfp_token");
@@ -19,6 +28,26 @@ export function AuthProvider({ children }) {
       .catch(() => localStorage.removeItem("mfp_token"))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    const t = localStorage.getItem("mfp_token");
+    if (user && t) {
+      initWebSocket(t);
+    } else {
+      closeWebSocket();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    window.addEventListener("ws:kyc_updated", reloadMe);
+    window.addEventListener("ws:recharge_updated", reloadMe);
+    window.addEventListener("ws:cc_bill_updated", reloadMe);
+    return () => {
+      window.removeEventListener("ws:kyc_updated", reloadMe);
+      window.removeEventListener("ws:recharge_updated", reloadMe);
+      window.removeEventListener("ws:cc_bill_updated", reloadMe);
+    };
+  }, [reloadMe]);
 
   const login = useCallback(async (email, password) => {
     const { data } = await api.post("/auth/login", { email, password });
@@ -42,11 +71,12 @@ export function AuthProvider({ children }) {
     }
     localStorage.removeItem("mfp_token");
     setUser(null);
+    closeWebSocket();
   }, []);
 
   const value = useMemo(
-    () => ({ user, loading, login, logout, setUser, completeLogin }),
-    [user, loading, login, logout, completeLogin]
+    () => ({ user, loading, login, logout, setUser, completeLogin, reloadMe }),
+    [user, loading, login, logout, completeLogin, reloadMe]
   );
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;

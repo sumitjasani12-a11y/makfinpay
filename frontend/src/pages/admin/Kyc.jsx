@@ -3,6 +3,7 @@ import { api, formatErr, fmtDate, fileUrl } from "@/lib/api";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import { toast } from "sonner";
 import { Check, X, Eye, AlertCircle, Search, RotateCcw } from "lucide-react";
+import { useWebSocketListener } from "@/lib/ws";
 
 function RejectModal({ onClose, onConfirm }) {
   const [reason, setReason] = useState("");
@@ -183,6 +184,15 @@ export default function AdminKyc() {
   );
   
   useEffect(() => { reload(); }, [reload]);
+
+  useWebSocketListener("kyc_submitted", () => {
+    reload();
+    toast.info("New KYC request received!");
+  });
+
+  useWebSocketListener("kyc_updated", () => {
+    reload();
+  });
 
   // Reset page to 1 when filters change
   useEffect(() => { setPage(1); }, [statusFilter, q, pageSize]);

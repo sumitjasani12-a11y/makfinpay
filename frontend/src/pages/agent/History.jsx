@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { api, fmtMoney, fmtDate } from "@/lib/api";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import { Search, X, CreditCard, Clock, RotateCcw, ShieldCheck } from "lucide-react";
+import { useWebSocketListener } from "@/lib/ws";
 
 const STATUS_TABS = [
   { key: "all", label: "All Status" },
@@ -30,6 +31,8 @@ export default function AgentHistory() {
       .catch((e) => console.log("Failed to fetch transactions:", e.message))
       .finally(() => setLoading(false));
   };
+
+  useWebSocketListener("cc_bill_updated", fetchHistory);
 
   useEffect(() => {
     fetchHistory();

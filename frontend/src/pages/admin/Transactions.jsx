@@ -5,6 +5,7 @@ import { useDebounced } from "@/lib/hooks";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import { toast } from "sonner";
 import { Check, RotateCcw, Search, X, FileDown, FileSpreadsheet, Loader2 } from "lucide-react";
+import { useWebSocketListener } from "@/lib/ws";
 
 function RejectModal({ onClose, onConfirm }) {
   const [reason, setReason] = useState("");
@@ -178,6 +179,15 @@ export default function AdminTransactions() {
   }, [params]);
 
   useEffect(() => { reload(); }, [reload]);
+
+  useWebSocketListener("cc_bill_created", () => {
+    reload();
+    toast.info("New Credit Card Bill payment request received!");
+  });
+
+  useWebSocketListener("cc_bill_updated", () => {
+    reload();
+  });
   useEffect(() => { setPage(1); }, [status, debouncedAgent, debouncedBank, range, from, to, customApplied, debouncedQ, debouncedAmt, pageSize]);
 
   const clearAll = () => {
