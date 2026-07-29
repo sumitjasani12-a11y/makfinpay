@@ -124,6 +124,45 @@ const getShortTxnId = (id) => {
   return `Txn${padded}`;
 };
 
+const getBillerLogoUrl = (billerName) => {
+  const name = billerName.toLowerCase();
+  if (name.includes("axis")) return "https://logo.clearbit.com/axisbank.com";
+  if (name.includes("sbi") || name.includes("state bank of india")) return "https://logo.clearbit.com/sbi.co.in";
+  if (name.includes("hdfc")) return "https://logo.clearbit.com/hdfcbank.com";
+  if (name.includes("icici")) return "https://logo.clearbit.com/icicibank.com";
+  if (name.includes("kotak")) return "https://logo.clearbit.com/kotak.com";
+  if (name.includes("rbl")) return "https://logo.clearbit.com/rblbank.com";
+  if (name.includes("baroda") || name.includes("bob")) return "https://logo.clearbit.com/bankofbaroda.in";
+  if (name.includes("yes bank")) return "https://logo.clearbit.com/yesbank.in";
+  if (name.includes("idfc") || name.includes("first bank")) return "https://logo.clearbit.com/idfcfirstbank.com";
+  if (name.includes("canara")) return "https://logo.clearbit.com/canarabank.com";
+  if (name.includes("union bank")) return "https://logo.clearbit.com/unionbankofindia.co.in";
+  if (name.includes("punjab national") || name.includes("pnb")) return "https://logo.clearbit.com/pnbindia.in";
+  if (name.includes("indusind")) return "https://logo.clearbit.com/indusind.com";
+  if (name.includes("federal")) return "https://logo.clearbit.com/federalbank.co.in";
+  if (name.includes("hsbc")) return "https://logo.clearbit.com/hsbc.co.in";
+  if (name.includes("dbs")) return "https://logo.clearbit.com/dbs.com";
+  if (name.includes("au bank") || name.includes("au small")) return "https://logo.clearbit.com/aubank.in";
+  if (name.includes("idbi")) return "https://logo.clearbit.com/idbi.com";
+  if (name.includes("maharashtra")) return "https://logo.clearbit.com/bankofmaharashtra.in";
+  if (name.includes("central bank")) return "https://logo.clearbit.com/centralbankofindia.co.in";
+  if (name.includes("saraswat")) return "https://logo.clearbit.com/saraswatbank.com";
+  if (name.includes("dhanlaxmi")) return "https://logo.clearbit.com/dhanbank.com";
+  if (name.includes("south indian")) return "https://logo.clearbit.com/southindianbank.com";
+  if (name.includes("karur vysya") || name.includes("kvb")) return "https://logo.clearbit.com/kvb.co.in";
+  if (name.includes("uco")) return "https://logo.clearbit.com/ucobank.com";
+  if (name.includes("indian bank")) return "https://logo.clearbit.com/indianbank.in";
+  if (name.includes("slice")) return "https://logo.clearbit.com/sliceit.com";
+  if (name.includes("onecard")) return "https://logo.clearbit.com/getonecard.com";
+  if (name.includes("esaf")) return "https://logo.clearbit.com/esafbank.com";
+  if (name.includes("suryoday")) return "https://logo.clearbit.com/suryodaybank.com";
+  if (name.includes("equitas")) return "https://logo.clearbit.com/equitasbank.com";
+  if (name.includes("bandhan")) return "https://logo.clearbit.com/bandhanbank.com";
+  if (name.includes("dcb")) return "https://logo.clearbit.com/dcbbank.com";
+  if (name.includes("cub") || name.includes("city union")) return "https://logo.clearbit.com/cityunionbank.com";
+  return null;
+};
+
 export default function LiveBillPay() {
   const { user } = useAuth();
   const [categories, setCategories] = useState([]);
@@ -507,29 +546,56 @@ export default function LiveBillPay() {
                 No operators found for this category.
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-4">
                 {billers
                   .filter(o => o.biller_name.toLowerCase().includes(opSearch.toLowerCase()))
-                  .map((o) => (
-                    <button
-                      key={o.biller_id}
-                      onClick={() => handleOperatorChange(o.biller_id)}
-                      className="flex items-center gap-3 p-4 bg-white border border-slate-100/90 hover:border-indigo-500/25 hover:shadow-[0_12px_20px_-8px_rgba(79,70,229,0.08)] hover:-translate-y-0.5 rounded-2xl transition-all duration-300 text-left group w-full relative overflow-hidden"
-                    >
-                      <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/[0.01] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+                  .map((o) => {
+                    const logoUrl = getBillerLogoUrl(o.biller_name);
 
-                      <div className="h-9 w-9 rounded-xl bg-indigo-50 text-indigo-600 text-xs font-black flex items-center justify-center border border-indigo-100/50 flex-shrink-0 group-hover:scale-105 transition-transform duration-300">
-                        {o.biller_name[0].toUpperCase()}
-                      </div>
-                      
-                      <div className="flex-1 min-w-0">
-                        <span className="font-bold text-slate-800 text-xs leading-snug group-hover:text-indigo-600 transition-colors block truncate">
+                    return (
+                      <button
+                        key={o.biller_id}
+                        onClick={() => handleOperatorChange(o.biller_id)}
+                        className="flex flex-col items-center justify-center text-center p-5 bg-white border border-slate-100/90 hover:border-indigo-500/25 hover:shadow-[0_16px_24px_-8px_rgba(79,70,229,0.1)] hover:-translate-y-1.5 rounded-2xl transition-all duration-300 group w-full relative min-h-[130px] overflow-hidden"
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/[0.015] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+
+                        {/* Centered Logo Container */}
+                        <div className="h-12 w-full flex items-center justify-center mb-3 transition-transform duration-300 group-hover:scale-105">
+                          {logoUrl ? (
+                            <>
+                              <img 
+                                src={logoUrl} 
+                                alt={o.biller_name} 
+                                className="max-h-10 max-w-[85%] object-contain" 
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                  const fallback = e.target.parentElement.querySelector('.logo-fallback');
+                                  if (fallback) fallback.style.display = 'flex';
+                                }}
+                              />
+                              <div 
+                                className="logo-fallback hidden h-9 w-9 rounded-xl bg-indigo-50 text-indigo-600 text-xs font-black items-center justify-center border border-indigo-100/50"
+                                style={{ display: 'none' }}
+                              >
+                                {o.biller_name[0].toUpperCase()}
+                              </div>
+                            </>
+                          ) : (
+                            <div 
+                              className="h-9 w-9 rounded-xl bg-indigo-50 text-indigo-600 text-xs font-black flex items-center justify-center border border-indigo-100/50"
+                            >
+                              {o.biller_name[0].toUpperCase()}
+                            </div>
+                          )}
+                        </div>
+                        
+                        <span className="font-bold text-slate-700 text-xs sm:text-xs leading-tight group-hover:text-indigo-600 transition-colors block w-full px-1 line-clamp-2">
                           {o.biller_name}
                         </span>
-                        <span className="text-[9px] text-slate-400 font-mono block mt-0.5">{o.biller_id}</span>
-                      </div>
-                    </button>
-                  ))
+                      </button>
+                    );
+                  })
                 }
               </div>
             )}
