@@ -184,6 +184,14 @@ export default function AdminLiveBillHistory() {
     { key: "api_charge", label: "API Charge", render: (r) => (
       <div className="font-semibold text-right text-rose-600">{fmtMoney(r.api_charge ?? 0)}</div>
     ) },
+    { key: "profit_charge", label: "Profit", render: (r) => {
+      const profit = (r.service_charge ?? 0) - (r.api_charge ?? 0);
+      return (
+        <div className={`font-semibold text-right ${profit >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+          {fmtMoney(profit)}
+        </div>
+      );
+    } },
     { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
     { key: "created_at", label: "Date", render: (r) => fmtDate(r.created_at) },
     { key: "note", label: "API Response / Note", render: (r) => (
