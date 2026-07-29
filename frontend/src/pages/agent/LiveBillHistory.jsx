@@ -124,38 +124,47 @@ export default function LiveBillHistory() {
       {/* Metrics statistics cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {/* Success */}
-        <div className="mfp-card p-6 border-l-4 border-emerald-500 flex items-center justify-between shadow-sm bg-white">
-          <div className="space-y-1">
-            <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Successful Payments</div>
-            <div className="text-2xl font-black text-neutral-800">{fmtMoney(stats.successAmt)}</div>
-            <div className="text-[11px] font-medium text-emerald-600">{stats.successCount} transactions</div>
+        <div className="bg-gradient-to-br from-[#0F5132] to-[#198754] text-white border border-emerald-500/20 rounded-2xl p-3.5 shadow-md flex items-center gap-3.5 h-[84px] relative overflow-hidden transition-all hover:shadow-lg animate-fadeIn">
+          <div className="p-2.5 bg-white/10 text-emerald-300 border border-white/10 rounded-xl shrink-0">
+            <ShieldCheck className="h-4.5 w-4.5" />
           </div>
-          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
-            <ShieldCheck className="h-6 w-6" />
+          <div className="min-w-0">
+            <span className="text-[9px] text-emerald-100/80 font-bold tracking-wider uppercase block truncate">
+              Successful Payments ({stats.successCount} tx)
+            </span>
+            <span className="text-base font-black text-white mt-0.5 block truncate">
+              {fmtMoney(stats.successAmt)}
+            </span>
           </div>
         </div>
 
         {/* Pending */}
-        <div className="mfp-card p-6 border-l-4 border-amber-500 flex items-center justify-between shadow-sm bg-white">
-          <div className="space-y-1">
-            <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Pending Review</div>
-            <div className="text-2xl font-black text-neutral-800">{fmtMoney(stats.pendingAmt)}</div>
-            <div className="text-[11px] font-medium text-amber-600">{stats.pendingCount} transactions</div>
+        <div className="bg-gradient-to-br from-[#664D03] to-[#FD7E14] text-white border border-orange-500/20 rounded-2xl p-3.5 shadow-md flex items-center gap-3.5 h-[84px] relative overflow-hidden transition-all hover:shadow-lg animate-fadeIn">
+          <div className="p-2.5 bg-white/10 text-orange-300 border border-white/10 rounded-xl shrink-0">
+            <Clock className="h-4.5 w-4.5" />
           </div>
-          <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl">
-            <Clock className="h-6 w-6" />
+          <div className="min-w-0">
+            <span className="text-[9px] text-orange-100/80 font-bold tracking-wider uppercase block truncate">
+              Pending Review ({stats.pendingCount} tx)
+            </span>
+            <span className="text-base font-black text-white mt-0.5 block truncate">
+              {fmtMoney(stats.pendingAmt)}
+            </span>
           </div>
         </div>
 
         {/* Reversed */}
-        <div className="mfp-card p-6 border-l-4 border-rose-500 flex items-center justify-between shadow-sm bg-white">
-          <div className="space-y-1">
-            <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Reversed & Failed</div>
-            <div className="text-2xl font-black text-neutral-800">{fmtMoney(stats.reversedAmt)}</div>
-            <div className="text-[11px] font-medium text-rose-600">{stats.reversedCount} transactions</div>
+        <div className="bg-gradient-to-br from-[#58181F] to-[#DC3545] text-white border border-red-500/20 rounded-2xl p-3.5 shadow-md flex items-center gap-3.5 h-[84px] relative overflow-hidden transition-all hover:shadow-lg animate-fadeIn">
+          <div className="p-2.5 bg-white/10 text-red-300 border border-white/10 rounded-xl shrink-0">
+            <RotateCcw className="h-4.5 w-4.5" />
           </div>
-          <div className="p-3 bg-rose-50 text-rose-600 rounded-2xl">
-            <RotateCcw className="h-6 w-6" />
+          <div className="min-w-0">
+            <span className="text-[9px] text-red-100/80 font-bold tracking-wider uppercase block truncate">
+              Reversed & Failed ({stats.reversedCount} tx)
+            </span>
+            <span className="text-base font-black text-white mt-0.5 block truncate">
+              {fmtMoney(stats.reversedAmt)}
+            </span>
           </div>
         </div>
       </div>

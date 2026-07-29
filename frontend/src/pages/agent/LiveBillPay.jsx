@@ -424,32 +424,33 @@ export default function LiveBillPay() {
                 <Loader2 className="h-8 w-8 animate-spin text-neutral-400" />
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {categories.map((c) => {
-                  const IconComp = getCategoryIcon(c.id);
-                  const desc = getCategoryDesc(c.id, c.category_name);
-                  const colorCls = getCategoryColor(c.id);
+                  const IconComp = getCategoryIcon(c.category_name);
+                  const desc = getCategoryDesc(c.category_name);
+                  const colorCls = getCategoryColor(c.category_name);
 
                   return (
                     <button
                       key={c.id}
                       onClick={() => handleCategoryChange(c.id)}
-                      className="flex flex-col items-start text-left p-5 bg-white border border-slate-100/90 hover:border-indigo-500/25 rounded-2xl transition-all duration-300 shadow-[0_4px_16px_rgba(0,0,0,0.02)] hover:shadow-[0_16px_24px_-8px_rgba(79,70,229,0.1)] hover:-translate-y-1.5 group w-full relative overflow-hidden"
+                      className="flex items-center gap-3.5 text-left p-3.5 bg-white border border-slate-100/90 hover:border-indigo-500/25 rounded-2xl transition-all duration-300 shadow-[0_4px_16px_rgba(0,0,0,0.02)] hover:shadow-[0_16px_24px_-8px_rgba(79,70,229,0.1)] hover:-translate-y-1 group w-full relative overflow-hidden h-[76px]"
                     >
                       {/* Premium subtle inner gradient glow */}
                       <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/[0.015] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
 
-                      <div className={`p-3 rounded-xl border ${colorCls} mb-4 transition-all duration-300 group-hover:scale-105 shadow-sm`}>
-                        <IconComp className="h-5.5 w-5.5 stroke-[1.8]" />
+                      <div className={`p-2.5 rounded-xl border ${colorCls} transition-all duration-300 group-hover:scale-105 shadow-sm shrink-0`}>
+                        <IconComp className="h-5 w-5 stroke-[1.8]" />
                       </div>
                       
-                      <span className="font-bold text-slate-800 text-xs sm:text-sm tracking-tight leading-snug mb-1.5 group-hover:text-indigo-600 transition-colors">
-                        {c.category_name}
-                      </span>
-                      
-                      <span className="text-slate-400 text-[10px] leading-normal font-medium line-clamp-2">
-                        {desc}
-                      </span>
+                      <div className="min-w-0">
+                        <span className="font-bold text-slate-800 text-xs sm:text-sm tracking-tight leading-snug group-hover:text-indigo-600 transition-colors block truncate">
+                          {c.category_name}
+                        </span>
+                        <span className="text-slate-400 text-[10px] leading-normal font-medium block truncate mt-0.5">
+                          {desc}
+                        </span>
+                      </div>
                     </button>
                   );
                 })}
