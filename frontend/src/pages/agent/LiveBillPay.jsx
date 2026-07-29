@@ -407,14 +407,14 @@ export default function LiveBillPay() {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
                 {categories.map((c) => {
-                  const IconComp = getCategoryIcon(c.category_id);
-                  const desc = getCategoryDesc(c.category_id, c.category_name);
-                  const colorCls = getCategoryColor(c.category_id);
+                  const IconComp = getCategoryIcon(c.id);
+                  const desc = getCategoryDesc(c.id, c.category_name);
+                  const colorCls = getCategoryColor(c.id);
 
                   return (
                     <button
-                      key={c.category_id}
-                      onClick={() => handleCategoryChange(c.category_id)}
+                      key={c.id}
+                      onClick={() => handleCategoryChange(c.id)}
                       className="flex flex-col items-start text-left p-5 bg-white border border-black/5 hover:border-indigo-500/30 rounded-2xl transition-all duration-300 shadow-sm hover:shadow-xl hover:-translate-y-1 group w-full"
                     >
                       <div className={`p-3.5 rounded-2xl border ${colorCls} mb-4 transition-transform duration-300 group-hover:scale-110`}>
@@ -460,7 +460,7 @@ export default function LiveBillPay() {
               {/* Left Card: Input Form */}
               <div className="bg-white border border-black/5 rounded-3xl p-6 lg:p-8 shadow-lg shadow-indigo-500/5">
                 <h3 className="text-sm font-black text-neutral-800 flex items-center gap-2 border-b border-neutral-100 pb-3 mb-5">
-                  <CreditCard className="h-4 w-4 text-[#00966B]" /> {categories.find(c => String(c.category_id) === String(selectedCat))?.category_name || "Bill"} Details
+                  <CreditCard className="h-4 w-4 text-[#00966B]" /> {categories.find(c => String(c.id) === String(selectedCat))?.category_name || "Bill"} Details
                 </h3>
 
                 <form onSubmit={fetchBill} className="space-y-4">
