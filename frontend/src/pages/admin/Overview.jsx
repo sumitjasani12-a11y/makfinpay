@@ -171,19 +171,19 @@ export default function AdminOverview() {
   };
 
   const combinedData = [
-    { name: "P. Recharge", value: stats.pending_recharges ?? 0, fill: "#10b981" },
-    { name: "P. Withdraw", value: stats.pending_withdrawals ?? 0, fill: "#ef4444" },
-    { name: "P. Txn", value: stats.pending_transactions ?? 0, fill: "#f59e0b" },
-    { name: "P. KYC", value: financial.pending_kyc_count ?? 0, fill: "#3b82f6" },
-    { name: "MDs", value: stats.total_master_distributors ?? 0, fill: "#8b5cf6" },
-    { name: "Dists", value: stats.total_distributors ?? 0, fill: "#ec4899" },
-    { name: "Agents", value: stats.total_agents ?? 0, fill: "#6366f1" },
+    { name: "P. Recharge", value: stats.pending_recharges ?? 0, fill: "url(#barEmerald)" },
+    { name: "P. Withdraw", value: stats.pending_withdrawals ?? 0, fill: "url(#barRose)" },
+    { name: "P. Txn", value: stats.pending_transactions ?? 0, fill: "url(#barAmber)" },
+    { name: "P. KYC", value: financial.pending_kyc_count ?? 0, fill: "url(#barBlue)" },
+    { name: "MDs", value: stats.total_master_distributors ?? 0, fill: "url(#barPurple)" },
+    { name: "Dists", value: stats.total_distributors ?? 0, fill: "url(#barPink)" },
+    { name: "Agents", value: stats.total_agents ?? 0, fill: "url(#barIndigo)" },
   ];
 
   const lifetimeData = [
-    { name: "Wallet Balance", value: financial.total_wallet ?? 0, color: "#0891b2" },
-    { name: "MD Earnings", value: financial.total_md_earnings ?? 0, color: "#7c3aed" },
-    { name: "Distributor Earnings", value: financial.total_distributor_earnings ?? 0, color: "#d946ef" },
+    { name: "Wallet Balance", value: financial.total_wallet ?? 0, fill: "url(#walletGrad)" },
+    { name: "MD Earnings", value: financial.total_md_earnings ?? 0, fill: "url(#mdGrad)" },
+    { name: "Distributor Earnings", value: financial.total_distributor_earnings ?? 0, fill: "url(#distGrad)" },
   ];
 
   return (
@@ -310,27 +310,66 @@ export default function AdminOverview() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
           {/* Left Side: Lifetime Pie/Donut Chart */}
           <div className="lg:col-span-6 bg-white border border-black/5 rounded-[28px] p-6 shadow-sm flex flex-col h-[340px]">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-4">Lifetime Balances Distribution</h3>
-            <div className="flex-1 w-full h-full relative min-h-0">
-              <ResponsiveContainer width="100%" height="100%">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2">Lifetime Balances Distribution</h3>
+            <div className="flex-1 w-full relative min-h-0 mt-2">
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
+                <span className="text-[10px] uppercase font-extrabold text-neutral-450 tracking-wider">Total Funds</span>
+                <span className="text-xl font-black text-neutral-850 mt-0.5">
+                  {fmtMoney(
+                    (financial.total_wallet ?? 0) + 
+                    (financial.total_md_earnings ?? 0) + 
+                    (financial.total_distributor_earnings ?? 0)
+                  )}
+                </span>
+              </div>
+              <ResponsiveContainer width="100%" height="90%">
                 <PieChart>
+                  <defs>
+                    <linearGradient id="walletGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#06b6d4" />
+                      <stop offset="100%" stopColor="#0891b2" />
+                    </linearGradient>
+                    <linearGradient id="mdGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#a78bfa" />
+                      <stop offset="100%" stopColor="#7c3aed" />
+                    </linearGradient>
+                    <linearGradient id="distGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f472b6" />
+                      <stop offset="100%" stopColor="#db2777" />
+                    </linearGradient>
+                  </defs>
                   <Pie
                     data={lifetimeData}
                     cx="50%"
                     cy="50%"
                     innerRadius={65}
-                    outerRadius={90}
+                    outerRadius={88}
                     paddingAngle={4}
                     dataKey="value"
                   >
                     {lifetimeData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
                     ))}
                   </Pie>
                   <Tooltip formatter={(value) => [fmtMoney(value), "Amount"]} />
-                  <Legend verticalAlign="bottom" height={36} iconType="circle" />
                 </PieChart>
               </ResponsiveContainer>
+            </div>
+            
+            {/* Custom Premium HTML Legend */}
+            <div className="flex justify-center items-center gap-6 text-[11px] font-bold text-neutral-600 mt-2">
+              <div className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-gradient-to-br from-[#06b6d4] to-[#0891b2] shrink-0" />
+                <span>Wallet Balance</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-gradient-to-br from-[#a78bfa] to-[#7c3aed] shrink-0" />
+                <span>MD Earnings</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-gradient-to-br from-[#f472b6] to-[#db2777] shrink-0" />
+                <span>Distributor Earnings</span>
+              </div>
             </div>
           </div>
 
@@ -340,37 +379,43 @@ export default function AdminOverview() {
             
             <div className="flex flex-col gap-3 flex-1 justify-center">
               {/* Wallet Balance */}
-              <div className="p-3 bg-gradient-to-r from-cyan-50/60 to-cyan-100/20 border border-cyan-100 rounded-2xl flex items-center justify-between hover:-translate-y-0.5 transition-all">
+              <div className="p-4 bg-slate-50/30 hover:bg-white border border-slate-100/80 rounded-2xl flex items-center justify-between hover:-translate-y-0.5 transition-all duration-300 shadow-[0_4px_12px_rgba(0,0,0,0.01)] hover:shadow-[0_16px_32px_-8px_rgba(0,0,0,0.05)] group">
                 <div>
-                  <p className="text-[10.5px] text-cyan-800 font-extrabold uppercase tracking-wide">Total Wallet Balance</p>
-                  <p className="text-xl font-black text-cyan-900 mt-0.5">{fmtMoney(financial.total_wallet)}</p>
-                  <p className="text-[9px] text-cyan-600 font-medium mt-0.5">All time • Live balance</p>
+                  <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-cyan-50 text-cyan-600 border border-cyan-100/50 rounded-full">
+                    Wallet Balance
+                  </span>
+                  <p className="text-xl font-black text-neutral-800 mt-2">{fmtMoney(financial.total_wallet)}</p>
+                  <p className="text-[9px] text-neutral-400 font-semibold mt-0.5">Live system-wide user funds</p>
                 </div>
-                <div className="p-2.5 rounded-xl bg-cyan-100/50 text-cyan-700">
+                <div className="p-3 rounded-xl bg-cyan-50 text-cyan-600 border border-cyan-100/40 group-hover:scale-110 transition-transform">
                   <Wallet className="h-5 w-5" />
                 </div>
               </div>
 
               {/* MD Earnings */}
-              <div className="p-3 bg-gradient-to-r from-violet-50/60 to-violet-100/20 border border-violet-100 rounded-2xl flex items-center justify-between hover:-translate-y-0.5 transition-all" data-testid="kpi-total-md-earnings">
+              <div className="p-4 bg-slate-50/30 hover:bg-white border border-slate-100/80 rounded-2xl flex items-center justify-between hover:-translate-y-0.5 transition-all duration-300 shadow-[0_4px_12px_rgba(0,0,0,0.01)] hover:shadow-[0_16px_32px_-8px_rgba(0,0,0,0.05)] group" data-testid="kpi-total-md-earnings">
                 <div>
-                  <p className="text-[10.5px] text-violet-800 font-extrabold uppercase tracking-wide">Total MD Earnings</p>
-                  <p className="text-xl font-black text-violet-950 mt-0.5">{fmtMoney(financial.total_md_earnings ?? 0)}</p>
-                  <p className="text-[9px] text-violet-600 font-medium mt-0.5">All time • Live balance</p>
+                  <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-violet-50 text-violet-600 border border-violet-100/50 rounded-full">
+                    MD Earnings
+                  </span>
+                  <p className="text-xl font-black text-neutral-800 mt-2">{fmtMoney(financial.total_md_earnings ?? 0)}</p>
+                  <p className="text-[9px] text-neutral-400 font-semibold mt-0.5">Accumulated Master Distributor earnings</p>
                 </div>
-                <div className="p-2.5 rounded-xl bg-violet-100/50 text-violet-750">
+                <div className="p-3 rounded-xl bg-violet-50 text-violet-600 border border-violet-100/40 group-hover:scale-110 transition-transform">
                   <Coins className="h-5 w-5" />
                 </div>
               </div>
 
               {/* Distributor Earnings */}
-              <div className="p-3 bg-gradient-to-r from-fuchsia-50/60 to-fuchsia-100/20 border border-fuchsia-100 rounded-2xl flex items-center justify-between hover:-translate-y-0.5 transition-all" data-testid="kpi-total-distributor-earnings">
+              <div className="p-4 bg-slate-50/30 hover:bg-white border border-slate-100/80 rounded-2xl flex items-center justify-between hover:-translate-y-0.5 transition-all duration-300 shadow-[0_4px_12px_rgba(0,0,0,0.01)] hover:shadow-[0_16px_32px_-8px_rgba(0,0,0,0.05)] group" data-testid="kpi-total-distributor-earnings">
                 <div>
-                  <p className="text-[10.5px] text-fuchsia-800 font-extrabold uppercase tracking-wide">Total Distributor Earnings</p>
-                  <p className="text-xl font-black text-fuchsia-950 mt-0.5">{fmtMoney(financial.total_distributor_earnings)}</p>
-                  <p className="text-[9px] text-fuchsia-600 font-medium mt-0.5">All time • Live balance</p>
+                  <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-fuchsia-50 text-fuchsia-600 border border-fuchsia-100/50 rounded-full">
+                    Distributor Earnings
+                  </span>
+                  <p className="text-xl font-black text-neutral-800 mt-2">{fmtMoney(financial.total_distributor_earnings)}</p>
+                  <p className="text-[9px] text-neutral-400 font-semibold mt-0.5">Accumulated Distributor earnings</p>
                 </div>
-                <div className="p-2.5 rounded-xl bg-fuchsia-100/50 text-fuchsia-750">
+                <div className="p-3 rounded-xl bg-fuchsia-50 text-fuchsia-600 border border-fuchsia-100/40 group-hover:scale-110 transition-transform">
                   <Coins className="h-5 w-5" />
                 </div>
               </div>
@@ -497,10 +542,40 @@ export default function AdminOverview() {
             <div className="flex-1 w-full h-full min-h-0">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={combinedData} margin={{ top: 15, right: 10, left: -25, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="barEmerald" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#34d399" />
+                      <stop offset="100%" stopColor="#059669" />
+                    </linearGradient>
+                    <linearGradient id="barRose" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f87171" />
+                      <stop offset="100%" stopColor="#dc2626" />
+                    </linearGradient>
+                    <linearGradient id="barAmber" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#fbbf24" />
+                      <stop offset="100%" stopColor="#d97706" />
+                    </linearGradient>
+                    <linearGradient id="barBlue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#60a5fa" />
+                      <stop offset="100%" stopColor="#2563eb" />
+                    </linearGradient>
+                    <linearGradient id="barPurple" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#c084fc" />
+                      <stop offset="100%" stopColor="#7c3aed" />
+                    </linearGradient>
+                    <linearGradient id="barPink" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f472b6" />
+                      <stop offset="100%" stopColor="#db2777" />
+                    </linearGradient>
+                    <linearGradient id="barIndigo" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#818cf8" />
+                      <stop offset="100%" stopColor="#4f46e5" />
+                    </linearGradient>
+                  </defs>
                   <XAxis dataKey="name" stroke="#888888" fontSize={9.5} tickLine={false} axisLine={false} />
                   <YAxis stroke="#888888" fontSize={9.5} tickLine={false} axisLine={false} />
                   <Tooltip formatter={(value) => [`${value}`, "Count"]} />
-                  <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                  <Bar dataKey="value" radius={[6, 6, 0, 0]}>
                     {combinedData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.fill} />
                     ))}
