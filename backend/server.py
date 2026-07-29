@@ -351,6 +351,7 @@ class RechargeTogglesIn(BaseModel):
     recharge_enabled: Optional[bool] = None
     withdrawal_enabled: Optional[bool] = None
     bill_pay_enabled: Optional[bool] = None
+    live_bill_enabled: Optional[bool] = None
 
 class HeadlineIn(BaseModel):
     message: str
@@ -3060,6 +3061,9 @@ async def get_live_billpay_operators(category_id: str, user=Depends(require_appr
 
 @api.post("/agent/live-billpay/fetch")
 async def post_live_billpay_fetch(body: LiveBillFetchIn, user=Depends(require_approved_agent())):
+    s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    if not s.get("live_bill_enabled", True):
+        raise HTTPException(status_code=400, detail="Live Bill Payment service is temporarily disabled by administrator.")
     payload = {
         "billerId": body.billerId,
         "mobile": body.mobile,
@@ -3071,7 +3075,7 @@ async def post_live_billpay_fetch(body: LiveBillFetchIn, user=Depends(require_ap
 @api.post("/agent/live-billpay/pay")
 async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depends(require_approved_agent())):
     s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
-    if not s.get("bill_pay_enabled", True):
+    if not s.get("live_bill_enabled", True):
         raise HTTPException(status_code=400, detail="Live Bill Payment service is temporarily disabled by administrator.")
         
     if body.amount <= 0:
@@ -4069,7 +4073,8 @@ async def public_recharge_limits(user: dict = Depends(get_current_user)):
         "t1_qr_enabled": bool(s.get("t1_qr_enabled", True)),
         "recharge_enabled": bool(s.get("recharge_enabled", True)),
         "withdrawal_enabled": bool(s.get("withdrawal_enabled", True)),
-        "bill_pay_enabled": bool(s.get("bill_pay_enabled", True))
+        "bill_pay_enabled": bool(s.get("bill_pay_enabled", True)),
+        "live_bill_enabled": bool(s.get("live_bill_enabled", True))
     }
 
 @api.get("/admin/settings/recharge-limits")
@@ -4082,7 +4087,8 @@ async def get_admin_recharge_limits(user=Depends(require_roles("admin"))):
         "t1_qr_enabled": bool(s.get("t1_qr_enabled", True)),
         "recharge_enabled": bool(s.get("recharge_enabled", True)),
         "withdrawal_enabled": bool(s.get("withdrawal_enabled", True)),
-        "bill_pay_enabled": bool(s.get("bill_pay_enabled", True))
+        "bill_pay_enabled": bool(s.get("bill_pay_enabled", True)),
+        "live_bill_enabled": bool(s.get("live_bill_enabled", True))
     }
 
 @api.put("/admin/settings/recharge-limits")
@@ -4109,6 +4115,7 @@ async def update_admin_recharge_toggles(body: RechargeTogglesIn, request: Reques
     recharge_val = body.recharge_enabled if body.recharge_enabled is not None else settings.get("recharge_enabled", True)
     withdrawal_val = body.withdrawal_enabled if body.withdrawal_enabled is not None else settings.get("withdrawal_enabled", True)
     bill_pay_val = body.bill_pay_enabled if body.bill_pay_enabled is not None else settings.get("bill_pay_enabled", True)
+    live_bill_val = body.live_bill_enabled if body.live_bill_enabled is not None else settings.get("live_bill_enabled", True)
     
     doc = {
         "qr_enabled": qr_val,
@@ -4116,6 +4123,7 @@ async def update_admin_recharge_toggles(body: RechargeTogglesIn, request: Reques
         "recharge_enabled": recharge_val,
         "withdrawal_enabled": withdrawal_val,
         "bill_pay_enabled": bill_pay_val,
+        "live_bill_enabled": live_bill_val,
         "updated_at": now_iso()
     }
     await db.settings.update_one({"id": "commission"}, {"$set": doc})

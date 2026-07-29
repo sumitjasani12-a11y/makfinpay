@@ -48,10 +48,17 @@ export default function AdminLiveBillHistory() {
   const [pageSize, setPageSize] = useState(50);
   const [rejectTargetId, setRejectTargetId] = useState(null);
 
-  useEffect(() => {
-    api.get("/admin/users", { params: { role: "agent" } })
-      .then((r) => setAgents(Array.isArray(r.data) ? r.data : (r.data?.items || [])));
+  const [liveBillEnabled, setLiveBillEnabled] = useState(true);
+
+  const fetchToggles = useCallback(() => {
+    api.get("/admin/settings/recharge-limits").then((r) => {
+      setLiveBillEnabled(r.data.live_bill_enabled ?? true);
+    });
   }, []);
+
+  useEffect(() => {
+    fetchToggles();
+  }, [fetchToggles]);
 
   const params = useMemo(() => {
     const { from_ts, to_ts } = range === "custom" && !customApplied
@@ -111,6 +118,24 @@ export default function AdminLiveBillHistory() {
   useEffect(() => {
     reload();
   }, [reload]);
+
+  const handleToggleLiveBill = async (val) => {
+    setLiveBillEnabled(val);
+    try {
+      const res = await api.get("/admin/settings/recharge-limits");
+      await api.put("/admin/settings/recharge-toggles", {
+        qr_enabled: res.data.qr_enabled ?? true,
+        recharge_enabled: res.data.recharge_enabled ?? true,
+        withdrawal_enabled: res.data.withdrawal_enabled ?? true,
+        bill_pay_enabled: res.data.bill_pay_enabled ?? true,
+        live_bill_enabled: val
+      });
+      toast.success(`Live Bill service ${val ? "Enabled" : "Disabled"}`);
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail) || "Failed to update toggle");
+      setLiveBillEnabled(!val);
+    }
+  };
 
   const applyCustom = () => {
     setCustomApplied(true);
@@ -246,6 +271,24 @@ export default function AdminLiveBillHistory() {
                 : <><FileSpreadsheet className="h-4 w-4 text-emerald-600" /> Export Excel</>
               }
             </button>
+            <div className="flex flex-wrap items-center gap-6 bg-white px-5 py-2.5 rounded-2xl border border-black/5 shadow-sm">
+              <div className="flex items-center gap-2.5">
+                <span className="text-xs font-bold text-neutral-600 uppercase tracking-wider">Live Bill service</span>
+                <button
+                  onClick={() => handleToggleLiveBill(!liveBillEnabled)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    liveBillEnabled ? "bg-[#2D6A4F]" : "bg-neutral-200"
+                  }`}
+                  type="button"
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      liveBillEnabled ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
           </div>
         }
       />

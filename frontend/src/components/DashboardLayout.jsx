@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import { Outlet, useNavigate, useLocation, Navigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { Menu, Megaphone, ChevronLeft, ChevronRight } from "lucide-react";
 import { NAV } from "./dashboardNav";
@@ -16,10 +16,29 @@ export default function DashboardLayout() {
   const location = useLocation();
   const roleBaseRoute = user.role === "master_distributor" ? "/md" : `/${user.role}`;
   const isExcludedRole = user.role === "admin";
+
+  const [limits, setLimits] = useState(null);
+
+  useEffect(() => {
+    if (user && user.role !== "admin") {
+      api.get("/settings/recharge-limits-public")
+        .then((r) => setLimits(r.data))
+        .catch((e) => console.log("Failed to fetch public limits:", e.message));
+    }
+  }, [user, location.pathname]);
+
   let items = NAV[user.role] || [];
   if (!isExcludedRole && (user.first_login || user.kyc_status !== "approved")) {
     items = items.filter(it => it.to === roleBaseRoute);
+  } else if (user.role === "agent" && limits) {
+    items = items.filter(it => {
+      if (it.to === "/agent/billpay" && !limits.bill_pay_enabled) return false;
+      if (it.to === "/agent/live-billpay" && !limits.live_bill_enabled) return false;
+      if (it.to === "/agent/live-billpay/history" && !limits.live_bill_enabled) return false;
+      return true;
+    });
   }
+
   const [open, setOpen] = useState(false);
   const [balance, setBalance] = useState(null);
   const [t1Balance, setT1Balance] = useState(null);
@@ -196,9 +215,34 @@ export default function DashboardLayout() {
             </>
           );
         })()}
-        <div className="p-4 sm:p-6 lg:p-8">
-          <Outlet />
-        </div>
+        {(() => {
+          const isLiveBillPath = location.pathname.startsWith("/agent/live-billpay");
+          const isCcBillPath = location.pathname === "/agent/billpay";
+
+          if (user && user.role === "agent" && (isLiveBillPath || isCcBillPath) && !limits) {
+            return (
+              <div className="flex h-screen items-center justify-center text-neutral-500 font-bold bg-[#F8F9FA]">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="h-7 w-7 animate-spin rounded-full border-4 border-solid border-indigo-600 border-t-transparent" />
+                  <span>Verifying service authorization…</span>
+                </div>
+              </div>
+            );
+          }
+
+          if (user && user.role === "agent" && isLiveBillPath && limits && !limits.live_bill_enabled) {
+            return <Navigate to="/agent" replace />;
+          }
+          if (user && user.role === "agent" && isCcBillPath && limits && !limits.bill_pay_enabled) {
+            return <Navigate to="/agent" replace />;
+          }
+
+          return (
+            <div className="p-4 sm:p-6 lg:p-8">
+              <Outlet />
+            </div>
+          );
+        })()}
       </main>
     </div>
   );
