@@ -178,6 +178,9 @@ export default function AdminLiveBillHistory() {
     { key: "bill_amount", label: "Bill Amount", render: (r) => (
       <div className="font-semibold text-right">{fmtMoney(r.bill_amount ?? r.amount)}</div>
     ) },
+    { key: "service_charge", label: "Charge", render: (r) => (
+      <div className="font-semibold text-right text-rose-600">{fmtMoney(r.service_charge ?? 0)}</div>
+    ) },
     { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
     { key: "created_at", label: "Date", render: (r) => fmtDate(r.created_at) },
     { key: "note", label: "API Response / Note", render: (r) => (
