@@ -405,7 +405,7 @@ export default function LiveBillPay() {
                 <Loader2 className="h-8 w-8 animate-spin text-neutral-400" />
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-5">
                 {categories.map((c) => {
                   const IconComp = getCategoryIcon(c.id);
                   const desc = getCategoryDesc(c.id, c.category_name);
@@ -415,15 +415,20 @@ export default function LiveBillPay() {
                     <button
                       key={c.id}
                       onClick={() => handleCategoryChange(c.id)}
-                      className="flex flex-col items-start text-left p-5 bg-white border border-black/5 hover:border-indigo-500/30 rounded-2xl transition-all duration-300 shadow-sm hover:shadow-xl hover:-translate-y-1 group w-full"
+                      className="flex flex-col items-start text-left p-5 bg-white border border-slate-100/90 hover:border-indigo-500/25 rounded-2xl transition-all duration-300 shadow-[0_4px_16px_rgba(0,0,0,0.02)] hover:shadow-[0_16px_24px_-8px_rgba(79,70,229,0.1)] hover:-translate-y-1.5 group w-full relative overflow-hidden"
                     >
-                      <div className={`p-3.5 rounded-2xl border ${colorCls} mb-4 transition-transform duration-300 group-hover:scale-110`}>
-                        <IconComp className="h-6 w-6 stroke-[1.8]" />
+                      {/* Premium subtle inner gradient glow */}
+                      <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/[0.015] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+
+                      <div className={`p-3 rounded-xl border ${colorCls} mb-4 transition-all duration-300 group-hover:scale-105 shadow-sm`}>
+                        <IconComp className="h-5.5 w-5.5 stroke-[1.8]" />
                       </div>
-                      <span className="font-bold text-neutral-800 text-sm leading-tight mb-1.5 group-hover:text-indigo-600 transition-colors">
+                      
+                      <span className="font-bold text-slate-800 text-xs sm:text-sm tracking-tight leading-snug mb-1.5 group-hover:text-indigo-600 transition-colors">
                         {c.category_name}
                       </span>
-                      <span className="text-neutral-400 text-[10px] leading-relaxed line-clamp-2">
+                      
+                      <span className="text-slate-400 text-[10px] leading-normal font-medium line-clamp-2">
                         {desc}
                       </span>
                     </button>
