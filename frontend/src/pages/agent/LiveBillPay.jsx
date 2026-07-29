@@ -751,6 +751,5 @@ export default function LiveBillPay() {
         </div>
 
       </div>
-    </div>
   );
 }
