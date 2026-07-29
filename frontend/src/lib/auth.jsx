@@ -22,9 +22,16 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (email, password) => {
     const { data } = await api.post("/auth/login", { email, password });
-    localStorage.setItem("mfp_token", data.token);
-    setUser(data.user);
-    return data.user;
+    if (data.status === "success") {
+      localStorage.setItem("mfp_token", data.token);
+      setUser(data.user);
+    }
+    return data;
+  }, []);
+
+  const completeLogin = useCallback((token, user) => {
+    localStorage.setItem("mfp_token", token);
+    setUser(user);
   }, []);
 
   const logout = useCallback(async () => {
@@ -38,8 +45,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, loading, login, logout, setUser }),
-    [user, loading, login, logout]
+    () => ({ user, loading, login, logout, setUser, completeLogin }),
+    [user, loading, login, logout, completeLogin]
   );
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;

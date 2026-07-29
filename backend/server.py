@@ -128,6 +128,26 @@ def create_token(user_id: str, role: str, minutes: int = 60 * 24) -> str:
     payload = {"sub": user_id, "role": role, "exp": datetime.now(timezone.utc) + timedelta(minutes=minutes), "type": "access"}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
 
+def create_pre_auth_token(user_id: str, role: str) -> str:
+    payload = {
+        "sub": user_id,
+        "role": role,
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
+        "type": "pre_auth"
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
+
+def verify_pre_auth_token(token: str) -> dict:
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+        if payload.get("type") != "pre_auth":
+            raise HTTPException(401, "Invalid session type")
+        return {"user_id": payload["sub"], "role": payload["role"]}
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(401, "Pre-auth session expired. Please log in again.")
+    except Exception:
+        raise HTTPException(401, "Invalid pre-auth session. Please log in again.")
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -214,6 +234,18 @@ def require_approved_any():
 class LoginIn(BaseModel):
     email: EmailStr
     password: str
+
+class MpinVerifyIn(BaseModel):
+    pre_auth_token: str
+    mpin: str
+
+class MpinSetupIn(BaseModel):
+    pre_auth_token: str
+    mpin: str
+
+class MpinChangeIn(BaseModel):
+    current_mpin: str
+    new_mpin: str
 
 class CreateUserIn(BaseModel):
     role: Literal["master_distributor", "distributor", "agent"]
@@ -399,10 +431,84 @@ async def login(body: LoginIn, response: Response, request: Request):
         raise HTTPException(403, "Account frozen by admin")
     if not verify_password(body.password, user["password_hash"]):
         raise HTTPException(401, "Invalid credentials")
+        
+    # Skip MPIN for Admin
+    if user["role"] == "admin":
+        token = create_token(user["id"], user["role"])
+        response.set_cookie("access_token", token, httponly=True, secure=False, samesite="lax", max_age=86400, path="/")
+        await write_audit(user["id"], "login", request=request)
+        return {"status": "success", "token": token, "user": clean(user)}
+        
+    # Non-admin: Require MPIN (Existing users without MPIN will go to setup-mpin)
+    pre_auth_token = create_pre_auth_token(user["id"], user["role"])
+    if not user.get("mpin_hash"):
+        return {"status": "setup_mpin_required", "pre_auth_token": pre_auth_token}
+    else:
+        return {"status": "mpin_required", "pre_auth_token": pre_auth_token}
+
+@api.post("/auth/verify-mpin")
+async def verify_mpin(body: MpinVerifyIn, response: Response, request: Request):
+    pre_auth = verify_pre_auth_token(body.pre_auth_token)
+    user = await db.users.find_one({"id": pre_auth["user_id"]})
+    if not user:
+        raise HTTPException(401, "User not found")
+        
+    mpin_hash = user.get("mpin_hash")
+    if not mpin_hash:
+        raise HTTPException(400, "MPIN is not set up yet. Please set up your MPIN first.")
+        
+    if not verify_password(body.mpin, mpin_hash):
+        raise HTTPException(401, "Invalid MPIN")
+        
     token = create_token(user["id"], user["role"])
     response.set_cookie("access_token", token, httponly=True, secure=False, samesite="lax", max_age=86400, path="/")
     await write_audit(user["id"], "login", request=request)
-    return {"token": token, "user": clean(user)}
+    return {"status": "success", "token": token, "user": clean(user)}
+
+@api.post("/auth/setup-mpin")
+async def setup_mpin(body: MpinSetupIn, response: Response, request: Request):
+    pre_auth = verify_pre_auth_token(body.pre_auth_token)
+    user = await db.users.find_one({"id": pre_auth["user_id"]})
+    if not user:
+        raise HTTPException(401, "User not found")
+        
+    if user.get("mpin_hash"):
+        raise HTTPException(400, "MPIN is already set up for this account.")
+        
+    if not body.mpin.isdigit() or len(body.mpin) != 6:
+        raise HTTPException(400, "MPIN must be exactly 6 digits")
+        
+    hashed = hash_password(body.mpin)
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"mpin_hash": hashed}}
+    )
+    
+    await write_audit(user["id"], "setup_mpin", request=request)
+    
+    token = create_token(user["id"], user["role"])
+    response.set_cookie("access_token", token, httponly=True, secure=False, samesite="lax", max_age=86400, path="/")
+    return {"status": "success", "token": token, "user": clean(user)}
+
+@api.post("/auth/change-mpin")
+async def change_mpin(body: MpinChangeIn, user=Depends(require_roles("agent", "distributor", "master_distributor")), request: Request = None):
+    mpin_hash = user.get("mpin_hash")
+    if mpin_hash:
+        if not verify_password(body.current_mpin, mpin_hash):
+            raise HTTPException(400, "Incorrect current MPIN")
+            
+    if not body.new_mpin.isdigit() or len(body.new_mpin) != 6:
+        raise HTTPException(400, "New MPIN must be exactly 6 digits")
+        
+    hashed = hash_password(body.new_mpin)
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"mpin_hash": hashed}}
+    )
+    
+    if request:
+        await write_audit(user["id"], "change_mpin", request=request)
+    return {"ok": True}
 
 @api.post("/auth/logout")
 async def logout(response: Response):

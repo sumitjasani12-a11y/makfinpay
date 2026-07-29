@@ -49,6 +49,9 @@ import AgentLedger from "@/pages/agent/Ledger";
 import AgentWithdrawal from "@/pages/agent/Withdrawal";
 
 import ChangePassword from "@/pages/ChangePassword";
+import ChangeMpin from "@/pages/ChangeMpin";
+import MpinVerify from "@/pages/MpinVerify";
+import MpinSetup from "@/pages/MpinSetup";
 
 import "@/App.css";
 
@@ -78,6 +81,8 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/login/mpin-verify" element={<MpinVerify />} />
+          <Route path="/login/mpin-setup" element={<MpinSetup />} />
           <Route path="/app" element={<Protected><RoleHome /></Protected>} />
 
           {/* Admin */}
@@ -112,6 +117,7 @@ export default function App() {
             <Route path="recharges" element={<DistRecharges />} />
             <Route path="withdrawal" element={<DistWithdrawal />} />
             <Route path="change-password" element={<ChangePassword />} />
+            <Route path="change-mpin" element={<ChangeMpin />} />
             <Route path="policies" element={<UserPolicies />} />
           </Route>
 
@@ -122,6 +128,7 @@ export default function App() {
             <Route path="recharges" element={<MdRecharges />} />
             <Route path="withdrawal" element={<MdWithdrawal />} />
             <Route path="change-password" element={<ChangePassword />} />
+            <Route path="change-mpin" element={<ChangeMpin />} />
             <Route path="policies" element={<UserPolicies />} />
           </Route>
 
@@ -135,6 +142,7 @@ export default function App() {
             <Route path="ledger" element={<AgentLedger />} />
             <Route path="withdrawal" element={<AgentWithdrawal />} />
             <Route path="change-password" element={<ChangePassword />} />
+            <Route path="change-mpin" element={<ChangeMpin />} />
             <Route path="policies" element={<UserPolicies />} />
           </Route>
 

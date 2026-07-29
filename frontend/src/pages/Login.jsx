@@ -19,13 +19,21 @@ export default function Login() {
     setLoading(true);
     setKycMessage("");
     try {
-      const u = await login(email.trim(), password);
-      toast.success(`Welcome back, ${u.full_name}`);
-      const path = u.role === "admin" ? "/admin"
-                 : u.role === "master_distributor" ? "/md"
-                 : u.role === "distributor" ? "/distributor"
-                 : "/agent";
-      nav(path);
+      const res = await login(email.trim(), password);
+      if (res.status === "success") {
+        toast.success(`Welcome back, ${res.user.full_name}`);
+        const path = res.user.role === "admin" ? "/admin"
+                   : res.user.role === "master_distributor" ? "/md"
+                   : res.user.role === "distributor" ? "/distributor"
+                   : "/agent";
+        nav(path);
+      } else if (res.status === "mpin_required") {
+        toast.info("Please enter your 6-digit MPIN to log in.");
+        nav("/login/mpin-verify", { state: { pre_auth_token: res.pre_auth_token } });
+      } else if (res.status === "setup_mpin_required") {
+        toast.warning("Secure MPIN setup required. Please define your 6-digit MPIN.");
+        nav("/login/mpin-setup", { state: { pre_auth_token: res.pre_auth_token } });
+      }
     } catch (e) {
       const status = e.response?.status;
       const msg = formatErr(e.response?.data?.detail) || e.message;

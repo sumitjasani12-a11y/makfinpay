@@ -23,6 +23,8 @@ const ROUTE_META = {
     description:
       "Sign in to the MAK FIN PAY operator portal — for admins, distributors and agents managing wallet recharges and utility bill payments across India.",
   },
+  "/login/mpin-verify": { title: "Verify MPIN | MAK FIN PAY" },
+  "/login/mpin-setup": { title: "Setup MPIN | MAK FIN PAY" },
 
   // Admin
   "/admin": { title: "Dashboard | MAK FIN PAY" },
@@ -45,6 +47,10 @@ const ROUTE_META = {
   "/distributor/recharges": { title: "Recharge Activity | MAK FIN PAY" },
   "/distributor/withdrawal": { title: "Withdrawal | MAK FIN PAY" },
   "/distributor/change-password": { title: "Change Password | MAK FIN PAY" },
+  "/distributor/change-mpin": { title: "Change MPIN | MAK FIN PAY" },
+
+  // Master Distributor
+  "/md/change-mpin": { title: "Change MPIN | MAK FIN PAY" },
 
   // Agent
   "/agent": { title: "Dashboard | MAK FIN PAY" },
@@ -55,6 +61,7 @@ const ROUTE_META = {
   "/agent/ledger": { title: "Wallet Ledger | MAK FIN PAY" },
   "/agent/withdrawal": { title: "Withdrawal | MAK FIN PAY" },
   "/agent/change-password": { title: "Change Password | MAK FIN PAY" },
+  "/agent/change-mpin": { title: "Change MPIN | MAK FIN PAY" },
 };
 
 const CANONICAL_ORIGIN = "https://makfinpay.com";

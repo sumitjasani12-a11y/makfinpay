@@ -36,6 +36,7 @@ export const NAV = {
     { to: "/md/recharges", label: "Agent QR Requests", icon: ArrowDownToLine },
     { to: "/md/withdrawal", label: "Pay Withdrawal", icon: ArrowUpFromLine },
     { to: "/md/change-password", label: "Change Password", icon: KeyRound },
+    { to: "/md/change-mpin", label: "Change MPIN", icon: KeyRound },
     { to: "/md/policies", label: "Rules & Policies", icon: ScrollText },
   ],
   distributor: [
@@ -44,6 +45,7 @@ export const NAV = {
     { to: "/distributor/recharges", label: "Agent QR Requests", icon: ArrowDownToLine },
     { to: "/distributor/withdrawal", label: "Pay Withdrawal", icon: ArrowUpFromLine },
     { to: "/distributor/change-password", label: "Change Password", icon: KeyRound },
+    { to: "/distributor/change-mpin", label: "Change MPIN", icon: KeyRound },
     { to: "/distributor/policies", label: "Rules & Policies", icon: ScrollText },
   ],
   agent: [
@@ -55,6 +57,7 @@ export const NAV = {
     { to: "/agent/ledger", label: "Account Statement", icon: ScrollText },
     { to: "/agent/withdrawal", label: "Pay Withdrawal", icon: ArrowUpFromLine },
     { to: "/agent/change-password", label: "Change Password", icon: KeyRound },
+    { to: "/agent/change-mpin", label: "Change MPIN", icon: KeyRound },
     { to: "/agent/policies", label: "Rules & Policies", icon: ScrollText },
   ],
 };
