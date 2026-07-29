@@ -170,17 +170,14 @@ export default function AdminOverview() {
     loadFinancial("custom", from, to);
   };
 
-  const userData = [
-    { name: "Agents", value: stats.total_agents ?? 0, color: "#ec4899" },
-    { name: "Distributors", value: stats.total_distributors ?? 0, color: "#6366f1" },
-    { name: "Master Distributors", value: stats.total_master_distributors ?? 0, color: "#f59e0b" },
-  ];
-
-  const pendingData = [
-    { name: "Recharges", value: stats.pending_recharges ?? 0, fill: "#10b981" },
-    { name: "Withdrawals", value: stats.pending_withdrawals ?? 0, fill: "#ef4444" },
-    { name: "Transactions", value: stats.pending_transactions ?? 0, fill: "#f59e0b" },
-    { name: "KYC Requests", value: financial.pending_kyc_count ?? 0, fill: "#3b82f6" },
+  const combinedData = [
+    { name: "P. Recharge", value: stats.pending_recharges ?? 0, fill: "#10b981" },
+    { name: "P. Withdraw", value: stats.pending_withdrawals ?? 0, fill: "#ef4444" },
+    { name: "P. Txn", value: stats.pending_transactions ?? 0, fill: "#f59e0b" },
+    { name: "P. KYC", value: financial.pending_kyc_count ?? 0, fill: "#3b82f6" },
+    { name: "MDs", value: stats.total_master_distributors ?? 0, fill: "#8b5cf6" },
+    { name: "Dists", value: stats.total_distributors ?? 0, fill: "#ec4899" },
+    { name: "Agents", value: stats.total_agents ?? 0, fill: "#6366f1" },
   ];
 
   return (
@@ -357,170 +354,133 @@ export default function AdminOverview() {
         </div>
       </section>
 
-      {/* SECTION 2 — Pending Queue Overview (Compact Cards & Bar Chart Side-by-Side) */}
+      {/* SECTION 2 — Unified Platform Statistics & Analytics */}
       <section data-testid="section-statistics" className="space-y-5">
         <div>
-          <h2 className="text-base font-bold tracking-tight text-neutral-800">Platform Statistics</h2>
-          <p className="text-xs text-neutral-400">Overall platform activity and pending queue</p>
+          <h2 className="text-base font-bold tracking-tight text-neutral-800">Platform Analytics</h2>
+          <p className="text-xs text-neutral-400">Unified view of platform users demographic and pending action queues</p>
         </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-          {/* Pending items cards: 2x2 grid */}
-          <div className="lg:col-span-6 bg-white border border-black/5 rounded-[28px] p-6 shadow-sm flex flex-col justify-between min-h-[340px]">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-4">Pending Review Items</h3>
-            
-            <div className="grid grid-cols-2 gap-4 flex-1">
-              <button 
-                onClick={() => nav("/admin/recharges")} 
-                className="text-left bg-slate-50/50 hover:bg-slate-50/90 border border-black/5 hover:border-black/10 rounded-2xl p-4 flex items-center justify-between transition-all hover:-translate-y-0.5"
-                data-testid="kpi-pending-recharges"
-              >
-                <div className="space-y-1">
-                  <span className="text-[9.5px] uppercase font-bold tracking-wider text-neutral-400">Pending Recharges</span>
-                  <div className="text-2xl font-black text-neutral-800">{stats.pending_recharges ?? 0}</div>
-                </div>
-                <div className="p-2 rounded-xl bg-emerald-100/60 text-emerald-700">
-                  <Clock className="h-4 w-4" />
-                </div>
-              </button>
+          {/* Left Side: Combined metrics panel card */}
+          <div className="lg:col-span-5 bg-white border border-black/5 rounded-[28px] p-6 shadow-sm flex flex-col justify-between min-h-[380px]">
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-450 mb-3.5">Pending Action Items</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <button 
+                  onClick={() => nav("/admin/recharges")} 
+                  className="text-left p-3.5 bg-slate-50/50 hover:bg-slate-50/90 border border-black/5 hover:border-black/10 rounded-2xl flex items-center justify-between transition-all hover:-translate-y-0.5"
+                  data-testid="kpi-pending-recharges"
+                >
+                  <div>
+                    <p className="text-[10px] text-neutral-450 font-bold uppercase">Recharges</p>
+                    <p className="text-xl font-black text-neutral-800 mt-0.5">{stats.pending_recharges ?? 0}</p>
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-emerald-100/50 text-emerald-700">
+                    <Clock className="h-4 w-4" />
+                  </div>
+                </button>
 
-              <button 
-                onClick={() => nav("/admin/withdrawals")} 
-                className="text-left bg-slate-50/50 hover:bg-slate-50/90 border border-black/5 hover:border-black/10 rounded-2xl p-4 flex items-center justify-between transition-all hover:-translate-y-0.5"
-                data-testid="kpi-pending-withdrawals"
-              >
-                <div className="space-y-1">
-                  <span className="text-[9.5px] uppercase font-bold tracking-wider text-neutral-400">Pending Withdrawals</span>
-                  <div className="text-2xl font-black text-neutral-800">{stats.pending_withdrawals ?? 0}</div>
-                </div>
-                <div className="p-2 rounded-xl bg-rose-100/60 text-rose-700">
-                  <Clock className="h-4 w-4" />
-                </div>
-              </button>
+                <button 
+                  onClick={() => nav("/admin/withdrawals")} 
+                  className="text-left p-3.5 bg-slate-50/50 hover:bg-slate-50/90 border border-black/5 hover:border-black/10 rounded-2xl flex items-center justify-between transition-all hover:-translate-y-0.5"
+                  data-testid="kpi-pending-withdrawals"
+                >
+                  <div>
+                    <p className="text-[10px] text-neutral-450 font-bold uppercase">Withdrawals</p>
+                    <p className="text-xl font-black text-neutral-800 mt-0.5">{stats.pending_withdrawals ?? 0}</p>
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-rose-100/50 text-rose-700">
+                    <Clock className="h-4 w-4" />
+                  </div>
+                </button>
 
-              <button 
-                onClick={() => nav("/admin/transactions")} 
-                className="text-left bg-amber-50/30 hover:bg-amber-50/70 border border-amber-200/50 rounded-2xl p-4 flex items-center justify-between transition-all hover:-translate-y-0.5"
-                data-testid="kpi-pending-tx"
-              >
-                <div className="space-y-1">
-                  <span className="text-[9.5px] uppercase font-bold tracking-wider text-amber-800/80">Pending Txns</span>
-                  <div className="text-2xl font-black text-amber-900">{stats.pending_transactions ?? 0}</div>
-                </div>
-                <div className="p-2 rounded-xl bg-amber-100/75 text-amber-800">
-                  <Clock className="h-4 w-4" />
-                </div>
-              </button>
+                <button 
+                  onClick={() => nav("/admin/transactions")} 
+                  className="text-left p-3.5 bg-slate-50/50 hover:bg-slate-50/90 border border-black/5 hover:border-black/10 rounded-2xl flex items-center justify-between transition-all hover:-translate-y-0.5"
+                  data-testid="kpi-pending-tx"
+                >
+                  <div>
+                    <p className="text-[10px] text-neutral-450 font-bold uppercase">Transactions</p>
+                    <p className="text-xl font-black text-neutral-800 mt-0.5">{stats.pending_transactions ?? 0}</p>
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-amber-100/50 text-amber-800">
+                    <Clock className="h-4 w-4" />
+                  </div>
+                </button>
 
-              <button 
-                onClick={() => nav("/admin/kyc")} 
-                className="text-left bg-amber-50/30 hover:bg-amber-50/70 border border-amber-200/50 rounded-2xl p-4 flex items-center justify-between transition-all hover:-translate-y-0.5"
-                data-testid="kpi-pending-kyc"
-              >
-                <div className="space-y-1">
-                  <span className="text-[9.5px] uppercase font-bold tracking-wider text-amber-800/80">Pending KYC</span>
-                  <div className="text-2xl font-black text-amber-900">{financial.pending_kyc_count ?? 0}</div>
+                <button 
+                  onClick={() => nav("/admin/kyc")} 
+                  className="text-left p-3.5 bg-slate-50/50 hover:bg-slate-50/90 border border-black/5 hover:border-black/10 rounded-2xl flex items-center justify-between transition-all hover:-translate-y-0.5"
+                  data-testid="kpi-pending-kyc"
+                >
+                  <div>
+                    <p className="text-[10px] text-neutral-450 font-bold uppercase">KYC Requests</p>
+                    <p className="text-xl font-black text-neutral-800 mt-0.5">{financial.pending_kyc_count ?? 0}</p>
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-blue-100/50 text-blue-700">
+                    <ShieldCheck className="h-4 w-4" />
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <div className="border-t border-black/5 my-4" />
+
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-455 mb-3.5">Registered Accounts</h3>
+              <div className="grid grid-cols-3 gap-3">
+                <div 
+                  className="p-3 bg-slate-50/50 border border-black/5 rounded-2xl flex items-center justify-between hover:bg-slate-50/80 transition-all"
+                  data-testid="kpi-total-master-distributors"
+                >
+                  <div>
+                    <p className="text-[9px] text-neutral-450 font-bold uppercase">Master Dist</p>
+                    <p className="text-lg font-black text-neutral-800 mt-0.5">{stats.total_master_distributors ?? 0}</p>
+                  </div>
+                  <div className="p-1 rounded-lg bg-amber-50 text-amber-500">
+                    <Crown className="h-4 w-4" />
+                  </div>
                 </div>
-                <div className="p-2 rounded-xl bg-amber-100/75 text-amber-800">
-                  <ShieldCheck className="h-4 w-4" />
+
+                <div className="p-3 bg-slate-50/50 border border-black/5 rounded-2xl flex items-center justify-between hover:bg-slate-50/80 transition-all">
+                  <div>
+                    <p className="text-[9px] text-neutral-450 font-bold uppercase">Distributor</p>
+                    <p className="text-lg font-black text-neutral-800 mt-0.5">{stats.total_distributors ?? 0}</p>
+                  </div>
+                  <div className="p-1 rounded-lg bg-indigo-50 text-indigo-500">
+                    <Users className="h-4 w-4" />
+                  </div>
                 </div>
-              </button>
+
+                <div className="p-3 bg-slate-50/50 border border-black/5 rounded-2xl flex items-center justify-between hover:bg-slate-50/80 transition-all">
+                  <div>
+                    <p className="text-[9px] text-neutral-450 font-bold uppercase">Agent</p>
+                    <p className="text-lg font-black text-neutral-800 mt-0.5">{stats.total_agents ?? 0}</p>
+                  </div>
+                  <div className="p-1 rounded-lg bg-rose-50 text-rose-500">
+                    <UserCog className="h-4 w-4" />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Pending Queue Metrics Bar Chart */}
-          <div className="lg:col-span-6 bg-white border border-black/5 rounded-[28px] p-6 shadow-sm flex flex-col h-[340px]">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-4">Pending Queue Distribution</h3>
+          {/* Right Side: Combined metrics composed visual bar chart */}
+          <div className="lg:col-span-7 bg-white border border-black/5 rounded-[28px] p-6 shadow-sm flex flex-col h-[380px]">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-4">Operations & Demographic Analysis</h3>
             <div className="flex-1 w-full h-full min-h-0">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={pendingData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-                  <XAxis dataKey="name" stroke="#888888" fontSize={11} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#888888" fontSize={11} tickLine={false} axisLine={false} />
-                  <Tooltip formatter={(value) => [`${value} Pending`, "Items"]} />
+                <BarChart data={combinedData} margin={{ top: 15, right: 10, left: -25, bottom: 0 }}>
+                  <XAxis dataKey="name" stroke="#888888" fontSize={9.5} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#888888" fontSize={9.5} tickLine={false} axisLine={false} />
+                  <Tooltip formatter={(value) => [`${value}`, "Count"]} />
                   <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                    {pendingData.map((entry, index) => (
+                    {combinedData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.fill} />
                     ))}
                   </Bar>
                 </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <div className="border-t border-black/5" />
-
-      {/* SECTION 3 — User Stats & Distribution Donut (Side-by-Side at Bottom) */}
-      <section className="space-y-5">
-        <div>
-          <h2 className="text-base font-bold tracking-tight text-neutral-800">Platform Users Insights</h2>
-          <p className="text-xs text-neutral-400">Total users demographic and graphical representation</p>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-          {/* User counts (3 cards stack) */}
-          <div className="lg:col-span-6 bg-white border border-black/5 rounded-[28px] p-6 shadow-sm flex flex-col justify-between min-h-[340px]">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-4">Registered User Roles</h3>
-            
-            <div className="flex flex-col gap-4 flex-1 justify-center">
-              <div 
-                className="bg-slate-50/50 border border-black/5 rounded-2xl p-4.5 flex items-center justify-between transition-all hover:bg-slate-50/80 hover:-translate-y-0.5"
-                data-testid="kpi-total-master-distributors"
-              >
-                <div className="space-y-1">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Master Distributors</span>
-                  <div className="text-2xl font-black text-neutral-800">{stats.total_master_distributors ?? 0}</div>
-                </div>
-                <div className="p-3 rounded-2xl bg-amber-50 text-amber-500">
-                  <Crown className="h-5 w-5" />
-                </div>
-              </div>
-
-              <div className="bg-slate-50/50 border border-black/5 rounded-2xl p-4.5 flex items-center justify-between transition-all hover:bg-slate-50/80 hover:-translate-y-0.5">
-                <div className="space-y-1">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Distributors</span>
-                  <div className="text-2xl font-black text-neutral-800">{stats.total_distributors ?? 0}</div>
-                </div>
-                <div className="p-3 rounded-2xl bg-indigo-50 text-indigo-500">
-                  <Users className="h-5 w-5" />
-                </div>
-              </div>
-
-              <div className="bg-slate-50/50 border border-black/5 rounded-2xl p-4.5 flex items-center justify-between transition-all hover:bg-slate-50/80 hover:-translate-y-0.5">
-                <div className="space-y-1">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Agents</span>
-                  <div className="text-2xl font-black text-neutral-800">{stats.total_agents ?? 0}</div>
-                </div>
-                <div className="p-3 rounded-2xl bg-rose-50 text-rose-500">
-                  <UserCog className="h-5 w-5" />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* User Distribution Pie/Donut Chart */}
-          <div className="lg:col-span-6 bg-white border border-black/5 rounded-[28px] p-6 shadow-sm flex flex-col h-[340px]">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-4">User Distribution</h3>
-            <div className="flex-1 w-full h-full relative min-h-0">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={userData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={65}
-                    outerRadius={90}
-                    paddingAngle={4}
-                    dataKey="value"
-                  >
-                    {userData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => [`${value} Users`, "Count"]} />
-                  <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                </PieChart>
               </ResponsiveContainer>
             </div>
           </div>
