@@ -30,15 +30,15 @@ function todayStr(offset = 0) {
   return d.toISOString().slice(0, 10);
 }
 
-function FinancialCard({ label, value, hint, breakdowns, icon: Icon, colorClass = "text-neutral-850", iconBg = "bg-neutral-50 text-neutral-500", borderClass = "border-black/5", testid, badge, bgClass = "bg-white" }) {
+function FinancialCard({ label, value, hint, breakdowns, icon: Icon, colorClass = "text-neutral-900", iconBg = "bg-neutral-50 text-neutral-500", borderClass = "border-black/5", testid, badge, bgClass = "bg-white" }) {
   return (
     <div className={`${bgClass} border ${borderClass} rounded-[28px] p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between`} data-testid={testid}>
       <div>
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[9.5px] uppercase font-bold tracking-widest text-neutral-400">{label}</span>
+          <span className="text-[11px] uppercase font-extrabold tracking-wider text-neutral-500">{label}</span>
           <div className="flex items-center gap-2">
             {badge && (
-              <span className="text-[10px] font-bold bg-white/80 border border-black/5 px-2 py-0.5 rounded-full whitespace-nowrap tracking-wide">
+              <span className="text-[10.5px] font-extrabold bg-white/80 border border-black/5 px-2 py-0.5 rounded-full whitespace-nowrap tracking-wide">
                 {badge}
               </span>
             )}
@@ -49,16 +49,16 @@ function FinancialCard({ label, value, hint, breakdowns, icon: Icon, colorClass 
             )}
           </div>
         </div>
-        <div className={`text-[21px] font-black tracking-tight mt-3 ${colorClass}`}>{value}</div>
-        {hint && <p className="text-[10.5px] text-neutral-400 font-medium mt-1">{hint}</p>}
+        <div className={`text-[24px] font-black tracking-tight mt-2.5 ${colorClass}`}>{value}</div>
+        {hint && <p className="text-[11.5px] text-neutral-500 font-semibold mt-1">{hint}</p>}
       </div>
 
       {breakdowns && breakdowns.length > 0 && (
-        <div className="mt-4 pt-3.5 border-t border-black/5 space-y-2 text-[10.5px] text-neutral-400 font-medium">
+        <div className="mt-4 pt-3.5 border-t border-black/5 space-y-2 text-[11.5px] text-neutral-500 font-semibold">
           {breakdowns.map((b, idx) => (
             <div key={idx} className="flex justify-between items-center" data-testid={b.testid}>
               <span>{b.label}</span>
-              <span className="text-neutral-800 font-bold">{b.value}</span>
+              <span className="text-neutral-900 font-black">{b.value}</span>
             </div>
           ))}
         </div>
@@ -373,8 +373,8 @@ export default function AdminOverview() {
                   data-testid="kpi-pending-recharges"
                 >
                   <div>
-                    <p className="text-[10px] text-neutral-450 font-bold uppercase">Recharges</p>
-                    <p className="text-xl font-black text-neutral-800 mt-0.5">{stats.pending_recharges ?? 0}</p>
+                    <p className="text-[11.5px] text-neutral-600 font-extrabold uppercase">Recharges</p>
+                    <p className="text-2xl font-black text-neutral-900 mt-1">{stats.pending_recharges ?? 0}</p>
                   </div>
                   <div className="p-1.5 rounded-lg bg-emerald-100/50 text-emerald-700">
                     <Clock className="h-4 w-4" />
@@ -387,8 +387,8 @@ export default function AdminOverview() {
                   data-testid="kpi-pending-withdrawals"
                 >
                   <div>
-                    <p className="text-[10px] text-neutral-450 font-bold uppercase">Withdrawals</p>
-                    <p className="text-xl font-black text-neutral-800 mt-0.5">{stats.pending_withdrawals ?? 0}</p>
+                    <p className="text-[11.5px] text-neutral-600 font-extrabold uppercase">Withdrawals</p>
+                    <p className="text-2xl font-black text-neutral-900 mt-1">{stats.pending_withdrawals ?? 0}</p>
                   </div>
                   <div className="p-1.5 rounded-lg bg-rose-100/50 text-rose-700">
                     <Clock className="h-4 w-4" />
@@ -401,8 +401,8 @@ export default function AdminOverview() {
                   data-testid="kpi-pending-tx"
                 >
                   <div>
-                    <p className="text-[10px] text-neutral-450 font-bold uppercase">Transactions</p>
-                    <p className="text-xl font-black text-neutral-800 mt-0.5">{stats.pending_transactions ?? 0}</p>
+                    <p className="text-[11.5px] text-neutral-600 font-extrabold uppercase">Transactions</p>
+                    <p className="text-2xl font-black text-neutral-900 mt-1">{stats.pending_transactions ?? 0}</p>
                   </div>
                   <div className="p-1.5 rounded-lg bg-amber-100/50 text-amber-800">
                     <Clock className="h-4 w-4" />
@@ -415,8 +415,8 @@ export default function AdminOverview() {
                   data-testid="kpi-pending-kyc"
                 >
                   <div>
-                    <p className="text-[10px] text-neutral-450 font-bold uppercase">KYC Requests</p>
-                    <p className="text-xl font-black text-neutral-800 mt-0.5">{financial.pending_kyc_count ?? 0}</p>
+                    <p className="text-[11.5px] text-neutral-600 font-extrabold uppercase">KYC Requests</p>
+                    <p className="text-2xl font-black text-neutral-900 mt-1">{financial.pending_kyc_count ?? 0}</p>
                   </div>
                   <div className="p-1.5 rounded-lg bg-blue-100/50 text-blue-700">
                     <ShieldCheck className="h-4 w-4" />
@@ -428,15 +428,15 @@ export default function AdminOverview() {
             <div className="border-t border-black/5 my-4" />
 
             <div>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-455 mb-3.5">Registered Accounts</h3>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-3.5">Registered Accounts</h3>
               <div className="grid grid-cols-3 gap-3">
                 <div 
                   className="p-3 bg-slate-50/50 border border-black/5 rounded-2xl flex items-center justify-between hover:bg-slate-50/80 transition-all"
                   data-testid="kpi-total-master-distributors"
                 >
                   <div>
-                    <p className="text-[9px] text-neutral-450 font-bold uppercase">Master Dist</p>
-                    <p className="text-lg font-black text-neutral-800 mt-0.5">{stats.total_master_distributors ?? 0}</p>
+                    <p className="text-[10.5px] text-neutral-600 font-extrabold uppercase">Master Dist</p>
+                    <p className="text-xl font-black text-neutral-900 mt-1">{stats.total_master_distributors ?? 0}</p>
                   </div>
                   <div className="p-1 rounded-lg bg-amber-50 text-amber-500">
                     <Crown className="h-4 w-4" />
@@ -445,8 +445,8 @@ export default function AdminOverview() {
 
                 <div className="p-3 bg-slate-50/50 border border-black/5 rounded-2xl flex items-center justify-between hover:bg-slate-50/80 transition-all">
                   <div>
-                    <p className="text-[9px] text-neutral-450 font-bold uppercase">Distributor</p>
-                    <p className="text-lg font-black text-neutral-800 mt-0.5">{stats.total_distributors ?? 0}</p>
+                    <p className="text-[10.5px] text-neutral-600 font-extrabold uppercase">Distributor</p>
+                    <p className="text-xl font-black text-neutral-900 mt-1">{stats.total_distributors ?? 0}</p>
                   </div>
                   <div className="p-1 rounded-lg bg-indigo-50 text-indigo-500">
                     <Users className="h-4 w-4" />
@@ -455,8 +455,8 @@ export default function AdminOverview() {
 
                 <div className="p-3 bg-slate-50/50 border border-black/5 rounded-2xl flex items-center justify-between hover:bg-slate-50/80 transition-all">
                   <div>
-                    <p className="text-[9px] text-neutral-450 font-bold uppercase">Agent</p>
-                    <p className="text-lg font-black text-neutral-800 mt-0.5">{stats.total_agents ?? 0}</p>
+                    <p className="text-[10.5px] text-neutral-600 font-extrabold uppercase">Agent</p>
+                    <p className="text-xl font-black text-neutral-900 mt-1">{stats.total_agents ?? 0}</p>
                   </div>
                   <div className="p-1 rounded-lg bg-rose-50 text-rose-500">
                     <UserCog className="h-4 w-4" />
