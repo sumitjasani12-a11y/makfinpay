@@ -261,20 +261,6 @@ export default function LiveBillHistory() {
               )
             },
             {
-              key: "customer_name",
-              label: "Customer",
-              render: (r) => (
-                <div className="flex items-center gap-2">
-                  <div className="h-6 w-6 rounded-full bg-indigo-50 text-indigo-600 text-[10px] font-black flex items-center justify-center border border-indigo-100/80 flex-shrink-0">
-                    {(r.customer_name || "N")[0].toUpperCase()}
-                  </div>
-                  <span className="font-semibold text-neutral-800 text-xs capitalize whitespace-nowrap">
-                    {r.customer_name || "N/A"}
-                  </span>
-                </div>
-              )
-            },
-            {
               key: "operator",
               label: "Biller Name / ID",
               render: (r) => (

@@ -135,7 +135,6 @@ export default function AdminLiveBillHistory() {
       )
     },
     { key: "user_name", label: "Agent" },
-    { key: "customer_name", label: "Customer" },
     { key: "customer_phone", label: "Mobile", render: (r) => r.customer_phone || "—" },
     { key: "operator", label: "Biller / Operator" },
     { key: "bill_amount", label: "Bill Amount", render: (r) => (
