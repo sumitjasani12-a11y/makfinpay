@@ -15,12 +15,17 @@ const getIconColor = (label) => {
     "Recharge Approvals": "text-[#06D6A0]", // Teal/Emerald
     "Recharge Activity": "text-[#06D6A0]",
     "Recharge Wallet": "text-[#06D6A0]",
+    "QR Load Wallet": "text-[#00F5D4]", // Bright Cyan
     "Withdrawals": "text-[#FF5A5F]", // Soft Red
     "Withdrawal": "text-[#FF5A5F]",
+    "Pay Withdrawal": "text-[#FF5A5F]",
     "Transactions": "text-[#FF9F1C]", // Orange
     "Transaction History": "text-[#FF9F1C]",
+    "Live Bill History": "text-[#FFB703]", // Golden Amber
     "Credit Card Bill": "text-[#7209B7]", // Purple
-    "Wallet Ledger": "text-[#3F37C9]", // Indigo/Blue
+    "Live Bill Pay": "text-[#3F37C9]", // Indigo
+    "Wallet Ledger": "text-[#4895EF]", // Sky Blue
+    "Account Statement": "text-[#4895EF]",
     "QR Codes": "text-[#00B4D8]", // Sky Blue
     "QR Name Entry": "text-[#00F5D4]", // Bright Cyan/Teal
     "QR Gallery": "text-[#FF007F]", // Neon Pink
@@ -33,6 +38,8 @@ const getIconColor = (label) => {
     "Audit Logs": "text-[#90A955]", // Soft Green
     "Backup & Restore": "text-[#B5E2FA]", // Ice Blue
     "Change Password": "text-[#DDA15E]", // Light Copper
+    "Change MPIN": "text-[#FF70A6]", // Soft Salmon Pink
+    "Manage TPIN": "text-[#70E000]", // Lime Green
     "Settings": "text-[#A8DADC]", // Pastel Blue
     "Rules & Policies": "text-[#FCA311]" // Tangerine
   };
@@ -63,7 +70,7 @@ export function SidebarContent({ user, items, onLogout }) {
             to={it.to}
             end={it.end}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all font-bold text-[11px] tracking-wider uppercase ` +
+              `flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all font-bold text-[12.5px] tracking-wider uppercase ` +
               `${isActive
                 ? "bg-white/10 text-white shadow-sm border border-white/5"
                 : "text-white/70 hover:bg-white/5 hover:text-white"
@@ -71,7 +78,7 @@ export function SidebarContent({ user, items, onLogout }) {
             }
             data-testid={`nav-${it.label.replace(/\s+/g, "-").toLowerCase()}`}
           >
-            <it.icon className={`h-4 w-4 shrink-0 ${getIconColor(it.label)}`} strokeWidth={2.3} />
+            <it.icon className={`h-[18px] w-[18px] shrink-0 ${getIconColor(it.label)}`} strokeWidth={2.3} />
             <span>{it.label}</span>
           </NavLink>
         ))}
@@ -90,10 +97,10 @@ export function SidebarContent({ user, items, onLogout }) {
         
         <button
           onClick={onLogout}
-          className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[11px] font-bold text-white/70 hover:bg-white/5 hover:text-white hover:text-rose-400 hover:bg-rose-500/5 transition-all select-none border border-transparent hover:border-rose-500/10 uppercase tracking-wider"
+          className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[12.5px] font-bold text-white/70 hover:bg-white/5 hover:text-white hover:text-rose-400 hover:bg-rose-500/5 transition-all select-none border border-transparent hover:border-rose-500/10 uppercase tracking-wider"
           data-testid="logout-btn"
         >
-          <LogOut className="h-4 w-4 shrink-0 text-rose-400" strokeWidth={2.3} />
+          <LogOut className="h-[18px] w-[18px] shrink-0 text-rose-400" strokeWidth={2.3} />
           <span>Sign out</span>
         </button>
       </div>
