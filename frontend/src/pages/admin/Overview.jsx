@@ -349,42 +349,47 @@ export default function AdminOverview() {
             </div>
           </div>
 
-          {/* Right Side: Lifetime Cards stacked vertically */}
-          <div className="lg:col-span-6 flex flex-col gap-3.5 h-[340px]">
-            <FinancialCard
-              label="Total Wallet Balance"
-              value={fmtMoney(financial.total_wallet)}
-              hint="All time • Live balance"
-              colorClass="text-cyan-800"
-              borderClass="border-cyan-100"
-              bgClass="bg-gradient-to-br from-cyan-50/60 to-cyan-100/20"
-              icon={Wallet}
-              iconBg="bg-cyan-100/50 text-cyan-700"
-            />
+          {/* Right Side: Lifetime Cards in a single unified card matching h-[340px] */}
+          <div className="lg:col-span-6 bg-white border border-black/5 rounded-[28px] p-5 shadow-sm flex flex-col justify-between h-[340px]">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2">Live Balances & Earnings</h3>
+            
+            <div className="flex flex-col gap-3 flex-1 justify-center">
+              {/* Wallet Balance */}
+              <div className="p-3 bg-gradient-to-r from-cyan-50/60 to-cyan-100/20 border border-cyan-100 rounded-2xl flex items-center justify-between hover:-translate-y-0.5 transition-all">
+                <div>
+                  <p className="text-[10.5px] text-cyan-800 font-extrabold uppercase tracking-wide">Total Wallet Balance</p>
+                  <p className="text-xl font-black text-cyan-900 mt-0.5">{fmtMoney(financial.total_wallet)}</p>
+                  <p className="text-[9px] text-cyan-600 font-medium mt-0.5">All time • Live balance</p>
+                </div>
+                <div className="p-2.5 rounded-xl bg-cyan-100/50 text-cyan-700">
+                  <Wallet className="h-5 w-5" />
+                </div>
+              </div>
 
-            <FinancialCard
-              label="Total MD Earnings"
-              value={fmtMoney(financial.total_md_earnings ?? 0)}
-              hint="All time • Live balance"
-              colorClass="text-violet-850"
-              borderClass="border-violet-100"
-              bgClass="bg-gradient-to-br from-violet-50/60 to-violet-100/20"
-              icon={Coins}
-              iconBg="bg-violet-100/50 text-violet-700"
-              testid="kpi-total-md-earnings"
-            />
+              {/* MD Earnings */}
+              <div className="p-3 bg-gradient-to-r from-violet-50/60 to-violet-100/20 border border-violet-100 rounded-2xl flex items-center justify-between hover:-translate-y-0.5 transition-all" data-testid="kpi-total-md-earnings">
+                <div>
+                  <p className="text-[10.5px] text-violet-800 font-extrabold uppercase tracking-wide">Total MD Earnings</p>
+                  <p className="text-xl font-black text-violet-950 mt-0.5">{fmtMoney(financial.total_md_earnings ?? 0)}</p>
+                  <p className="text-[9px] text-violet-600 font-medium mt-0.5">All time • Live balance</p>
+                </div>
+                <div className="p-2.5 rounded-xl bg-violet-100/50 text-violet-750">
+                  <Coins className="h-5 w-5" />
+                </div>
+              </div>
 
-            <FinancialCard
-              label="Total Distributor Earnings"
-              value={fmtMoney(financial.total_distributor_earnings)}
-              hint="All time • Live balance"
-              colorClass="text-purple-850"
-              borderClass="border-purple-100"
-              bgClass="bg-gradient-to-br from-purple-50/60 to-purple-100/20"
-              icon={Coins}
-              iconBg="bg-purple-100/50 text-purple-700"
-              testid="kpi-total-distributor-earnings"
-            />
+              {/* Distributor Earnings */}
+              <div className="p-3 bg-gradient-to-r from-purple-50/60 to-purple-100/20 border border-purple-100 rounded-2xl flex items-center justify-between hover:-translate-y-0.5 transition-all" data-testid="kpi-total-distributor-earnings">
+                <div>
+                  <p className="text-[10.5px] text-purple-800 font-extrabold uppercase tracking-wide">Total Distributor Earnings</p>
+                  <p className="text-xl font-black text-purple-950 mt-0.5">{fmtMoney(financial.total_distributor_earnings)}</p>
+                  <p className="text-[9px] text-purple-600 font-medium mt-0.5">All time • Live balance</p>
+                </div>
+                <div className="p-2.5 rounded-xl bg-purple-100/50 text-purple-750">
+                  <Coins className="h-5 w-5" />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
