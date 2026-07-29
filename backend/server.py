@@ -2820,7 +2820,7 @@ async def call_irise_api(method: str, endpoint: str, params: dict = None, json_d
         elif ep == "pay-bill":
             return {
                 "status": "success",
-                "transaction_id": f"BBPSU{uuid.uuid4().hex[:8].upper()}",
+                "transaction_id": f"USEPAY{uuid.uuid4().hex[:8].upper()}",
                 "payment_status": "success",
                 "data": {
                     "responseCode": "000",
@@ -3068,8 +3068,6 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
         res = await call_irise_api("POST", "pay-bill", json_data=payload)
         status = res.get("payment_status") or res.get("status")
         usepay_txn_id = res.get("transaction_id")
-        if usepay_txn_id and str(usepay_txn_id).startswith("USEPAY"):
-            usepay_txn_id = str(usepay_txn_id).replace("USEPAY", "BBPSU", 1)
         
         if status == "success":
             await db.transactions.update_one({"id": tid}, {"$set": {
@@ -3145,15 +3143,10 @@ async def usepay_webhook(request: Request):
         print("[USEPAY WEBHOOK ERROR] Missing transaction_id in webhook payload.")
         return {"status": "ignored", "message": "Missing transaction_id"}
         
-    # Convert USEPAY prefix to BBPSU to match database records
-    lookup_txn_id = transaction_id
-    if str(lookup_txn_id).startswith("USEPAY"):
-        lookup_txn_id = str(lookup_txn_id).replace("USEPAY", "BBPSU", 1)
-
     # 1. Find the transaction in our database by external/operator transaction ID
-    tx = await db.transactions.find_one({"operator_txn_id": lookup_txn_id})
+    tx = await db.transactions.find_one({"operator_txn_id": transaction_id})
     if not tx:
-        print(f"[USEPAY WEBHOOK] Transaction {lookup_txn_id} not found in database.")
+        print(f"[USEPAY WEBHOOK] Transaction {transaction_id} not found in database.")
         # Return 200 to acknowledge receipt anyway (as required by most webhooks)
         return {"status": "ignored", "message": "Transaction not found"}
         
