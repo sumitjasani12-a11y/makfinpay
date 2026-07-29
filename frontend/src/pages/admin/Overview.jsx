@@ -29,17 +29,24 @@ function todayStr(offset = 0) {
   return d.toISOString().slice(0, 10);
 }
 
-function FinancialCard({ label, value, hint, breakdowns, icon: Icon, colorClass = "text-neutral-800", iconBg = "bg-neutral-50 text-neutral-500", borderClass = "border-black/5", testid }) {
+function FinancialCard({ label, value, hint, breakdowns, icon: Icon, colorClass = "text-neutral-800", iconBg = "bg-neutral-50 text-neutral-500", borderClass = "border-black/5", testid, badge }) {
   return (
     <div className={`bg-white border ${borderClass} rounded-3xl p-6 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between`} data-testid={testid}>
       <div>
         <div className="flex items-center justify-between gap-2">
           <span className="text-[10px] uppercase font-black tracking-widest text-neutral-400">{label}</span>
-          {Icon && (
-            <div className={`p-2 rounded-xl shrink-0 ${iconBg}`}>
-              <Icon className="h-4.5 w-4.5" />
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {badge && (
+              <span className="text-[10.5px] font-black bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded-full whitespace-nowrap tracking-wide">
+                {badge}
+              </span>
+            )}
+            {Icon && (
+              <div className={`p-2 rounded-xl shrink-0 ${iconBg}`}>
+                <Icon className="h-4.5 w-4.5" />
+              </div>
+            )}
+          </div>
         </div>
         <div className={`text-2xl font-black tracking-tight mt-3 ${colorClass}`}>{value}</div>
         {hint && <p className="text-[11px] text-neutral-400 font-semibold mt-1">{hint}</p>}
@@ -281,11 +288,12 @@ export default function AdminOverview() {
 
           <FinancialCard
             label="Bill Payments"
-            value={financial.total_txn_count ?? 0}
-            hint={`Volume: ${fmtMoney(financial.total_txn_amount)}`}
+            value={fmtMoney(financial.total_txn_amount)}
+            hint="Total volume approved"
             colorClass="text-blue-700"
             icon={FileText}
             iconBg="bg-blue-50 text-blue-600"
+            badge={`${financial.total_txn_count ?? 0} txns`}
           />
 
           <FinancialCard
