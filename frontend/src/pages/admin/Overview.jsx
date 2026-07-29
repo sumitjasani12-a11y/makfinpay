@@ -30,35 +30,35 @@ function todayStr(offset = 0) {
   return d.toISOString().slice(0, 10);
 }
 
-function FinancialCard({ label, value, hint, breakdowns, icon: Icon, colorClass = "text-neutral-900", iconBg = "bg-neutral-50 text-neutral-500", borderClass = "border-black/5", testid, badge, bgClass = "bg-white" }) {
+function FinancialCard({ label, value, hint, breakdowns, icon: Icon, testid, badge, bgClass = "bg-white border-black/5" }) {
   return (
-    <div className={`${bgClass} border ${borderClass} rounded-[28px] p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between`} data-testid={testid}>
+    <div className={`${bgClass} rounded-[28px] p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between`} data-testid={testid}>
       <div>
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[11px] uppercase font-extrabold tracking-wider text-neutral-500">{label}</span>
+          <span className="text-[10px] uppercase font-black tracking-wider text-white/80">{label}</span>
           <div className="flex items-center gap-2">
             {badge && (
-              <span className="text-[10.5px] font-extrabold bg-white/80 border border-black/5 px-2 py-0.5 rounded-full whitespace-nowrap tracking-wide">
+              <span className="text-[9.5px] font-black bg-white/20 border border-white/10 px-2 py-0.5 rounded-full text-white tracking-wide">
                 {badge}
               </span>
             )}
             {Icon && (
-              <div className={`p-2 rounded-xl shrink-0 ${iconBg}`}>
+              <div className="p-2 rounded-xl shrink-0 bg-white/10 text-white/90 border border-white/10">
                 <Icon className="h-4 w-4" />
               </div>
             )}
           </div>
         </div>
-        <div className={`text-[24px] font-black tracking-tight mt-2.5 ${colorClass}`}>{value}</div>
-        {hint && <p className="text-[11.5px] text-neutral-500 font-semibold mt-1">{hint}</p>}
+        <div className="text-2xl font-black tracking-tight mt-3 text-white">{value}</div>
+        {hint && <p className="text-[11px] text-white/70 font-semibold mt-1">{hint}</p>}
       </div>
 
       {breakdowns && breakdowns.length > 0 && (
-        <div className="mt-4 pt-3.5 border-t border-black/5 space-y-2 text-[11.5px] text-neutral-500 font-semibold">
+        <div className="mt-4 pt-3.5 border-t border-white/10 space-y-2 text-[11px] text-white/70 font-semibold">
           {breakdowns.map((b, idx) => (
             <div key={idx} className="flex justify-between items-center" data-testid={b.testid}>
               <span>{b.label}</span>
-              <span className="text-neutral-900 font-black">{b.value}</span>
+              <span className="text-white font-black">{b.value}</span>
             </div>
           ))}
         </div>
@@ -241,11 +241,8 @@ export default function AdminOverview() {
           <FinancialCard
             label="Total Revenue (Commission)"
             value={fmtMoney(financial.total_revenue)}
-            colorClass="text-amber-800"
-            borderClass="border-amber-100"
-            bgClass="bg-gradient-to-br from-amber-50/60 to-amber-100/20"
+            bgClass="bg-gradient-to-br from-[#664D03] to-[#FD7E14] border border-orange-500/20 text-white"
             icon={TrendingUp}
-            iconBg="bg-amber-100/50 text-amber-700"
             breakdowns={[
               { label: "Admin Revenue", value: fmtMoney(financial.admin_revenue) },
               { label: "Master Distributor Earnings", value: fmtMoney(financial.md_earnings ?? 0), testid: "revenue-md-earnings" },
@@ -257,11 +254,8 @@ export default function AdminOverview() {
             label="Transaction Revenue"
             value={fmtMoney(financial.transaction_revenue)}
             hint="From service charges"
-            colorClass="text-indigo-800"
-            borderClass="border-indigo-100"
-            bgClass="bg-gradient-to-br from-indigo-50/60 to-indigo-100/20"
+            bgClass="bg-gradient-to-br from-[#1E203B] to-[#4F46E5] border border-indigo-500/20 text-white"
             icon={Activity}
-            iconBg="bg-indigo-100/50 text-indigo-700"
             breakdowns={[
               { label: "CC Bill Charge", value: fmtMoney(financial.cc_bill_revenue ?? 0) },
               { label: "Live Bill Profit", value: fmtMoney(financial.live_bill_profit ?? 0) }
@@ -272,22 +266,16 @@ export default function AdminOverview() {
             label="Recharge Approved"
             value={fmtMoney(financial.recharge_approved)}
             hint="Gross approved in range"
-            colorClass="text-emerald-800"
-            borderClass="border-emerald-100"
-            bgClass="bg-gradient-to-br from-emerald-50/60 to-emerald-100/20"
+            bgClass="bg-gradient-to-br from-[#0F5132] to-[#198754] border border-emerald-500/20 text-white"
             icon={ArrowUpRight}
-            iconBg="bg-emerald-100/50 text-emerald-700"
           />
 
           <FinancialCard
             label="Bill Payments"
             value={fmtMoney(financial.total_txn_amount)}
             hint="Total volume approved"
-            colorClass="text-blue-800"
-            borderClass="border-blue-100"
-            bgClass="bg-gradient-to-br from-blue-50/60 to-blue-100/20"
+            bgClass="bg-gradient-to-br from-[#0A3641] to-[#0D6EFD] border border-blue-500/20 text-white"
             icon={FileText}
-            iconBg="bg-blue-100/50 text-blue-700"
             badge={`${financial.total_txn_count ?? 0} txns`}
             breakdowns={[
               { label: "CC Bill Volume", value: fmtMoney(financial.cc_bill_volume ?? 0) },
@@ -298,11 +286,8 @@ export default function AdminOverview() {
           <FinancialCard
             label="Withdrawals"
             value={fmtMoney(financial.total_withdrawals_approved)}
-            colorClass="text-rose-800"
-            borderClass="border-rose-100"
-            bgClass="bg-gradient-to-br from-rose-50/60 to-rose-100/20"
+            bgClass="bg-gradient-to-br from-[#3B0066] to-[#6F42C1] border border-purple-500/20 text-white"
             icon={ArrowUpFromLine}
-            iconBg="bg-rose-100/50 text-rose-700"
             testid="kpi-withdrawals"
             breakdowns={[
               { label: "Agent Withdrawals", value: fmtMoney(financial.agent_withdrawals_approved), testid: "kpi-withdrawals-agent" },
@@ -409,12 +394,12 @@ export default function AdminOverview() {
               <div className="grid grid-cols-2 gap-3">
                 <button 
                   onClick={() => nav("/admin/recharges")} 
-                  className="text-left p-3.5 bg-slate-50/50 hover:bg-slate-50/90 border border-black/5 hover:border-black/10 rounded-2xl flex items-center justify-between transition-all hover:-translate-y-0.5"
+                  className="text-left p-3.5 bg-slate-50/30 hover:bg-emerald-50/40 border border-slate-100 hover:border-emerald-200/80 rounded-2xl flex items-center justify-between transition-all duration-300 hover:-translate-y-0.5"
                   data-testid="kpi-pending-recharges"
                 >
                   <div>
-                    <p className="text-[11.5px] text-neutral-600 font-extrabold uppercase">Recharges</p>
-                    <p className="text-2xl font-black text-neutral-900 mt-1">{stats.pending_recharges ?? 0}</p>
+                    <p className="text-[11px] text-slate-400 font-extrabold uppercase tracking-wide">Recharges</p>
+                    <p className="text-2xl font-black text-slate-800 mt-1">{stats.pending_recharges ?? 0}</p>
                   </div>
                   <div className="p-1.5 rounded-lg bg-emerald-100/50 text-emerald-700">
                     <Clock className="h-4 w-4" />
@@ -423,12 +408,12 @@ export default function AdminOverview() {
 
                 <button 
                   onClick={() => nav("/admin/withdrawals")} 
-                  className="text-left p-3.5 bg-slate-50/50 hover:bg-slate-50/90 border border-black/5 hover:border-black/10 rounded-2xl flex items-center justify-between transition-all hover:-translate-y-0.5"
+                  className="text-left p-3.5 bg-slate-50/30 hover:bg-rose-50/40 border border-slate-100 hover:border-rose-200/80 rounded-2xl flex items-center justify-between transition-all duration-300 hover:-translate-y-0.5"
                   data-testid="kpi-pending-withdrawals"
                 >
                   <div>
-                    <p className="text-[11.5px] text-neutral-600 font-extrabold uppercase">Withdrawals</p>
-                    <p className="text-2xl font-black text-neutral-900 mt-1">{stats.pending_withdrawals ?? 0}</p>
+                    <p className="text-[11px] text-slate-400 font-extrabold uppercase tracking-wide">Withdrawals</p>
+                    <p className="text-2xl font-black text-slate-800 mt-1">{stats.pending_withdrawals ?? 0}</p>
                   </div>
                   <div className="p-1.5 rounded-lg bg-rose-100/50 text-rose-700">
                     <Clock className="h-4 w-4" />
@@ -437,12 +422,12 @@ export default function AdminOverview() {
 
                 <button 
                   onClick={() => nav("/admin/transactions")} 
-                  className="text-left p-3.5 bg-slate-50/50 hover:bg-slate-50/90 border border-black/5 hover:border-black/10 rounded-2xl flex items-center justify-between transition-all hover:-translate-y-0.5"
+                  className="text-left p-3.5 bg-slate-50/30 hover:bg-amber-50/40 border border-slate-100 hover:border-amber-200/80 rounded-2xl flex items-center justify-between transition-all duration-300 hover:-translate-y-0.5"
                   data-testid="kpi-pending-tx"
                 >
                   <div>
-                    <p className="text-[11.5px] text-neutral-600 font-extrabold uppercase">Transactions</p>
-                    <p className="text-2xl font-black text-neutral-900 mt-1">{stats.pending_transactions ?? 0}</p>
+                    <p className="text-[11px] text-slate-400 font-extrabold uppercase tracking-wide">Transactions</p>
+                    <p className="text-2xl font-black text-slate-800 mt-1">{stats.pending_transactions ?? 0}</p>
                   </div>
                   <div className="p-1.5 rounded-lg bg-amber-100/50 text-amber-800">
                     <Clock className="h-4 w-4" />
@@ -451,12 +436,12 @@ export default function AdminOverview() {
 
                 <button 
                   onClick={() => nav("/admin/kyc")} 
-                  className="text-left p-3.5 bg-slate-50/50 hover:bg-slate-50/90 border border-black/5 hover:border-black/10 rounded-2xl flex items-center justify-between transition-all hover:-translate-y-0.5"
+                  className="text-left p-3.5 bg-slate-50/30 hover:bg-blue-50/40 border border-slate-100 hover:border-blue-200/80 rounded-2xl flex items-center justify-between transition-all duration-300 hover:-translate-y-0.5"
                   data-testid="kpi-pending-kyc"
                 >
                   <div>
-                    <p className="text-[11.5px] text-neutral-600 font-extrabold uppercase">KYC Requests</p>
-                    <p className="text-2xl font-black text-neutral-900 mt-1">{financial.pending_kyc_count ?? 0}</p>
+                    <p className="text-[11px] text-slate-400 font-extrabold uppercase tracking-wide">KYC Requests</p>
+                    <p className="text-2xl font-black text-slate-800 mt-1">{financial.pending_kyc_count ?? 0}</p>
                   </div>
                   <div className="p-1.5 rounded-lg bg-blue-100/50 text-blue-700">
                     <ShieldCheck className="h-4 w-4" />
@@ -471,32 +456,32 @@ export default function AdminOverview() {
               <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-3.5">Registered Accounts</h3>
               <div className="grid grid-cols-3 gap-3">
                 <div 
-                  className="p-3 bg-slate-50/50 border border-black/5 rounded-2xl flex items-center justify-between hover:bg-slate-50/80 transition-all"
+                  className="p-3 bg-slate-50/30 hover:bg-amber-50/40 border border-slate-100 hover:border-amber-200/80 rounded-2xl flex items-center justify-between transition-all duration-300"
                   data-testid="kpi-total-master-distributors"
                 >
                   <div>
-                    <p className="text-[10.5px] text-neutral-600 font-extrabold uppercase">Master Dist</p>
-                    <p className="text-xl font-black text-neutral-900 mt-1">{stats.total_master_distributors ?? 0}</p>
+                    <p className="text-[9.5px] text-slate-400 font-extrabold uppercase tracking-tight">Master Dist</p>
+                    <p className="text-xl font-black text-slate-800 mt-1">{stats.total_master_distributors ?? 0}</p>
                   </div>
                   <div className="p-1 rounded-lg bg-amber-50 text-amber-500">
                     <Crown className="h-4 w-4" />
                   </div>
                 </div>
 
-                <div className="p-3 bg-slate-50/50 border border-black/5 rounded-2xl flex items-center justify-between hover:bg-slate-50/80 transition-all">
+                <div className="p-3 bg-slate-50/30 hover:bg-indigo-50/40 border border-slate-100 hover:border-indigo-200/80 rounded-2xl flex items-center justify-between transition-all duration-300">
                   <div>
-                    <p className="text-[10.5px] text-neutral-600 font-extrabold uppercase">Distributor</p>
-                    <p className="text-xl font-black text-neutral-900 mt-1">{stats.total_distributors ?? 0}</p>
+                    <p className="text-[9.5px] text-slate-400 font-extrabold uppercase tracking-tight">Distributor</p>
+                    <p className="text-xl font-black text-slate-800 mt-1">{stats.total_distributors ?? 0}</p>
                   </div>
                   <div className="p-1 rounded-lg bg-indigo-50 text-indigo-500">
                     <Users className="h-4 w-4" />
                   </div>
                 </div>
 
-                <div className="p-3 bg-slate-50/50 border border-black/5 rounded-2xl flex items-center justify-between hover:bg-slate-50/80 transition-all">
+                <div className="p-3 bg-slate-50/30 hover:bg-rose-50/40 border border-slate-100 hover:border-rose-200/80 rounded-2xl flex items-center justify-between transition-all duration-300">
                   <div>
-                    <p className="text-[10.5px] text-neutral-600 font-extrabold uppercase">Agent</p>
-                    <p className="text-xl font-black text-neutral-900 mt-1">{stats.total_agents ?? 0}</p>
+                    <p className="text-[9.5px] text-slate-400 font-extrabold uppercase tracking-tight">Agent</p>
+                    <p className="text-xl font-black text-slate-800 mt-1">{stats.total_agents ?? 0}</p>
                   </div>
                   <div className="p-1 rounded-lg bg-rose-50 text-rose-500">
                     <UserCog className="h-4 w-4" />
