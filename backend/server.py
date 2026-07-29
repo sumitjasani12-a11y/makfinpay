@@ -727,6 +727,41 @@ async def ledger_entry(user_id: str, kind: str, amount: float, balance_after: fl
         "created_at": now_iso(),
     })
 
+async def log_admin_profit(type_str: str, amount: float, ref_type: str = "", ref_id: str = "", note: str = ""):
+    # Find last entry to calculate balance_after
+    last = await db.admin_profit_ledger.find({}, {"_id": 0}).sort("created_at", -1).to_list(1)
+    last_bal = float(last[0]["balance_after"]) if last else 0.0
+    change = float(amount) if type_str == "credit" else -float(amount)
+    new_bal = round(last_bal + change, 2)
+    
+    await db.admin_profit_ledger.insert_one({
+        "id": new_id(),
+        "type": type_str,
+        "amount": round(float(amount), 2),
+        "balance_after": new_bal,
+        "ref_type": ref_type,
+        "ref_id": ref_id,
+        "note": note,
+        "created_at": now_iso()
+    })
+
+async def log_admin_cashbook(type_str: str, amount: float, ref_type: str = "", ref_id: str = "", note: str = ""):
+    last = await db.admin_cashbook.find({}, {"_id": 0}).sort("created_at", -1).to_list(1)
+    last_bal = float(last[0]["balance_after"]) if last else 0.0
+    change = float(amount) if type_str == "credit" else -float(amount)
+    new_bal = round(last_bal + change, 2)
+    
+    await db.admin_cashbook.insert_one({
+        "id": new_id(),
+        "type": type_str,
+        "amount": round(float(amount), 2),
+        "balance_after": new_bal,
+        "ref_type": ref_type,
+        "ref_id": ref_id,
+        "note": note,
+        "created_at": now_iso()
+    })
+
 async def adjust_balance(user_id: str, delta: float) -> float:
     w = await get_or_create_wallet(user_id)
     new_balance = round(w["balance"] + delta, 2)
@@ -2651,6 +2686,11 @@ async def admin_approve_recharge(rid: str, body: ApprovalIn, request: Request, u
     }})
     await ledger_entry(r["user_id"], "t1_pending" if is_t1_request else "credit", net_credit_amount, new_balance, "recharge", rid,
                        f"T+1 Recharge approved (Pending settlement)" if is_t1_request else f"Recharge approved (gross {gross}, commission {total_commission_amount})")
+    
+    # Log to Admin Statement
+    await log_admin_cashbook("credit", gross, "recharge_load", rid, f"QR Wallet Load approved for {r.get('user_name', 'Agent')}")
+    await log_admin_profit("credit", admin_revenue_amount, "recharge_commission", rid, f"Commission earned from QR Wallet Load ({r.get('user_name', 'Agent')})")
+
     await write_audit(user["id"], "approve_recharge", target=rid, request=request)
     return {"ok": True}
 
@@ -3157,6 +3197,8 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
                 "reviewed_by": None,
                 "operator_txn_id": usepay_txn_id
             }})
+            # Log to Admin Statement
+            await log_admin_cashbook("debit", body.amount, "bbps_payout", tid, f"Paid Live Bill for {user['full_name']} ({body.billerId})")
             return {"status": "success", "transaction_id": tid}
         elif status == "pending":
             await db.transactions.update_one({"id": tid}, {"$set": {
@@ -3242,11 +3284,18 @@ async def usepay_webhook(request: Request):
                 "reviewed_at": now_iso(),
                 "note": f"Payment success confirmed by Usepay Webhook (Status: {bbps_status or 'SUCCESS'})"
             }})
+            # Log to Admin Statement
+            await log_admin_cashbook("debit", tx["amount"], "bbps_payout", tx["id"], f"Paid Live Bill for {tx.get('user_name', 'Agent')} ({tx.get('operator', 'Biller')})")
             print(f"[USEPAY WEBHOOK SUCCESS] Transaction {tx['id']} updated to success.")
     elif status_lower in ["failed", "error", "failure"]:
         # If it failed, refund the agent's wallet and mark as reversed
         if tx.get("status") != "reversed":
             new_balance = await adjust_balance(tx["user_id"], tx["amount"])
+            
+            # Log to Admin Statement (if it was previously marked success, refund)
+            if tx.get("status") == "success":
+                await log_admin_cashbook("credit", tx["amount"], "bbps_refund", tx["id"], f"Reversal of BBPS payout ({tx.get('operator', 'Biller')})")
+                
             await db.transactions.update_one({"id": tx["id"]}, {"$set": {
                 "status": "reversed",
                 "reviewed_at": now_iso(),
@@ -3312,6 +3361,11 @@ async def admin_approve_transaction(tid: str, body: ApprovalIn, request: Request
     await db.transactions.update_one({"id": tid}, {"$set": {"status": "success", "note": body.note or "", "reviewed_by": user["id"], "reviewed_at": now_iso()}})
     wallet = await get_or_create_wallet(t["user_id"])
     await ledger_entry(t["user_id"], "adjustment", 0, wallet["balance"], "bill_payment_success", tid, "Payment confirmed by Admin")
+    
+    # Log to Admin Statement
+    await log_admin_cashbook("debit", t["amount"], "bill_payment_payout", tid, f"Paid CC Bill for {t.get('user_name', 'Agent')} ({t.get('operator', 'Bank')})")
+    await log_admin_profit("credit", t.get("service_charge", 0.0), "bill_payment_fee", tid, f"Fee earned from CC Bill ({t.get('user_name', 'Agent')})")
+
     await write_audit(user["id"], "transaction_approved", target=tid, meta={"amount": t["amount"]}, request=request)
     return {"ok": True}
 
@@ -3325,6 +3379,12 @@ async def admin_reject_transaction(tid: str, body: ApprovalIn, request: Request,
     new_balance = await adjust_balance(t["user_id"], t["amount"])
     await db.transactions.update_one({"id": tid}, {"$set": {"status": "reversed", "note": body.note or "", "reviewed_by": user["id"], "reviewed_at": now_iso()}})
     await ledger_entry(t["user_id"], "refund", t["amount"], new_balance, "bill_payment_reversal", tid, "Payment reversed by Admin")
+    
+    # Log to Admin Statement (if CC bill was already approved/success, reverse entries)
+    if t["status"] == "success":
+        await log_admin_cashbook("credit", t["amount"], "bill_payment_refund", tid, f"Reversal of CC Bill payout ({t.get('user_name', 'Agent')})")
+        await log_admin_profit("debit", t.get("service_charge", 0.0), "bill_payment_reversal", tid, f"Reversal of CC Bill fee ({t.get('user_name', 'Agent')})")
+
     await write_audit(user["id"], "transaction_reversed", target=tid, meta={"amount": t["amount"]}, request=request)
     return {"ok": True}
 
@@ -3447,6 +3507,9 @@ async def admin_approve_withdrawal(wid: str, body: ApprovalIn, request: Request,
         await db.withdrawals.update_one({"id": wid}, {"$set": {"status": "approved", "note": body.note or "", "reviewed_at": now_iso(), "reviewed_by": user["id"]}})
         wallet = await get_or_create_wallet(w["user_id"])
         await ledger_entry(w["user_id"], "adjustment", 0, wallet["balance"], "withdrawal_paid", wid, "Withdrawal approved & paid")
+
+    # Log to Admin Statement
+    await log_admin_cashbook("debit", w["amount"], "withdrawal_payout", wid, f"Withdrawal paid to {w.get('user_name', 'User')} ({w.get('role', 'Agent')})")
 
     await write_audit(user["id"], "approve_withdrawal", target=wid, request=request)
     return {"ok": True}
@@ -4129,6 +4192,68 @@ async def update_admin_recharge_toggles(body: RechargeTogglesIn, request: Reques
     await db.settings.update_one({"id": "commission"}, {"$set": doc})
     await write_audit(user["id"], "recharge_toggles_changed", target="settings", meta=doc, request=request)
     return doc
+
+class AdminAdjustmentIn(BaseModel):
+    type: str  # credit | debit
+    amount: float
+    note: str
+
+@api.get("/admin/profit-ledger")
+async def get_admin_profit_ledger(user=Depends(require_roles("admin"))):
+    return await db.admin_profit_ledger.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+
+@api.get("/admin/cashbook")
+async def get_admin_cashbook(user=Depends(require_roles("admin"))):
+    return await db.admin_cashbook.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+
+@api.get("/admin/system-ledger")
+async def get_admin_system_ledger(
+    page: int = 1,
+    page_size: int = 50,
+    user=Depends(require_roles("admin"))
+):
+    page = max(1, page); page_size = max(1, min(200, page_size))
+    total = await db.ledger.count_documents({})
+    items = await db.ledger.find({}, {"_id": 0}).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
+    for item in items:
+        uid = item.get("user_id")
+        if uid:
+            u = await db.users.find_one({"id": uid}, {"_id": 0, "full_name": 1, "email": 1, "role": 1})
+            if u:
+                item["user_name"] = u.get("full_name")
+                item["user_email"] = u.get("email")
+                item["user_role"] = u.get("role")
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+@api.post("/admin/profit-ledger/adjust")
+async def adjust_admin_profit(body: AdminAdjustmentIn, request: Request, user=Depends(require_roles("admin"))):
+    if body.amount <= 0:
+        raise HTTPException(400, "Amount must be greater than zero")
+    if body.type not in ("credit", "debit"):
+        raise HTTPException(400, "Type must be credit or debit")
+    await log_admin_profit(
+        type_str=body.type,
+        amount=body.amount,
+        ref_type="manual_adjustment",
+        ref_id=user["id"],
+        note=body.note
+    )
+    return {"ok": True}
+
+@api.post("/admin/cashbook/adjust")
+async def adjust_admin_cashbook(body: AdminAdjustmentIn, request: Request, user=Depends(require_roles("admin"))):
+    if body.amount <= 0:
+        raise HTTPException(400, "Amount must be greater than zero")
+    if body.type not in ("credit", "debit"):
+        raise HTTPException(400, "Type must be credit or debit")
+    await log_admin_cashbook(
+        type_str=body.type,
+        amount=body.amount,
+        ref_type="manual_adjustment",
+        ref_id=user["id"],
+        note=body.note
+    )
+    return {"ok": True}
 
 # --- Cascade helper: recompute all agents under a distributor ---
 async def cascade_distributor_agents(distributor_id: str, new_distributor_pct: float, actor_id: str,
@@ -4837,6 +4962,31 @@ async def _ensure_indexes() -> None:
         await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS is_t1 BOOLEAN DEFAULT FALSE')
         await conn.execute('ALTER TABLE qr_name_entries ADD COLUMN IF NOT EXISTS is_t1 BOOLEAN DEFAULT FALSE')
         await conn.execute('ALTER TABLE qr_codes ADD COLUMN IF NOT EXISTS is_t1 BOOLEAN DEFAULT FALSE')
+        # Admin Statement tables
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS admin_profit_ledger (
+                id VARCHAR(255) PRIMARY KEY,
+                type VARCHAR(50) NOT NULL,
+                amount NUMERIC(15, 2) NOT NULL,
+                balance_after NUMERIC(15, 2) NOT NULL,
+                ref_type VARCHAR(100),
+                ref_id VARCHAR(255),
+                note TEXT,
+                created_at TIMESTAMPTZ NOT NULL
+            )
+        ''')
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS admin_cashbook (
+                id VARCHAR(255) PRIMARY KEY,
+                type VARCHAR(50) NOT NULL,
+                amount NUMERIC(15, 2) NOT NULL,
+                balance_after NUMERIC(15, 2) NOT NULL,
+                ref_type VARCHAR(100),
+                ref_id VARCHAR(255),
+                note TEXT,
+                created_at TIMESTAMPTZ NOT NULL
+            )
+        ''')
     await db.users.create_index("email", unique=True)
     # drop legacy agent_code index if it exists from older schema
     try:

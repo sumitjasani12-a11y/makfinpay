@@ -28,6 +28,7 @@ import AdminBanks from "@/pages/admin/Banks";
 import AdminSettings from "@/pages/admin/Settings";
 import AdminReasons from "@/pages/admin/Reasons";
 import AdminPolicies from "@/pages/admin/Policies";
+import AdminStatement from "@/pages/admin/Statement";
 import UserPolicies from "@/pages/UserPolicies";
 
 
@@ -111,6 +112,7 @@ export default function App() {
             <Route path="change-password" element={<ChangePassword />} />
             <Route path="settings" element={<AdminSettings />} />
             <Route path="policies" element={<AdminPolicies />} />
+            <Route path="statement" element={<AdminStatement />} />
           </Route>
 
           {/* Distributor */}
