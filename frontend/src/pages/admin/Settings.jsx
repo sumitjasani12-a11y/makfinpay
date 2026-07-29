@@ -7,6 +7,7 @@ import { Save, ShieldAlert, Check } from "lucide-react";
 export default function AdminSettings() {
   const [minLimit, setMinLimit] = useState("");
   const [maxLimit, setMaxLimit] = useState("");
+  const [apiCharge, setApiCharge] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -15,6 +16,7 @@ export default function AdminSettings() {
       const { data } = await api.get("/admin/settings/recharge-limits");
       setMinLimit(String(data.min_recharge_limit ?? 100));
       setMaxLimit(String(data.max_recharge_limit ?? 300000));
+      setApiCharge(String(data.live_bill_api_charge ?? 0));
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Failed to load settings");
     } finally {
@@ -30,6 +32,7 @@ export default function AdminSettings() {
     e.preventDefault();
     const minVal = parseFloat(minLimit);
     const maxVal = parseFloat(maxLimit);
+    const chargeVal = parseFloat(apiCharge);
 
     if (Number.isNaN(minVal) || minVal <= 0) {
       return toast.error("Minimum limit must be a number greater than 0");
@@ -40,6 +43,9 @@ export default function AdminSettings() {
     if (maxVal < minVal) {
       return toast.error("Maximum limit cannot be less than minimum limit");
     }
+    if (Number.isNaN(chargeVal) || chargeVal < 0) {
+      return toast.error("API Charge must be a positive number or zero");
+    }
 
     setSaving(true);
     try {
@@ -47,7 +53,10 @@ export default function AdminSettings() {
         min_recharge_limit: minVal,
         max_recharge_limit: maxVal,
       });
-      toast.success("Recharge limit settings saved successfully");
+      await api.put("/admin/settings/recharge-toggles", {
+        live_bill_api_charge: chargeVal,
+      });
+      toast.success("Settings saved successfully");
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Failed to save settings");
     } finally {
@@ -130,6 +139,38 @@ export default function AdminSettings() {
               <div className="text-xs text-amber-800 leading-relaxed font-medium">
                 Changing these limits will immediately restrict agents from submitting UTR recharge requests 
                 below the minimum or above the maximum limit.
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-base font-semibold text-neutral-800 border-b border-black/5 pb-2.5 mb-4 mt-6">
+                Live Bill API Settings
+              </h3>
+              <p className="text-xs text-neutral-500 mb-6 leading-relaxed">
+                Configure the API charge deducted per transaction for live utility bill payments.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="space-y-1">
+                <label className="mfp-label font-bold text-neutral-600">
+                  Live Bill API Charge per txn (₹) <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-400 font-bold text-xs pointer-events-none">
+                    ₹
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    required
+                    value={apiCharge}
+                    onChange={(e) => setApiCharge(e.target.value)}
+                    className="mfp-input !pl-9"
+                    placeholder="0.00"
+                  />
+                </div>
               </div>
             </div>
 

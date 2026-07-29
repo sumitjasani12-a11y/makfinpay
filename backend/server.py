@@ -352,6 +352,7 @@ class RechargeTogglesIn(BaseModel):
     withdrawal_enabled: Optional[bool] = None
     bill_pay_enabled: Optional[bool] = None
     live_bill_enabled: Optional[bool] = None
+    live_bill_api_charge: Optional[float] = None
 
 class HeadlineIn(BaseModel):
     message: str
@@ -3144,6 +3145,7 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
                 card_last4 = val[-4:]
                 break
 
+    api_charge = float(s.get("live_bill_api_charge", 0.0))
     tx = {
         "id": tid,
         "user_id": user["id"],
@@ -3161,7 +3163,8 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
         "created_at": now_iso(),
         "reviewed_at": None,
         "reviewed_by": None,
-        "note": f"Live Bill Payment - {body.mobile}"
+        "note": f"Live Bill Payment - {body.mobile}",
+        "api_charge": api_charge
     }
     await db.transactions.insert_one(dict(tx))
     
@@ -4151,7 +4154,8 @@ async def get_admin_recharge_limits(user=Depends(require_roles("admin"))):
         "recharge_enabled": bool(s.get("recharge_enabled", True)),
         "withdrawal_enabled": bool(s.get("withdrawal_enabled", True)),
         "bill_pay_enabled": bool(s.get("bill_pay_enabled", True)),
-        "live_bill_enabled": bool(s.get("live_bill_enabled", True))
+        "live_bill_enabled": bool(s.get("live_bill_enabled", True)),
+        "live_bill_api_charge": float(s.get("live_bill_api_charge", 0.0))
     }
 
 @api.put("/admin/settings/recharge-limits")
@@ -4179,6 +4183,7 @@ async def update_admin_recharge_toggles(body: RechargeTogglesIn, request: Reques
     withdrawal_val = body.withdrawal_enabled if body.withdrawal_enabled is not None else settings.get("withdrawal_enabled", True)
     bill_pay_val = body.bill_pay_enabled if body.bill_pay_enabled is not None else settings.get("bill_pay_enabled", True)
     live_bill_val = body.live_bill_enabled if body.live_bill_enabled is not None else settings.get("live_bill_enabled", True)
+    live_bill_api_charge_val = body.live_bill_api_charge if body.live_bill_api_charge is not None else float(settings.get("live_bill_api_charge", 0.0))
     
     doc = {
         "qr_enabled": qr_val,
@@ -4187,6 +4192,7 @@ async def update_admin_recharge_toggles(body: RechargeTogglesIn, request: Reques
         "withdrawal_enabled": withdrawal_val,
         "bill_pay_enabled": bill_pay_val,
         "live_bill_enabled": live_bill_val,
+        "live_bill_api_charge": live_bill_api_charge_val,
         "updated_at": now_iso()
     }
     await db.settings.update_one({"id": "commission"}, {"$set": doc})
@@ -4962,6 +4968,8 @@ async def _ensure_indexes() -> None:
         await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS is_t1 BOOLEAN DEFAULT FALSE')
         await conn.execute('ALTER TABLE qr_name_entries ADD COLUMN IF NOT EXISTS is_t1 BOOLEAN DEFAULT FALSE')
         await conn.execute('ALTER TABLE qr_codes ADD COLUMN IF NOT EXISTS is_t1 BOOLEAN DEFAULT FALSE')
+        await conn.execute('ALTER TABLE transactions ADD COLUMN IF NOT EXISTS api_charge NUMERIC(15, 2) DEFAULT 0')
+        await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS live_bill_api_charge NUMERIC(15, 2) DEFAULT 0')
         # Admin Statement tables
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS admin_profit_ledger (
