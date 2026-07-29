@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { api, formatErr, fmtMoney, fmtDate } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
@@ -165,7 +165,12 @@ export default function LiveBillPay() {
   const [loadingPay, setLoadingPay] = useState(false);
   const [walletBalance, setWalletBalance] = useState(null);
   const [showTpinModal, setShowTpinModal] = useState(false);
-  const [enteredTpin, setEnteredTpin] = useState("");
+  const [tpinArray, setTpinArray] = useState(["", "", "", ""]);
+  const pin1Ref = useRef(null);
+  const pin2Ref = useRef(null);
+  const pin3Ref = useRef(null);
+  const pin4Ref = useRef(null);
+  const tpinRefs = [pin1Ref, pin2Ref, pin3Ref, pin4Ref];
 
   // Form states
   const [selectedCat, setSelectedCat] = useState("");
@@ -227,6 +232,46 @@ export default function LiveBillPay() {
     }
     
     return amt <= 50000 ? 15.0 : 25.0;
+  };
+
+  const handlePinChange = (index, val) => {
+    const cleanVal = val.replace(/\D/g, "");
+    const newArray = [...tpinArray];
+    newArray[index] = cleanVal.slice(-1);
+    setTpinArray(newArray);
+
+    if (cleanVal && index < 3) {
+      tpinRefs[index + 1].current?.focus();
+    }
+  };
+
+  const handlePinKeyDown = (index, e) => {
+    if (e.key === "Backspace") {
+      if (!tpinArray[index] && index > 0) {
+        const newArray = [...tpinArray];
+        newArray[index - 1] = "";
+        setTpinArray(newArray);
+        tpinRefs[index - 1].current?.focus();
+      } else {
+        const newArray = [...tpinArray];
+        newArray[index] = "";
+        setTpinArray(newArray);
+      }
+    }
+  };
+
+  const handlePinPaste = (e) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 4);
+    if (pastedData) {
+      const newArray = ["", "", "", ""];
+      for (let i = 0; i < pastedData.length; i++) {
+        newArray[i] = pastedData[i];
+      }
+      setTpinArray(newArray);
+      const focusIndex = Math.min(pastedData.length, 3);
+      tpinRefs[focusIndex].current?.focus();
+    }
   };
 
   const fetchCategories = async () => {
@@ -902,8 +947,11 @@ export default function LiveBillPay() {
                             toast.error("Please set up your transaction PIN (TPIN) first in the TPIN Settings.");
                             return;
                           }
-                          setEnteredTpin("");
+                          setTpinArray(["", "", "", ""]);
                           setShowTpinModal(true);
+                          setTimeout(() => {
+                            pin1Ref.current?.focus();
+                          }, 100);
                         }}
                         disabled={loadingPay || parseFloat(payAmount) > 50000 || !payAmount}
                         className="w-full py-3.5 px-4 flex items-center justify-center gap-2 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md bg-[#00966B] hover:bg-[#007f5a] shadow-[#00966B]/15 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed active:scale-98"
@@ -939,37 +987,52 @@ export default function LiveBillPay() {
         )}
         {showTpinModal && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
-            <div className="bg-white rounded-3xl p-6 md:p-8 max-w-sm w-full border border-slate-100/80 shadow-2xl relative space-y-5">
+            <div className="bg-white rounded-3xl p-6 md:p-8 max-w-sm w-full border border-slate-100/80 shadow-2xl relative space-y-6">
+              {/* Header */}
               <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
+                <div className="p-2.5 bg-[#E8F5E9] text-[#00966B] rounded-2xl">
                   <ShieldCheck className="h-6 w-6 stroke-[1.8]" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-800">Security Verification</h3>
-                  <p className="text-[11px] text-slate-400">Enter your 4-digit TPIN to authorize payment</p>
+                  <h3 className="text-base font-black text-slate-800 tracking-tight">Security Verification</h3>
+                  <p className="text-[11px] text-slate-400 font-medium">Enter your 4-digit TPIN to authorize payment</p>
                 </div>
               </div>
               
-              <div>
-                <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-2">Transaction PIN</label>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={4}
-                  value={enteredTpin}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === "" || (/^\d+$/.test(val) && val.length <= 4)) {
-                      setEnteredTpin(val);
-                    }
-                  }}
-                  placeholder="••••"
-                  className="w-full text-center tracking-[1.5em] text-2xl font-black py-3 bg-slate-50 border-2 border-slate-200/80 focus:border-indigo-500/55 focus:bg-white rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-slate-800"
-                  autoFocus
-                />
+              {/* TPIN 4-digit input slots */}
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block text-center">
+                  ENTER TRANSACTION PIN
+                </label>
+                <div className="flex justify-center gap-3.5 py-1">
+                  {[0, 1, 2, 3].map((idx) => (
+                    <input
+                      key={idx}
+                      ref={tpinRefs[idx]}
+                      type="password"
+                      maxLength={1}
+                      inputMode="numeric"
+                      className="w-14 h-14 text-center text-2xl font-black rounded-2xl border-2 border-slate-200 focus:border-[#00966B] focus:ring-4 focus:ring-[#00966B]/5 outline-none transition-all bg-slate-50 focus:bg-white text-slate-800"
+                      value={tpinArray[idx]}
+                      onChange={(e) => handlePinChange(idx, e.target.value)}
+                      onKeyDown={(e) => handlePinKeyDown(idx, e)}
+                      onPaste={handlePinPaste}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Forgot TPIN Helper Link */}
+              <div className="text-center border-b border-slate-100 pb-4">
+                <span className="text-[10px] text-slate-400 font-bold tracking-tight">
+                  Forgot TPIN? Reset it under{" "}
+                  <a href="/agent/tpin" className="text-[#00966B] hover:underline font-black">
+                    Manage TPIN
+                  </a>
+                </span>
               </div>
               
+              {/* Actions */}
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowTpinModal(false)}
@@ -979,14 +1042,15 @@ export default function LiveBillPay() {
                 </button>
                 <button
                   onClick={() => {
-                    if (enteredTpin.length !== 4) {
+                    const finalPin = tpinArray.join("");
+                    if (finalPin.length !== 4) {
                       toast.error("Please enter a valid 4-digit TPIN");
                       return;
                     }
                     setShowTpinModal(false);
-                    payBill(enteredTpin);
+                    payBill(finalPin);
                   }}
-                  className="w-1/2 py-3 bg-[#0F172A] text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition-colors shadow-md shadow-slate-900/10"
+                  className="w-1/2 py-3 bg-[#00966B] text-white text-xs font-black rounded-xl hover:bg-[#007f5a] transition-all shadow-md shadow-[#00966B]/15 active:scale-98"
                 >
                   Confirm & Pay
                 </button>
