@@ -41,7 +41,7 @@ export default function AdminLiveBillHistory() {
   const debouncedApiTxnId = useDebounced(apiTxnIdQuery, 350);
 
   // Stats calculation
-  const [stats, setStats] = useState({ success: 0, successCount: 0, pending: 0, pendingCount: 0, reversed: 0, reversedCount: 0 });
+  const [stats, setStats] = useState({ success: 0, successCount: 0, pending: 0, pendingCount: 0, reversed: 0, reversedCount: 0, totalProfit: 0 });
 
   // pagination
   const [page, setPage] = useState(1);
@@ -94,6 +94,7 @@ export default function AdminLiveBillHistory() {
         let success = 0, successCount = 0;
         let pending = 0, pendingCount = 0;
         let reversed = 0, reversedCount = 0;
+        let totalProfit = 0;
 
         const allMatched = statsRes.data || [];
         allMatched.forEach((item) => {
@@ -101,6 +102,7 @@ export default function AdminLiveBillHistory() {
           if (item.status === "success") {
             success += amt;
             successCount++;
+            totalProfit += (item.service_charge ?? 0) - (item.api_charge ?? 0);
           } else if (item.status === "pending") {
             pending += amt;
             pendingCount++;
@@ -109,7 +111,7 @@ export default function AdminLiveBillHistory() {
             reversedCount++;
           }
         });
-        setStats({ success, successCount, pending, pendingCount, reversed, reversedCount });
+        setStats({ success, successCount, pending, pendingCount, reversed, reversedCount, totalProfit });
       })
       .catch((e) => toast.error(formatErr(e.response?.data?.detail) || "Failed to load transactions"))
       .finally(() => setLoading(false));
@@ -308,7 +310,7 @@ export default function AdminLiveBillHistory() {
       />
 
       {/* Metrics Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
         <div className="bg-emerald-50/60 border border-emerald-500/10 rounded-2xl p-5 flex flex-col justify-between shadow-sm">
           <div>
             <span className="text-xs font-semibold text-emerald-800 uppercase tracking-wider block mb-1">Successful Payments</span>
@@ -336,6 +338,16 @@ export default function AdminLiveBillHistory() {
           </div>
           <div className="text-xs text-rose-700 mt-2 font-medium">
             {stats.reversedCount} Refunded Bills
+          </div>
+        </div>
+
+        <div className="bg-blue-50/60 border border-blue-500/10 rounded-2xl p-5 flex flex-col justify-between shadow-sm">
+          <div>
+            <span className="text-xs font-semibold text-blue-800 uppercase tracking-wider block mb-1">Total Profit</span>
+            <h3 className="text-2xl font-bold text-blue-900">{fmtMoney(stats.totalProfit)}</h3>
+          </div>
+          <div className="text-xs text-blue-700 mt-2 font-medium">
+            From Successful Bills
           </div>
         </div>
       </div>
