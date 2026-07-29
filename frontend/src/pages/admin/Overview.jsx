@@ -193,11 +193,6 @@ export default function AdminOverview() {
         subtitle="Real-time fintech operations at a glance."
         actions={
           <div className="flex items-center gap-3 pr-4 md:pr-6">
-            {loadingFin && (
-              <span className="inline-flex items-center gap-2 text-xs text-neutral-400 animate-pulse">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
-              </span>
-            )}
             <select
               value={range}
               onChange={(e) => setRange(e.target.value)}
@@ -236,7 +231,7 @@ export default function AdminOverview() {
         )}
 
         {/* Filtered cards */}
-        <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5 transition-opacity duration-300 ${loadingFin ? "opacity-60" : "opacity-100"}`}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
           
           <FinancialCard
             label="Total Revenue (Commission)"

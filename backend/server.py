@@ -5113,6 +5113,8 @@ async def _ensure_indexes() -> None:
     await db.users.create_index([("role", 1), ("is_deleted", 1), ("created_at", -1)])
     await db.users.create_index([("md_id", 1), ("role", 1), ("is_deleted", 1), ("created_at", -1)])
     await db.recharges.create_index([("md_id", 1), ("status", 1), ("created_at", -1)])
+    await db.recharges.create_index([("distributor_id", 1), ("status", 1), ("created_at", -1)])
+    await db.withdrawals.create_index([("user_id", 1), ("status", 1)])
 
     # Seed default service charge slabs if table is empty
     count = await db.service_charge_slabs.count_documents({"is_deleted": False})
