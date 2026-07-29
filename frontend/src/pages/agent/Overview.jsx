@@ -57,17 +57,21 @@ export default function AgentOverview() {
   return (
     <KycPasswordGate>
       <div className="overflow-x-hidden relative">
-        <PageHeader 
-          title={
-            <div>
-              <span className="text-[10px] font-black uppercase tracking-[0.25em] text-transparent bg-clip-text bg-gradient-to-r from-[#9d4edd] via-[#7209b7] to-[#3f37c9] block mb-1 animate-fadeIn">
-                {getGreeting()}
-              </span>
-              <span className="text-2xl sm:text-3xl font-black tracking-tight text-slate-800">Agent Dashboard</span>
-            </div>
-          } 
-          subtitle="Manage recharges, ledger history and wallet balance." 
-        />
+        {/* Premium Dashboard Header */}
+        <div className="mb-10 mt-2 animate-fadeIn">
+          <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-[#7209b7]/10 via-[#3f37c9]/10 to-[#4cc9f0]/10 border border-[#7209b7]/10 rounded-full shadow-[0_2px_10px_rgba(114,9,183,0.05)]">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#7209b7] animate-pulse" />
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#7209b7]">
+              {getGreeting()}
+            </span>
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-black text-slate-800 tracking-tight leading-none mt-4">
+            Agent Dashboard
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-400 mt-2.5 font-bold tracking-wide">
+            Manage recharges, ledger history and wallet balance.
+          </p>
+        </div>
 
         {/* Hero Section: Grid of 4 Cards + Slider Carousel */}
         <div className="grid grid-cols-1 lg:grid-cols-10 gap-5 mb-8">
