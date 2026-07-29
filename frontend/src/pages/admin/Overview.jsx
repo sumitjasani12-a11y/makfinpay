@@ -10,6 +10,7 @@ import {
   Users, UserCog, Crown, ArrowRight, ClipboardList 
 } from "lucide-react";
 import { toast } from "sonner";
+import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from "recharts";
 
 const SUPER_ADMIN_EMAIL = "makfinpay@gmail.com";
 
@@ -168,6 +169,19 @@ export default function AdminOverview() {
     setCustomApplied(true);
     loadFinancial("custom", from, to);
   };
+
+  const userData = [
+    { name: "Agents", value: stats.total_agents ?? 0, color: "#ec4899" },
+    { name: "Distributors", value: stats.total_distributors ?? 0, color: "#6366f1" },
+    { name: "Master Distributors", value: stats.total_master_distributors ?? 0, color: "#f59e0b" },
+  ];
+
+  const pendingData = [
+    { name: "Recharges", value: stats.pending_recharges ?? 0, fill: "#10b981" },
+    { name: "Withdrawals", value: stats.pending_withdrawals ?? 0, fill: "#ef4444" },
+    { name: "Transactions", value: stats.pending_transactions ?? 0, fill: "#f59e0b" },
+    { name: "KYC Requests", value: financial.pending_kyc_count ?? 0, fill: "#3b82f6" },
+  ];
 
   return (
     <div className="space-y-8">
@@ -412,6 +426,63 @@ export default function AdminOverview() {
             icon={UserCog}
             iconBg="bg-rose-50 text-rose-500"
           />
+        </div>
+      </section>
+
+      <div className="border-t border-black/5" />
+
+      {/* SECTION 4 — Platform Graphical Insights */}
+      <section className="space-y-5">
+        <div>
+          <h2 className="text-base font-bold tracking-tight text-neutral-800">Visual Insights</h2>
+          <p className="text-xs text-neutral-400">Graphical analysis of platform users and pending operations</p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* User Distribution */}
+          <div className="bg-white border border-black/5 rounded-[28px] p-6 shadow-sm flex flex-col h-[320px]">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-4">User Distribution</h3>
+            <div className="flex-1 w-full h-full relative min-h-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={userData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={85}
+                    paddingAngle={4}
+                    dataKey="value"
+                  >
+                    {userData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value) => [`${value} Users`, "Count"]} />
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Pending Queue Metrics */}
+          <div className="bg-white border border-black/5 rounded-[28px] p-6 shadow-sm flex flex-col h-[320px]">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-4">Pending Review Queue</h3>
+            <div className="flex-1 w-full h-full min-h-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={pendingData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                  <XAxis dataKey="name" stroke="#888888" fontSize={11} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#888888" fontSize={11} tickLine={false} axisLine={false} />
+                  <Tooltip formatter={(value) => [`${value} Pending`, "Items"]} />
+                  <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                    {pendingData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </div>
       </section>
 
