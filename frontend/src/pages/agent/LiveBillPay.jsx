@@ -409,37 +409,6 @@ export default function LiveBillPay() {
       <div className="w-full max-w-none px-4 lg:px-8 mb-8">
         {selectedCat === "" ? (
           <div className="space-y-8 animate-fadeIn">
-            {/* Bharat Connect Banner */}
-            <div className="bg-gradient-to-r from-[#0C2419] via-[#0E3524] to-[#0A1A2F] text-white rounded-3xl p-7 md:p-9 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden shadow-xl shadow-slate-950/20 border border-emerald-500/10">
-              {/* Background glows */}
-              <div className="absolute -top-24 -left-20 w-80 h-80 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none"></div>
-              <div className="absolute -bottom-24 -right-20 w-80 h-80 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none"></div>
-
-              <div className="space-y-4 max-w-xl z-10">
-                <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase bg-emerald-500/10 text-emerald-300 border border-emerald-500/25 px-3.5 py-1.5 rounded-full tracking-wider shadow-sm shadow-emerald-500/5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  Secure Gateway
-                </span>
-                <h2 className="text-2xl md:text-3.5xl font-black tracking-tight leading-none text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-slate-300">
-                  Bharat Connect
-                </h2>
-                <p className="text-slate-300/80 text-xs md:text-sm leading-relaxed font-medium">
-                  Securely recharge plans and pay all utility bills instantly with direct Bharat Connect settlement.
-                </p>
-              </div>
-
-              <div className="bg-white/[0.03] backdrop-blur-md border border-white/10 rounded-2xl p-5 flex items-center gap-4.5 min-w-[250px] shadow-lg shadow-black/25 z-10">
-                <div className="p-3 bg-gradient-to-br from-emerald-500/20 to-teal-500/25 border border-emerald-500/35 text-emerald-400 rounded-xl shadow-inner">
-                  <Receipt className="h-6 w-6 stroke-[1.8]" />
-                </div>
-                <div>
-                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Available Balance</span>
-                  <span className="text-xl md:text-2xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 to-teal-400 mt-1 block">
-                    {walletBalance !== null ? fmtMoney(walletBalance) : "Fetching..."}
-                  </span>
-                </div>
-              </div>
-            </div>
 
             {/* Select utility service step header */}
             <div className="border-b border-black/5 pb-4">
