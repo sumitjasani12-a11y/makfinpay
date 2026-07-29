@@ -4,7 +4,7 @@ import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import { useAuth } from "@/lib/auth";
 import BankDetailsCard from "@/components/BankDetailsCard";
 import { toast } from "sonner";
-import { Loader2, AlertCircle, Landmark } from "lucide-react";
+import { Loader2, AlertCircle, Landmark, ShieldCheck } from "lucide-react";
 
 export default function Withdrawal() {
   const { user } = useAuth();
