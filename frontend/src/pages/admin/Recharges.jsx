@@ -75,8 +75,6 @@ export default function AdminRecharges() {
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [agents, setAgents] = useState([]);
-  const [qrCodes, setQrCodes] = useState([]);
   const [detail, setDetail] = useState(null);
   const [rejectTargetId, setRejectTargetId] = useState(null);
 
@@ -88,8 +86,10 @@ export default function AdminRecharges() {
   const [from, setFrom] = useState(todayStr(-7));
   const [to, setTo] = useState(todayStr());
   const [customApplied, setCustomApplied] = useState(false);
-  const [agentFilter, setAgentFilter] = useState("all");
-  const [qrFilter, setQrFilter] = useState("all");
+  const [agentQuery, setAgentQuery] = useState("");
+  const debouncedAgent = useDebounced(agentQuery, 350);
+  const [qrQuery, setQrQuery] = useState("");
+  const debouncedQr = useDebounced(qrQuery, 350);
   const [amtQuery, setAmtQuery] = useState("");
   const debouncedAmt = useDebounced(amtQuery, 350);
 
@@ -100,12 +100,6 @@ export default function AdminRecharges() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
 
-  useEffect(() => {
-    api.get("/admin/users", { params: { role: "agent" } })
-      .then((r) => setAgents(Array.isArray(r.data) ? r.data : (r.data?.items || [])));
-    api.get("/admin/qrcodes").then((r) => setQrCodes(r.data));
-  }, []);
-
   // Build query params (server-side filtering + pagination).
   const params = useMemo(() => {
     const { from_ts, to_ts } = range === "custom" && !customApplied
@@ -113,14 +107,14 @@ export default function AdminRecharges() {
       : rangeWindowIso(range, from, to);
     const p = { paginated: true, page, page_size: pageSize };
     if (status !== "all") p.status = status;
-    if (agentFilter !== "all") p.agent_id = agentFilter;
-    if (qrFilter !== "all") p.qr_code_id = qrFilter;
     if (from_ts) p.from_ts = from_ts;
     if (to_ts) p.to_ts = to_ts;
     if (debouncedQ.trim()) p.q = debouncedQ.trim();
     if (debouncedAmt.trim()) p.amount = debouncedAmt.trim();
+    if (debouncedAgent.trim()) p.agent_search = debouncedAgent.trim();
+    if (debouncedQr.trim()) p.qr_search = debouncedQr.trim();
     return p;
-  }, [status, agentFilter, qrFilter, range, from, to, customApplied, debouncedQ, debouncedAmt, page, pageSize]);
+  }, [status, range, from, to, customApplied, debouncedQ, debouncedAmt, debouncedAgent, debouncedQr, page, pageSize]);
 
   const reload = useCallback(() => {
     setLoading(true);
@@ -166,10 +160,10 @@ export default function AdminRecharges() {
   useEffect(() => { reload(); }, [reload]);
 
   // Reset page to 1 when any filter (other than page/pageSize) changes.
-  useEffect(() => { setPage(1); }, [status, agentFilter, qrFilter, range, from, to, customApplied, debouncedQ, debouncedAmt, pageSize]);
+  useEffect(() => { setPage(1); }, [status, debouncedAgent, debouncedQr, range, from, to, customApplied, debouncedQ, debouncedAmt, pageSize]);
 
   const clearAll = () => {
-    setQ(""); setStatus("all"); setRange("today"); setAgentFilter("all"); setQrFilter("all"); setAmtQuery("");
+    setQ(""); setStatus("all"); setRange("today"); setAgentQuery(""); setQrQuery(""); setAmtQuery("");
     setFrom(todayStr(-7)); setTo(todayStr()); setCustomApplied(false); setPage(1);
   };
 
@@ -348,8 +342,8 @@ export default function AdminRecharges() {
 
       {/* Filter / Search bar */}
       <div className="mfp-card p-5 mb-6 space-y-4" data-testid="recharge-filter-bar">
-        {/* Row 1: Search & Dropdowns */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Filter Row: Consolidated 6 filters in 1 row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
           <div className="relative">
             <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
               <Search className="h-4 w-4 text-neutral-400" />
@@ -357,7 +351,7 @@ export default function AdminRecharges() {
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search Name, UTR, Card..."
+              placeholder="Search UTR, Card..."
               className="mfp-input !pl-11 !pr-10"
               data-testid="recharge-search"
             />
@@ -366,8 +360,45 @@ export default function AdminRecharges() {
                 type="button"
                 onClick={() => setQ("")}
                 className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-[#1B4332]"
-                data-testid="recharge-search-clear"
                 aria-label="Clear search"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          <div className="relative">
+            <input
+              type="text"
+              value={agentQuery}
+              onChange={(e) => setAgentQuery(e.target.value)}
+              placeholder="Search Agent Name"
+              className="mfp-input !pr-10"
+            />
+            {agentQuery && (
+              <button
+                type="button"
+                onClick={() => setAgentQuery("")}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-[#1B4332]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          <div className="relative">
+            <input
+              type="text"
+              value={qrQuery}
+              onChange={(e) => setQrQuery(e.target.value)}
+              placeholder="Search QR Code"
+              className="mfp-input !pr-10"
+            />
+            {qrQuery && (
+              <button
+                type="button"
+                onClick={() => setQrQuery("")}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-[#1B4332]"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -411,37 +442,6 @@ export default function AdminRecharges() {
             >
               {DATE_RANGES.map((r) => (
                 <option key={r.key} value={r.key}>{r.label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Row 2: Secondary Dropdowns */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <select
-              value={agentFilter}
-              onChange={(e) => setAgentFilter(e.target.value)}
-              className="mfp-input w-full"
-              data-testid="recharge-agent-filter"
-            >
-              <option value="all">All Agents</option>
-              {agents.map((a) => (
-                <option key={a.id} value={a.id}>{a.full_name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <select
-              value={qrFilter}
-              onChange={(e) => setQrFilter(e.target.value)}
-              className="mfp-input w-full"
-              data-testid="recharge-qr-filter"
-            >
-              <option value="all">All QR Codes</option>
-              {qrCodes.map((qr) => (
-                <option key={qr.id} value={qr.id}>{qr.label}</option>
               ))}
             </select>
           </div>

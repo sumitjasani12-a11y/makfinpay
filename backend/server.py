@@ -1238,10 +1238,15 @@ async def export_recharges_pdf(
     to_ts: Optional[str] = None,
     q: Optional[str] = None,
     amount: Optional[str] = None,
+    agent_search: Optional[str] = None,
+    qr_search: Optional[str] = None,
     user=Depends(require_roles("admin")),
 ):
-    query = _build_recharge_query(status=status, agent_id=agent_id, qr_code_id=qr_code_id,
-                                   from_ts=from_ts, to_ts=to_ts, q=q, amount=amount)
+    query = _build_recharge_query(
+        status=status, agent_id=agent_id, qr_code_id=qr_code_id,
+        from_ts=from_ts, to_ts=to_ts, q=q, amount=amount,
+        agent_search=agent_search, qr_search=qr_search
+    )
     items = await db.recharges.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
     
     from starlette.responses import StreamingResponse
@@ -1265,10 +1270,15 @@ async def export_recharges_csv(
     to_ts: Optional[str] = None,
     q: Optional[str] = None,
     amount: Optional[str] = None,
+    agent_search: Optional[str] = None,
+    qr_search: Optional[str] = None,
     user=Depends(require_roles("admin")),
 ):
-    query = _build_recharge_query(status=status, agent_id=agent_id, qr_code_id=qr_code_id,
-                                   from_ts=from_ts, to_ts=to_ts, q=q, amount=amount)
+    query = _build_recharge_query(
+        status=status, agent_id=agent_id, qr_code_id=qr_code_id,
+        from_ts=from_ts, to_ts=to_ts, q=q, amount=amount,
+        agent_search=agent_search, qr_search=qr_search
+    )
     items = await db.recharges.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
     
     import csv
@@ -2226,7 +2236,8 @@ def _add_created_at_range(query: dict, from_ts: Optional[str], to_ts: Optional[s
 
 
 def _build_recharge_query(*, status=None, agent_id=None, qr_code_id=None,
-                           from_ts=None, to_ts=None, q=None, amount=None) -> dict:
+                           from_ts=None, to_ts=None, q=None, amount=None,
+                           agent_search=None, qr_search=None) -> dict:
     query: dict = {}
     if status and status != "all":
         query["status"] = status
@@ -2234,6 +2245,10 @@ def _build_recharge_query(*, status=None, agent_id=None, qr_code_id=None,
         query["user_id"] = agent_id
     if qr_code_id and qr_code_id != "all":
         query["qr_code_id"] = qr_code_id
+    if agent_search and agent_search.strip():
+        query["user_name"] = {"$regex": agent_search.strip(), "$options": "i"}
+    if qr_search and qr_search.strip():
+        query["qr_code_label"] = {"$regex": qr_search.strip(), "$options": "i"}
     _add_created_at_range(query, from_ts, to_ts)
     if q:
         needle = _escape_regex(q.strip())
@@ -2434,13 +2449,18 @@ async def admin_list_recharges(
     to_ts: Optional[str] = None,
     q: Optional[str] = None,
     amount: Optional[str] = None,
+    agent_search: Optional[str] = None,
+    qr_search: Optional[str] = None,
     page: int = 1,
     page_size: int = 50,
     paginated: bool = False,
     user=Depends(require_roles("admin")),
 ):
-    query = _build_recharge_query(status=status, agent_id=agent_id, qr_code_id=qr_code_id,
-                                   from_ts=from_ts, to_ts=to_ts, q=q, amount=amount)
+    query = _build_recharge_query(
+        status=status, agent_id=agent_id, qr_code_id=qr_code_id,
+        from_ts=from_ts, to_ts=to_ts, q=q, amount=amount,
+        agent_search=agent_search, qr_search=qr_search
+    )
     if paginated:
         page = max(1, page); page_size = max(1, min(200, page_size))
         total = await db.recharges.count_documents(query)
