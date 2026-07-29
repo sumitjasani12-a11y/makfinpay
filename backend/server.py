@@ -1322,10 +1322,21 @@ async def export_transactions_pdf(
     q: Optional[str] = None,
     amount: Optional[str] = None,
     type: Optional[str] = None,
+    txn_id: Optional[str] = None,
+    api_txn_id: Optional[str] = None,
     user=Depends(require_roles("admin")),
 ):
-    query = _build_transaction_query(status=status, agent_id=agent_id, operator=operator,
-                                      from_ts=from_ts, to_ts=to_ts, q=q, amount=amount, txn_type=type)
+    matched_ids = None
+    if txn_id and txn_id.strip().lower().startswith("txn"):
+        needle = txn_id.strip().lower()
+        recent_txs = await db.transactions.find({}, {"id": 1}).sort("created_at", -1).to_list(2000)
+        matched_ids = [tx["id"] for tx in recent_txs if tx.get("id") and needle in get_short_txn_id(tx["id"]).lower()]
+        
+    query = _build_transaction_query(
+        status=status, agent_id=agent_id, operator=operator,
+        from_ts=from_ts, to_ts=to_ts, q=q, amount=amount, txn_type=type,
+        txn_id=txn_id, api_txn_id=api_txn_id, matched_ids=matched_ids
+    )
     items = await db.transactions.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
     
     from starlette.responses import StreamingResponse
@@ -1350,10 +1361,21 @@ async def export_transactions_csv(
     q: Optional[str] = None,
     amount: Optional[str] = None,
     type: Optional[str] = None,
+    txn_id: Optional[str] = None,
+    api_txn_id: Optional[str] = None,
     user=Depends(require_roles("admin")),
 ):
-    query = _build_transaction_query(status=status, agent_id=agent_id, operator=operator,
-                                      from_ts=from_ts, to_ts=to_ts, q=q, amount=amount, txn_type=type)
+    matched_ids = None
+    if txn_id and txn_id.strip().lower().startswith("txn"):
+        needle = txn_id.strip().lower()
+        recent_txs = await db.transactions.find({}, {"id": 1}).sort("created_at", -1).to_list(2000)
+        matched_ids = [tx["id"] for tx in recent_txs if tx.get("id") and needle in get_short_txn_id(tx["id"]).lower()]
+        
+    query = _build_transaction_query(
+        status=status, agent_id=agent_id, operator=operator,
+        from_ts=from_ts, to_ts=to_ts, q=q, amount=amount, txn_type=type,
+        txn_id=txn_id, api_txn_id=api_txn_id, matched_ids=matched_ids
+    )
     items = await db.transactions.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
     
     import csv
@@ -2226,8 +2248,21 @@ def _build_recharge_query(*, status=None, agent_id=None, qr_code_id=None,
     return query
 
 
+def get_short_txn_id(id_str: str) -> str:
+    if not id_str:
+        return "—"
+    if id_str.startswith("Txn"):
+        return id_str
+    hash_val = 0
+    for char in id_str:
+        hash_val = (hash_val * 31 + ord(char)) & 0xFFFFFFFF
+    padded = str(hash_val).zfill(10)
+    return f"Txn{padded}"
+
+
 def _build_transaction_query(*, status=None, agent_id=None, operator=None,
-                              from_ts=None, to_ts=None, q=None, amount=None, txn_type=None) -> dict:
+                              from_ts=None, to_ts=None, q=None, amount=None, txn_type=None,
+                              txn_id=None, api_txn_id=None, matched_ids=None) -> dict:
     query: dict = {}
     if txn_type and txn_type != "all":
         query["type"] = txn_type
@@ -2237,6 +2272,13 @@ def _build_transaction_query(*, status=None, agent_id=None, operator=None,
         query["user_id"] = agent_id
     if operator and operator != "all":
         query["operator"] = operator
+    if txn_id and txn_id.strip():
+        if matched_ids is not None:
+            query["id"] = {"$in": matched_ids}
+        else:
+            query["id"] = {"$regex": txn_id.strip(), "$options": "i"}
+    if api_txn_id and api_txn_id.strip():
+        query["operator_txn_id"] = {"$regex": api_txn_id.strip(), "$options": "i"}
     _add_created_at_range(query, from_ts, to_ts)
     if q:
         needle = _escape_regex(q.strip())
@@ -3197,13 +3239,24 @@ async def admin_transactions(
     q: Optional[str] = None,
     amount: Optional[str] = None,
     type: Optional[str] = None,
+    txn_id: Optional[str] = None,
+    api_txn_id: Optional[str] = None,
     page: int = 1,
     page_size: int = 50,
     paginated: bool = False,
     user=Depends(require_roles("admin")),
 ):
-    query = _build_transaction_query(status=status, agent_id=agent_id, operator=operator,
-                                      from_ts=from_ts, to_ts=to_ts, q=q, amount=amount, txn_type=type)
+    matched_ids = None
+    if txn_id and txn_id.strip().lower().startswith("txn"):
+        needle = txn_id.strip().lower()
+        recent_txs = await db.transactions.find({}, {"id": 1}).sort("created_at", -1).to_list(2000)
+        matched_ids = [tx["id"] for tx in recent_txs if tx.get("id") and needle in get_short_txn_id(tx["id"]).lower()]
+        
+    query = _build_transaction_query(
+        status=status, agent_id=agent_id, operator=operator,
+        from_ts=from_ts, to_ts=to_ts, q=q, amount=amount, txn_type=type,
+        txn_id=txn_id, api_txn_id=api_txn_id, matched_ids=matched_ids
+    )
     if paginated:
         page = max(1, page); page_size = max(1, min(200, page_size))
         total = await db.transactions.count_documents(query)

@@ -35,6 +35,10 @@ export default function AdminLiveBillHistory() {
   const [agentFilter, setAgentFilter] = useState("all");
   const [amtQuery, setAmtQuery] = useState("");
   const debouncedAmt = useDebounced(amtQuery, 350);
+  const [txnIdQuery, setTxnIdQuery] = useState("");
+  const debouncedTxnId = useDebounced(txnIdQuery, 350);
+  const [apiTxnIdQuery, setApiTxnIdQuery] = useState("");
+  const debouncedApiTxnId = useDebounced(apiTxnIdQuery, 350);
 
   // Stats calculation
   const [stats, setStats] = useState({ success: 0, successCount: 0, pending: 0, pendingCount: 0, reversed: 0, reversedCount: 0 });
@@ -60,8 +64,10 @@ export default function AdminLiveBillHistory() {
     if (to_ts) p.to_ts = to_ts;
     if (debouncedQ.trim()) p.q = debouncedQ.trim();
     if (debouncedAmt.trim()) p.amount = debouncedAmt.trim();
+    if (debouncedTxnId.trim()) p.txn_id = debouncedTxnId.trim();
+    if (debouncedApiTxnId.trim()) p.api_txn_id = debouncedApiTxnId.trim();
     return p;
-  }, [status, agentFilter, range, from, to, customApplied, debouncedQ, debouncedAmt, page, pageSize]);
+  }, [status, agentFilter, range, from, to, customApplied, debouncedQ, debouncedAmt, debouncedTxnId, debouncedApiTxnId, page, pageSize]);
 
   const reload = useCallback(() => {
     setLoading(true);
@@ -117,6 +123,8 @@ export default function AdminLiveBillHistory() {
     setRange("today");
     setAgentFilter("all");
     setAmtQuery("");
+    setTxnIdQuery("");
+    setApiTxnIdQuery("");
     setCustomApplied(false);
     setPage(1);
   };
@@ -277,8 +285,8 @@ export default function AdminLiveBillHistory() {
 
       {/* Filter / Search bar */}
       <div className="mfp-card p-5 mb-6 space-y-4" data-testid="tx-filter-bar">
-        {/* Row 1: Search & Dropdowns */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Row 1: Search Queries */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="relative">
             <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
               <Search className="h-4 w-4 text-neutral-400" />
@@ -286,7 +294,7 @@ export default function AdminLiveBillHistory() {
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search Name, Phone, ID..."
+              placeholder="Search Agent, Mobile..."
               className="mfp-input !pl-11 !pr-10"
               data-testid="tx-search"
             />
@@ -295,7 +303,6 @@ export default function AdminLiveBillHistory() {
                 type="button"
                 onClick={() => setQ("")}
                 className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-[#1B4332]"
-                data-testid="tx-search-clear"
                 aria-label="Clear search"
               >
                 <X className="h-4 w-4" />
@@ -303,6 +310,47 @@ export default function AdminLiveBillHistory() {
             )}
           </div>
 
+          <div className="relative">
+            <input
+              type="text"
+              value={txnIdQuery}
+              onChange={(e) => setTxnIdQuery(e.target.value)}
+              placeholder="Search Tx ID (Txn...)"
+              className="mfp-input !pr-10"
+            />
+            {txnIdQuery && (
+              <button
+                type="button"
+                onClick={() => setTxnIdQuery("")}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-[#1B4332]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          <div className="relative">
+            <input
+              type="text"
+              value={apiTxnIdQuery}
+              onChange={(e) => setApiTxnIdQuery(e.target.value)}
+              placeholder="Search API TXN ID (USEPAY...)"
+              className="mfp-input !pr-10"
+            />
+            {apiTxnIdQuery && (
+              <button
+                type="button"
+                onClick={() => setApiTxnIdQuery("")}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-[#1B4332]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Row 2: Secondary Dropdowns & Amount */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <input
               type="text"
@@ -343,10 +391,7 @@ export default function AdminLiveBillHistory() {
               ))}
             </select>
           </div>
-        </div>
 
-        {/* Row 2: Secondary Dropdowns */}
-        <div className="grid grid-cols-1">
           <div>
             <select
               value={agentFilter}
