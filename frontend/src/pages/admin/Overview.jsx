@@ -235,6 +235,10 @@ export default function AdminOverview() {
             colorClass="text-indigo-600"
             icon={Activity}
             iconBg="bg-indigo-50 text-indigo-600"
+            breakdowns={[
+              { label: "CC Bill Charge", value: fmtMoney(financial.cc_bill_revenue ?? 0) },
+              { label: "Live Bill Profit", value: fmtMoney(financial.live_bill_profit ?? 0) }
+            ]}
           />
 
           <FinancialCard

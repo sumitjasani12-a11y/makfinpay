@@ -4671,21 +4671,48 @@ async def _recharge_revenue_breakdown(date_match: dict) -> dict:
 async def _transaction_metrics(date_match: dict) -> dict:
     """Aggregates successful bill payments: volume, count and service-charge revenue."""
     txn_match = {"status": "success", **date_match}
-    txn_agg = await db.transactions.aggregate([
-        {"$match": txn_match},
+    
+    cc_agg = await db.transactions.aggregate([
+        {"$match": {"type": "credit_card", **txn_match}},
         {"$group": {
             "_id": None,
-            "vol_bill": {"$sum": {"$ifNull": ["$bill_amount", "$amount"]}},
+            "vol": {"$sum": {"$ifNull": ["$bill_amount", "$amount"]}},
             "count": {"$sum": 1},
             "charges": {"$sum": {"$ifNull": ["$service_charge", 0]}},
         }}
     ]).to_list(1)
-    if not txn_agg:
-        return {"total_txn_amount": 0, "total_txn_count": 0, "transaction_revenue": 0}
+
+    live_agg = await db.transactions.aggregate([
+        {"$match": {"type": "live_bill", **txn_match}},
+        {"$group": {
+            "_id": None,
+            "vol": {"$sum": {"$ifNull": ["$bill_amount", "$amount"]}},
+            "count": {"$sum": 1},
+            "charges": {"$sum": {"$ifNull": ["$service_charge", 0]}},
+            "api_charges": {"$sum": {"$ifNull": ["$api_charge", 0]}},
+        }}
+    ]).to_list(1)
+
+    cc_vol = cc_agg[0]["vol"] if cc_agg else 0.0
+    cc_count = cc_agg[0]["count"] if cc_agg else 0
+    cc_revenue = cc_agg[0]["charges"] if cc_agg else 0.0
+
+    live_vol = live_agg[0]["vol"] if live_agg else 0.0
+    live_count = live_agg[0]["count"] if live_agg else 0
+    live_sc = live_agg[0]["charges"] if live_agg else 0.0
+    live_api = live_agg[0]["api_charges"] if live_agg else 0.0
+    live_profit = round(live_sc - live_api, 2)
+
+    total_vol = round(cc_vol + live_vol, 2)
+    total_count = cc_count + live_count
+    total_revenue = round(cc_revenue + live_profit, 2)
+
     return {
-        "total_txn_amount": txn_agg[0]["vol_bill"],
-        "total_txn_count": txn_agg[0]["count"],
-        "transaction_revenue": txn_agg[0]["charges"],
+        "total_txn_amount": total_vol,
+        "total_txn_count": total_count,
+        "transaction_revenue": total_revenue,
+        "cc_bill_revenue": round(cc_revenue, 2),
+        "live_bill_profit": round(live_profit, 2),
     }
 
 
@@ -4753,6 +4780,8 @@ async def admin_stats_financial(
         "total_txn_amount": round(txn["total_txn_amount"], 2),
         "total_txn_count": txn["total_txn_count"],
         "transaction_revenue": round(txn["transaction_revenue"], 2),
+        "cc_bill_revenue": txn.get("cc_bill_revenue", 0.0),
+        "live_bill_profit": txn.get("live_bill_profit", 0.0),
         "pending_kyc_count": pending_kyc_count,
         "total_withdrawals_approved": round(total_wd, 2),
         "agent_withdrawals_approved": round(agent_wd, 2),
