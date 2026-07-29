@@ -179,6 +179,9 @@ export default function LiveBillPay() {
   const [fetchRequestId, setFetchRequestId] = useState("");
   const [payAmount, setPayAmount] = useState("");
 
+  // Slabs state
+  const [slabs, setSlabs] = useState([]);
+
   // Pagination states for history
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -190,6 +193,40 @@ export default function LiveBillPay() {
     } catch (e) {
       console.log("Failed to fetch wallet balance:", e.message);
     }
+  };
+
+  const fetchSlabs = async () => {
+    try {
+      const res = await api.get("/billing/service-slabs");
+      setSlabs(res.data || []);
+    } catch (e) {
+      console.log("Failed to fetch slabs:", e.message);
+    }
+  };
+
+  const getCalculatedCharge = (amountVal) => {
+    const amt = parseFloat(amountVal);
+    if (isNaN(amt) || amt <= 0) return 0;
+    
+    let matchedSlab = null;
+    for (const slab of slabs) {
+      const min = parseFloat(slab.min_amount);
+      const max = parseFloat(slab.max_amount);
+      if (amt >= min && amt <= max) {
+        matchedSlab = slab;
+        break;
+      }
+    }
+    
+    if (matchedSlab) {
+      if (matchedSlab.charge_type === "percent") {
+        return Math.round((amt * parseFloat(matchedSlab.charge_amount)) / 100.0 * 100) / 100;
+      } else {
+        return parseFloat(matchedSlab.charge_amount);
+      }
+    }
+    
+    return amt <= 50000 ? 15.0 : 25.0;
   };
 
   const fetchCategories = async () => {
@@ -229,6 +266,7 @@ export default function LiveBillPay() {
     fetchCategories();
     reloadHistory();
     fetchWallet();
+    fetchSlabs();
   }, []);
 
   const handleCategoryChange = (catId) => {
@@ -788,6 +826,28 @@ export default function LiveBillPay() {
                           }}
                         />
                       </div>
+
+                      {/* Dynamic service charge and total amount details */}
+                      {payAmount && parseFloat(payAmount) > 0 && (() => {
+                        const charge = getCalculatedCharge(payAmount);
+                        const total = parseFloat(payAmount) + charge;
+                        return (
+                          <div className="bg-slate-50 border border-slate-200/50 rounded-2xl p-3.5 space-y-2 text-[11px] font-semibold text-slate-600 animate-fadeIn">
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-400">Manual Amount:</span>
+                              <span className="text-slate-800 font-bold">{fmtMoney(parseFloat(payAmount))}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-rose-600">
+                              <span>Admin Service Charge (+):</span>
+                              <span className="font-bold">{fmtMoney(charge)}</span>
+                            </div>
+                            <div className="border-t border-slate-200/60 pt-2 flex justify-between items-center text-xs font-black text-slate-900">
+                              <span>Total Amount:</span>
+                              <span className="text-[#2D6A4F] font-black">{fmtMoney(total)}</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       {/* Over 50k warning alert */}
                       {parseFloat(payAmount) > 50000 && (
