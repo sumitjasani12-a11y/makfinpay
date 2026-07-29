@@ -20,11 +20,17 @@ export default function DashboardLayout() {
   const [limits, setLimits] = useState(null);
 
   useEffect(() => {
-    if (user && user.role !== "admin") {
-      api.get("/settings/recharge-limits-public")
-        .then((r) => setLimits(r.data))
-        .catch((e) => console.log("Failed to fetch public limits:", e.message));
-    }
+    if (!user) return;
+    const fetchLimits = () => {
+      if (user.role !== "admin") {
+        api.get("/settings/recharge-limits-public")
+          .then((r) => setLimits(r.data))
+          .catch((e) => console.log("Failed to fetch public limits:", e.message));
+      }
+    };
+    fetchLimits();
+    const interval = setInterval(fetchLimits, 5000);
+    return () => clearInterval(interval);
   }, [user, location.pathname]);
 
   let items = NAV[user.role] || [];
