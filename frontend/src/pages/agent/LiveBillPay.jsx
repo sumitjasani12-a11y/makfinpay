@@ -140,6 +140,7 @@ export default function LiveBillPay() {
   const [selectedOp, setSelectedOp] = useState("");
   const [mobileNumber, setMobileNumber] = useState(user?.phone || "");
   const [paramValues, setParamValues] = useState({});
+  const [opSearch, setOpSearch] = useState("");
 
   // Fetched bill details
   const [fetchedBill, setFetchedBill] = useState(null);
@@ -202,6 +203,7 @@ export default function LiveBillPay() {
     setSelectedCat(catId);
     setSelectedOp("");
     setBillers([]);
+    setOpSearch("");
     setFetchedBill(null);
     setFetchRequestId("");
     setPayAmount("");
@@ -438,27 +440,109 @@ export default function LiveBillPay() {
               </div>
             )}
           </div>
-        ) : (
-          <div className="space-y-4 animate-fadeIn">
+        ) : selectedOp === "" ? (
+          // STEP 2: Select Operator / Provider (Card Grid with Search)
+          <div className="space-y-6 animate-fadeIn">
             {/* Back Button and Step Indicator */}
             <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
               <button
                 onClick={() => {
                   setSelectedCat("");
-                  setSelectedOp("");
                   setBillers([]);
+                  setOpSearch("");
+                }}
+                className="inline-flex items-center gap-2 text-xs font-bold text-neutral-600 hover:text-indigo-600 bg-white border border-black/5 hover:border-indigo-500/20 px-4 py-2.5 rounded-xl transition-all shadow-sm"
+              >
+                <ChevronLeft className="h-4 w-4" /> Back to Services
+              </button>
+
+              <span className="text-[10px] font-extrabold uppercase tracking-wider bg-[#E8F5E9] text-[#00966B] border border-[#C8E6C9] px-2.5 py-1 rounded-md">
+                Step 2 of 3: Select Provider
+              </span>
+            </div>
+
+            {/* Title & Search bar */}
+            <div className="border-b border-black/5 pb-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-neutral-800">
+                  Select {categories.find(c => String(c.id) === String(selectedCat))?.category_name || "Provider"} Operator
+                </h2>
+                <p className="text-xs text-neutral-400 mt-1">Choose your service operator to proceed</p>
+              </div>
+              
+              {/* Operator Search input */}
+              <div className="relative min-w-[280px]">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-4 h-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.637 10.637z" />
+                  </svg>
+                </span>
+                <input
+                  type="text"
+                  placeholder="Search operator..."
+                  value={opSearch}
+                  onChange={(e) => setOpSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200/80 focus:border-indigo-500/50 rounded-xl outline-none text-xs text-slate-700 focus:ring-4 focus:ring-indigo-500/5 transition-all font-medium shadow-sm"
+                />
+              </div>
+            </div>
+
+            {loadingOps ? (
+              <div className="flex items-center justify-center py-20">
+                <Loader2 className="h-8 w-8 animate-spin text-neutral-400" />
+              </div>
+            ) : billers.length === 0 ? (
+              <div className="text-center py-16 text-neutral-400 text-xs">
+                No operators found for this category.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {billers
+                  .filter(o => o.biller_name.toLowerCase().includes(opSearch.toLowerCase()))
+                  .map((o) => (
+                    <button
+                      key={o.biller_id}
+                      onClick={() => handleOperatorChange(o.biller_id)}
+                      className="flex items-center gap-3 p-4 bg-white border border-slate-100/90 hover:border-indigo-500/25 hover:shadow-[0_12px_20px_-8px_rgba(79,70,229,0.08)] hover:-translate-y-0.5 rounded-2xl transition-all duration-300 text-left group w-full relative overflow-hidden"
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/[0.01] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+
+                      <div className="h-9 w-9 rounded-xl bg-indigo-50 text-indigo-600 text-xs font-black flex items-center justify-center border border-indigo-100/50 flex-shrink-0 group-hover:scale-105 transition-transform duration-300">
+                        {o.biller_name[0].toUpperCase()}
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <span className="font-bold text-slate-800 text-xs leading-snug group-hover:text-indigo-600 transition-colors block truncate">
+                          {o.biller_name}
+                        </span>
+                        <span className="text-[9px] text-slate-400 font-mono block mt-0.5">{o.biller_id}</span>
+                      </div>
+                    </button>
+                  ))
+                }
+              </div>
+            )}
+          </div>
+        ) : (
+          // STEP 3: Enter Details & Settle Bill
+          <div className="space-y-4 animate-fadeIn">
+            {/* Back Button and Step Indicator */}
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+              <button
+                onClick={() => {
+                  setSelectedOp("");
                   setFetchedBill(null);
                   setFetchRequestId("");
                   setPayAmount("");
                   setParamValues({});
                 }}
-                className="inline-flex items-center gap-2 text-xs font-bold text-neutral-600 hover:text-indigo-600 bg-white border border-black/5 hover:border-black/10 px-4 py-2.5 rounded-xl transition-all shadow-sm"
+                className="inline-flex items-center gap-2 text-xs font-bold text-neutral-600 hover:text-indigo-600 bg-white border border-black/5 hover:border-indigo-500/20 px-4 py-2.5 rounded-xl transition-all shadow-sm"
               >
-                ← Back to Services
+                <ChevronLeft className="h-4 w-4" /> Back to Operators
               </button>
 
               <span className="text-[10px] font-extrabold uppercase tracking-wider bg-[#E3F2FD] text-[#1E88E5] border border-[#BBDEFB] px-2.5 py-1 rounded-md">
-                {fetchedBill ? "Step 3 of 3: Settle Bill" : "Step 2 of 3: Enter Details"}
+                {fetchedBill ? "Step 3 of 3: Settle Bill" : "Step 3 of 3: Enter Details"}
               </span>
             </div>
 
@@ -469,106 +553,94 @@ export default function LiveBillPay() {
                   <CreditCard className="h-4.5 w-4.5 text-indigo-600 stroke-[1.8]" /> {categories.find(c => String(c.id) === String(selectedCat))?.category_name || "Bill"} Details
                 </h3>
 
+                {/* Selected Provider Summary Banner */}
+                <div className="bg-slate-50 border border-slate-200/50 rounded-2xl p-4 flex items-center justify-between gap-3 mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-indigo-50 text-indigo-600 font-bold flex items-center justify-center border border-indigo-100/50 flex-shrink-0">
+                      {activeOp?.biller_name ? activeOp.biller_name[0].toUpperCase() : "U"}
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Selected Provider</span>
+                      <span className="font-bold text-slate-700 text-xs block leading-tight mt-0.5">{activeOp?.biller_name || "Utility Provider"}</span>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      setSelectedOp("");
+                      setFetchedBill(null);
+                      setFetchRequestId("");
+                      setPayAmount("");
+                      setParamValues({});
+                    }}
+                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 bg-white border border-slate-200/60 px-3 py-1.5 rounded-lg transition-colors shadow-sm"
+                  >
+                    Change
+                  </button>
+                </div>
+
                 <form onSubmit={fetchBill} className="space-y-4">
-                  {/* Operator */}
+                  {/* Customer Mobile Number */}
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-semibold text-slate-500 block mb-1">
-                      Select Operator / Provider
+                      Customer Mobile Number
                     </label>
                     <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none z-10">
-                        <Building className="h-4 w-4 stroke-[1.8]" />
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                        <Smartphone className="h-4 w-4 stroke-[1.8]" />
                       </span>
-                      {loadingOps && (
-                        <span className="absolute right-9 top-1/2 -translate-y-1/2 z-10">
-                          <Loader2 className="h-4 w-4 animate-spin text-neutral-400" />
-                        </span>
-                      )}
-                      <select
-                        className="w-full pl-10 pr-10 py-3 bg-slate-50/50 hover:bg-slate-50/80 border border-slate-200/80 focus:border-indigo-500/50 focus:bg-white text-slate-700 text-xs rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all appearance-none cursor-pointer font-medium"
-                        value={selectedOp}
-                        onChange={(e) => handleOperatorChange(e.target.value)}
+                      <input
+                        className="w-full pl-10 pr-4 py-3 bg-slate-50/50 hover:bg-slate-50/80 border border-slate-200/80 focus:border-indigo-500/50 focus:bg-white text-slate-700 text-xs rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all font-medium"
+                        type="text"
                         required
-                      >
-                        <option value="">Choose operator...</option>
-                        {billers.map((o) => (
-                          <option key={o.biller_id} value={o.biller_id}>{o.biller_name}</option>
-                        ))}
-                      </select>
-                      <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none z-10">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-3.5 h-3.5">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                        </svg>
-                      </span>
+                        value={mobileNumber}
+                        onChange={(e) => setMobileNumber(e.target.value)}
+                        placeholder="e.g. 9876543210"
+                      />
                     </div>
                   </div>
 
-                  {/* Customer Mobile Number & Dynamic Biller Parameters */}
-                  {selectedOp && (
-                    <div className="space-y-4 pt-2 animate-fadeIn">
-                      <div className="space-y-1.5">
+                  {/* Render Dynamic Metadata Fields */}
+                  <div className="space-y-4 pt-1 animate-fadeIn">
+                    {paramsList.map((p) => (
+                      <div className="space-y-1.5" key={p.paramName}>
                         <label className="text-[11px] font-semibold text-slate-500 block mb-1">
-                          Customer Mobile Number
+                          {p.paramName} {p.isOptional ? "(Optional)" : ""}
                         </label>
                         <div className="relative">
                           <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
-                            <Smartphone className="h-4 w-4 stroke-[1.8]" />
+                            <FileText className="h-4 w-4 stroke-[1.8]" />
                           </span>
                           <input
                             className="w-full pl-10 pr-4 py-3 bg-slate-50/50 hover:bg-slate-50/80 border border-slate-200/80 focus:border-indigo-500/50 focus:bg-white text-slate-700 text-xs rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all font-medium"
-                            type="text"
-                            required
-                            value={mobileNumber}
-                            onChange={(e) => setMobileNumber(e.target.value)}
-                            placeholder="e.g. 9876543210"
+                            type={p.dataType === "NUMERIC" ? "number" : "text"}
+                            required={!p.isOptional}
+                            value={paramValues[p.paramName] || ""}
+                            onChange={(e) => setParamValues({
+                              ...paramValues,
+                              [p.paramName]: e.target.value
+                            })}
+                            placeholder={`Enter ${p.paramName.toLowerCase()}`}
                           />
                         </div>
                       </div>
+                    ))}
+                  </div>
 
-                      {/* Render Dynamic Metadata Fields */}
-                      {paramsList.map((p) => (
-                        <div className="space-y-1.5" key={p.paramName}>
-                          <label className="text-[11px] font-semibold text-slate-500 block mb-1">
-                            {p.paramName} {p.isOptional ? "(Optional)" : ""}
-                          </label>
-                          <div className="relative">
-                            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
-                              <FileText className="h-4 w-4 stroke-[1.8]" />
-                            </span>
-                            <input
-                              className="w-full pl-10 pr-4 py-3 bg-slate-50/50 hover:bg-slate-50/80 border border-slate-200/80 focus:border-indigo-500/50 focus:bg-white text-slate-700 text-xs rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all font-medium"
-                              type={p.dataType === "NUMERIC" ? "number" : "text"}
-                              required={!p.isOptional}
-                              value={paramValues[p.paramName] || ""}
-                              onChange={(e) => setParamValues({
-                                ...paramValues,
-                                [p.paramName]: e.target.value
-                              })}
-                              placeholder={`Enter ${p.paramName.toLowerCase()}`}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {selectedOp && (
-                    <button
-                      type="submit"
-                      disabled={loadingFetch || !mobileNumber}
-                      className="w-full mt-5 py-3 px-4 flex items-center justify-center gap-2 text-white text-xs font-bold rounded-xl transition-all shadow-md bg-[#00966B] hover:bg-[#007f5a] shadow-[#00966B]/15 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {loadingFetch ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" /> Fetching Bill…
-                        </>
-                      ) : (
-                        <>
-                          <Receipt className="h-4 w-4" /> Fetch Bill Details
-                        </>
-                      )}
-                    </button>
-                  )}
+                  <button
+                    type="submit"
+                    disabled={loadingFetch || !mobileNumber}
+                    className="w-full mt-5 py-3 px-4 flex items-center justify-center gap-2 text-white text-xs font-bold rounded-xl transition-all shadow-md bg-[#00966B] hover:bg-[#007f5a] shadow-[#00966B]/15 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loadingFetch ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" /> Fetching Bill…
+                      </>
+                    ) : (
+                      <>
+                        <Receipt className="h-4 w-4" /> Fetch Bill Details
+                      </>
+                    )}
+                  </button>
                 </form>
               </div>
 
