@@ -68,8 +68,8 @@ export default function AgentOverview() {
 
         {/* Hero Section: Grid of 4 Cards + Slider Carousel */}
         <div className="grid grid-cols-1 lg:grid-cols-10 gap-5 mb-8">
-          {/* Grid of 4 Cards (Col Span 7) */}
-          <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+          {/* Grid of 4 Cards (Col Span 8) */}
+          <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5">
             {/* Card 1: Total Balance */}
             <div className="bg-white border border-black/5 rounded-3xl p-6 shadow-sm flex flex-col justify-between h-36 relative overflow-hidden transition-all hover:shadow-md animate-fadeIn">
               <div className="flex items-center justify-between">
@@ -139,9 +139,9 @@ export default function AgentOverview() {
             </div>
           </div>
 
-          {/* Slider Carousel (Col Span 3) */}
+          {/* Slider Carousel (Col Span 2) */}
           {imageMessages.length > 0 ? (
-            <div className="bg-white border border-black/5 rounded-3xl overflow-hidden shadow-sm lg:col-span-3 relative h-auto min-h-[140px] group animate-fadeIn">
+            <div className="bg-white border border-black/5 rounded-3xl overflow-hidden shadow-sm lg:col-span-2 relative h-auto min-h-[140px] group animate-fadeIn">
               <div
                 className="flex transition-transform duration-500 ease-out h-full"
                 style={{ transform: `translateX(-${activeImageIndex * 100}%)` }}
