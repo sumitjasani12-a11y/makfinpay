@@ -265,6 +265,10 @@ export default function AdminOverview() {
             icon={FileText}
             iconBg="bg-blue-50 text-blue-600"
             badge={`${financial.total_txn_count ?? 0} txns`}
+            breakdowns={[
+              { label: "CC Bill Volume", value: fmtMoney(financial.cc_bill_volume ?? 0) },
+              { label: "Live Bill Volume", value: fmtMoney(financial.live_bill_volume ?? 0) }
+            ]}
           />
 
           <FinancialCard

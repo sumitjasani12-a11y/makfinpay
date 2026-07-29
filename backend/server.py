@@ -4713,6 +4713,8 @@ async def _transaction_metrics(date_match: dict) -> dict:
         "transaction_revenue": total_revenue,
         "cc_bill_revenue": round(cc_revenue, 2),
         "live_bill_profit": round(live_profit, 2),
+        "cc_bill_volume": round(cc_vol, 2),
+        "live_bill_volume": round(live_vol, 2),
     }
 
 
@@ -4782,6 +4784,8 @@ async def admin_stats_financial(
         "transaction_revenue": round(txn["transaction_revenue"], 2),
         "cc_bill_revenue": txn.get("cc_bill_revenue", 0.0),
         "live_bill_profit": txn.get("live_bill_profit", 0.0),
+        "cc_bill_volume": txn.get("cc_bill_volume", 0.0),
+        "live_bill_volume": txn.get("live_bill_volume", 0.0),
         "pending_kyc_count": pending_kyc_count,
         "total_withdrawals_approved": round(total_wd, 2),
         "agent_withdrawals_approved": round(agent_wd, 2),
