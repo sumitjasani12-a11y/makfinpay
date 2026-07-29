@@ -416,6 +416,33 @@ export default function LiveBillPay() {
     return "—";
   };
 
+  const isMaskedName = (nameStr) => {
+    if (!nameStr) return false;
+    const upper = nameStr.toUpperCase();
+    const xCount = (upper.match(/X/g) || []).length;
+    const starCount = (upper.match(/\*/g) || []).length;
+    return xCount > 4 || starCount > 2;
+  };
+
+  const formatCustomerName = (nameStr) => {
+    if (!nameStr) return "N/A";
+    let clean = nameStr.trim();
+    
+    if (isMaskedName(clean)) {
+      return clean.toUpperCase().split('').map(char => {
+        if (char === 'X' || char === '*') {
+          return '•';
+        }
+        return char;
+      }).join(' ');
+    }
+    
+    return clean.split(' ').map(word => {
+      if (!word) return '';
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    }).join(' ');
+  };
+
   return (
     <div className="w-full">
       <PageHeader 
@@ -722,9 +749,14 @@ export default function LiveBillPay() {
                         <span className="text-[9px] font-black uppercase text-[#00966B] tracking-widest block mb-1">
                           VERIFIED INFO
                         </span>
-                        <span className="text-sm font-black text-slate-800 uppercase tracking-tight">
-                          {fetchedBill.billerResponse?.customerName || fetchedBill.customerName || "N/A"}
+                        <span className={`font-extrabold text-slate-800 tracking-wide ${isMaskedName(fetchedBill.billerResponse?.customerName || fetchedBill.customerName) ? "text-[11px] font-mono leading-relaxed" : "text-sm tracking-tight"}`}>
+                          {formatCustomerName(fetchedBill.billerResponse?.customerName || fetchedBill.customerName)}
                         </span>
+                        {isMaskedName(fetchedBill.billerResponse?.customerName || fetchedBill.customerName) && (
+                          <span className="text-[8.5px] text-[#00966B] font-bold mt-1 tracking-wider leading-none">
+                            * NAME PARTIALLY MASKED BY BANK FOR SECURITY
+                          </span>
+                        )}
                         <div className="absolute right-0 bottom-0 opacity-10 translate-x-1.5 translate-y-1.5 text-[#00966B]">
                           <ShieldCheck className="h-16 w-16 stroke-1.5" />
                         </div>
