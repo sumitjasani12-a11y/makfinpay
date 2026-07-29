@@ -529,7 +529,7 @@ export default function LiveBillPay() {
   return (
     <div className="w-full">
       <PageHeader 
-        title="Live Utility Bill Pay" 
+        title="Bill Payments" 
         subtitle="Fetch and pay electricity, gas, water bills instantly in real time." 
       />
 
