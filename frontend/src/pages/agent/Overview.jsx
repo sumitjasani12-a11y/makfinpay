@@ -71,68 +71,60 @@ export default function AgentOverview() {
           {/* Grid of 4 Cards (Col Span 8) */}
           <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5">
             {/* Card 1: Total Balance */}
-            <div className="bg-white border border-black/5 rounded-2xl p-4 shadow-sm flex flex-col justify-between h-28 relative overflow-hidden transition-all hover:shadow-md animate-fadeIn">
-              <div className="flex items-center justify-between">
-                <div className="p-2 bg-[#E8F5E9] text-[#00966B] rounded-xl">
-                  <Wallet className="h-4 w-4" />
-                </div>
+            <div className="bg-white border border-black/5 rounded-2xl p-3.5 shadow-sm flex items-center gap-3.5 h-[84px] relative overflow-hidden transition-all hover:shadow-md animate-fadeIn">
+              <div className="p-2.5 bg-[#E8F5E9] text-[#00966B] rounded-xl shrink-0">
+                <Wallet className="h-4.5 w-4.5" />
               </div>
-              <div className="mt-2">
-                <span className="text-[9px] text-neutral-400 font-bold tracking-wider uppercase block">
+              <div className="min-w-0">
+                <span className="text-[9px] text-neutral-400 font-bold tracking-wider uppercase block truncate">
                   Total Balance
                 </span>
-                <span className="text-lg font-black text-neutral-800 mt-0.5 block">
+                <span className="text-base font-black text-neutral-800 mt-0.5 block truncate">
                   {fmtMoney(stats.wallet_balance)}
                 </span>
               </div>
             </div>
 
             {/* Card 2: QR Payment */}
-            <div className="bg-white border border-black/5 rounded-2xl p-4 shadow-sm flex flex-col justify-between h-28 relative overflow-hidden transition-all hover:shadow-md animate-fadeIn">
-              <div className="flex items-center justify-between">
-                <div className="p-2 bg-[#E3F2FD] text-[#1E88E5] rounded-xl">
-                  <QrCode className="h-4 w-4" />
-                </div>
+            <div className="bg-white border border-black/5 rounded-2xl p-3.5 shadow-sm flex items-center gap-3.5 h-[84px] relative overflow-hidden transition-all hover:shadow-md animate-fadeIn">
+              <div className="p-2.5 bg-[#E3F2FD] text-[#1E88E5] rounded-xl shrink-0">
+                <QrCode className="h-4.5 w-4.5" />
               </div>
-              <div className="mt-2">
-                <span className="text-[9px] text-neutral-400 font-bold tracking-wider uppercase block">
+              <div className="min-w-0">
+                <span className="text-[9px] text-neutral-400 font-bold tracking-wider uppercase block truncate">
                   QR Payment
                 </span>
-                <span className="text-lg font-black text-neutral-800 mt-0.5 block">
+                <span className="text-base font-black text-neutral-800 mt-0.5 block truncate">
                   {fmtMoney(stats.qr_payment)}
                 </span>
               </div>
             </div>
 
             {/* Card 3: Live Bill Payment */}
-            <div className="bg-white border border-black/5 rounded-2xl p-4 shadow-sm flex flex-col justify-between h-28 relative overflow-hidden transition-all hover:shadow-md animate-fadeIn">
-              <div className="flex items-center justify-between">
-                <div className="p-2 bg-[#F3E5F5] text-[#8E24AA] rounded-xl">
-                  <CreditCard className="h-4 w-4" />
-                </div>
+            <div className="bg-white border border-black/5 rounded-2xl p-3.5 shadow-sm flex items-center gap-3.5 h-[84px] relative overflow-hidden transition-all hover:shadow-md animate-fadeIn">
+              <div className="p-2.5 bg-[#F3E5F5] text-[#8E24AA] rounded-xl shrink-0">
+                <CreditCard className="h-4.5 w-4.5" />
               </div>
-              <div className="mt-2">
-                <span className="text-[9px] text-neutral-400 font-bold tracking-wider uppercase block">
+              <div className="min-w-0">
+                <span className="text-[9px] text-neutral-400 font-bold tracking-wider uppercase block truncate">
                   Live Bill Payment
                 </span>
-                <span className="text-lg font-black text-neutral-800 mt-0.5 block">
+                <span className="text-base font-black text-neutral-800 mt-0.5 block truncate">
                   {fmtMoney(stats.live_bill_payment)}
                 </span>
               </div>
             </div>
 
             {/* Card 4: Pending Requests */}
-            <div className="bg-white border border-black/5 rounded-2xl p-4 shadow-sm flex flex-col justify-between h-28 relative overflow-hidden transition-all hover:shadow-md animate-fadeIn">
-              <div className="flex items-center justify-between">
-                <div className="p-2 bg-[#FFF3E0] text-[#FB8C00] rounded-xl">
-                  <Clock className="h-4 w-4" />
-                </div>
+            <div className="bg-white border border-black/5 rounded-2xl p-3.5 shadow-sm flex items-center gap-3.5 h-[84px] relative overflow-hidden transition-all hover:shadow-md animate-fadeIn">
+              <div className="p-2.5 bg-[#FFF3E0] text-[#FB8C00] rounded-xl shrink-0">
+                <Clock className="h-4.5 w-4.5" />
               </div>
-              <div className="mt-2">
-                <span className="text-[9px] text-neutral-400 font-bold tracking-wider uppercase block">
+              <div className="min-w-0">
+                <span className="text-[9px] text-neutral-400 font-bold tracking-wider uppercase block truncate">
                   Pending Requests
                 </span>
-                <span className="text-lg font-black text-neutral-800 mt-0.5 block">
+                <span className="text-base font-black text-neutral-800 mt-0.5 block truncate">
                   {stats.pending_requests}
                 </span>
               </div>
