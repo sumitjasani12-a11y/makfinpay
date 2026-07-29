@@ -71,68 +71,68 @@ export default function AgentOverview() {
           {/* Grid of 4 Cards (Col Span 8) */}
           <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5">
             {/* Card 1: Total Balance */}
-            <div className="bg-white border border-black/5 rounded-3xl p-6 shadow-sm flex flex-col justify-between h-36 relative overflow-hidden transition-all hover:shadow-md animate-fadeIn">
+            <div className="bg-white border border-black/5 rounded-2xl p-4 shadow-sm flex flex-col justify-between h-28 relative overflow-hidden transition-all hover:shadow-md animate-fadeIn">
               <div className="flex items-center justify-between">
-                <div className="p-3 bg-[#E8F5E9] text-[#00966B] rounded-2xl">
-                  <Wallet className="h-5 w-5" />
+                <div className="p-2 bg-[#E8F5E9] text-[#00966B] rounded-xl">
+                  <Wallet className="h-4 w-4" />
                 </div>
               </div>
-              <div className="mt-4">
-                <span className="text-[10px] text-neutral-400 font-bold tracking-wider uppercase block">
+              <div className="mt-2">
+                <span className="text-[9px] text-neutral-400 font-bold tracking-wider uppercase block">
                   Total Balance
                 </span>
-                <span className="text-xl font-black text-neutral-800 mt-1 block">
+                <span className="text-lg font-black text-neutral-800 mt-0.5 block">
                   {fmtMoney(stats.wallet_balance)}
                 </span>
               </div>
             </div>
 
             {/* Card 2: QR Payment */}
-            <div className="bg-white border border-black/5 rounded-3xl p-6 shadow-sm flex flex-col justify-between h-36 relative overflow-hidden transition-all hover:shadow-md animate-fadeIn">
+            <div className="bg-white border border-black/5 rounded-2xl p-4 shadow-sm flex flex-col justify-between h-28 relative overflow-hidden transition-all hover:shadow-md animate-fadeIn">
               <div className="flex items-center justify-between">
-                <div className="p-3 bg-[#E3F2FD] text-[#1E88E5] rounded-2xl">
-                  <QrCode className="h-5 w-5" />
+                <div className="p-2 bg-[#E3F2FD] text-[#1E88E5] rounded-xl">
+                  <QrCode className="h-4 w-4" />
                 </div>
               </div>
-              <div className="mt-4">
-                <span className="text-[10px] text-neutral-400 font-bold tracking-wider uppercase block">
+              <div className="mt-2">
+                <span className="text-[9px] text-neutral-400 font-bold tracking-wider uppercase block">
                   QR Payment
                 </span>
-                <span className="text-xl font-black text-neutral-800 mt-1 block">
+                <span className="text-lg font-black text-neutral-800 mt-0.5 block">
                   {fmtMoney(stats.qr_payment)}
                 </span>
               </div>
             </div>
 
             {/* Card 3: Live Bill Payment */}
-            <div className="bg-white border border-black/5 rounded-3xl p-6 shadow-sm flex flex-col justify-between h-36 relative overflow-hidden transition-all hover:shadow-md animate-fadeIn">
+            <div className="bg-white border border-black/5 rounded-2xl p-4 shadow-sm flex flex-col justify-between h-28 relative overflow-hidden transition-all hover:shadow-md animate-fadeIn">
               <div className="flex items-center justify-between">
-                <div className="p-3 bg-[#F3E5F5] text-[#8E24AA] rounded-2xl">
-                  <CreditCard className="h-5 w-5" />
+                <div className="p-2 bg-[#F3E5F5] text-[#8E24AA] rounded-xl">
+                  <CreditCard className="h-4 w-4" />
                 </div>
               </div>
-              <div className="mt-4">
-                <span className="text-[10px] text-neutral-400 font-bold tracking-wider uppercase block">
+              <div className="mt-2">
+                <span className="text-[9px] text-neutral-400 font-bold tracking-wider uppercase block">
                   Live Bill Payment
                 </span>
-                <span className="text-xl font-black text-neutral-800 mt-1 block">
+                <span className="text-lg font-black text-neutral-800 mt-0.5 block">
                   {fmtMoney(stats.live_bill_payment)}
                 </span>
               </div>
             </div>
 
             {/* Card 4: Pending Requests */}
-            <div className="bg-white border border-black/5 rounded-3xl p-6 shadow-sm flex flex-col justify-between h-36 relative overflow-hidden transition-all hover:shadow-md animate-fadeIn">
+            <div className="bg-white border border-black/5 rounded-2xl p-4 shadow-sm flex flex-col justify-between h-28 relative overflow-hidden transition-all hover:shadow-md animate-fadeIn">
               <div className="flex items-center justify-between">
-                <div className="p-3 bg-[#FFF3E0] text-[#FB8C00] rounded-2xl">
-                  <Clock className="h-5 w-5" />
+                <div className="p-2 bg-[#FFF3E0] text-[#FB8C00] rounded-xl">
+                  <Clock className="h-4 w-4" />
                 </div>
               </div>
-              <div className="mt-4">
-                <span className="text-[10px] text-neutral-400 font-bold tracking-wider uppercase block">
+              <div className="mt-2">
+                <span className="text-[9px] text-neutral-400 font-bold tracking-wider uppercase block">
                   Pending Requests
                 </span>
-                <span className="text-xl font-black text-neutral-800 mt-1 block">
+                <span className="text-lg font-black text-neutral-800 mt-0.5 block">
                   {stats.pending_requests}
                 </span>
               </div>
