@@ -57,14 +57,17 @@ export default function AgentOverview() {
   return (
     <KycPasswordGate>
       <div className="overflow-x-hidden relative">
-        <PageHeader title="Agent Dashboard" subtitle="Manage recharges, ledger history and wallet balance." />
-
-        {/* Welcome greeting */}
-        <div className="mb-6 animate-fadeIn">
-          <h2 className="text-base font-black tracking-widest text-[#9d4edd] uppercase">
-            {getGreeting()}
-          </h2>
-        </div>
+        <PageHeader 
+          title={
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-[0.25em] text-transparent bg-clip-text bg-gradient-to-r from-[#9d4edd] via-[#7209b7] to-[#3f37c9] block mb-1 animate-fadeIn">
+                {getGreeting()}
+              </span>
+              <span className="text-2xl sm:text-3xl font-black tracking-tight text-slate-800">Agent Dashboard</span>
+            </div>
+          } 
+          subtitle="Manage recharges, ledger history and wallet balance." 
+        />
 
         {/* Hero Section: Grid of 4 Cards + Slider Carousel */}
         <div className="grid grid-cols-1 lg:grid-cols-10 gap-5 mb-8">
