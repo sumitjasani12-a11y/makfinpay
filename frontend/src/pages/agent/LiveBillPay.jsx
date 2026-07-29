@@ -405,7 +405,7 @@ export default function LiveBillPay() {
                 <Loader2 className="h-8 w-8 animate-spin text-neutral-400" />
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
                 {categories.map((c) => {
                   const IconComp = getCategoryIcon(c.id);
                   const desc = getCategoryDesc(c.id, c.category_name);
