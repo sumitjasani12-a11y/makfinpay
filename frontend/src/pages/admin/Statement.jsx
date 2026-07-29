@@ -113,12 +113,14 @@ export default function AdminStatement() {
 
   const getSystemColumns = () => [
     {
-      header: "Date & Time",
-      accessor: (r) => <span className="text-neutral-500 font-semibold">{fmtDate(r.created_at)}</span>,
+      key: "created_at",
+      label: "Date & Time",
+      render: (r) => <span className="text-neutral-500 font-semibold">{fmtDate(r.created_at)}</span>,
     },
     {
-      header: "Member Details",
-      accessor: (r) => (
+      key: "user_name",
+      label: "Member Details",
+      render: (r) => (
         <div className="leading-tight">
           <div className="font-bold text-neutral-800">{r.user_name || "System"}</div>
           <div className="text-[10px] text-neutral-400 font-medium lowercase">{r.user_email || "N/A"}</div>
@@ -126,16 +128,18 @@ export default function AdminStatement() {
       ),
     },
     {
-      header: "Role",
-      accessor: (r) => (
+      key: "user_role",
+      label: "Role",
+      render: (r) => (
         <span className="capitalize text-xs font-bold text-neutral-600 bg-neutral-100 border px-2 py-0.5 rounded-md">
           {(r.user_role || "system").replace("_", " ")}
         </span>
       ),
     },
     {
-      header: "Type",
-      accessor: (r) => {
+      key: "kind",
+      label: "Type",
+      render: (r) => {
         const isCredit = r.kind === "credit" || r.kind === "refund";
         return (
           <span
@@ -156,20 +160,23 @@ export default function AdminStatement() {
       },
     },
     {
-      header: "Amount",
-      accessor: (r) => (
+      key: "amount",
+      label: "Amount",
+      render: (r) => (
         <span className={`font-bold ${r.kind === "credit" || r.kind === "refund" ? "text-emerald-700" : "text-rose-700"}`}>
           {fmtMoney(r.amount)}
         </span>
       ),
     },
     {
-      header: "Closing Balance",
-      accessor: (r) => <span className="font-bold text-neutral-800">{fmtMoney(r.balance_after)}</span>,
+      key: "balance_after",
+      label: "Closing Balance",
+      render: (r) => <span className="font-bold text-neutral-800">{fmtMoney(r.balance_after)}</span>,
     },
     {
-      header: "Particulars / Reference",
-      accessor: (r) => (
+      key: "note",
+      label: "Particulars / Reference",
+      render: (r) => (
         <div className="leading-snug max-w-xs">
           <div className="font-semibold text-neutral-800 text-xs">{r.note}</div>
           {r.ref_type && (
@@ -184,12 +191,14 @@ export default function AdminStatement() {
 
   const getProfitColumns = () => [
     {
-      header: "Date & Time",
-      accessor: (r) => <span className="text-neutral-500 font-semibold">{fmtDate(r.created_at)}</span>,
+      key: "created_at",
+      label: "Date & Time",
+      render: (r) => <span className="text-neutral-500 font-semibold">{fmtDate(r.created_at)}</span>,
     },
     {
-      header: "Type",
-      accessor: (r) => {
+      key: "type",
+      label: "Type",
+      render: (r) => {
         const isCredit = r.type === "credit";
         return (
           <span
@@ -210,20 +219,23 @@ export default function AdminStatement() {
       },
     },
     {
-      header: "Amount",
-      accessor: (r) => (
+      key: "amount",
+      label: "Amount",
+      render: (r) => (
         <span className={`font-bold ${r.type === "credit" ? "text-emerald-700" : "text-rose-700"}`}>
           {fmtMoney(r.amount)}
         </span>
       ),
     },
     {
-      header: "Accumulated Profit",
-      accessor: (r) => <span className="font-bold text-neutral-800">{fmtMoney(r.balance_after)}</span>,
+      key: "balance_after",
+      label: "Accumulated Profit",
+      render: (r) => <span className="font-bold text-neutral-800">{fmtMoney(r.balance_after)}</span>,
     },
     {
-      header: "Description / Notes",
-      accessor: (r) => (
+      key: "note",
+      label: "Description / Notes",
+      render: (r) => (
         <div className="leading-snug">
           <div className="font-semibold text-neutral-800 text-xs">{r.note}</div>
           {r.ref_type && (
@@ -238,12 +250,14 @@ export default function AdminStatement() {
 
   const getCashbookColumns = () => [
     {
-      header: "Date & Time",
-      accessor: (r) => <span className="text-neutral-500 font-semibold">{fmtDate(r.created_at)}</span>,
+      key: "created_at",
+      label: "Date & Time",
+      render: (r) => <span className="text-neutral-500 font-semibold">{fmtDate(r.created_at)}</span>,
     },
     {
-      header: "Type",
-      accessor: (r) => {
+      key: "type",
+      label: "Type",
+      render: (r) => {
         const isCredit = r.type === "credit";
         return (
           <span
@@ -264,20 +278,23 @@ export default function AdminStatement() {
       },
     },
     {
-      header: "Amount",
-      accessor: (r) => (
+      key: "amount",
+      label: "Amount",
+      render: (r) => (
         <span className={`font-bold ${r.type === "credit" ? "text-emerald-700" : "text-rose-700"}`}>
           {fmtMoney(r.amount)}
         </span>
       ),
     },
     {
-      header: "Closing Bank Balance",
-      accessor: (r) => <span className="font-bold text-neutral-800">{fmtMoney(r.balance_after)}</span>,
+      key: "balance_after",
+      label: "Closing Bank Balance",
+      render: (r) => <span className="font-bold text-neutral-800">{fmtMoney(r.balance_after)}</span>,
     },
     {
-      header: "Particulars",
-      accessor: (r) => (
+      key: "note",
+      label: "Particulars",
+      render: (r) => (
         <div className="leading-snug">
           <div className="font-semibold text-neutral-800 text-xs">{r.note}</div>
           {r.ref_type && (
@@ -380,7 +397,7 @@ export default function AdminStatement() {
           </div>
         ) : activeTab === "system" ? (
           <DataTable
-            data={systemItems}
+            rows={systemItems}
             columns={getSystemColumns()}
             pagination={{
               total: systemTotal,
@@ -390,9 +407,9 @@ export default function AdminStatement() {
             }}
           />
         ) : activeTab === "profit" ? (
-          <DataTable data={profitItems} columns={getProfitColumns()} />
+          <DataTable rows={profitItems} columns={getProfitColumns()} />
         ) : (
-          <DataTable data={cashbookItems} columns={getCashbookColumns()} />
+          <DataTable rows={cashbookItems} columns={getCashbookColumns()} />
         )}
       </div>
 
