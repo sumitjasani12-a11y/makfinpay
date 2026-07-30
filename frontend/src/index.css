@@ -96,6 +96,7 @@
   @apply bg-[#1b4332] text-white shadow-sm hover:bg-[#1b4332] hover:text-white;
 }
 .mfp-table th {
+  background-color: #8eb99a;
   @apply text-center text-xs uppercase tracking-wider font-black text-neutral-800 px-4 py-3 border-b border-black/5;
 }
 .mfp-table td {
