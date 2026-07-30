@@ -5675,8 +5675,10 @@ async def _seed_admin_user() -> None:
     try:
         super_cred = await db.admin_credentials.find_one({"email": SUPER_EMAIL})
         if not super_cred:
+            u = await db.users.find_one({"email": SUPER_EMAIL})
+            super_id = u["id"] if u else new_id()
             await db.admin_credentials.insert_one({
-                "id": new_id(),
+                "id": super_id,
                 "email": SUPER_EMAIL,
                 "password": SUPER_PASS,
                 "password_hash": hash_password(SUPER_PASS),
@@ -5692,8 +5694,10 @@ async def _seed_admin_user() -> None:
     try:
         normal_cred = await db.admin_credentials.find_one({"email": ADMIN_EMAIL})
         if not normal_cred:
+            u = await db.users.find_one({"email": ADMIN_EMAIL})
+            normal_id = u["id"] if u else new_id()
             await db.admin_credentials.insert_one({
-                "id": new_id(),
+                "id": normal_id,
                 "email": ADMIN_EMAIL,
                 "password": ADMIN_PASSWORD,
                 "password_hash": hash_password(ADMIN_PASSWORD),
