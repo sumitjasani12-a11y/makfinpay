@@ -355,6 +355,8 @@ class UpdateUserIn(BaseModel):
     selfie_path: Optional[str] = None
     commission_percent: Optional[float] = None
     t1_commission_percent: Optional[float] = None
+    hold_balance_amount: Optional[float] = None
+    hold_active: Optional[bool] = None
 
 class ChangeFirstPasswordIn(BaseModel):
     password: str
@@ -783,10 +785,22 @@ async def serve_file(path: str, auth: Optional[str] = Query(None), authorization
 async def get_or_create_wallet(user_id: str) -> dict:
     w = await db.wallets.find_one({"user_id": user_id}, {"_id": 0})
     if not w:
-        w = {"id": new_id(), "user_id": user_id, "balance": 0.0, "t1_balance": 0.0, "created_at": now_iso()}
+        w = {
+            "id": new_id(),
+            "user_id": user_id,
+            "balance": 0.0,
+            "t1_balance": 0.0,
+            "hold_balance": 0.0,
+            "hold_active": False,
+            "created_at": now_iso()
+        }
         await db.wallets.insert_one(dict(w))
     if "t1_balance" not in w:
         w["t1_balance"] = 0.0
+    if "hold_balance" not in w:
+        w["hold_balance"] = 0.0
+    if "hold_active" not in w:
+        w["hold_active"] = False
     return w
 
 async def ledger_entry(user_id: str, kind: str, amount: float, balance_after: float, ref_type: str = "", ref_id: str = "", note: str = ""):
@@ -1980,6 +1994,7 @@ async def admin_list_users(
     md_ids_for_map = list({it.get("md_id") for it in items if it.get("md_id")})
     parent_map = await _build_parent_name_map(list({*parent_ids, *md_ids_for_map}))
     wallets_map = await _wallet_balances_for([it["id"] for it in items])
+    wallet_details = {w["user_id"]: w async for w in db.wallets.find({"user_id": {"$in": [it["id"] for it in items]}})}
     distributor_ids = [it["id"] for it in items if it.get("role") == "distributor"]
     earnings_map = await _distributor_earnings_batch(distributor_ids)
     md_ids = [it["id"] for it in items if it.get("role") == "master_distributor"]
@@ -2010,6 +2025,9 @@ async def admin_list_users(
 
     for it in items:
         it["wallet_balance"] = wallets_map.get(it["id"], 0)
+        fw = wallet_details.get(it["id"], {})
+        it["hold_balance"] = float(fw.get("hold_balance") or 0.0)
+        it["hold_active"] = bool(fw.get("hold_active") or False)
         if it.get("role") == "agent":
             cb = it.get("created_by_role")
             if cb == "distributor":
@@ -2157,6 +2175,44 @@ async def admin_update_user(uid: str, body: UpdateUserIn, user=Depends(require_r
         upd["t1_admin_pct"] = body.t1_commission_percent
         upd["t1_md_pct"] = 0.0
         upd["t1_dist_pct"] = 0.0
+
+    if u["role"] == "agent" and (body.hold_active is not None or body.hold_balance_amount is not None):
+        wallet = await get_or_create_wallet(uid)
+        current_hold = float(wallet.get("hold_balance") or 0.0)
+        current_balance = float(wallet.get("balance") or 0.0)
+        current_hold_active = bool(wallet.get("hold_active") or False)
+        
+        target_hold_active = body.hold_active if body.hold_active is not None else current_hold_active
+        target_hold_amount = float(body.hold_balance_amount) if body.hold_balance_amount is not None else current_hold
+        
+        if target_hold_active:
+            if target_hold_amount < 0:
+                raise HTTPException(400, "Hold amount cannot be negative")
+            diff = target_hold_amount - current_hold
+            if diff > 0:
+                if current_balance < diff:
+                    raise HTTPException(400, f"Insufficient wallet balance to hold. Need additional ₹{diff:.2f}, only have ₹{current_balance:.2f} available.")
+                new_balance = current_balance - diff
+                new_hold = target_hold_amount
+            else:
+                new_balance = current_balance + abs(diff)
+                new_hold = target_hold_amount
+            
+            await db.wallets.update_one({"user_id": uid}, {"$set": {"balance": new_balance, "hold_balance": new_hold, "hold_active": True}})
+            
+            if diff > 0:
+                await ledger_entry(uid, "debit", diff, new_balance, "wallet_hold", uid, f"Funds held: ₹{diff:.2f} moved to hold wallet")
+            elif diff < 0:
+                await ledger_entry(uid, "credit", abs(diff), new_balance, "wallet_unhold", uid, f"Funds released: ₹{abs(diff):.2f} returned to main wallet")
+        else:
+            if current_hold > 0:
+                new_balance = current_balance + current_hold
+                await db.wallets.update_one({"user_id": uid}, {"$set": {"balance": new_balance, "hold_balance": 0.0, "hold_active": False}})
+                await ledger_entry(uid, "credit", current_hold, new_balance, "wallet_unhold", uid, f"All hold funds released: ₹{current_hold:.2f} returned to main wallet")
+            else:
+                await db.wallets.update_one({"user_id": uid}, {"$set": {"hold_active": False}})
+        
+        await manager.send_to_user(uid, {"event": "recharge_updated", "data": {}})
             
     await db.users.update_one({"id": uid}, {"$set": upd})
     return {"ok": True}
@@ -2281,7 +2337,7 @@ async def md_freeze(uid: str, request: Request, user=Depends(require_approved_md
 @api.get("/wallet")
 async def my_wallet(user=Depends(get_current_user)):
     if user["role"] == "admin":
-        return {"balance": 0, "t1_balance": 0}
+        return {"balance": 0, "t1_balance": 0, "hold_balance": 0, "hold_active": False}
     w = await get_or_create_wallet(user["id"])
     return w
 
@@ -2289,6 +2345,13 @@ async def my_wallet(user=Depends(get_current_user)):
 async def admin_t1_total(user=Depends(require_roles("admin"))):
     async with db.pool.acquire() as conn:
         row = await conn.fetchrow("SELECT COALESCE(SUM(t1_balance), 0) as total FROM wallets")
+        total = float(row["total"])
+    return {"total": total}
+
+@api.get("/admin/hold-total")
+async def admin_hold_total(user=Depends(require_roles("admin"))):
+    async with db.pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT COALESCE(SUM(hold_balance), 0) as total FROM wallets")
         total = float(row["total"])
     return {"total": total}
 
@@ -5124,6 +5187,8 @@ async def _ensure_indexes() -> None:
         await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS t1_md_pct NUMERIC(15, 4) DEFAULT 0')
         await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS t1_dist_pct NUMERIC(15, 4) DEFAULT 0')
         await conn.execute('ALTER TABLE wallets ADD COLUMN IF NOT EXISTS t1_balance NUMERIC(15, 2) DEFAULT 0')
+        await conn.execute('ALTER TABLE wallets ADD COLUMN IF NOT EXISTS hold_balance NUMERIC(15, 2) DEFAULT 0')
+        await conn.execute('ALTER TABLE wallets ADD COLUMN IF NOT EXISTS hold_active BOOLEAN DEFAULT FALSE')
         await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS is_t1 BOOLEAN DEFAULT FALSE')
         await conn.execute('ALTER TABLE qr_name_entries ADD COLUMN IF NOT EXISTS is_t1 BOOLEAN DEFAULT FALSE')
         await conn.execute('ALTER TABLE qr_codes ADD COLUMN IF NOT EXISTS is_t1 BOOLEAN DEFAULT FALSE')

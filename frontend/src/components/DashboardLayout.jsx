@@ -51,6 +51,9 @@ export default function DashboardLayout() {
   const [t1Balance, setT1Balance] = useState(null);
   const [t1Total, setT1Total] = useState(null);
   const [bbpsBalance, setBbpsBalance] = useState(null);
+  const [holdBalance, setHoldBalance] = useState(null);
+  const [holdActive, setHoldActive] = useState(false);
+  const [holdTotal, setHoldTotal] = useState(null);
   const [headlines, setHeadlines] = useState([]);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [pendingCounts, setPendingCounts] = useState({ recharges: 0, transactions: 0, kyc: 0, withdrawals: 0 });
@@ -107,6 +110,8 @@ export default function DashboardLayout() {
         .then((r) => {
           setBalance(r.data.balance);
           setT1Balance(r.data.t1_balance);
+          setHoldBalance(r.data.hold_balance);
+          setHoldActive(r.data.hold_active);
         })
         .catch((e) => console.log("Failed to fetch header wallet:", e.message));
     } else if (user.role === "admin") {
@@ -121,6 +126,12 @@ export default function DashboardLayout() {
           setBbpsBalance(r.data.data?.balance);
         })
         .catch((e) => console.log("Failed to fetch admin BBPS balance:", e.message));
+
+      api.get("/admin/hold-total")
+        .then((r) => {
+          setHoldTotal(r.data.total);
+        })
+        .catch((e) => console.log("Failed to fetch admin hold total:", e.message));
     }
   }, [user]);
 
@@ -231,6 +242,12 @@ export default function DashboardLayout() {
                 T+1 Wallet: {fmtMoney(t1Balance)}
               </span>
             )}
+            {user.role === "agent" && holdBalance !== null && holdActive && (
+              <span className="font-extrabold text-neutral-800 bg-[#FFEBEE] text-[#C81D11] px-3.5 py-1 rounded-full text-xs flex items-center gap-1.5 border border-[#FFCDD2] shadow-sm transition-all animate-pulse" data-testid="header-hold-balance">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#C81D11]" />
+                Hold Wallet: {fmtMoney(holdBalance)}
+              </span>
+            )}
             {user.role === "admin" && t1Total !== null && (
               <span className="font-extrabold text-neutral-800 bg-[#FFF3E0] text-[#E65100] px-3.5 py-1 rounded-full text-xs flex items-center gap-1.5 border border-[#FFE0B2] shadow-sm transition-all" data-testid="admin-header-t1-total">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#E65100] animate-pulse" />
@@ -241,6 +258,12 @@ export default function DashboardLayout() {
               <span className="font-extrabold text-neutral-800 bg-[#E8F5E9] text-[#00966B] px-3.5 py-1 rounded-full text-xs flex items-center gap-1.5 border border-[#C8E6C9] shadow-sm transition-all" data-testid="admin-header-bbps-balance">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#00966B] animate-pulse" />
                 Live BBPS Wallet: {fmtMoney(bbpsBalance)}
+              </span>
+            )}
+            {user.role === "admin" && holdTotal !== null && holdTotal > 0 && (
+              <span className="font-extrabold text-neutral-800 bg-[#FFEBEE] text-[#C81D11] px-3.5 py-1 rounded-full text-xs flex items-center gap-1.5 border border-[#FFCDD2] shadow-sm transition-all" data-testid="admin-header-hold-total">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#C81D11] animate-pulse" />
+                Hold Total: {fmtMoney(holdTotal)}
               </span>
             )}
             <span className="mfp-pill bg-[#E8E5D7] text-[#1B4332] capitalize">{roleLabel(user.role)}</span>

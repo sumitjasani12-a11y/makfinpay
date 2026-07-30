@@ -18,7 +18,9 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
     firm_address: editingUser?.firm_address || "",
     selfie_path: editingUser?.selfie_path || "",
     commission_percent: editingUser?.commission_percent || "",
-    t1_commission_percent: editingUser?.t1_commission_percent || ""
+    t1_commission_percent: editingUser?.t1_commission_percent || "",
+    hold_balance_amount: editingUser?.hold_balance || 0,
+    hold_active: editingUser?.hold_active || false
   });
   const [busy, setBusy] = useState(false);
   const [activeTab, setActiveTab] = useState("firm");
@@ -57,10 +59,12 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
         firm_address: editingUser.firm_address || "",
         selfie_path: editingUser.selfie_path || "",
         commission_percent: editingUser.commission_percent ?? "",
-        t1_commission_percent: editingUser.t1_commission_percent ?? ""
+        t1_commission_percent: editingUser.t1_commission_percent ?? "",
+        hold_balance_amount: editingUser.hold_balance ?? 0,
+        hold_active: editingUser.hold_active ?? false
       });
     } else {
-      setForm({ role, full_name: "", email: "", password: "", phone: "", address: "", firm_name: "", firm_address: "", selfie_path: "", commission_percent: "", t1_commission_percent: "" });
+      setForm({ role, full_name: "", email: "", password: "", phone: "", address: "", firm_name: "", firm_address: "", selfie_path: "", commission_percent: "", t1_commission_percent: "", hold_balance_amount: 0, hold_active: false });
     }
   }, [editingUser, role]);
 
@@ -84,6 +88,10 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
       }
       if (!body.password) {
         delete body.password;
+      }
+      if (isAgent) {
+        body.hold_balance_amount = parseFloat(form.hold_balance_amount || 0);
+        body.hold_active = !!form.hold_active;
       }
       
       if (editingUser) {
@@ -281,23 +289,67 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
                       </div>
 
                       {role === "agent" && (
-                        <div className="bg-[#F8F7F2] rounded-2xl p-5 border border-black/[0.02]">
-                          <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
-                            T+1 Commission % (Charges)
-                          </label>
-                          <div className="flex items-center mt-1">
-                            <span className="text-base font-black text-[#1B4332] mr-1.5">%</span>
-                            <input 
-                              type="number" 
-                              step="0.01"
-                              min="0"
-                              className="w-full text-base font-black text-neutral-800 bg-transparent border-b border-neutral-100 focus:border-[#1B4332] focus:outline-none py-1" 
-                              value={form.t1_commission_percent}
-                              onChange={(e) => setForm({ ...form, t1_commission_percent: e.target.value })}
-                              placeholder="e.g. 2.0"
-                            />
+                        <>
+                          <div className="bg-[#F8F7F2] rounded-2xl p-5 border border-black/[0.02]">
+                            <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
+                              T+1 Commission % (Charges)
+                            </label>
+                            <div className="flex items-center mt-1">
+                              <span className="text-base font-black text-[#1B4332] mr-1.5">%</span>
+                              <input 
+                                type="number" 
+                                step="0.01"
+                                min="0"
+                                className="w-full text-base font-black text-neutral-800 bg-transparent border-b border-neutral-100 focus:border-[#1B4332] focus:outline-none py-1" 
+                                value={form.t1_commission_percent}
+                                onChange={(e) => setForm({ ...form, t1_commission_percent: e.target.value })}
+                                placeholder="e.g. 2.0"
+                              />
+                            </div>
                           </div>
-                        </div>
+
+                          <div className="bg-[#F8F7F2] rounded-2xl p-5 border border-black/[0.02] space-y-4">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-[#C81D11] block">
+                                  Hold Wallet Balance
+                                </label>
+                                <span className="text-[11px] text-neutral-500 font-medium">
+                                  Move agent balance from main wallet to hold wallet
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setForm(prev => ({ ...prev, hold_active: !prev.hold_active }))}
+                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${form.hold_active ? "bg-[#C81D11]" : "bg-neutral-200"}`}
+                              >
+                                <span
+                                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${form.hold_active ? "translate-x-5" : "translate-x-0"}`}
+                                />
+                              </button>
+                            </div>
+
+                            {form.hold_active && (
+                              <div className="pt-2 border-t border-neutral-200/50">
+                                <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
+                                  Hold Amount (₹)
+                                </label>
+                                <div className="flex items-center mt-1">
+                                  <span className="text-base font-black text-[#C81D11] mr-1.5">₹</span>
+                                  <input 
+                                    type="number" 
+                                    step="0.01"
+                                    min="0"
+                                    className="w-full text-base font-black text-neutral-800 bg-transparent border-b border-neutral-100 focus:border-[#C81D11] focus:outline-none py-1" 
+                                    value={form.hold_balance_amount}
+                                    onChange={(e) => setForm({ ...form, hold_balance_amount: e.target.value })}
+                                    placeholder="Enter hold amount"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </>
                       )}
                     </div>
                   ) : (
@@ -1017,6 +1069,7 @@ export function AdminUserList({ role }) {
               setShow(false); 
               setEditingUser(null); 
               reload(); 
+              window.dispatchEvent(new Event("ws:wallet_update"));
               if (data && data.password) {
                 setCreatedCreds({ email: data.email, password: data.password });
               }
@@ -1075,7 +1128,16 @@ export function AdminUserList({ role }) {
                 ? <span className="italic text-neutral-500">Admin</span>
                 : <span className="font-medium">{r.creator_name || "—"}</span>,
             }] : []),
-            ...(role === "agent" ? [{ key: "wallet_balance", label: "Wallet", render: (r) => fmtMoney(r.wallet_balance) }] : []),
+            ...(role === "agent" ? [
+              { key: "wallet_balance", label: "Wallet", render: (r) => fmtMoney(r.wallet_balance) },
+              { 
+                key: "hold_balance", 
+                label: "Hold Wallet", 
+                render: (r) => r.hold_active 
+                  ? <span className="font-black text-[#C81D11] bg-[#FFEBEE] px-2.5 py-0.5 rounded-full text-[10px] border border-[#FFCDD2] inline-flex items-center shadow-sm select-none">{fmtMoney(r.hold_balance)}</span>
+                  : <span className="text-neutral-400 font-bold">—</span>
+              }
+            ] : []),
             ...(role === "agent" ? [
               { key: "commission_percent", label: "Comm %", render: (r) => `${r.commission_percent ?? "—"}%` },
               { key: "t1_commission_percent", label: "T+1 Comm %", render: (r) => `${r.t1_commission_percent ?? "—"}%` }
