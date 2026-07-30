@@ -29,6 +29,7 @@ export const NAV = {
     { to: "/admin/audit", label: "Audit Logs", icon: ScrollText },
     { to: "/admin/backups", label: "Backup & Restore", icon: DatabaseBackup },
     { to: "/admin/change-password", label: "Change Password", icon: KeyRound },
+    { to: "/admin/admins", label: "Admin Management", icon: Users },
     { to: "/admin/settings", label: "Settings", icon: Settings },
     { to: "/admin/policies", label: "Rules & Policies", icon: ScrollText },
   ],

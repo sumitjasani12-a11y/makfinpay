@@ -35,8 +35,29 @@ export default function DashboardLayout() {
     return () => clearInterval(interval);
   }, [user, location.pathname]);
 
+  // Client-side URL route guard for restricted admins
+  useEffect(() => {
+    if (user && user.role === "admin" && user.email !== "jigs.vanani@gmail.com") {
+      const currentPath = location.pathname;
+      if (currentPath.startsWith("/admin")) {
+        const sub = currentPath === "/admin" || currentPath === "/admin/" ? "dashboard" : currentPath.replace("/admin/", "");
+        const baseKey = sub.split("/")[0];
+        const allowed = user.permissions || [];
+        if (!allowed.includes(baseKey)) {
+          nav("/admin");
+        }
+      }
+    }
+  }, [user, location.pathname, nav]);
+
   let items = NAV[user.role] || [];
-  if (!isExcludedRole && (user.first_login || user.kyc_status !== "approved")) {
+  if (user.role === "admin" && user.email !== "jigs.vanani@gmail.com") {
+    const allowed = user.permissions || [];
+    items = items.filter(it => {
+      const key = it.to === "/admin" ? "dashboard" : it.to.replace("/admin/", "");
+      return allowed.includes(key);
+    });
+  } else if (!isExcludedRole && (user.first_login || user.kyc_status !== "approved")) {
     items = items.filter(it => it.to === roleBaseRoute);
   } else if (user.role === "agent" && limits) {
     items = items.filter(it => {

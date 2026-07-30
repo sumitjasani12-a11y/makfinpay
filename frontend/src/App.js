@@ -29,6 +29,7 @@ import AdminSettings from "@/pages/admin/Settings";
 import AdminReasons from "@/pages/admin/Reasons";
 import AdminPolicies from "@/pages/admin/Policies";
 import AdminStatement from "@/pages/admin/Statement";
+import AdminManagement from "@/pages/admin/AdminManagement";
 import UserPolicies from "@/pages/UserPolicies";
 
 
@@ -113,6 +114,7 @@ export default function App() {
             <Route path="settings" element={<AdminSettings />} />
             <Route path="policies" element={<AdminPolicies />} />
             <Route path="statement" element={<AdminStatement />} />
+            <Route path="admins" element={<AdminManagement />} />
           </Route>
 
           {/* Distributor */}
