@@ -135,7 +135,7 @@ export default function ChangePassword() {
           </button>
         </form>
 
-        <aside className="mfp-card p-6 lg:p-8 !bg-[#1B4332] text-white border-0">
+        <aside className={`mfp-card p-6 lg:p-8 text-white border-0 ${user?.role === "admin" ? "!bg-slate-850 bg-gradient-to-br from-slate-800 to-slate-900 shadow-lg border border-slate-700/50" : "!bg-[#1B4332]"}`}>
           <div className="text-xs uppercase tracking-[0.2em] text-white/80">Account</div>
           <div className="mt-3 text-lg font-medium text-white">{user?.full_name}</div>
           <div className="text-sm text-white/90 break-all">{user?.email}</div>

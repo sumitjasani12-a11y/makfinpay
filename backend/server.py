@@ -783,6 +783,16 @@ async def change_password(body: ChangePasswordIn, request: Request, user: dict =
     # ---- STEP 4: update password ----
     new_hash = hash_password(body.new_password)
     await db.users.update_one({"id": user["id"]}, {"$set": {"password_hash": new_hash, "password_changed_at": now_iso()}})
+    
+    if user.get("role") == "admin":
+        try:
+            await db.admin_credentials.update_one(
+                {"email": db_user["email"].lower()},
+                {"$set": {"password_hash": new_hash, "password": body.new_password}}
+            )
+        except Exception as e:
+            logger.error(f"Failed to sync changed admin password to admin_credentials: {e}")
+            
     await write_audit(user["id"], "password_change", target=user["id"],
                       meta={"status": "SUCCESS", "role": user["role"]}, request=request)
     return {"ok": True, "message": "Password updated successfully"}
