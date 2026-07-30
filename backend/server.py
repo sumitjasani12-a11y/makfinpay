@@ -1012,9 +1012,18 @@ async def list_admins(user=Depends(require_roles("admin"))):
         
     SUPER_EMAIL = "jigs.vanani@gmail.com"
     creds = await db.admin_credentials.find({"email": {"$ne": SUPER_EMAIL}}).to_list(100)
+    
+    # Bulk fetch users to avoid sequential database queries inside the loop
+    emails = [c["email"].lower() for c in creds if c.get("email")]
+    users_dict = {}
+    if emails:
+        users_list = await db.users.find({"email": {"$in": emails}}).to_list(len(emails))
+        users_dict = {u["email"].lower(): u for u in users_list if u.get("email")}
+        
     admins = []
     for c in creds:
-        u = await db.users.find_one({"email": c["email"].lower()})
+        email_lower = c.get("email", "").lower()
+        u = users_dict.get(email_lower)
         admins.append({
             "id": c.get("id"),
             "email": c.get("email"),
@@ -1035,11 +1044,13 @@ async def create_admin(body: CreateAdminIn, user=Depends(require_roles("admin"))
     if email == SUPER_EMAIL:
         raise HTTPException(400, "Cannot create this email account.")
         
-    existing = await db.admin_credentials.find_one({"email": email})
-    if existing:
+    # Execute checks in parallel
+    existing_cred_task = db.admin_credentials.find_one({"email": email})
+    existing_user_task = db.users.find_one({"email": email})
+    existing_cred, existing_user = await asyncio.gather(existing_cred_task, existing_user_task)
+    
+    if existing_cred:
         raise HTTPException(400, "Admin email already exists.")
-        
-    existing_user = await db.users.find_one({"email": email})
     if existing_user:
         raise HTTPException(400, "Email already used by another user account.")
 
@@ -1055,9 +1066,8 @@ async def create_admin(body: CreateAdminIn, user=Depends(require_roles("admin"))
         "frozen": body.frozen,
         "created_at": now_iso()
     }
-    await db.admin_credentials.insert_one(new_cred)
     
-    await db.users.insert_one({
+    new_user = {
         "id": admin_id,
         "role": "admin",
         "full_name": body.full_name,
@@ -1069,7 +1079,13 @@ async def create_admin(body: CreateAdminIn, user=Depends(require_roles("admin"))
         "is_deleted": False,
         "created_at": now_iso(),
         "permissions": body.permissions
-    })
+    }
+    
+    # Execute inserts in parallel
+    await asyncio.gather(
+        db.admin_credentials.insert_one(new_cred),
+        db.users.insert_one(new_user)
+    )
     
     return {"status": "success", "message": "Admin user created successfully", "id": admin_id}
 
@@ -1086,6 +1102,7 @@ async def update_admin(admin_id: str, body: UpdateAdminIn, user=Depends(require_
     if cred["email"].lower() == SUPER_EMAIL:
         raise HTTPException(403, "Cannot modify Super Admin account.")
 
+    email = cred["email"].lower()
     cred_updates = {}
     user_updates = {}
     
@@ -1106,10 +1123,16 @@ async def update_admin(admin_id: str, body: UpdateAdminIn, user=Depends(require_
         cred_updates["frozen"] = body.frozen
         user_updates["frozen"] = body.frozen
         
+    # Execute updates in parallel
+    tasks = []
     if cred_updates:
-        await db.admin_credentials.update_one({"id": admin_id}, {"$set": cred_updates})
+        tasks.append(db.admin_credentials.update_one({"id": admin_id}, {"$set": cred_updates}))
     if user_updates:
-        await db.users.update_one({"id": admin_id}, {"$set": user_updates})
+        # Match by email to keep tables synced even if ID is different
+        tasks.append(db.users.update_one({"email": email}, {"$set": user_updates}))
+        
+    if tasks:
+        await asyncio.gather(*tasks)
         
     return {"status": "success", "message": "Admin user updated successfully"}
 
@@ -1126,8 +1149,13 @@ async def delete_admin(admin_id: str, user=Depends(require_roles("admin"))):
     if cred["email"].lower() == SUPER_EMAIL:
         raise HTTPException(403, "Cannot delete Super Admin account.")
         
-    await db.admin_credentials.delete_one({"id": admin_id})
-    await db.users.delete_one({"id": admin_id})
+    email = cred["email"].lower()
+    
+    # Execute deletes in parallel
+    await asyncio.gather(
+        db.admin_credentials.delete_one({"id": admin_id}),
+        db.users.delete_one({"email": email})
+    )
     
     return {"status": "success", "message": "Admin user deleted successfully"}
 
