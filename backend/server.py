@@ -5083,6 +5083,13 @@ async def reset_demo_data(body: DemoResetIn, request: Request, user=Depends(requ
 # ---------- STARTUP ----------
 async def _ensure_indexes() -> None:
     async with db.pool.acquire() as conn:
+        # Ensure OCR columns exist in the recharges table
+        await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS ocr_utr TEXT')
+        await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS ocr_amount NUMERIC(15, 2)')
+        await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS ocr_qr_name TEXT')
+        await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS ocr_match BOOLEAN DEFAULT FALSE')
+        await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS ocr_bypass BOOLEAN DEFAULT FALSE')
+
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS billers (
                 biller_id VARCHAR(255) PRIMARY KEY,
