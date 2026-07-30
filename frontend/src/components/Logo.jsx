@@ -39,10 +39,8 @@ export default function Logo({ variant = "dark", size, className = "", collapsed
       alt="MAK FIN PAY logo"
       style={{
         ...blendStyle,
-        width: collapsed ? "28px" : "100%",
-        height: collapsed ? "28px" : "100%",
-        maxWidth: collapsed ? "28px" : "100%",
-        maxHeight: collapsed ? "28px" : "100%",
+        maxWidth: collapsed ? "28px" : "80%",
+        maxHeight: collapsed ? "28px" : "44px",
       }}
       className={`shrink-0 select-none object-contain ${className}`}
       draggable={false}
