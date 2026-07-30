@@ -117,39 +117,46 @@ const getShortTxnId = (id) => {
 
 const getBillerLogoUrl = (billerName) => {
   const name = billerName.toLowerCase();
-  if (name.includes("axis")) return "https://logo.clearbit.com/axisbank.com";
+  
+  // Local Bank Logos copied from local storage folder
+  if (name.includes("union")) return "/assets/banks/union_logo.png";
+  if (name.includes("axis")) return "/assets/banks/axis_logo.png";
+  if (name.includes("bandhan")) return "/assets/banks/bandhan_logo.png";
+  if (name.includes("baroda") || name.includes("bob")) return "/assets/banks/bob_logo.png";
+  if (name.includes("bank of india") || name.includes("boi")) return "/assets/banks/boi_logo.png";
+  if (name.includes("csb")) return "/assets/banks/csb_logo.png";
+  if (name.includes("dcb")) return "/assets/banks/dcb_logo.png";
+  if (name.includes("esaf")) return "/assets/banks/esaf_logo.png";
+  if (name.includes("federal")) return "/assets/banks/federal_logo.png";
+  if (name.includes("indian bank")) return "/assets/banks/indian_logo.png";
+  if (name.includes("kotak")) return "/assets/banks/kotak_logo.png";
+  if (name.includes("punjab national") || name.includes("pnb")) return "/assets/banks/pnb_logo.png";
+  if (name.includes("saraswat")) return "/assets/banks/saraswat_logo.png";
+  if (name.includes("sbm")) return "/assets/banks/sbm_logo.png";
+  if (name.includes("south indian") || name.includes("sib")) return "/assets/banks/south_indian_logo.png";
+  if (name.includes("suryoday")) return "/assets/banks/suryoday_logo.png";
+
+  // Fallbacks to Clearbit API for other bank logos
   if (name.includes("sbi") || name.includes("state bank of india")) return "https://logo.clearbit.com/sbi.co.in";
   if (name.includes("hdfc")) return "https://logo.clearbit.com/hdfcbank.com";
   if (name.includes("icici")) return "https://logo.clearbit.com/icicibank.com";
-  if (name.includes("kotak")) return "https://logo.clearbit.com/kotak.com";
   if (name.includes("rbl")) return "https://logo.clearbit.com/rblbank.com";
-  if (name.includes("baroda") || name.includes("bob")) return "https://logo.clearbit.com/bankofbaroda.in";
   if (name.includes("yes bank")) return "https://logo.clearbit.com/yesbank.in";
   if (name.includes("idfc") || name.includes("first bank")) return "https://logo.clearbit.com/idfcfirstbank.com";
   if (name.includes("canara")) return "https://logo.clearbit.com/canarabank.com";
-  if (name.includes("union bank")) return "https://logo.clearbit.com/unionbankofindia.co.in";
-  if (name.includes("punjab national") || name.includes("pnb")) return "https://logo.clearbit.com/pnbindia.in";
   if (name.includes("indusind")) return "https://logo.clearbit.com/indusind.com";
-  if (name.includes("federal")) return "https://logo.clearbit.com/federalbank.co.in";
   if (name.includes("hsbc")) return "https://logo.clearbit.com/hsbc.co.in";
   if (name.includes("dbs")) return "https://logo.clearbit.com/dbs.com";
   if (name.includes("au bank") || name.includes("au small")) return "https://logo.clearbit.com/aubank.in";
   if (name.includes("idbi")) return "https://logo.clearbit.com/idbi.com";
   if (name.includes("maharashtra")) return "https://logo.clearbit.com/bankofmaharashtra.in";
   if (name.includes("central bank")) return "https://logo.clearbit.com/centralbankofindia.co.in";
-  if (name.includes("saraswat")) return "https://logo.clearbit.com/saraswatbank.com";
   if (name.includes("dhanlaxmi")) return "https://logo.clearbit.com/dhanbank.com";
-  if (name.includes("south indian")) return "https://logo.clearbit.com/southindianbank.com";
   if (name.includes("karur vysya") || name.includes("kvb")) return "https://logo.clearbit.com/kvb.co.in";
   if (name.includes("uco")) return "https://logo.clearbit.com/ucobank.com";
-  if (name.includes("indian bank")) return "https://logo.clearbit.com/indianbank.in";
   if (name.includes("slice")) return "https://logo.clearbit.com/sliceit.com";
   if (name.includes("onecard")) return "https://logo.clearbit.com/getonecard.com";
-  if (name.includes("esaf")) return "https://logo.clearbit.com/esafbank.com";
-  if (name.includes("suryoday")) return "https://logo.clearbit.com/suryodaybank.com";
   if (name.includes("equitas")) return "https://logo.clearbit.com/equitasbank.com";
-  if (name.includes("bandhan")) return "https://logo.clearbit.com/bandhanbank.com";
-  if (name.includes("dcb")) return "https://logo.clearbit.com/dcbbank.com";
   if (name.includes("cub") || name.includes("city union")) return "https://logo.clearbit.com/cityunionbank.com";
   return null;
 };
@@ -671,7 +678,7 @@ export default function LiveBillPay() {
                                 }}
                               />
                               <div 
-                                className="logo-fallback hidden h-9 w-9 rounded-xl bg-indigo-50 text-indigo-600 text-xs font-black items-center justify-center border border-indigo-100/50"
+                                className="logo-fallback h-9 w-9 rounded-xl bg-indigo-50 text-indigo-600 text-xs font-black flex items-center justify-center border border-indigo-100/50"
                                 style={{ display: 'none' }}
                               >
                                 {o.biller_name[0].toUpperCase()}
