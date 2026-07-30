@@ -376,6 +376,12 @@ class RechargeIn(BaseModel):
     screenshot_path: str  # storage path of uploaded screenshot
     older_qr: Optional[bool] = False
     is_t1: Optional[bool] = False
+    selected_qr_code_id: Optional[str] = None
+    ocr_utr: Optional[str] = None
+    ocr_amount: Optional[float] = None
+    ocr_qr_name: Optional[str] = None
+    ocr_match: Optional[bool] = False
+    ocr_bypass: Optional[bool] = False
 
 class BillPaymentIn(BaseModel):
     customer_name: str
@@ -2629,6 +2635,11 @@ async def agent_create_recharge(body: RechargeIn, user=Depends(require_approved_
         "is_t1": body.is_t1 or False,
         "commission_amount": 0,
         "credit_amount": 0,
+        "ocr_utr": body.ocr_utr,
+        "ocr_amount": body.ocr_amount,
+        "ocr_qr_name": body.ocr_qr_name,
+        "ocr_match": body.ocr_match or False,
+        "ocr_bypass": body.ocr_bypass or False,
         "note": "",
         "created_at": now_iso(),
         "reviewed_at": None,

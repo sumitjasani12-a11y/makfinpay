@@ -5,7 +5,7 @@ import { useDebounced } from "@/lib/hooks";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import ZoomableImage from "@/components/ZoomableImage";
 import { toast } from "sonner";
-import { Eye, Check, X, Search, RotateCcw, FileDown, FileSpreadsheet, Loader2 } from "lucide-react";
+import { Eye, Check, X, Search, RotateCcw, FileDown, FileSpreadsheet, Loader2, ShieldAlert, CheckCircle2 } from "lucide-react";
 import { useWebSocketListener } from "@/lib/ws";
 
 const STATUSES = [
@@ -77,6 +77,7 @@ export default function AdminRecharges() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState(null);
+  const [adminOcrBypass, setAdminOcrBypass] = useState(false);
   const [rejectTargetId, setRejectTargetId] = useState(null);
 
   // filter state
@@ -494,54 +495,161 @@ export default function AdminRecharges() {
       />
 
       {/* Detail modal */}
-      {detail && (
-        <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4" onClick={() => setDetail(null)}>
-          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} data-testid="recharge-detail-modal">
-            <div className="px-6 py-4 border-b border-black/5 flex items-center justify-between">
-              <div>
-                <div className="mfp-overline">Recharge Request</div>
-                <div className="text-lg font-medium">{detail.user_name}</div>
+      {detail && (() => {
+        const hasOcr = typeof detail.ocr_match === "boolean";
+        const ocrMismatch = hasOcr && !detail.ocr_match;
+        const isApproveDisabled = detail.status === "pending" && ocrMismatch && !adminOcrBypass;
+        
+        return (
+          <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4" onClick={() => { setDetail(null); setAdminOcrBypass(false); }}>
+            <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} data-testid="recharge-detail-modal">
+              <div className="px-6 py-4 border-b border-black/5 flex items-center justify-between">
+                <div>
+                  <div className="mfp-overline">Recharge Request</div>
+                  <div className="text-lg font-medium">{detail.user_name}</div>
+                </div>
+                <button onClick={() => { setDetail(null); setAdminOcrBypass(false); }} className="mfp-btn-ghost p-2" data-testid="recharge-detail-close"><X className="h-4 w-4" /></button>
               </div>
-              <button onClick={() => setDetail(null)} className="mfp-btn-ghost p-2" data-testid="recharge-detail-close"><X className="h-4 w-4" /></button>
-            </div>
-            <div className="grid md:grid-cols-2 gap-6 p-6">
-              <div className="space-y-3 text-sm">
-                {[
-                  ["Amount", fmtMoney(detail.amount)],
-                  ["UTR / Reference", detail.utr || "—"],
-                  ["QR Code Used", detail.qr_code_label || "N/A"],
-                  ["Card / Account Last 4 Digits", detail.card_last4 ? `XXXX ${detail.card_last4}` : "N/A"],
-                  ["Commission %", `${detail.commission_percent}%`],
-                  ["Commission Amount", detail.status === "approved" ? fmtMoney(detail.commission_amount) : "—"],
-                  ["Net Credit", detail.status === "approved" ? fmtMoney(detail.credit_amount) : "—"],
-                  ["Status", null],
-                  ["Created", fmtDate(detail.created_at)],
-                  ["Reviewed", fmtDate(detail.reviewed_at)],
-                ].map(([k, v]) => (
-                  <div key={k} className="flex justify-between border-b border-black/5 pb-2">
-                    <span className="text-neutral-500">{k}</span>
-                    <span className="font-medium text-right">{k === "Status" ? <StatusBadge status={detail.status} /> : v}</span>
-                  </div>
-                ))}
-                {detail.status === "pending" && (
-                  <div className="flex gap-2 pt-2">
-                    <button onClick={() => act(detail.id, "approve")} className="flex-1 rounded-xl bg-[#2D6A4F] hover:bg-[#1B4332] text-white px-4 py-2 text-sm font-semibold inline-flex items-center justify-center gap-2" data-testid="detail-approve"><Check className="h-4 w-4" /> Approve</button>
-                    <button onClick={() => act(detail.id, "reject")} className="flex-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 text-sm font-semibold inline-flex items-center justify-center gap-2" data-testid="detail-reject"><X className="h-4 w-4" /> Reject</button>
-                  </div>
-                )}
-              </div>
-              <div>
-                <div className="mfp-overline mb-2">Payment Screenshot</div>
-                {detail.screenshot_path ? (
-                  <ZoomableImage src={fileUrl(detail.screenshot_path)} alt="screenshot" />
-                ) : (
-                  <div className="text-sm text-neutral-500 italic">No screenshot uploaded</div>
-                )}
+              <div className="grid md:grid-cols-2 gap-6 p-6">
+                <div className="space-y-3 text-sm">
+                  {[
+                    ["Amount", fmtMoney(detail.amount)],
+                    ["UTR / Reference", detail.utr || "—"],
+                    ["QR Code Used", detail.qr_code_label || "N/A"],
+                    ["Card / Account Last 4 Digits", detail.card_last4 ? `XXXX ${detail.card_last4}` : "N/A"],
+                    ["Commission %", `${detail.commission_percent}%`],
+                    ["Commission Amount", detail.status === "approved" ? fmtMoney(detail.commission_amount) : "—"],
+                    ["Net Credit", detail.status === "approved" ? fmtMoney(detail.credit_amount) : "—"],
+                    ["Status", null],
+                    ["Created", fmtDate(detail.created_at)],
+                    ["Reviewed", fmtDate(detail.reviewed_at)],
+                  ].map(([k, v]) => (
+                    <div key={k} className="flex justify-between border-b border-black/5 pb-2">
+                      <span className="text-neutral-500">{k}</span>
+                      <span className="font-medium text-right">{k === "Status" ? <StatusBadge status={detail.status} /> : v}</span>
+                    </div>
+                  ))}
+
+                  {/* OCR Analysis Details Card */}
+                  {hasOcr ? (
+                    <div className="mt-4 border border-black/5 rounded-2xl p-4 bg-slate-50/50 space-y-3.5">
+                      <div className="flex items-center justify-between border-b border-black/5 pb-2">
+                        <span className="text-xs font-bold text-neutral-700 tracking-wide uppercase">OCR Validation Details</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${detail.ocr_match ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>
+                          {detail.ocr_match ? "Auto-Verified ✓" : "Mismatch Warning ✗"}
+                        </span>
+                      </div>
+                      
+                      {detail.ocr_bypass && !detail.ocr_match && (
+                        <div className="bg-amber-50 border border-amber-200/60 rounded-xl p-2.5 flex items-start gap-2">
+                          <ShieldAlert className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                          <span className="text-[10px] text-amber-800 leading-normal font-semibold">
+                            Agent bypassed a validation mismatch to submit this request.
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="space-y-2 text-xs">
+                        {/* UTR Compare */}
+                        <div className="flex justify-between items-center py-0.5">
+                          <span className="text-neutral-500">Extracted UTR</span>
+                          <div className="text-right">
+                            <span className="font-semibold text-neutral-800 block">{detail.ocr_utr || "Not Found"}</span>
+                            <span className={`text-[10px] font-bold ${detail.utr === detail.ocr_utr ? "text-emerald-600" : "text-rose-600"}`}>
+                              {detail.utr === detail.ocr_utr ? "✓ Matches Input" : `✗ Input was: ${detail.utr}`}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Amount Compare */}
+                        <div className="flex justify-between items-center py-0.5 border-t border-black/5 pt-1.5">
+                          <span className="text-neutral-500">Extracted Amount</span>
+                          <div className="text-right">
+                            <span className="font-semibold text-neutral-800 block">
+                              {detail.ocr_amount ? fmtMoney(detail.ocr_amount) : "Not Found"}
+                            </span>
+                            {(() => {
+                              const amtMatch = detail.ocr_amount === detail.amount;
+                              return (
+                                <span className={`text-[10px] font-bold ${amtMatch ? "text-emerald-600" : "text-rose-600"}`}>
+                                  {amtMatch ? "✓ Matches Input" : `✗ Input was: ${fmtMoney(detail.amount)}`}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                        </div>
+
+                        {/* QR Code Label Compare */}
+                        <div className="flex justify-between items-center py-0.5 border-t border-black/5 pt-1.5">
+                          <span className="text-neutral-500">QR Name Recognition</span>
+                          <div className="text-right">
+                            <span className="font-semibold text-neutral-800 block">
+                              {detail.ocr_qr_name ? `"${detail.ocr_qr_name}"` : "Not Found"}
+                            </span>
+                            <span className={`text-[10px] font-bold ${detail.ocr_qr_name ? "text-emerald-600" : "text-rose-600"}`}>
+                              {detail.ocr_qr_name ? "✓ Label Verified in Receipt" : `✗ Expected label: "${detail.qr_code_label || "N/A"}"`}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Admin Bypass Warning Checkbox */}
+                      {detail.status === "pending" && ocrMismatch && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2 text-amber-800">
+                          <div className="flex items-start gap-2">
+                            <ShieldAlert className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                            <div className="text-[11px] leading-relaxed">
+                              <span className="font-bold block">OCR Validation Mismatch Warning</span>
+                              The screenshot details do not match the agent's entries. Please verify the image manually before approving.
+                            </div>
+                          </div>
+                          <label className="flex items-center gap-2 cursor-pointer select-none pt-1">
+                            <input
+                              type="checkbox"
+                              checked={adminOcrBypass}
+                              onChange={(e) => setAdminOcrBypass(e.target.checked)}
+                              className="rounded border-amber-300 text-amber-600 focus:ring-amber-500/20 h-4 w-4 cursor-pointer"
+                            />
+                            <span className="text-[11px] font-extrabold text-amber-900">
+                              Bypass OCR warning to allow approval
+                            </span>
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="mt-4 border border-black/5 rounded-2xl p-4 bg-slate-50/50 text-center text-xs text-neutral-500 font-medium">
+                      OCR Verification: Not Available (Legacy Request)
+                    </div>
+                  )}
+
+                  {detail.status === "pending" && (
+                    <div className="flex gap-2 pt-2">
+                      <button 
+                        onClick={() => act(detail.id, "approve")} 
+                        disabled={isApproveDisabled}
+                        className="flex-1 rounded-xl bg-[#2D6A4F] hover:bg-[#1B4332] text-white px-4 py-2 text-sm font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" 
+                        data-testid="detail-approve"
+                      >
+                        <Check className="h-4 w-4" /> Approve
+                      </button>
+                      <button onClick={() => act(detail.id, "reject")} className="flex-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 text-sm font-semibold inline-flex items-center justify-center gap-2" data-testid="detail-reject"><X className="h-4 w-4" /> Reject</button>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <div className="mfp-overline mb-2">Payment Screenshot</div>
+                  {detail.screenshot_path ? (
+                    <ZoomableImage src={fileUrl(detail.screenshot_path)} alt="screenshot" />
+                  ) : (
+                    <div className="text-sm text-neutral-500 italic">No screenshot uploaded</div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
       {rejectTargetId && (
         <RejectModal
           onClose={() => setRejectTargetId(null)}

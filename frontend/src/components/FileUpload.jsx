@@ -3,13 +3,14 @@ import { api, formatErr } from "@/lib/api";
 import { toast } from "sonner";
 import { Upload } from "lucide-react";
 
-export default function FileUpload({ onUploaded, accept = "image/*,application/pdf", label = "Upload file", testid = "file-upload" }) {
+export default function FileUpload({ onUploaded, onFileSelected, accept = "image/*,application/pdf", label = "Upload file", testid = "file-upload" }) {
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(null);
 
   const handle = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
+    onFileSelected?.(f);
     setBusy(true);
     try {
       const fd = new FormData();
