@@ -5,7 +5,7 @@ import { PageHeader, DataTable, StatusBadge, EmptyState } from "@/components/Sha
 import FileUpload from "@/components/FileUpload";
 import { createWorker } from "tesseract.js";
 import { toast } from "sonner";
-import { Loader2, Coins, KeyRound, CreditCard, QrCode, Info, Sparkles, CheckCircle2, History, Check, ShieldAlert, FileDown, FileSpreadsheet, Clock, X } from "lucide-react";
+import { Loader2, Coins, KeyRound, CreditCard, QrCode, Info, Sparkles, CheckCircle2, History, Check, ShieldAlert, FileDown, FileSpreadsheet, Clock, X, Eye } from "lucide-react";
 import { useWebSocketListener } from "@/lib/ws";
 
 export default function AgentRecharge() {
@@ -416,7 +416,7 @@ export default function AgentRecharge() {
     <div className="w-full">
       <PageHeader title="Recharge Wallet" subtitle="Pay via UPI, then submit UTR + screenshot for admin verification." />
       
-      <div className="max-w-[1100px] mx-auto px-4 mb-8">
+      <div className="max-w-[1400px] mx-auto px-4 mb-8">
         {rechargeEnabled && (
           <div className="flex justify-center mb-6">
             <div className="bg-neutral-100/80 p-1.5 rounded-2xl border border-neutral-200/50 flex gap-1 shadow-inner">
@@ -466,7 +466,7 @@ export default function AgentRecharge() {
           </div>
         ) : (
           /* Unified Card Container */
-          <div className="bg-white border border-black/5 rounded-3xl p-6 lg:p-10 shadow-lg shadow-indigo-500/5 grid lg:grid-cols-2 gap-10 items-start">
+          <div className="bg-white border border-black/5 rounded-3xl p-6 lg:p-10 shadow-lg shadow-indigo-500/5 grid grid-cols-1 lg:grid-cols-3 gap-10 items-start">
             
             {/* Left Side: Active UPI QR */}
             <div className="flex flex-col items-center w-full" data-testid="active-qr-panel">
@@ -876,6 +876,109 @@ export default function AgentRecharge() {
                   </button>
                 </div>
               </form>
+            </div>
+
+            {/* Third Column: Screenshot Preview & OCR details */}
+            <div className="space-y-6 w-full border-t lg:border-t-0 lg:border-l border-black/5 pt-6 lg:pt-0 lg:pl-10">
+              {/* Header / Section Name */}
+              <div className="flex items-center gap-3 border-b border-black/5 pb-4">
+                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                  <Eye className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-neutral-800">Screenshot & OCR Preview</h3>
+                </div>
+              </div>
+
+              {shot ? (
+                <div className="space-y-4">
+                  {/* Image Preview */}
+                  <div className="rounded-2xl border border-black/5 overflow-hidden bg-slate-50 p-2 flex justify-center items-center shadow-sm">
+                    <img 
+                      src={fileUrl(shot)} 
+                      alt="Payment receipt preview" 
+                      className="max-h-72 w-auto object-contain rounded-xl hover:scale-102 transition-transform duration-200" 
+                    />
+                  </div>
+
+                  {/* OCR Details Panel */}
+                  <div className="space-y-3.5 border border-black/5 rounded-2xl p-4 bg-slate-50/50">
+                    <div className="flex items-center justify-between border-b border-black/5 pb-2">
+                      <span className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest">OCR Verification</span>
+                      {ocrLoading ? (
+                        <span className="text-[10px] font-extrabold text-amber-600 uppercase tracking-widest animate-pulse flex items-center gap-1">
+                          <Loader2 className="h-3 w-3 animate-spin" /> Analyzing...
+                        </span>
+                      ) : ocrValidation?.allMatched ? (
+                        <span className="text-[10px] font-extrabold text-emerald-600 uppercase tracking-widest flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3" /> Auto-Verified
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-extrabold text-rose-600 uppercase tracking-widest flex items-center gap-1">
+                          <ShieldAlert className="h-3 w-3" /> Mismatch
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="space-y-2 text-xs">
+                      {/* UTR Compare */}
+                      <div className="flex justify-between items-center py-0.5">
+                        <span className="text-neutral-500">Extracted UTR</span>
+                        <div className="text-right">
+                          <span className="font-semibold text-neutral-800 block">
+                            {ocrLoading ? "Scanning..." : (ocrValidation?.extractedUtr || "Not Detected")}
+                          </span>
+                          {!ocrLoading && ocrResult && (
+                            <span className={`text-[10px] font-bold ${ocrValidation?.utrMatch ? "text-emerald-600" : "text-rose-600"}`}>
+                              {ocrValidation?.utrMatch ? "✓ Matches UTR" : "✗ Mismatch"}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Amount Compare */}
+                      <div className="flex justify-between items-center py-0.5 border-t border-black/5 pt-1.5">
+                        <span className="text-neutral-500">Extracted Amount</span>
+                        <div className="text-right">
+                          <span className="font-semibold text-neutral-800 block">
+                            {ocrLoading ? "Scanning..." : (ocrValidation?.extractedAmount ? fmtMoney(ocrValidation.extractedAmount) : "Not Detected")}
+                          </span>
+                          {!ocrLoading && ocrResult && (
+                            <span className={`text-[10px] font-bold ${ocrValidation?.amountMatch ? "text-emerald-600" : "text-rose-600"}`}>
+                              {ocrValidation?.amountMatch ? "✓ Matches Amount" : "✗ Mismatch"}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* QR Code Label Compare */}
+                      <div className="flex justify-between items-center py-0.5 border-t border-black/5 pt-1.5">
+                        <span className="text-neutral-500">QR Name Recognized</span>
+                        <div className="text-right">
+                          <span className="font-semibold text-neutral-800 block">
+                            {ocrLoading ? "Scanning..." : (ocrValidation?.extractedQrName ? `"${ocrValidation.extractedQrName}"` : "Not Detected")}
+                          </span>
+                          {!ocrLoading && ocrResult && (
+                            <span className={`text-[10px] font-bold ${ocrValidation?.qrMatch ? "text-emerald-600" : "text-rose-600"}`}>
+                              {ocrValidation?.qrMatch ? "✓ Label Verified" : "✗ Label Mismatch"}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center text-center p-8 bg-neutral-50 rounded-2xl border border-dashed border-black/10 h-64">
+                  <div className="bg-neutral-100 text-neutral-400 p-3 rounded-full mb-3">
+                    <Eye className="h-6 w-6 stroke-1.5" />
+                  </div>
+                  <div className="text-xs font-bold text-neutral-600 uppercase tracking-wider">No Screenshot Uploaded</div>
+                  <div className="text-[10px] text-neutral-400 mt-1 max-w-[200px] leading-relaxed">
+                    Attach a payment screenshot to view real-time receipt preview and OCR analysis here.
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
