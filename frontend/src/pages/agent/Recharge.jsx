@@ -851,72 +851,13 @@ export default function AgentRecharge() {
                     <ZoomableImage src={fileUrl(shot)} alt="Payment receipt preview" />
                   </div>
 
-                  {/* OCR Details Panel */}
-                  <div className="space-y-3.5 border border-black/5 rounded-2xl p-4 bg-slate-50/50">
-                    <div className="flex items-center justify-between border-b border-black/5 pb-2">
-                      <span className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest">OCR Verification</span>
-                      {ocrLoading ? (
-                        <span className="text-[10px] font-extrabold text-amber-600 uppercase tracking-widest animate-pulse flex items-center gap-1">
-                          <Loader2 className="h-3 w-3 animate-spin" /> Analyzing...
-                        </span>
-                      ) : ocrValidation?.allMatched ? (
-                        <span className="text-[10px] font-extrabold text-emerald-600 uppercase tracking-widest flex items-center gap-1">
-                          <CheckCircle2 className="h-3 w-3" /> Auto-Verified
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-extrabold text-rose-600 uppercase tracking-widest flex items-center gap-1">
-                          <ShieldAlert className="h-3 w-3" /> Mismatch
-                        </span>
-                      )}
+                  {/* OCR Success Panel */}
+                  {ocrValidation?.allMatched && (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-2.5 text-xs text-emerald-800 font-bold shadow-sm">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+                      <span>OCR Auto-verified successfully! All details match.</span>
                     </div>
-
-                    <div className="space-y-2 text-xs">
-                      {/* UTR Compare */}
-                      <div className="flex justify-between items-center py-0.5">
-                        <span className="text-neutral-500">Extracted UTR</span>
-                        <div className="text-right">
-                          <span className="font-semibold text-neutral-800 block">
-                            {ocrLoading ? "Scanning..." : (ocrValidation?.extractedUtr || "Not Detected")}
-                          </span>
-                          {!ocrLoading && ocrResult && (
-                            <span className={`text-[10px] font-bold ${ocrValidation?.utrMatch ? "text-emerald-600" : "text-rose-600"}`}>
-                              {ocrValidation?.utrMatch ? "✓ Matches UTR" : "✗ Mismatch"}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Amount Compare */}
-                      <div className="flex justify-between items-center py-0.5 border-t border-black/5 pt-1.5">
-                        <span className="text-neutral-500">Extracted Amount</span>
-                        <div className="text-right">
-                          <span className="font-semibold text-neutral-800 block">
-                            {ocrLoading ? "Scanning..." : (ocrValidation?.extractedAmount ? fmtMoney(ocrValidation.extractedAmount) : "Not Detected")}
-                          </span>
-                          {!ocrLoading && ocrResult && (
-                            <span className={`text-[10px] font-bold ${ocrValidation?.amountMatch ? "text-emerald-600" : "text-rose-600"}`}>
-                              {ocrValidation?.amountMatch ? "✓ Matches Amount" : "✗ Mismatch"}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* QR Code Label Compare */}
-                      <div className="flex justify-between items-center py-0.5 border-t border-black/5 pt-1.5">
-                        <span className="text-neutral-500">QR Name Recognized</span>
-                        <div className="text-right">
-                          <span className="font-semibold text-neutral-800 block">
-                            {ocrLoading ? "Scanning..." : (ocrValidation?.extractedQrName ? `"${ocrValidation.extractedQrName}"` : "Not Detected")}
-                          </span>
-                          {!ocrLoading && ocrResult && (
-                            <span className={`text-[10px] font-bold ${ocrValidation?.qrMatch ? "text-emerald-600" : "text-rose-600"}`}>
-                              {ocrValidation?.qrMatch ? "✓ Label Verified" : "✗ Label Mismatch"}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  )}
 
                   {/* OCR Mismatch Warning Panel */}
                   {shot && !ocrLoading && ocrValidation && !ocrValidation.allMatched && (
