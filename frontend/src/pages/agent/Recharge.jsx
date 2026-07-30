@@ -28,6 +28,7 @@ export default function AgentRecharge() {
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrResult, setOcrResult] = useState(null);
   const [ocrBypass, setOcrBypass] = useState(false);
+  const [rejectionReasonModal, setRejectionReasonModal] = useState(null);
 
   const runOCR = async (file) => {
     setOcrLoading(true);
@@ -1023,12 +1024,18 @@ export default function AgentRecharge() {
             { key: "status", label: "Status", render: (r) => (
               <div className="flex flex-col items-center justify-center text-center">
                 <StatusBadge status={r.status} />
-                {r.status === "rejected" && r.note && (
-                  <span className="text-[10px] text-rose-500 font-black mt-1 uppercase tracking-wider max-w-[150px] break-words">
-                    Reason: {r.note}
-                  </span>
-                )}
               </div>
+            ) },
+            { key: "action", label: "Action", render: (r) => (
+              r.status === "rejected" && r.note ? (
+                <button
+                  type="button"
+                  onClick={() => setRejectionReasonModal(r.note || "No rejection reason provided.")}
+                  className="px-2.5 py-1 text-[10px] font-black bg-rose-50 hover:bg-rose-100/80 text-rose-600 border border-rose-100 hover:border-rose-200 rounded-lg transition-colors cursor-pointer select-none"
+                >
+                  View Reason
+                </button>
+              ) : "—"
             ) },
           ]}
           rows={paginatedItems}
@@ -1041,7 +1048,33 @@ export default function AgentRecharge() {
             onPageSizeChange: (n) => { setPageSize(n); setPage(1); },
           }}
         />
-      </div>
+      {rejectionReasonModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4" onClick={() => setRejectionReasonModal(null)}>
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl border border-black/5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 border-b border-black/5 pb-3">
+              <div className="p-2 bg-rose-50 text-rose-600 rounded-xl">
+                <ShieldAlert className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-neutral-800">Rejection Reason</h3>
+              </div>
+            </div>
+            <p className="text-sm text-neutral-600 leading-relaxed bg-neutral-50 p-4 rounded-xl border border-black/5 whitespace-pre-wrap">
+              {rejectionReasonModal}
+            </p>
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setRejectionReasonModal(null)}
+                className="px-4 py-2 bg-neutral-800 hover:bg-neutral-900 text-white text-xs font-bold rounded-xl shadow-md transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
-  );
+  </div>
+);
 }
