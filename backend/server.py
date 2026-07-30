@@ -430,6 +430,7 @@ class RechargeTogglesIn(BaseModel):
     qr_enabled: Optional[bool] = None
     t1_qr_enabled: Optional[bool] = None
     recharge_enabled: Optional[bool] = None
+    t1_recharge_enabled: Optional[bool] = None
     withdrawal_enabled: Optional[bool] = None
     bill_pay_enabled: Optional[bool] = None
     live_bill_enabled: Optional[bool] = None
@@ -4377,6 +4378,7 @@ async def public_recharge_limits(user: dict = Depends(get_current_user)):
         "qr_enabled": bool(s.get("qr_enabled", True)),
         "t1_qr_enabled": bool(s.get("t1_qr_enabled", True)),
         "recharge_enabled": bool(s.get("recharge_enabled", True)),
+        "t1_recharge_enabled": bool(s.get("t1_recharge_enabled", True)),
         "withdrawal_enabled": bool(s.get("withdrawal_enabled", True)),
         "bill_pay_enabled": bool(s.get("bill_pay_enabled", True)),
         "live_bill_enabled": bool(s.get("live_bill_enabled", True))
@@ -4391,6 +4393,7 @@ async def get_admin_recharge_limits(user=Depends(require_roles("admin"))):
         "qr_enabled": bool(s.get("qr_enabled", True)),
         "t1_qr_enabled": bool(s.get("t1_qr_enabled", True)),
         "recharge_enabled": bool(s.get("recharge_enabled", True)),
+        "t1_recharge_enabled": bool(s.get("t1_recharge_enabled", True)),
         "withdrawal_enabled": bool(s.get("withdrawal_enabled", True)),
         "bill_pay_enabled": bool(s.get("bill_pay_enabled", True)),
         "live_bill_enabled": bool(s.get("live_bill_enabled", True)),
@@ -4419,6 +4422,7 @@ async def update_admin_recharge_toggles(body: RechargeTogglesIn, request: Reques
     qr_val = body.qr_enabled if body.qr_enabled is not None else settings.get("qr_enabled", True)
     t1_qr_val = body.t1_qr_enabled if body.t1_qr_enabled is not None else settings.get("t1_qr_enabled", True)
     recharge_val = body.recharge_enabled if body.recharge_enabled is not None else settings.get("recharge_enabled", True)
+    t1_recharge_val = body.t1_recharge_enabled if body.t1_recharge_enabled is not None else settings.get("t1_recharge_enabled", True)
     withdrawal_val = body.withdrawal_enabled if body.withdrawal_enabled is not None else settings.get("withdrawal_enabled", True)
     bill_pay_val = body.bill_pay_enabled if body.bill_pay_enabled is not None else settings.get("bill_pay_enabled", True)
     live_bill_val = body.live_bill_enabled if body.live_bill_enabled is not None else settings.get("live_bill_enabled", True)
@@ -4428,6 +4432,7 @@ async def update_admin_recharge_toggles(body: RechargeTogglesIn, request: Reques
         "qr_enabled": qr_val,
         "t1_qr_enabled": t1_qr_val,
         "recharge_enabled": recharge_val,
+        "t1_recharge_enabled": t1_recharge_val,
         "withdrawal_enabled": withdrawal_val,
         "bill_pay_enabled": bill_pay_val,
         "live_bill_enabled": live_bill_val,
@@ -5262,6 +5267,7 @@ async def _ensure_indexes() -> None:
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS favicon_path TEXT')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS logo_collapsed_path TEXT')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS watermark_path TEXT')
+        await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS t1_recharge_enabled BOOLEAN DEFAULT TRUE')
         await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS firm_name VARCHAR(255)')
         await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS firm_address TEXT')
         await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS first_login BOOLEAN DEFAULT TRUE')
@@ -5452,7 +5458,7 @@ async def _seed_admin_user() -> None:
 
 async def _ensure_commission_settings() -> None:
     if not await db.settings.find_one({"id": "commission"}):
-        await db.settings.insert_one({"id": "commission", "default_percent": 1.2, "min_recharge_limit": 100, "max_recharge_limit": 300000, "qr_enabled": True, "recharge_enabled": True, "withdrawal_enabled": True, "bill_pay_enabled": True, "updated_at": now_iso()})
+        await db.settings.insert_one({"id": "commission", "default_percent": 1.2, "min_recharge_limit": 100, "max_recharge_limit": 300000, "qr_enabled": True, "t1_qr_enabled": True, "recharge_enabled": True, "t1_recharge_enabled": True, "withdrawal_enabled": True, "bill_pay_enabled": True, "updated_at": now_iso()})
     else:
         s = await db.settings.find_one({"id": "commission"})
         set_updates = {}
@@ -5464,6 +5470,8 @@ async def _ensure_commission_settings() -> None:
             set_updates["qr_enabled"] = True
         if s.get("recharge_enabled") is None:
             set_updates["recharge_enabled"] = True
+        if s.get("t1_recharge_enabled") is None:
+            set_updates["t1_recharge_enabled"] = True
         if s.get("withdrawal_enabled") is None:
             set_updates["withdrawal_enabled"] = True
         if s.get("bill_pay_enabled") is None:

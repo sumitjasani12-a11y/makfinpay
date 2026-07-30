@@ -34,6 +34,7 @@ export default function AdminQRCodes() {
   const [qrEnabled, setQrEnabled] = useState(true);
   const [t1QrEnabled, setT1QrEnabled] = useState(true);
   const [rechargeEnabled, setRechargeEnabled] = useState(true);
+  const [t1RechargeEnabled, setT1RechargeEnabled] = useState(true);
 
   const [uploadIsT1, setUploadIsT1] = useState(false);
   const [activeTab, setActiveTab] = useState("normal");
@@ -51,6 +52,7 @@ export default function AdminQRCodes() {
       setQrEnabled(r.data.qr_enabled ?? true);
       setT1QrEnabled(r.data.t1_qr_enabled ?? true);
       setRechargeEnabled(r.data.recharge_enabled ?? true);
+      setT1RechargeEnabled(r.data.t1_recharge_enabled ?? true);
     });
   };
 
@@ -62,7 +64,8 @@ export default function AdminQRCodes() {
       await api.put("/admin/settings/recharge-toggles", {
         qr_enabled: val,
         t1_qr_enabled: t1QrEnabled,
-        recharge_enabled: rechargeEnabled
+        recharge_enabled: rechargeEnabled,
+        t1_recharge_enabled: t1RechargeEnabled
       });
       toast.success(`Agent QR image ${val ? "Enabled" : "Disabled"}`);
     } catch (e) {
@@ -77,7 +80,8 @@ export default function AdminQRCodes() {
       await api.put("/admin/settings/recharge-toggles", {
         qr_enabled: qrEnabled,
         t1_qr_enabled: val,
-        recharge_enabled: rechargeEnabled
+        recharge_enabled: rechargeEnabled,
+        t1_recharge_enabled: t1RechargeEnabled
       });
       toast.success(`Agent T+1 QR image ${val ? "Enabled" : "Disabled"}`);
     } catch (e) {
@@ -92,12 +96,29 @@ export default function AdminQRCodes() {
       await api.put("/admin/settings/recharge-toggles", {
         qr_enabled: qrEnabled,
         t1_qr_enabled: t1QrEnabled,
-        recharge_enabled: val
+        recharge_enabled: val,
+        t1_recharge_enabled: t1RechargeEnabled
       });
       toast.success(`Agent Recharge request form ${val ? "Enabled" : "Disabled"}`);
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Failed to update toggle");
       setRechargeEnabled(!val);
+    }
+  };
+
+  const handleToggleT1Recharge = async (val) => {
+    setT1RechargeEnabled(val);
+    try {
+      await api.put("/admin/settings/recharge-toggles", {
+        qr_enabled: qrEnabled,
+        t1_qr_enabled: t1QrEnabled,
+        recharge_enabled: rechargeEnabled,
+        t1_recharge_enabled: val
+      });
+      toast.success(`Agent T+1 Recharge request form ${val ? "Enabled" : "Disabled"}`);
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail) || "Failed to update toggle");
+      setT1RechargeEnabled(!val);
     }
   };
 
@@ -319,7 +340,7 @@ export default function AdminQRCodes() {
             <div className="h-4 w-px bg-black/10" />
 
             <div className="flex items-center gap-2.5">
-              <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest">Recharge Option</span>
+              <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest">Normal Recharge</span>
               <button
                 onClick={() => handleToggleRecharge(!rechargeEnabled)}
                 className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
@@ -330,6 +351,25 @@ export default function AdminQRCodes() {
                 <span
                   className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
                     rechargeEnabled ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="h-4 w-px bg-black/10" />
+
+            <div className="flex items-center gap-2.5">
+              <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest">T+1 Recharge</span>
+              <button
+                onClick={() => handleToggleT1Recharge(!t1RechargeEnabled)}
+                className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  t1RechargeEnabled ? "bg-[#2D6A4F]" : "bg-neutral-200"
+                }`}
+                type="button"
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    t1RechargeEnabled ? "translate-x-5" : "translate-x-0"
                   }`}
                 />
               </button>

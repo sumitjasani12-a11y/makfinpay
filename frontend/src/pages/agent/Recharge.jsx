@@ -137,7 +137,9 @@ export default function AgentRecharge() {
   const [minLimit, setMinLimit] = useState(100);
   const [maxLimit, setMaxLimit] = useState(300000);
   const [qrEnabled, setQrEnabled] = useState(true);
+  const [t1QrEnabled, setT1QrEnabled] = useState(true);
   const [rechargeEnabled, setRechargeEnabled] = useState(true);
+  const [t1RechargeEnabled, setT1RechargeEnabled] = useState(true);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
@@ -182,7 +184,9 @@ export default function AgentRecharge() {
           setMinLimit(r.data.min_recharge_limit ?? 100);
           setMaxLimit(r.data.max_recharge_limit ?? 300000);
           setQrEnabled(r.data.qr_enabled ?? true);
+          setT1QrEnabled(r.data.t1_qr_enabled ?? true);
           setRechargeEnabled(r.data.recharge_enabled ?? true);
+          setT1RechargeEnabled(r.data.t1_recharge_enabled ?? true);
         })
         .catch((e) => console.log("Failed to fetch recharge configuration:", e.message));
     };
@@ -342,6 +346,9 @@ export default function AgentRecharge() {
   const shotValid = Boolean(shot);
   const canSubmit = !isSubmitting && amountValid && utrValid && last4Valid && shotValid && (!olderQr || !!selectedQrId) && !ocrLoading && (!ocrValidation || ocrValidation.allMatched || ocrBypass);
 
+  const isCurrentTabRechargeEnabled = isT1 ? t1RechargeEnabled : rechargeEnabled;
+  const isCurrentTabQrEnabled = isT1 ? t1QrEnabled : qrEnabled;
+
   const commAmt = amountValid ? +(amt * commPct / 100).toFixed(2) : 0;
   const netCredit = amountValid ? +(amt - commAmt).toFixed(2) : 0;
 
@@ -420,38 +427,36 @@ export default function AgentRecharge() {
       <PageHeader title="Recharge Wallet" subtitle="Pay via UPI, then submit UTR + screenshot for admin verification." />
       
       <div className="max-w-[1400px] mx-auto px-4 mb-8">
-        {rechargeEnabled && (
-          <div className="flex justify-center mb-6">
-            <div className="bg-neutral-100/80 p-1.5 rounded-2xl border border-neutral-200/50 flex gap-1 shadow-inner">
-              <button
-                type="button"
-                onClick={() => setIsT1(false)}
-                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
-                  !isT1 
-                    ? "bg-white text-neutral-800 shadow-sm border border-neutral-200/20" 
-                    : "text-neutral-500 hover:text-neutral-700"
-                }`}
-              >
-                <Sparkles className="h-4 w-4 text-[#00966B]" />
-                Standard (Instant Settlement)
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsT1(true)}
-                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
-                  isT1 
-                    ? "bg-white text-neutral-800 shadow-sm border border-neutral-200/20" 
-                    : "text-neutral-500 hover:text-neutral-700"
-                }`}
-              >
-                <Clock className="h-4 w-4 text-blue-600" />
-                T+1 (Next Day Settlement)
-              </button>
-            </div>
+        <div className="flex justify-center mb-6">
+          <div className="bg-neutral-100/80 p-1.5 rounded-2xl border border-neutral-200/50 flex gap-1 shadow-inner">
+            <button
+              type="button"
+              onClick={() => setIsT1(false)}
+              className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                !isT1 
+                  ? "bg-white text-neutral-800 shadow-sm border border-neutral-200/20" 
+                  : "text-neutral-500 hover:text-neutral-700"
+              }`}
+            >
+              <Sparkles className="h-4 w-4 text-[#00966B]" />
+              Standard (Instant Settlement)
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsT1(true)}
+              className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                isT1 
+                  ? "bg-white text-neutral-800 shadow-sm border border-neutral-200/20" 
+                  : "text-neutral-500 hover:text-neutral-700"
+              }`}
+            >
+              <Clock className="h-4 w-4 text-blue-600" />
+              T+1 (Next Day Settlement)
+            </button>
           </div>
-        )}
+        </div>
 
-        {!rechargeEnabled ? (
+        {!isCurrentTabRechargeEnabled ? (
           <div className="bg-white border border-black/5 rounded-3xl p-10 lg:p-16 shadow-lg shadow-indigo-500/5 flex flex-col items-center justify-center text-center space-y-5 max-w-[800px] mx-auto">
             <div className="bg-amber-50 text-amber-600 p-5 rounded-full border border-amber-200/50 animate-pulse">
               <ShieldAlert className="h-12 w-12 stroke-1" />
@@ -494,7 +499,7 @@ export default function AgentRecharge() {
 
                   {/* QR Code Container */}
                   <div className="relative border border-black/10 rounded-2xl p-4 bg-white max-w-[340px] w-full aspect-square flex items-center justify-center shadow-sm overflow-hidden transition-all hover:scale-102">
-                    {qrEnabled ? (
+                    {isCurrentTabQrEnabled ? (
                       <img
                         src={fileUrl(qr.image_path)} alt="qr"
                         className="h-full w-full object-contain"
