@@ -992,8 +992,24 @@ class UpdateAdminIn(BaseModel):
 
 # ---------- ADMIN MANAGEMENT ----------
 
+def check_admin_permission(user: dict, permission_key: str) -> bool:
+    if user.get("role") != "admin":
+        return False
+    if user.get("email", "").lower() == "jigs.vanani@gmail.com":
+        return True
+    
+    permissions = user.get("permissions")
+    # By default, if permissions are None/uninitialized, grant full access
+    if permissions is None:
+        return True
+        
+    return permission_key in permissions
+
 @api.get("/admin/admins")
 async def list_admins(user=Depends(require_roles("admin"))):
+    if not check_admin_permission(user, "admins"):
+        raise HTTPException(403, "Access denied: You do not have permission to manage administrators.")
+        
     SUPER_EMAIL = "jigs.vanani@gmail.com"
     creds = await db.admin_credentials.find({"email": {"$ne": SUPER_EMAIL}}).to_list(100)
     admins = []
@@ -1011,6 +1027,9 @@ async def list_admins(user=Depends(require_roles("admin"))):
 
 @api.post("/admin/admins")
 async def create_admin(body: CreateAdminIn, user=Depends(require_roles("admin"))):
+    if not check_admin_permission(user, "admins"):
+        raise HTTPException(403, "Access denied: You do not have permission to manage administrators.")
+        
     email = body.email.lower().strip()
     SUPER_EMAIL = "jigs.vanani@gmail.com"
     if email == SUPER_EMAIL:
@@ -1056,6 +1075,9 @@ async def create_admin(body: CreateAdminIn, user=Depends(require_roles("admin"))
 
 @api.put("/admin/admins/{admin_id}")
 async def update_admin(admin_id: str, body: UpdateAdminIn, user=Depends(require_roles("admin"))):
+    if not check_admin_permission(user, "admins"):
+        raise HTTPException(403, "Access denied: You do not have permission to manage administrators.")
+        
     SUPER_EMAIL = "jigs.vanani@gmail.com"
     cred = await db.admin_credentials.find_one({"id": admin_id})
     if not cred:
