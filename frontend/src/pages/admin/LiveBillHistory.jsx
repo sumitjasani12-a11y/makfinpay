@@ -179,18 +179,18 @@ export default function AdminLiveBillHistory() {
       </span>
     ) },
     { key: "bill_amount", label: "Bill Amount", render: (r) => (
-      <div className="font-semibold text-right">{fmtMoney(r.bill_amount ?? r.amount)}</div>
+      <div className="font-semibold text-center">{fmtMoney(r.bill_amount ?? r.amount)}</div>
     ) },
     { key: "service_charge", label: "Charge", render: (r) => (
-      <div className="font-semibold text-right text-rose-600">{fmtMoney(r.service_charge ?? 0)}</div>
+      <div className="font-semibold text-center text-rose-600">{fmtMoney(r.service_charge ?? 0)}</div>
     ) },
     { key: "api_charge", label: "API Charge", render: (r) => (
-      <div className="font-semibold text-right text-rose-600">{fmtMoney(r.api_charge ?? 0)}</div>
+      <div className="font-semibold text-center text-rose-600">{fmtMoney(r.api_charge ?? 0)}</div>
     ) },
     { key: "profit_charge", label: "Profit", render: (r) => {
       const profit = (r.service_charge ?? 0) - (r.api_charge ?? 0);
       return (
-        <div className={`font-semibold text-right ${profit >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+        <div className={`font-semibold text-center ${profit >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
           {fmtMoney(profit)}
         </div>
       );

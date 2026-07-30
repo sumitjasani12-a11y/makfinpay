@@ -228,7 +228,7 @@ export default function AdminTransactions() {
     { key: "operator", label: "Bank" },
     { key: "card_last4", label: "Card", render: (r) => `**** ${r.card_last4}` },
     { key: "bill_amount", label: "Bill Amount", render: (r) => (
-      <div className="text-right">
+      <div className="text-center">
         <div className="font-semibold">{fmtMoney(r.bill_amount ?? r.amount)}</div>
         {r.total_amount != null && (
           <div className="text-[10px] text-neutral-500">Total: {fmtMoney(r.total_amount)}</div>
