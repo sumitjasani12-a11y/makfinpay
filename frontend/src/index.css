@@ -96,10 +96,10 @@
   @apply bg-[#1b4332] text-white shadow-sm hover:bg-[#1b4332] hover:text-white;
 }
 .mfp-table th {
-  @apply text-left text-xs uppercase tracking-wider font-semibold text-neutral-500 px-4 py-3 border-b border-black/5;
+  @apply text-center text-xs uppercase tracking-wider font-black text-neutral-800 px-4 py-3 border-b border-black/5;
 }
 .mfp-table td {
-  @apply px-4 py-3 text-sm text-neutral-700 border-b border-black/5;
+  @apply text-center px-4 py-3 text-sm text-neutral-700 border-b border-black/5;
 }
 .mfp-table tr:nth-child(even) td {
   background-color: rgba(0,0,0,0.015);

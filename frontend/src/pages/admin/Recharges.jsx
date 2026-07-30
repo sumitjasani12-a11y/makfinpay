@@ -204,6 +204,7 @@ export default function AdminRecharges() {
   }, [reload]);
 
   const columns = useMemo(() => [
+    { key: "created_at", label: "Created", render: (r) => fmtDate(r.created_at) },
     { key: "user_name", label: "Agent" },
     { key: "amount", label: "Amount", render: (r) => fmtMoney(r.amount) },
     { key: "utr", label: "UTR" },
@@ -216,7 +217,6 @@ export default function AdminRecharges() {
     { key: "distributor_earnings_amount", label: "Dist Comm", render: (r) => r.status === "approved" ? fmtMoney(r.distributor_earnings_amount) : "—" },
     { key: "credit_amount", label: "Net Credit", render: (r) => r.status === "approved" ? fmtMoney(r.credit_amount) : "—" },
     { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
-    { key: "created_at", label: "Created", render: (r) => fmtDate(r.created_at) },
     { key: "actions", label: "Action", render: (r) => (
       <div className="flex gap-2">
         <button className="mfp-btn-ghost p-2" onClick={() => setDetail(r)} data-testid={`view-${r.id}`}><Eye className="h-4 w-4" /></button>

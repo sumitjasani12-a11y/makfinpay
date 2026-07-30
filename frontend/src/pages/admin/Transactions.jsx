@@ -221,6 +221,7 @@ export default function AdminTransactions() {
   }, []);
 
   const columns = useMemo(() => [
+    { key: "created_at", label: "Date", render: (r) => fmtDate(r.created_at) },
     { key: "user_name", label: "Agent" },
     { key: "customer_name", label: "Customer" },
     { key: "customer_phone", label: "Customer Phone", render: (r) => r.customer_phone || "—" },
@@ -238,7 +239,6 @@ export default function AdminTransactions() {
       <span className="font-medium">{fmtMoney(r.service_charge ?? 0)}</span>
     ) },
     { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
-    { key: "created_at", label: "Date", render: (r) => fmtDate(r.created_at) },
     { key: "actions", label: "Action", render: (r) => {
       if (r.status === "pending") {
         return (

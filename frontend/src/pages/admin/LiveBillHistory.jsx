@@ -157,12 +157,13 @@ export default function AdminLiveBillHistory() {
   };
 
   const columns = useMemo(() => [
+    { key: "created_at", label: "Date", render: (r) => fmtDate(r.created_at) },
     {
       key: "id",
       label: "Tx ID",
       render: (r) => (
         <span 
-          className="bg-neutral-100 text-neutral-600 font-mono text-[10px] px-2.5 py-1 rounded-md uppercase select-all tracking-wider border border-neutral-200/50 cursor-pointer hover:bg-neutral-200 transition-colors whitespace-nowrap"
+          className="bg-neutral-100 text-neutral-800 font-bold font-mono text-[11px] px-2.5 py-1 rounded-md uppercase select-all tracking-wider border border-neutral-200/80 cursor-pointer hover:bg-neutral-200 transition-colors whitespace-nowrap"
           title={`Original ID: ${r.id}`}
         >
           {getShortTxnId(r.id)}
@@ -195,7 +196,6 @@ export default function AdminLiveBillHistory() {
       );
     } },
     { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
-    { key: "created_at", label: "Date", render: (r) => fmtDate(r.created_at) },
   ], []);
 
   const [exportingPdf, setExportingPdf] = useState(false);

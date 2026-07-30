@@ -133,6 +133,7 @@ export default function AdminWithdrawals() {
   }, [reload]);
 
   const columns = useMemo(() => [
+    { key: "created_at", label: "Requested", render: (r) => fmtDate(r.created_at) },
     { key: "user_name", label: "Requester" },
     { key: "role", label: "Role", render: (r) => <span className="capitalize">{r.role?.replace("_", " ")}</span> },
     { key: "amount", label: "Amount", render: (r) => fmtMoney(r.amount) },
@@ -142,7 +143,6 @@ export default function AdminWithdrawals() {
     { key: "bank_name", label: "Bank Name", render: (r) => r.bank?.bank_name || "—" },
     { key: "phone_number", label: "Phone", render: (r) => r.bank?.phone_number || "—" },
     { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
-    { key: "created_at", label: "Requested", render: (r) => fmtDate(r.created_at) },
     { key: "actions", label: "Action", render: (r) => r.status === "pending" ? (
       <div className="flex gap-2">
         <button className="rounded-lg bg-[#2D6A4F]/10 text-[#2D6A4F] hover:bg-[#2D6A4F]/20 px-3 py-1.5 text-xs font-semibold" onClick={() => act(r.id, "approve")} data-testid={`w-approve-${r.id}`}>Approve</button>

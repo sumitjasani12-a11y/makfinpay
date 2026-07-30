@@ -317,6 +317,7 @@ export default function AdminKyc() {
 
       <DataTable
         columns={[
+          { key: "submitted_at", label: "Submitted", render: (r) => fmtDate(r.submitted_at || r.updated_at) },
           { key: "agent", label: "Agent Name", render: (r) => r.user?.full_name || "—" },
           { key: "firm_name", label: "Firm Name", render: (r) => r.user?.firm_name || "—" },
           { key: "distributor", label: "Distributor", render: (r) => (
@@ -326,7 +327,6 @@ export default function AdminKyc() {
           ) },
           { key: "phone", label: "Phone", render: (r) => r.user?.phone || "—" },
           { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status || "pending"} /> },
-          { key: "submitted_at", label: "Submitted", render: (r) => fmtDate(r.submitted_at || r.updated_at) },
           { key: "actions", label: "Action", render: (r) => (
             <button
               onClick={() => setSelected(r)}

@@ -660,6 +660,7 @@ export default function AgentRecharge() {
 
         <DataTable
           columns={[
+            { key: "created_at", label: "Created", render: (r) => fmtDate(r.created_at) },
             { key: "amount", label: "Amount", render: (r) => (
               <div className="flex items-center gap-1.5 font-bold">
                 <span>{fmtMoney(r.amount)}</span>
@@ -684,7 +685,6 @@ export default function AgentRecharge() {
                 )}
               </div>
             ) },
-            { key: "created_at", label: "Created", render: (r) => fmtDate(r.created_at) },
           ]}
           rows={paginatedItems}
           empty="No recharge requests yet."

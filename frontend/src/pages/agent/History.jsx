@@ -248,6 +248,15 @@ export default function AgentHistory() {
         <DataTable
           columns={[
             {
+              key: "created_at",
+              label: "Date",
+              render: (r) => (
+                <span className="text-xs text-neutral-500 font-semibold">
+                  {fmtDate(r.created_at)}
+                </span>
+              ),
+            },
+            {
               key: "customer_name",
               label: "Customer",
               render: (r) => (
@@ -330,15 +339,6 @@ export default function AgentHistory() {
                     </span>
                   )}
                 </div>
-              ),
-            },
-            {
-              key: "created_at",
-              label: "Date",
-              render: (r) => (
-                <span className="text-xs text-neutral-500 font-semibold">
-                  {fmtDate(r.created_at)}
-                </span>
               ),
             },
           ]}
