@@ -98,8 +98,9 @@ export default function Login() {
                   <Lock className="h-4 w-4 text-neutral-400" />
                 </span>
                 <input
-                  type="password" required
+                  type="text" required
                   value={password} onChange={(e) => setPassword(e.target.value)}
+                  style={{ WebkitTextSecurity: "disc" }}
                   className="mfp-input !pl-11" placeholder="Enter password"
                   data-testid="login-password-input"
                 />
