@@ -670,7 +670,7 @@ export default function LiveBillPay() {
                               <img 
                                 src={logoUrl} 
                                 alt={o.biller_name} 
-                                className="max-h-10 max-w-[85%] object-contain" 
+                                className="h-10 w-auto max-w-[90%] object-contain" 
                                 onError={(e) => {
                                   e.target.style.display = 'none';
                                   const fallback = e.target.parentElement.querySelector('.logo-fallback');
