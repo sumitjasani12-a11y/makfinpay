@@ -58,7 +58,11 @@ export function SidebarContent({ user, items, onLogout, pendingCounts = {}, coll
   return (
     <>
       <Link
-        to="/"
+        to="#"
+        onClick={(e) => {
+          e.preventDefault();
+          window.location.reload();
+        }}
         className="h-20 flex items-center justify-center border-b border-white/5 select-none shrink-0 w-full px-2 overflow-hidden"
         data-testid="sidebar-logo"
         title="MAK FIN PAY"
@@ -66,7 +70,7 @@ export function SidebarContent({ user, items, onLogout, pendingCounts = {}, coll
         <Logo
           variant="light"
           collapsed={collapsed}
-          className={`w-full object-contain transition-all ${collapsed ? "h-7 w-7" : "h-[110%] scale-[2.5] translate-x-[5%]"}`}
+          className={`w-full object-contain transition-all ${collapsed ? "h-7 w-7" : "h-10 scale-[1.65] translate-x-[4%]"}`}
         />
       </Link>
       
