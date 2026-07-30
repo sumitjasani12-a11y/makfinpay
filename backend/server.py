@@ -216,7 +216,7 @@ def get_object(path: str):
 
 # ---------- HELPERS ----------
 def hash_password(pw: str) -> str:
-    return bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
+    return bcrypt.hashpw(pw.encode(), bcrypt.gensalt(rounds=10)).decode()
 
 def verify_password(pw: str, hashed: str) -> bool:
     try:
