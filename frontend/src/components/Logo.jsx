@@ -14,7 +14,7 @@ import { fileUrl } from "@/lib/api";
  *   - className: extra Tailwind classes (e.g. responsive helpers)
  *   - collapsed: boolean to render smaller collapsed logo version
  */
-export default function Logo({ variant = "dark", size = 36, className = "", collapsed = false }) {
+export default function Logo({ variant = "dark", size, className = "", collapsed = false }) {
   const auth = useAuth();
   const branding = auth?.branding;
   const isLight = variant === "light";
@@ -30,12 +30,15 @@ export default function Logo({ variant = "dark", size = 36, className = "", coll
     blendStyle = undefined;
   }
 
+  const height = size || (collapsed ? 28 : 44);
+  const width = size || (collapsed ? 28 : undefined);
+
   return (
     <img
       src={src}
       alt="MAK FIN PAY logo"
-      width={size}
-      height={size}
+      width={width}
+      height={height}
       style={blendStyle}
       className={`shrink-0 select-none object-contain ${className}`}
       draggable={false}

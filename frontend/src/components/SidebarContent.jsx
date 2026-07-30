@@ -63,7 +63,7 @@ export function SidebarContent({ user, items, onLogout, pendingCounts = {}, coll
         data-testid="sidebar-logo"
         title="MAK FIN PAY"
       >
-        <Logo variant="light" size={collapsed ? 28 : 36} collapsed={collapsed} />
+        <Logo variant="light" collapsed={collapsed} />
       </Link>
       
       <nav className={`flex-1 overflow-y-auto no-scrollbar ${collapsed ? "p-2.5 space-y-2" : "p-4 space-y-1.5"}`}>
