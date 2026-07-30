@@ -59,11 +59,11 @@ export function SidebarContent({ user, items, onLogout, pendingCounts = {}, coll
     <>
       <Link
         to="/"
-        className="h-16 flex items-center justify-center border-b border-white/5 select-none shrink-0"
+        className="h-16 flex items-center justify-center border-b border-white/5 select-none shrink-0 w-full"
         data-testid="sidebar-logo"
         title="MAK FIN PAY"
       >
-        <Logo variant="light" collapsed={collapsed} />
+        <Logo variant="light" collapsed={collapsed} className="w-full h-full" />
       </Link>
       
       <nav className={`flex-1 overflow-y-auto no-scrollbar ${collapsed ? "p-2.5 space-y-2" : "p-4 space-y-1.5"}`}>
