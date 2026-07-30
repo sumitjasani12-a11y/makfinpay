@@ -126,7 +126,7 @@ export default function AdminTransactions() {
     const { from_ts, to_ts } = range === "custom" && !customApplied
       ? { from_ts: null, to_ts: null }
       : rangeWindowIso(range, from, to);
-    const p = { paginated: true, page, page_size: pageSize, type: "bill" };
+    const p = { paginated: true, page, page_size: pageSize, type: "credit_card" };
     if (status !== "all") p.status = status;
     if (from_ts) p.from_ts = from_ts;
     if (to_ts) p.to_ts = to_ts;
