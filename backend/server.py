@@ -2509,19 +2509,30 @@ async def admin_delete_user(uid: str, request: Request, user=Depends(require_rol
     if not u:
         raise HTTPException(404, "User not found")
         
-    # Delete child rows first to satisfy foreign key constraints
-    await db.kyc.delete_many({"user_id": uid})
-    await db.wallets.delete_many({"user_id": uid})
-    await db.ledger.delete_many({"user_id": uid})
-    await db.recharges.delete_many({"user_id": uid})
-    await db.transactions.delete_many({"user_id": uid})
-    await db.withdrawals.delete_many({"user_id": uid})
-    await db.bank_details.delete_many({"user_id": uid})
-    await db.notifications.delete_many({"user_id": uid})
-    await db.fraud_flags.delete_many({"user_id": uid})
-    await db.audit_logs.delete_many({"user_id": uid})
-    await db.audit_logs.delete_many({"target": uid})
+    child_tables = [
+        db.kyc,
+        db.wallets,
+        db.ledger,
+        db.recharges,
+        db.transactions,
+        db.withdrawals,
+        db.bank_details,
+        db.notifications,
+        db.fraud_flags,
+        db.audit_logs
+    ]
     
+    for table in child_tables:
+        try:
+            await table.delete_many({"user_id": uid})
+        except Exception as e:
+            logger.warning(f"Ignored error deleting from table '{table.table_name}': {e}")
+            
+    try:
+        await db.audit_logs.delete_many({"target": uid})
+    except Exception as e:
+        logger.warning(f"Ignored error deleting audit target logs: {e}")
+        
     # Delete parent user last
     await db.users.delete_many({"id": uid})
     
