@@ -5541,6 +5541,13 @@ async def _ensure_indexes() -> None:
         ''')
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_recharges_qr_code_id ON recharges (qr_code_id)')
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_rejection_reasons_category_id ON rejection_reasons (category_id)')
+        
+        # Speed indexes for users and wallets
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_users_email ON users (email)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_users_role_is_deleted ON users (role, is_deleted)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_users_parent_id ON users (parent_id)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_users_md_id ON users (md_id)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_wallets_user_id ON wallets (user_id)')
         await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS older_qr BOOLEAN DEFAULT FALSE')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS logo_path TEXT')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS favicon_path TEXT')
