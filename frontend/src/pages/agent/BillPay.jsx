@@ -319,6 +319,7 @@ export default function AgentBillPay() {
       toast.success("Bill payment submitted — under admin review");
       setF({ customer_name: "", card_last4: "", operator: "", customer_phone: "", amount: "" });
       const w = await api.get("/wallet"); setWallet(w.data);
+      window.dispatchEvent(new CustomEvent("ws:wallet_update"));
       fetchHistory();
       setTimeout(() => setBusy(false), 1500);
     } catch (e) {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { Outlet, useNavigate, useLocation, Navigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { Menu, Megaphone, ChevronLeft, ChevronRight } from "lucide-react";
@@ -6,6 +6,7 @@ import { NAV } from "./dashboardNav";
 import { SidebarContent } from "./SidebarContent";
 import Logo from "./Logo";
 import { api, fmtMoney, fileUrl } from "@/lib/api";
+import { useWebSocketListener } from "@/lib/ws";
 
 const ROLE_LABELS = { master_distributor: "Master Distributor" };
 export function roleLabel(r) { return ROLE_LABELS[r] || r; }
@@ -98,8 +99,7 @@ export default function DashboardLayout() {
     }
   }, [user, location.pathname, nav, isExcludedRole, roleBaseRoute]);
 
-  // Fetch wallet balance on route change / page view
-  useEffect(() => {
+  const fetchWallet = useCallback(() => {
     if (!user) return;
     if (user.role !== "admin" && user.kyc_status === "approved" && !user.first_login) {
       api.get("/wallet")
@@ -121,7 +121,26 @@ export default function DashboardLayout() {
         })
         .catch((e) => console.log("Failed to fetch admin BBPS balance:", e.message));
     }
-  }, [user, location.pathname]);
+  }, [user]);
+
+  // Fetch wallet balance on route change / page view
+  useEffect(() => {
+    fetchWallet();
+  }, [fetchWallet, location.pathname]);
+
+  // Register WebSocket listeners to update balance in real-time
+  useWebSocketListener("recharge_updated", fetchWallet);
+  useWebSocketListener("cc_bill_created", fetchWallet);
+  useWebSocketListener("cc_bill_updated", fetchWallet);
+  useWebSocketListener("kyc_updated", fetchWallet);
+
+  // Register custom window event listener for immediate updates from current page actions
+  useEffect(() => {
+    window.addEventListener("ws:wallet_update", fetchWallet);
+    return () => {
+      window.removeEventListener("ws:wallet_update", fetchWallet);
+    };
+  }, [fetchWallet]);
 
   // close drawer whenever route changes (mobile UX)
   useEffect(() => { setOpen(false); }, [location.pathname]);

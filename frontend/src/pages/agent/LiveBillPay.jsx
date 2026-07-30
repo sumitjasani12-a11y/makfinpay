@@ -460,6 +460,7 @@ export default function LiveBillPay() {
         setPayAmount("");
         setParamValues({});
         reloadHistory();
+        window.dispatchEvent(new CustomEvent("ws:wallet_update"));
       } else if (res.data?.status === "pending") {
         toast.warning("Payment submitted. Current status: PENDING.");
         setFetchedBill(null);
@@ -467,6 +468,7 @@ export default function LiveBillPay() {
         setPayAmount("");
         setParamValues({});
         reloadHistory();
+        window.dispatchEvent(new CustomEvent("ws:wallet_update"));
       } else {
         toast.error(res.data?.message || "Payment rejected by operator.");
       }
