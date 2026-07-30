@@ -4061,6 +4061,7 @@ async def admin_create_qr(body: QRCodeIn, user=Depends(require_roles("admin"))):
     }
     await db.qr_codes.insert_one(dict(doc))
     await log_qr_activation(doc["id"], doc["label"], doc["mobile_number"], doc["upi_id"])
+    await manager.broadcast({"event": "settings_updated", "data": {}})
     return clean(doc)
 
 @api.get("/admin/qrcodes")
@@ -4110,6 +4111,7 @@ async def admin_activate_qr(qid: str, user=Depends(require_roles("admin"))):
     await db.qr_codes.update_many({"is_t1": is_t1}, {"$set": {"active": False}})
     await db.qr_codes.update_one({"id": qid}, {"$set": {"active": True}})
     await log_qr_activation(qid, qr["label"], qr.get("mobile_number", ""), qr.get("upi_id", ""))
+    await manager.broadcast({"event": "settings_updated", "data": {}})
     return {"ok": True}
 
 @api.delete("/admin/qrcodes/{qid}")
@@ -4118,6 +4120,7 @@ async def admin_delete_qr(qid: str, user=Depends(require_roles("admin"))):
     if qr and qr.get("active"):
         await log_qr_deactivation()
     await db.qr_codes.update_one({"id": qid}, {"$set": {"is_deleted": True, "active": False}})
+    await manager.broadcast({"event": "settings_updated", "data": {}})
     return {"ok": True}
 
 # ---------- SERVICE CHARGE SLABS ----------
@@ -4414,6 +4417,7 @@ async def update_admin_recharge_limits(body: RechargeLimitsIn, request: Request,
     }
     await db.settings.update_one({"id": "commission"}, {"$set": doc})
     await write_audit(user["id"], "recharge_limits_changed", target="settings", meta=doc, request=request)
+    await manager.broadcast({"event": "settings_updated", "data": doc})
     return doc
 
 @api.put("/admin/settings/recharge-toggles")
@@ -4441,6 +4445,7 @@ async def update_admin_recharge_toggles(body: RechargeTogglesIn, request: Reques
     }
     await db.settings.update_one({"id": "commission"}, {"$set": doc})
     await write_audit(user["id"], "recharge_toggles_changed", target="settings", meta=doc, request=request)
+    await manager.broadcast({"event": "settings_updated", "data": doc})
     return doc
 
 class BrandingSettingsIn(BaseModel):

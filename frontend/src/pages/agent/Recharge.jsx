@@ -145,13 +145,31 @@ export default function AgentRecharge() {
 
   const reload = () => api.get("/agent/recharges").then((r) => setItems(r.data || []));
 
-  useWebSocketListener("recharge_updated", () => {
-    reload();
-  });
+  const fetchConfig = useCallback(() => {
+    api.get("/settings/recharge-limits-public")
+      .then((r) => {
+        setMinLimit(r.data.min_recharge_limit ?? 100);
+        setMaxLimit(r.data.max_recharge_limit ?? 300000);
+        setQrEnabled(r.data.qr_enabled ?? true);
+        setT1QrEnabled(r.data.t1_qr_enabled ?? true);
+        setRechargeEnabled(r.data.recharge_enabled ?? true);
+        setT1RechargeEnabled(r.data.t1_recharge_enabled ?? true);
+      })
+      .catch((e) => console.log("Failed to fetch recharge configuration:", e.message));
+  }, []);
 
   const fetchActiveQr = useCallback(() => {
     api.get(`/agent/active-qr?is_t1=${isT1}`).then((r) => setQr(r.data && r.data.image_path ? r.data : null));
   }, [isT1]);
+
+  useWebSocketListener("recharge_updated", () => {
+    reload();
+  });
+
+  useWebSocketListener("settings_updated", () => {
+    fetchConfig();
+    fetchActiveQr();
+  });
 
   useEffect(() => {
     fetchActiveQr();
@@ -177,24 +195,10 @@ export default function AgentRecharge() {
 
   useEffect(() => {
     reload();
-
-    const fetchConfig = () => {
-      api.get("/settings/recharge-limits-public")
-        .then((r) => {
-          setMinLimit(r.data.min_recharge_limit ?? 100);
-          setMaxLimit(r.data.max_recharge_limit ?? 300000);
-          setQrEnabled(r.data.qr_enabled ?? true);
-          setT1QrEnabled(r.data.t1_qr_enabled ?? true);
-          setRechargeEnabled(r.data.recharge_enabled ?? true);
-          setT1RechargeEnabled(r.data.t1_recharge_enabled ?? true);
-        })
-        .catch((e) => console.log("Failed to fetch recharge configuration:", e.message));
-    };
-
     fetchConfig();
     const interval = setInterval(fetchConfig, 4000); // Polling every 4 seconds for instant real-time sync!
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchConfig]);
 
   const stats = useMemo(() => {
     let approvedAmt = 0;
