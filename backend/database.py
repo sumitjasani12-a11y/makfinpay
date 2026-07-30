@@ -338,7 +338,15 @@ class PostgresCollection:
                 dir_str = "ASC" if direction == 1 else "DESC"
                 sort_clause = f" ORDER BY {sort_arg} {dir_str}"
 
-        sql = f"SELECT * FROM {safe_table} WHERE {where_clause}{sort_clause} LIMIT 1"
+        select_cols = "*"
+        if isinstance(projection, dict):
+            include_cols = [k for k, v in projection.items() if v == 1]
+            if include_cols:
+                select_cols = ", ".join([f'"{c}"' if c.lower() in ("limit", "order", "group", "offset") else c for c in include_cols])
+                if "id" not in include_cols and "id" in TABLE_COLUMNS.get(self.table_name, []):
+                    select_cols += ", id"
+
+        sql = f"SELECT {select_cols} FROM {safe_table} WHERE {where_clause}{sort_clause} LIMIT 1"
         try:
             async with self.db.pool.acquire() as conn:
                 row = await conn.fetchrow(sql, *params)
@@ -364,7 +372,18 @@ class PostgresCollection:
         params = []
         where_clause = compile_filter(filter_dict, params)
         safe_table = f'"{self.table_name}"' if "." in self.table_name else self.table_name
-        sql = f"SELECT * FROM {safe_table} WHERE {where_clause}"
+        
+        select_cols = "*"
+        if isinstance(projection, dict):
+            include_cols = [k for k, v in projection.items() if v == 1]
+            if include_cols:
+                # Add quotes to reserved keywords or custom column names if necessary
+                select_cols = ", ".join([f'"{c}"' if c.lower() in ("limit", "order", "group", "offset") else c for c in include_cols])
+                # Always ensure id column is present if defined
+                if "id" not in include_cols and "id" in TABLE_COLUMNS.get(self.table_name, []):
+                    select_cols += ", id"
+                    
+        sql = f"SELECT {select_cols} FROM {safe_table} WHERE {where_clause}"
         return PostgresCursor(self.db, sql, params, self.table_name)
 
     async def insert_one(self, doc):

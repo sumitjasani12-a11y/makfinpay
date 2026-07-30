@@ -2675,6 +2675,7 @@ async def admin_list_recharges(
     page: int = 1,
     page_size: int = 50,
     paginated: bool = False,
+    fields: Optional[str] = None,
     user=Depends(require_roles("admin")),
 ):
     query = _build_recharge_query(
@@ -2682,13 +2683,17 @@ async def admin_list_recharges(
         from_ts=from_ts, to_ts=to_ts, q=q, amount=amount,
         agent_search=agent_search, qr_search=qr_search
     )
+    proj = {"_id": 0}
+    if fields:
+        proj = {f.strip(): 1 for f in fields.split(",") if f.strip()}
+
     if paginated:
         page = max(1, page); page_size = max(1, min(200, page_size))
         total = await db.recharges.count_documents(query)
-        items = await db.recharges.find(query, {"_id": 0}).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
+        items = await db.recharges.find(query, proj).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
         return {"items": items, "total": total, "page": page, "page_size": page_size}
     # Legacy caller (no pagination requested) — full list, no cap.
-    return await db.recharges.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
+    return await db.recharges.find(query, proj).sort("created_at", -1).to_list(None)
 
 @api.get("/admin/recharge-gallery")
 async def get_recharge_gallery(user=Depends(require_roles("admin"))):
@@ -3547,6 +3552,7 @@ async def admin_transactions(
     page: int = 1,
     page_size: int = 50,
     paginated: bool = False,
+    fields: Optional[str] = None,
     user=Depends(require_roles("admin")),
 ):
     matched_ids = None
@@ -3561,12 +3567,16 @@ async def admin_transactions(
         txn_id=txn_id, api_txn_id=api_txn_id, matched_ids=matched_ids,
         agent_search=agent_search, bank_search=bank_search
     )
+    proj = {"_id": 0}
+    if fields:
+        proj = {f.strip(): 1 for f in fields.split(",") if f.strip()}
+
     if paginated:
         page = max(1, page); page_size = max(1, min(200, page_size))
         total = await db.transactions.count_documents(query)
-        items = await db.transactions.find(query, {"_id": 0}).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
+        items = await db.transactions.find(query, proj).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
         return {"items": items, "total": total, "page": page, "page_size": page_size}
-    return await db.transactions.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
+    return await db.transactions.find(query, proj).sort("created_at", -1).to_list(None)
 
 @api.post("/admin/transactions/{tid}/approve")
 async def admin_approve_transaction(tid: str, body: ApprovalIn, request: Request, user=Depends(require_roles("admin"))):

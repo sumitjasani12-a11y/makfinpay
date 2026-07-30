@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { PageHeader, DataTable, StatusBadge, EmptyState } from "@/components/Shared";
 import FileUpload from "@/components/FileUpload";
 import ZoomableImage from "@/components/ZoomableImage";
-import { createWorker } from "tesseract.js";
+
 import { toast } from "sonner";
 import { Loader2, Coins, KeyRound, CreditCard, QrCode, Info, Sparkles, CheckCircle2, History, Check, ShieldAlert, FileDown, FileSpreadsheet, Clock, X, Eye } from "lucide-react";
 import { useWebSocketListener } from "@/lib/ws";
@@ -37,6 +37,7 @@ export default function AgentRecharge() {
     toast.info("Analyzing payment screenshot for details...");
 
     try {
+      const { createWorker } = await import("tesseract.js");
       const worker = await createWorker('eng');
       const { data: { text } } = await worker.recognize(file);
       await worker.terminate();

@@ -142,8 +142,8 @@ export default function AdminTransactions() {
     // paginated list
     const pagePromise = api.get("/admin/transactions", { params });
 
-    // unpaginated list for correct totals
-    const statsParams = { ...params };
+    // unpaginated list for correct totals (projecting only necessary fields for speed)
+    const statsParams = { ...params, fields: "amount,total_amount,status" };
     delete statsParams.paginated;
     delete statsParams.page;
     delete statsParams.page_size;

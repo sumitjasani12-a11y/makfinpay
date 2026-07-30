@@ -123,8 +123,8 @@ export default function AdminRecharges() {
     // paginated list
     const pagePromise = api.get("/admin/recharges", { params });
 
-    // unpaginated list for correct totals
-    const statsParams = { ...params };
+    // unpaginated list for correct totals (projecting only necessary fields for speed)
+    const statsParams = { ...params, fields: "amount,status,commission_amount" };
     delete statsParams.paginated;
     delete statsParams.page;
     delete statsParams.page_size;
