@@ -4889,6 +4889,7 @@ async def admin_stats(user=Depends(require_roles("admin"))):
     pending_recharges = await db.recharges.count_documents({"status": "pending"})
     pending_withdrawals = await db.withdrawals.count_documents({"status": "pending"})
     pending_transactions = await db.transactions.count_documents({"status": "pending"})
+    pending_kyc = await db.users.count_documents({"role": "agent", "kyc_status": "pending"})
     # aggregate wallet total
     agg = await db.wallets.aggregate([{"$group": {"_id": None, "total": {"$sum": "$balance"}}}]).to_list(1)
     total_wallet = agg[0]["total"] if agg else 0
@@ -4904,6 +4905,7 @@ async def admin_stats(user=Depends(require_roles("admin"))):
         "pending_recharges": pending_recharges,
         "pending_withdrawals": pending_withdrawals,
         "pending_transactions": pending_transactions,
+        "pending_kyc": pending_kyc,
         "total_wallet": round(total_wallet, 2),
         "total_revenue": round(total_revenue, 2),
         "total_txn_amount": round(total_txn_amount, 2),

@@ -46,7 +46,15 @@ const getIconColor = (label) => {
   return colors[label] || "text-indigo-400";
 };
 
-export function SidebarContent({ user, items, onLogout }) {
+export function SidebarContent({ user, items, onLogout, pendingCounts = {} }) {
+  const getBadgeCount = (label) => {
+    if (label === "QR Approvals") return pendingCounts.recharges || 0;
+    if (label === "CC Bill Request") return pendingCounts.transactions || 0;
+    if (label === "KYC Requests") return pendingCounts.kyc || 0;
+    if (label === "Pay Withdrawals") return pendingCounts.withdrawals || 0;
+    return 0;
+  };
+
   return (
     <>
       <Link
@@ -64,24 +72,32 @@ export function SidebarContent({ user, items, onLogout }) {
       </Link>
       
       <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto no-scrollbar">
-        {items.map((it) => (
-          <NavLink
-            key={it.to}
-            to={it.to}
-            end={it.end}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all font-bold text-[12.5px] tracking-wide ` +
-              `${isActive
-                ? "bg-white/10 text-white shadow-sm border border-white/5"
-                : "text-white/70 hover:bg-white/5 hover:text-white"
-              }`
-            }
-            data-testid={`nav-${it.label.replace(/\s+/g, "-").toLowerCase()}`}
-          >
-            <it.icon className={`h-[18px] w-[18px] shrink-0 ${getIconColor(it.label)}`} strokeWidth={2.3} />
-            <span>{it.label}</span>
-          </NavLink>
-        ))}
+        {items.map((it) => {
+          const badgeCount = getBadgeCount(it.label);
+          return (
+            <NavLink
+              key={it.to}
+              to={it.to}
+              end={it.end}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all font-bold text-[12.5px] tracking-wide ` +
+                `${isActive
+                  ? "bg-white/10 text-white shadow-sm border border-white/5"
+                  : "text-white/70 hover:bg-white/5 hover:text-white"
+                }`
+              }
+              data-testid={`nav-${it.label.replace(/\s+/g, "-").toLowerCase()}`}
+            >
+              <it.icon className={`h-[18px] w-[18px] shrink-0 ${getIconColor(it.label)}`} strokeWidth={2.3} />
+              <span>{it.label}</span>
+              {badgeCount > 0 && (
+                <span className="ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-extrabold text-white animate-pulse">
+                  {badgeCount}
+                </span>
+              )}
+            </NavLink>
+          );
+        })}
       </nav>
 
       <div className="border-t border-white/5 p-4 bg-black/10">

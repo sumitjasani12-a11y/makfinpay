@@ -53,6 +53,7 @@ export default function DashboardLayout() {
   const [bbpsBalance, setBbpsBalance] = useState(null);
   const [headlines, setHeadlines] = useState([]);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [pendingCounts, setPendingCounts] = useState({ recharges: 0, transactions: 0, kyc: 0, withdrawals: 0 });
 
   // Extract active image messages
   const imageMessages = useMemo(() => {
@@ -123,16 +124,45 @@ export default function DashboardLayout() {
     }
   }, [user]);
 
-  // Fetch wallet balance on route change / page view
+  const fetchPendingCounts = useCallback(() => {
+    if (!user || user.role !== "admin") return;
+    api.get("/admin/stats")
+      .then((r) => {
+        setPendingCounts({
+          recharges: r.data.pending_recharges || 0,
+          transactions: r.data.pending_transactions || 0,
+          kyc: r.data.pending_kyc || 0,
+          withdrawals: r.data.pending_withdrawals || 0
+        });
+      })
+      .catch((e) => console.log("Failed to fetch pending counts:", e.message));
+  }, [user]);
+
+  // Fetch wallet balance and pending counts on route change / page view
   useEffect(() => {
     fetchWallet();
-  }, [fetchWallet, location.pathname]);
+    fetchPendingCounts();
+  }, [fetchWallet, fetchPendingCounts, location.pathname]);
 
-  // Register WebSocket listeners to update balance in real-time
-  useWebSocketListener("recharge_updated", fetchWallet);
-  useWebSocketListener("cc_bill_created", fetchWallet);
-  useWebSocketListener("cc_bill_updated", fetchWallet);
-  useWebSocketListener("kyc_updated", fetchWallet);
+  // Register WebSocket listeners to update balance & stats counts in real-time
+  useWebSocketListener("recharge_created", fetchPendingCounts);
+  useWebSocketListener("recharge_updated", () => {
+    fetchWallet();
+    fetchPendingCounts();
+  });
+  useWebSocketListener("kyc_submitted", fetchPendingCounts);
+  useWebSocketListener("kyc_updated", () => {
+    fetchWallet();
+    fetchPendingCounts();
+  });
+  useWebSocketListener("cc_bill_created", () => {
+    fetchWallet();
+    fetchPendingCounts();
+  });
+  useWebSocketListener("cc_bill_updated", () => {
+    fetchWallet();
+    fetchPendingCounts();
+  });
 
   // Register custom window event listener for immediate updates from current page actions
   useEffect(() => {
@@ -154,7 +184,7 @@ export default function DashboardLayout() {
     <div className="min-h-screen bg-background md:flex">
       {/* Desktop / tablet sidebar (≥ md) */}
       <aside className="hidden md:flex w-64 shrink-0 border-r border-white/5 bg-[#0F172A] text-white sticky top-0 h-screen flex-col">
-        <SidebarContent user={user} items={items} onLogout={handleLogout} />
+        <SidebarContent user={user} items={items} onLogout={handleLogout} pendingCounts={pendingCounts} />
       </aside>
 
       {/* Mobile drawer (< md) */}
@@ -165,7 +195,7 @@ export default function DashboardLayout() {
         className={`md:hidden fixed inset-y-0 left-0 z-50 w-72 bg-[#0F172A] text-white border-r border-white/5 flex flex-col transform transition-transform duration-300 ${open ? "translate-x-0" : "-translate-x-full"}`}
         data-testid="mobile-drawer"
       >
-        <SidebarContent user={user} items={items} onLogout={handleLogout} />
+        <SidebarContent user={user} items={items} onLogout={handleLogout} pendingCounts={pendingCounts} />
       </aside>
 
       <main className="flex-1 min-w-0">
