@@ -134,12 +134,22 @@ export default function AgentRecharge() {
 
   const [items, setItems] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [minLimit, setMinLimit] = useState(100);
-  const [maxLimit, setMaxLimit] = useState(300000);
-  const [qrEnabled, setQrEnabled] = useState(true);
-  const [t1QrEnabled, setT1QrEnabled] = useState(true);
-  const [rechargeEnabled, setRechargeEnabled] = useState(true);
-  const [t1RechargeEnabled, setT1RechargeEnabled] = useState(true);
+
+  const cachedConfig = useMemo(() => {
+    try {
+      const cached = localStorage.getItem("mfp_recharge_config");
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const [minLimit, setMinLimit] = useState(() => cachedConfig?.min_recharge_limit ?? 100);
+  const [maxLimit, setMaxLimit] = useState(() => cachedConfig?.max_recharge_limit ?? 300000);
+  const [qrEnabled, setQrEnabled] = useState(() => cachedConfig?.qr_enabled ?? true);
+  const [t1QrEnabled, setT1QrEnabled] = useState(() => cachedConfig?.t1_qr_enabled ?? true);
+  const [rechargeEnabled, setRechargeEnabled] = useState(() => cachedConfig?.recharge_enabled ?? true);
+  const [t1RechargeEnabled, setT1RechargeEnabled] = useState(() => cachedConfig?.t1_recharge_enabled ?? true);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
@@ -154,6 +164,9 @@ export default function AgentRecharge() {
         setT1QrEnabled(r.data.t1_qr_enabled ?? true);
         setRechargeEnabled(r.data.recharge_enabled ?? true);
         setT1RechargeEnabled(r.data.t1_recharge_enabled ?? true);
+        try {
+          localStorage.setItem("mfp_recharge_config", JSON.stringify(r.data));
+        } catch (e) {}
       })
       .catch((e) => console.log("Failed to fetch recharge configuration:", e.message));
   }, []);
