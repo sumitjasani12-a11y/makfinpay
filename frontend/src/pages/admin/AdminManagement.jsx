@@ -227,20 +227,27 @@ export default function AdminManagement() {
                   </div>
                 </div>
 
-                <div className="border-t border-white/5 pt-4 space-y-2">
-                  <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
+                <div className="border-t border-white/5 pt-4 space-y-2.5">
+                  <div className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">
                     Permissions ({admin.permissions?.length || 0} of {PERMISSIONS_LIST.length})
                   </div>
-                  <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto no-scrollbar">
-                    {admin.permissions && admin.permissions.length > 0 ? (
-                      admin.permissions.map(pKey => {
-                        const match = PERMISSIONS_LIST.find(p => p.key === pKey);
-                        return (
-                          <span key={pKey} className="text-[10px] bg-white/5 border border-white/5 text-neutral-200 px-2 py-0.5 rounded-md font-medium">
-                            {match ? match.label : pKey}
-                          </span>
-                        );
-                      })
+                  <div>
+                    {admin.permissions?.length === PERMISSIONS_LIST.length ? (
+                      <div className="flex items-center gap-1.5 text-emerald-400 bg-emerald-500/5 border border-emerald-500/10 px-2.5 py-1.5 rounded-lg text-xs font-semibold select-none">
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+                        <span>Full Admin Access (All Screens)</span>
+                      </div>
+                    ) : admin.permissions && admin.permissions.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1 select-none custom-scrollbar">
+                        {admin.permissions.map(pKey => {
+                          const match = PERMISSIONS_LIST.find(p => p.key === pKey);
+                          return (
+                            <span key={pKey} className="text-[10px] bg-indigo-500/5 border border-indigo-500/10 text-indigo-300 px-2 py-0.5 rounded-md font-semibold">
+                              {match ? match.label : pKey}
+                            </span>
+                          );
+                        })}
+                      </div>
                     ) : (
                       <span className="text-xs text-rose-400 italic">No permissions assigned</span>
                     )}
@@ -379,7 +386,7 @@ export default function AdminManagement() {
                   </button>
                 </div>
 
-                <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3.5 max-h-60 overflow-y-auto p-1 bg-black/20 rounded-xl border border-white/5 no-scrollbar">
+                <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3 p-1 bg-black/20 rounded-xl border border-white/5">
                   {PERMISSIONS_LIST.map((permission) => {
                     const isChecked = selectedPermissions.includes(permission.key);
                     return (
