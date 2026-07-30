@@ -46,7 +46,7 @@ const getIconColor = (label) => {
   return colors[label] || "text-indigo-400";
 };
 
-export function SidebarContent({ user, items, onLogout, pendingCounts = {} }) {
+export function SidebarContent({ user, items, onLogout, pendingCounts = {}, collapsed = false }) {
   const getBadgeCount = (label) => {
     if (label === "QR Approvals") return pendingCounts.recharges || 0;
     if (label === "CC Bill Request") return pendingCounts.transactions || 0;
@@ -59,19 +59,22 @@ export function SidebarContent({ user, items, onLogout, pendingCounts = {} }) {
     <>
       <Link
         to="/"
-        className="px-6 h-16 flex items-center gap-2.5 border-b border-white/5 select-none shrink-0"
+        className={`h-16 flex items-center border-b border-white/5 select-none shrink-0 ${collapsed ? "justify-center px-0" : "px-6 gap-2.5"}`}
         data-testid="sidebar-logo"
+        title="MAK FIN PAY"
       >
-        <Logo variant="light" size={32} />
-        <div className="leading-tight">
-          <div className="text-sm font-black tracking-wide text-white">MAK FIN PAY</div>
-          <div className="text-[9px] tracking-[0.2em] font-black uppercase text-neutral-300 mt-0.5">
-            {(user.role || "").replace("_", " ")}
+        <Logo variant="light" size={collapsed ? 28 : 32} collapsed={collapsed} />
+        {!collapsed && (
+          <div className="leading-tight">
+            <div className="text-sm font-black tracking-wide text-white">MAK FIN PAY</div>
+            <div className="text-[9px] tracking-[0.2em] font-black uppercase text-neutral-300 mt-0.5">
+              {(user.role || "").replace("_", " ")}
+            </div>
           </div>
-        </div>
+        )}
       </Link>
       
-      <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto no-scrollbar">
+      <nav className={`flex-1 overflow-y-auto no-scrollbar ${collapsed ? "p-2.5 space-y-2" : "p-4 space-y-1.5"}`}>
         {items.map((it) => {
           const badgeCount = getBadgeCount(it.label);
           return (
@@ -79,8 +82,10 @@ export function SidebarContent({ user, items, onLogout, pendingCounts = {} }) {
               key={it.to}
               to={it.to}
               end={it.end}
+              title={collapsed ? it.label : undefined}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all font-bold text-[12.5px] tracking-wide ` +
+                `flex items-center rounded-xl transition-all font-bold ` +
+                `${collapsed ? "justify-center p-2.5 relative " : "gap-3 px-3.5 py-2.5 text-[12.5px] tracking-wide "}` +
                 `${isActive
                   ? "bg-white/10 text-white shadow-sm border border-white/5"
                   : "text-white/70 hover:bg-white/5 hover:text-white"
@@ -89,35 +94,42 @@ export function SidebarContent({ user, items, onLogout, pendingCounts = {} }) {
               data-testid={`nav-${it.label.replace(/\s+/g, "-").toLowerCase()}`}
             >
               <it.icon className={`h-[18px] w-[18px] shrink-0 ${getIconColor(it.label)}`} strokeWidth={2.3} />
-              <span>{it.label}</span>
+              {!collapsed && <span>{it.label}</span>}
               {badgeCount > 0 && (
-                <span className="ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-extrabold text-white animate-pulse">
-                  {badgeCount}
-                </span>
+                collapsed ? (
+                  <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-rose-500 ring-1 ring-[#0F172A] animate-pulse" />
+                ) : (
+                  <span className="ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-extrabold text-white animate-pulse">
+                    {badgeCount}
+                  </span>
+                )
               )}
             </NavLink>
           );
         })}
       </nav>
 
-      <div className="border-t border-white/5 p-4 bg-black/10">
-        <div className="flex items-center gap-3 mb-4 px-2">
-          <div className="h-9 w-9 rounded-full bg-white/10 border border-white/10 text-white grid place-items-center font-bold text-sm shadow-inner">
+      <div className={`border-t border-white/5 bg-black/10 ${collapsed ? "p-2.5 flex flex-col items-center gap-3" : "p-4"}`}>
+        <div className={`flex items-center ${collapsed ? "justify-center" : "gap-3 mb-4 px-2"}`}>
+          <div className="h-9 w-9 rounded-full bg-white/10 border border-white/10 text-white grid place-items-center font-bold text-sm shadow-inner shrink-0" title={`${user.full_name} (${user.email})`}>
             {(user.full_name || "?")[0].toUpperCase()}
           </div>
-          <div className="leading-tight overflow-hidden">
-            <div className="text-xs font-bold text-white truncate tracking-wide">{user.full_name}</div>
-            <div className="text-[10px] text-neutral-300 truncate font-semibold mt-0.5">{user.email}</div>
-          </div>
+          {!collapsed && (
+            <div className="leading-tight overflow-hidden">
+              <div className="text-xs font-bold text-white truncate tracking-wide">{user.full_name}</div>
+              <div className="text-[10px] text-neutral-300 truncate font-semibold mt-0.5">{user.email}</div>
+            </div>
+          )}
         </div>
         
         <button
           onClick={onLogout}
-          className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[12.5px] font-bold text-white/70 hover:bg-white/5 hover:text-white hover:text-rose-400 hover:bg-rose-500/5 transition-all select-none border border-transparent hover:border-rose-500/10 tracking-wide"
+          title={collapsed ? "Sign out" : undefined}
+          className={`flex items-center rounded-xl text-white/70 hover:bg-white/5 hover:text-white hover:text-rose-400 hover:bg-rose-500/5 transition-all select-none border border-transparent hover:border-rose-500/10 ${collapsed ? "justify-center p-2.5 w-full" : "w-full gap-3 px-3.5 py-2.5 text-[12.5px] font-bold tracking-wide"}`}
           data-testid="logout-btn"
         >
           <LogOut className="h-[18px] w-[18px] shrink-0 text-rose-400" strokeWidth={2.3} />
-          <span>Sign out</span>
+          {!collapsed && <span>Sign out</span>}
         </button>
       </div>
     </>

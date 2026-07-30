@@ -12,13 +12,14 @@ const ROLE_LABELS = { master_distributor: "Master Distributor" };
 export function roleLabel(r) { return ROLE_LABELS[r] || r; }
 
 export default function DashboardLayout() {
-  const { user, logout } = useAuth();
+  const { user, logout, branding } = useAuth();
   const nav = useNavigate();
   const location = useLocation();
   const roleBaseRoute = user.role === "master_distributor" ? "/md" : `/${user.role}`;
   const isExcludedRole = user.role === "admin";
 
   const [limits, setLimits] = useState(null);
+  const [collapsedSidebar, setCollapsedSidebar] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -194,8 +195,8 @@ export default function DashboardLayout() {
   return (
     <div className="min-h-screen bg-background md:flex">
       {/* Desktop / tablet sidebar (≥ md) */}
-      <aside className="hidden md:flex w-64 shrink-0 border-r border-white/5 bg-[#0F172A] text-white sticky top-0 h-screen flex-col">
-        <SidebarContent user={user} items={items} onLogout={handleLogout} pendingCounts={pendingCounts} />
+      <aside className={`hidden md:flex ${collapsedSidebar ? "w-[72px]" : "w-64"} shrink-0 border-r border-white/5 bg-[#0F172A] text-white sticky top-0 h-screen flex-col transition-all duration-300`}>
+        <SidebarContent user={user} items={items} onLogout={handleLogout} pendingCounts={pendingCounts} collapsed={collapsedSidebar} />
       </aside>
 
       {/* Mobile drawer (< md) */}
@@ -206,7 +207,7 @@ export default function DashboardLayout() {
         className={`md:hidden fixed inset-y-0 left-0 z-50 w-72 bg-[#0F172A] text-white border-r border-white/5 flex flex-col transform transition-transform duration-300 ${open ? "translate-x-0" : "-translate-x-full"}`}
         data-testid="mobile-drawer"
       >
-        <SidebarContent user={user} items={items} onLogout={handleLogout} pendingCounts={pendingCounts} />
+        <SidebarContent user={user} items={items} onLogout={handleLogout} pendingCounts={pendingCounts} collapsed={false} />
       </aside>
 
       <main className="flex-1 min-w-0">
@@ -217,6 +218,15 @@ export default function DashboardLayout() {
               onClick={() => setOpen(true)}
               data-testid="mobile-menu-toggle"
               aria-label="Open menu"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              className="hidden md:flex mfp-btn-ghost p-2 -ml-1 min-h-[44px] min-w-[44px] items-center justify-center cursor-pointer"
+              onClick={() => setCollapsedSidebar(!collapsedSidebar)}
+              data-testid="desktop-sidebar-toggle"
+              aria-label="Toggle sidebar"
             >
               <Menu className="h-5 w-5" />
             </button>
@@ -316,8 +326,19 @@ export default function DashboardLayout() {
           }
 
           return (
-            <div className="p-4 sm:p-6 lg:p-8">
-              <Outlet />
+            <div className="p-4 sm:p-6 lg:p-8 relative min-h-[calc(100vh-4rem)]">
+              {["master_distributor", "distributor", "agent"].includes(user.role) && branding?.watermark_path && (
+                <div
+                  className="absolute inset-0 pointer-events-none opacity-[0.04] bg-center bg-no-repeat"
+                  style={{
+                    backgroundImage: `url(${fileUrl(branding.watermark_path)})`,
+                    backgroundSize: "360px",
+                  }}
+                />
+              )}
+              <div className="relative z-10">
+                <Outlet />
+              </div>
             </div>
           );
         })()}

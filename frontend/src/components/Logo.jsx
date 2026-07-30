@@ -1,4 +1,6 @@
 import React from "react";
+import { useAuth } from "@/lib/auth";
+import { fileUrl } from "@/lib/api";
 
 /**
  * MAK FIN PAY logo icon.
@@ -10,11 +12,24 @@ import React from "react";
  *
  *   - size: pixel size (default 36)
  *   - className: extra Tailwind classes (e.g. responsive helpers)
+ *   - collapsed: boolean to render smaller collapsed logo version
  */
-export default function Logo({ variant = "dark", size = 36, className = "" }) {
+export default function Logo({ variant = "dark", size = 36, className = "", collapsed = false }) {
+  const auth = useAuth();
+  const branding = auth?.branding;
   const isLight = variant === "light";
-  const src = isLight ? "/assets/makfinpay-white.svg" : "/assets/makfinpay-logo.png";
-  const blendStyle = isLight ? undefined : { mixBlendMode: "multiply" };
+
+  let src = isLight ? "/assets/makfinpay-white.svg" : "/assets/makfinpay-logo.png";
+  let blendStyle = isLight ? undefined : { mixBlendMode: "multiply" };
+
+  if (collapsed && branding?.logo_collapsed_path) {
+    src = fileUrl(branding.logo_collapsed_path);
+    blendStyle = undefined;
+  } else if (!collapsed && branding?.logo_path) {
+    src = fileUrl(branding.logo_path);
+    blendStyle = undefined;
+  }
+
   return (
     <img
       src={src}

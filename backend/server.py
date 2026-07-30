@@ -775,12 +775,19 @@ async def serve_file(path: str, auth: Optional[str] = Query(None), authorization
         token = authorization[7:]
     elif auth:
         token = auth
-    if not token:
-        raise HTTPException(401, "Auth required")
-    try:
-        jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
-    except Exception:
-        raise HTTPException(401, "Invalid token")
+    is_branding = False
+    s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    branding_paths = [s.get("logo_path"), s.get("favicon_path"), s.get("logo_collapsed_path"), s.get("watermark_path")]
+    if path and path in branding_paths:
+        is_branding = True
+
+    if not is_branding:
+        if not token:
+            raise HTTPException(401, "Auth required")
+        try:
+            jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+        except Exception:
+            raise HTTPException(401, "Invalid token")
     rec = await db.files.find_one({"storage_path": path, "is_deleted": False}, {"_id": 0})
     if not rec:
         raise HTTPException(404, "File not found")
@@ -4431,6 +4438,40 @@ async def update_admin_recharge_toggles(body: RechargeTogglesIn, request: Reques
     await write_audit(user["id"], "recharge_toggles_changed", target="settings", meta=doc, request=request)
     return doc
 
+class BrandingSettingsIn(BaseModel):
+    logo_path: Optional[str] = None
+    favicon_path: Optional[str] = None
+    logo_collapsed_path: Optional[str] = None
+    watermark_path: Optional[str] = None
+
+@api.get("/settings/branding-public")
+async def get_public_branding():
+    s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    return {
+        "logo_path": s.get("logo_path") or "",
+        "favicon_path": s.get("favicon_path") or "",
+        "logo_collapsed_path": s.get("logo_collapsed_path") or "",
+        "watermark_path": s.get("watermark_path") or "",
+    }
+
+@api.put("/admin/settings/branding")
+async def update_branding_settings(body: BrandingSettingsIn, request: Request, user=Depends(require_roles("admin"))):
+    doc = {
+        "updated_at": now_iso()
+    }
+    if body.logo_path is not None:
+        doc["logo_path"] = body.logo_path
+    if body.favicon_path is not None:
+        doc["favicon_path"] = body.favicon_path
+    if body.logo_collapsed_path is not None:
+        doc["logo_collapsed_path"] = body.logo_collapsed_path
+    if body.watermark_path is not None:
+        doc["watermark_path"] = body.watermark_path
+        
+    await db.settings.update_one({"id": "commission"}, {"$set": doc})
+    await write_audit(user["id"], "branding_settings_changed", target="settings", meta=doc, request=request)
+    return doc
+
 class AdminAdjustmentIn(BaseModel):
     type: str  # credit | debit
     amount: float
@@ -5217,6 +5258,10 @@ async def _ensure_indexes() -> None:
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_recharges_qr_code_id ON recharges (qr_code_id)')
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_rejection_reasons_category_id ON rejection_reasons (category_id)')
         await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS older_qr BOOLEAN DEFAULT FALSE')
+        await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS logo_path TEXT')
+        await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS favicon_path TEXT')
+        await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS logo_collapsed_path TEXT')
+        await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS watermark_path TEXT')
         await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS firm_name VARCHAR(255)')
         await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS firm_address TEXT')
         await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS first_login BOOLEAN DEFAULT TRUE')
