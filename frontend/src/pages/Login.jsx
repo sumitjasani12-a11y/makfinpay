@@ -86,8 +86,8 @@ export default function Login() {
         <div className="relative z-10 flex flex-col justify-between h-full w-full">
           {/* Header Link */}
           <Link to="/" className="flex items-center gap-3">
-            <div className="h-24 flex items-center justify-start">
-              <Logo variant="light" className="h-20 w-auto object-contain" />
+            <div className="h-32 flex items-center justify-start">
+              <Logo variant="light" className="h-28 w-auto object-contain" />
             </div>
           </Link>
 
