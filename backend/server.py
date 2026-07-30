@@ -373,6 +373,7 @@ class RechargeIn(BaseModel):
     amount: float
     utr: str
     card_last4: str
+    upi_id: Optional[str] = None
     screenshot_path: str  # storage path of uploaded screenshot
     older_qr: Optional[bool] = False
     is_t1: Optional[bool] = False
@@ -382,6 +383,8 @@ class RechargeIn(BaseModel):
     ocr_qr_name: Optional[str] = None
     ocr_match: Optional[bool] = False
     ocr_bypass: Optional[bool] = False
+    ocr_upi_id: Optional[str] = None
+    upi_match: Optional[bool] = False
 
 class BillPaymentIn(BaseModel):
     customer_name: str
@@ -2590,8 +2593,13 @@ async def agent_create_recharge(body: RechargeIn, user=Depends(require_approved_
         raise HTTPException(400, "UTR must contain only digits")
     if len(utr) != 12:
         raise HTTPException(400, "UTR must be exactly 12 digits")
-    if not body.card_last4 or not body.card_last4.isdigit() or len(body.card_last4) != 4:
-        raise HTTPException(400, "Please enter exactly 4 digits")
+    
+    if body.card_last4:
+        if not body.card_last4.isdigit() or len(body.card_last4) != 4:
+            raise HTTPException(400, "Please enter exactly 4 digits")
+            
+    if not body.upi_id or "@" not in body.upi_id or len(body.upi_id.strip()) < 3:
+        raise HTTPException(400, "Please enter a valid UPI ID (e.g. name@upi)")
 
     # Idempotency guard — reject duplicate UTR for the same agent if a prior
     # pending/approved recharge with that UTR already exists. Rejected recharges
@@ -2625,7 +2633,8 @@ async def agent_create_recharge(body: RechargeIn, user=Depends(require_approved_
         "user_name": user["full_name"],
         "amount": body.amount,
         "utr": utr,
-        "card_last4": body.card_last4,
+        "card_last4": body.card_last4 or "",
+        "upi_id": body.upi_id or "",
         "qr_code_id": selected_qr["id"] if selected_qr else None,
         "qr_code_label": selected_qr["label"] if selected_qr else None,
         "screenshot_path": body.screenshot_path,
@@ -2640,6 +2649,8 @@ async def agent_create_recharge(body: RechargeIn, user=Depends(require_approved_
         "ocr_qr_name": body.ocr_qr_name,
         "ocr_match": body.ocr_match or False,
         "ocr_bypass": body.ocr_bypass or False,
+        "ocr_upi_id": body.ocr_upi_id,
+        "upi_match": body.upi_match or False,
         "note": "",
         "created_at": now_iso(),
         "reviewed_at": None,
@@ -5089,6 +5100,9 @@ async def _ensure_indexes() -> None:
         await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS ocr_qr_name TEXT')
         await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS ocr_match BOOLEAN DEFAULT FALSE')
         await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS ocr_bypass BOOLEAN DEFAULT FALSE')
+        await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS upi_id TEXT')
+        await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS ocr_upi_id TEXT')
+        await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS upi_match BOOLEAN DEFAULT FALSE')
 
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS billers (

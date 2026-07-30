@@ -16,7 +16,7 @@ export default function AgentRecharge() {
   const [qr, setQr] = useState(null);
   const [amount, setAmount] = useState("");
   const [utr, setUtr] = useState("");
-  const [last4, setLast4] = useState("");
+  const [upiId, setUpiId] = useState("");
   const [shot, setShot] = useState("");
   const [olderQr, setOlderQr] = useState(false);
   const [qrList24h, setQrList24h] = useState([]);
@@ -92,6 +92,7 @@ export default function AgentRecharge() {
     
     const inputUtr = utr.trim();
     const inputAmount = parseFloat(amount);
+    const inputUpi = upiId.trim().toLowerCase();
     
     const utrMatch = inputUtr ? ocrResult.utr === inputUtr : false;
     
@@ -106,19 +107,25 @@ export default function AgentRecharge() {
     const qrMatch = activeQrLabel 
       ? ocrResult.text.toLowerCase().includes(activeQrLabel.toLowerCase().trim())
       : false;
+
+    const upiMatch = inputUpi
+      ? ocrResult.text.toLowerCase().includes(inputUpi)
+      : false;
       
-    const allMatched = utrMatch && amountMatch && qrMatch;
+    const allMatched = utrMatch && amountMatch && qrMatch && upiMatch;
     
     return {
       utrMatch,
       amountMatch,
       qrMatch,
+      upiMatch,
       allMatched,
       extractedUtr: ocrResult.utr,
       extractedAmount: ocrResult.amount,
-      extractedQrName: qrMatch ? activeQrLabel : ""
+      extractedQrName: qrMatch ? activeQrLabel : "",
+      extractedUpiId: ocrResult.upiId
     };
-  }, [ocrResult, utr, amount, qr, olderQr, qrList24h, selectedQrId]);
+  }, [ocrResult, utr, amount, qr, olderQr, qrList24h, selectedQrId, upiId]);
 
   const filteredQrs = useMemo(() => {
     const q = qrSearch.toLowerCase().trim();
@@ -336,9 +343,9 @@ export default function AgentRecharge() {
   const amountTooLow = amt > 0 && amt < minLimit;
   const amountTooHigh = amt > maxLimit;
   const utrValid = /^\d{12}$/.test(utr);
-  const last4Valid = /^\d{4}$/.test(last4);
+  const upiIdValid = upiId.includes("@") && upiId.trim().length >= 3;
   const shotValid = Boolean(shot);
-  const canSubmit = !isSubmitting && amountValid && utrValid && last4Valid && shotValid && (!olderQr || !!selectedQrId) && !ocrLoading && (!ocrValidation || ocrValidation.allMatched || ocrBypass);
+  const canSubmit = !isSubmitting && amountValid && utrValid && upiIdValid && shotValid && (!olderQr || !!selectedQrId) && !ocrLoading && (!ocrValidation || ocrValidation.allMatched || ocrBypass);
 
   const commAmt = amountValid ? +(amt * commPct / 100).toFixed(2) : 0;
   const netCredit = amountValid ? +(amt - commAmt).toFixed(2) : 0;
@@ -385,14 +392,15 @@ export default function AgentRecharge() {
       );
     }
     if (!utrValid) return toast.error("UTR must be exactly 12 digits");
-    if (!last4Valid) return toast.error("Please enter exactly 4 digits");
+    if (!upiIdValid) return toast.error("Please enter a valid UPI ID (e.g. name@upi)");
     if (!shotValid) return toast.error("Upload payment screenshot");
     setIsSubmitting(true);
     try {
       await api.post("/agent/recharges", {
         amount: parseFloat(amount),
         utr,
-        card_last4: last4,
+        card_last4: "",
+        upi_id: upiId.trim(),
         screenshot_path: shot,
         older_qr: olderQr,
         is_t1: isT1,
@@ -402,9 +410,11 @@ export default function AgentRecharge() {
         ocr_qr_name: ocrValidation ? ocrValidation.extractedQrName : undefined,
         ocr_match: ocrValidation ? ocrValidation.allMatched : false,
         ocr_bypass: ocrValidation ? ocrBypass : false,
+        ocr_upi_id: ocrValidation ? ocrValidation.extractedUpiId : undefined,
+        upi_match: ocrValidation ? ocrValidation.upiMatch : false
       });
       toast.success("Recharge request submitted — pending admin approval");
-      setAmount(""); setUtr(""); setLast4(""); setShot(""); setOlderQr(false); setSelectedQrId(""); setOcrResult(null); setOcrBypass(false); reload();
+      setAmount(""); setUtr(""); setUpiId(""); setShot(""); setOlderQr(false); setSelectedQrId(""); setOcrResult(null); setOcrBypass(false); reload();
       // brief cool-down to prevent a stray second click landing on the now-empty form
       setTimeout(() => setIsSubmitting(false), 1500);
     } catch (e) {
@@ -602,10 +612,10 @@ export default function AgentRecharge() {
                   )}
                 </div>
 
-                {/* Card Number */}
+                {/* UPI ID */}
                 <div className="space-y-1">
                   <label className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest block">
-                    CARD NUMBER (LAST 4 DIGITS)
+                    UPI ID (FROM WHICH YOU PAID)
                   </label>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-neutral-400 pointer-events-none">
@@ -614,16 +624,16 @@ export default function AgentRecharge() {
                     <input
                       className="mfp-input !pl-8 !py-2.5 text-xs bg-neutral-50/50"
                       type="text" required
-                      value={last4}
-                      onChange={(e) => setLast4(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                      value={upiId}
+                      onChange={(e) => setUpiId(e.target.value)}
                       disabled={isSubmitting}
-                      placeholder="Enter Last 4 Digits"
-                      data-testid="recharge-card"
+                      placeholder="Enter UPI ID (e.g. name@upi)"
+                      data-testid="recharge-upi"
                     />
                   </div>
-                  {last4 && !last4Valid && (
+                  {upiId && !upiIdValid && (
                     <div className="mt-1 text-[10px] font-bold text-rose-600 flex items-center gap-1">
-                      <ShieldAlert className="h-3 w-3" /> Please enter exactly 4 digits
+                      <ShieldAlert className="h-3 w-3" /> Please enter a valid UPI ID (containing @)
                     </div>
                   )}
                 </div>
@@ -822,7 +832,7 @@ export default function AgentRecharge() {
                         </p>
                       </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-2 text-[10px] bg-white/60 p-2.5 rounded-lg border border-amber-100">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 text-[10px] bg-white/60 p-2.5 rounded-lg border border-amber-100">
                       <div>
                         <span className="text-neutral-500 block">UTR Reference</span>
                         <span className="font-semibold text-neutral-800">{utr || "—"}</span>
@@ -842,6 +852,13 @@ export default function AgentRecharge() {
                         <span className="font-semibold text-neutral-800">{olderQr ? (qrList24h.find(q => q.id === selectedQrId)?.label || "—") : (qr?.label || "—")}</span>
                         <span className={`block font-bold mt-1 ${ocrValidation.qrMatch ? "text-emerald-600" : "text-rose-600"}`}>
                           {ocrValidation.qrMatch ? "✓ Matched" : "✗ Label not found in receipt"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-neutral-500 block">UPI ID Used</span>
+                        <span className="font-semibold text-neutral-800 truncate block" title={upiId}>{upiId || "—"}</span>
+                        <span className={`block font-bold mt-1 ${ocrValidation.upiMatch ? "text-emerald-600" : "text-rose-600"}`}>
+                          {ocrValidation.upiMatch ? "✓ Matched" : `✗ Extracted: ${ocrValidation.extractedUpiId || "Not Found"}`}
                         </span>
                       </div>
                     </div>
@@ -1019,7 +1036,7 @@ export default function AgentRecharge() {
             { key: "charge", label: "Commission Charge", render: (r) => r.status === "approved" ? fmtMoney(r.commission_amount) : fmtMoney(r.amount * r.commission_percent / 100) },
             { key: "credit_amount", label: "Net Credit", render: (r) => r.status === "approved" ? fmtMoney(r.credit_amount) : "—" },
             { key: "utr", label: "UTR" },
-            { key: "card_last4", label: "Card / Acc", render: (r) => r.card_last4 ? `XXXX ${r.card_last4}` : "—" },
+            { key: "upi_id", label: "UPI ID", render: (r) => r.upi_id || (r.card_last4 ? `XXXX ${r.card_last4}` : "—") },
             { key: "status", label: "Status", render: (r) => (
               <div className="flex flex-col">
                 <StatusBadge status={r.status} />

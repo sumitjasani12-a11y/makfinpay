@@ -210,7 +210,7 @@ export default function AdminRecharges() {
     { key: "amount", label: "Amount", render: (r) => fmtMoney(r.amount) },
     { key: "utr", label: "UTR" },
     { key: "qr_code_label", label: "QR Code", render: (r) => r.qr_code_label || "N/A" },
-    { key: "card_last4", label: "Card / Acc (Last 4)", render: (r) => r.card_last4 ? `XXXX ${r.card_last4}` : "N/A" },
+    { key: "upi_id", label: "UPI ID", render: (r) => r.upi_id || (r.card_last4 ? `XXXX ${r.card_last4}` : "N/A") },
     { key: "commission_percent", label: "Comm %", render: (r) => `${r.commission_percent}%` },
     { key: "commission_charge", label: "Commission Charge", render: (r) => r.status === "approved" ? fmtMoney(r.commission_amount) : fmtMoney(r.amount * r.commission_percent / 100) },
     { key: "admin_revenue_amount", label: "Admin Comm", render: (r) => r.status === "approved" ? fmtMoney(r.admin_revenue_amount) : "—" },
@@ -516,13 +516,8 @@ export default function AdminRecharges() {
                     ["Amount", fmtMoney(detail.amount)],
                     ["UTR / Reference", detail.utr || "—"],
                     ["QR Code Used", detail.qr_code_label || "N/A"],
-                    ["Card / Account Last 4 Digits", detail.card_last4 ? `XXXX ${detail.card_last4}` : "N/A"],
-                    ["Commission %", `${detail.commission_percent}%`],
-                    ["Commission Amount", detail.status === "approved" ? fmtMoney(detail.commission_amount) : "—"],
-                    ["Net Credit", detail.status === "approved" ? fmtMoney(detail.credit_amount) : "—"],
-                    ["Status", null],
+                    ["UPI ID", detail.upi_id || (detail.card_last4 ? `XXXX ${detail.card_last4}` : "N/A")],
                     ["Created", fmtDate(detail.created_at)],
-                    ["Reviewed", fmtDate(detail.reviewed_at)],
                   ].map(([k, v]) => (
                     <div key={k} className="flex justify-between border-b border-black/5 pb-2">
                       <span className="text-neutral-500">{k}</span>
@@ -588,6 +583,19 @@ export default function AdminRecharges() {
                             </span>
                             <span className={`text-[10px] font-bold ${detail.ocr_qr_name ? "text-emerald-600" : "text-rose-600"}`}>
                               {detail.ocr_qr_name ? "✓ Label Verified in Receipt" : `✗ Expected label: "${detail.qr_code_label || "N/A"}"`}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* UPI ID Compare */}
+                        <div className="flex justify-between items-center py-0.5 border-t border-black/5 pt-1.5">
+                          <span className="text-neutral-500">Extracted UPI ID</span>
+                          <div className="text-right">
+                            <span className="font-semibold text-neutral-800 block">
+                              {detail.ocr_upi_id || "Not Found"}
+                            </span>
+                            <span className={`text-[10px] font-bold ${detail.upi_match ? "text-emerald-600" : "text-rose-600"}`}>
+                              {detail.upi_match ? "✓ Matches Input" : `✗ Input was: ${detail.upi_id || "N/A"}`}
                             </span>
                           </div>
                         </div>
