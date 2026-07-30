@@ -20,7 +20,12 @@ export default function FileUpload({ onUploaded, onFileSelected, accept = "image
       onUploaded?.(data.path);
       toast.success("File uploaded");
     } catch (e) {
-      toast.error(formatErr(e.response?.data?.detail) || e.message);
+      const serverMsg = e.response?.data?.detail;
+      const formatted = formatErr(serverMsg);
+      const errorMsg = (formatted && formatted !== "Something went wrong. Please try again.")
+        ? formatted
+        : (e.response ? `Server Error (${e.response.status}): ${e.response.statusText || "Request failed"}` : e.message);
+      toast.error(errorMsg);
     } finally {
       setBusy(false);
     }
