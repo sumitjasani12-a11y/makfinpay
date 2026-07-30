@@ -171,6 +171,24 @@ def get_object(path: str):
     supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
     supabase_bucket = os.environ.get("SUPABASE_STORAGE_BUCKET", "uploads")
     
+    # Local cache check
+    local_cache_path = os.path.join("cache", path)
+    if os.path.exists(local_cache_path):
+        try:
+            with open(local_cache_path, "rb") as f:
+                content = f.read()
+            ext = path.rsplit(".", 1)[-1].lower() if "." in path else "bin"
+            ct_map = {
+                "png": "image/png",
+                "jpg": "image/jpeg",
+                "jpeg": "image/jpeg",
+                "webp": "image/webp",
+                "pdf": "application/pdf"
+            }
+            return content, ct_map.get(ext, "application/octet-stream")
+        except Exception as e:
+            logger.error(f"Failed to read from local file cache: {e}")
+            
     if supabase_url and supabase_key:
         url = f"{supabase_url}/storage/v1/object/authenticated/{supabase_bucket}/{path}"
         headers = {
@@ -178,6 +196,15 @@ def get_object(path: str):
         }
         r = requests.get(url, headers=headers, timeout=60)
         r.raise_for_status()
+        
+        # Write to local cache asynchronously in background
+        try:
+            os.makedirs(os.path.dirname(local_cache_path), exist_ok=True)
+            with open(local_cache_path, "wb") as f:
+                f.write(r.content)
+        except Exception as e:
+            logger.error(f"Failed to write to local file cache: {e}")
+            
         return r.content, r.headers.get("Content-Type", "application/octet-stream")
         
     k = init_storage()
@@ -5548,6 +5575,19 @@ async def _ensure_indexes() -> None:
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_users_parent_id ON users (parent_id)')
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_users_md_id ON users (md_id)')
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_wallets_user_id ON wallets (user_id)')
+        
+        # Status indexes for fast pending counts
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_recharges_status ON recharges (status)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_withdrawals_status ON withdrawals (status)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions (status)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_kyc_status ON kyc (status)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_users_kyc_status ON users (kyc_status)')
+        
+        # User ID indexes for quick history lists
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_recharges_user_id ON recharges (user_id)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions (user_id)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_ledger_user_id ON ledger (user_id)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_withdrawals_user_id ON withdrawals (user_id)')
         await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS older_qr BOOLEAN DEFAULT FALSE')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS logo_path TEXT')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS favicon_path TEXT')
