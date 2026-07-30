@@ -304,12 +304,12 @@ export default function AdminOverview() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
           {/* Left Side: Lifetime Pie/Donut Chart */}
-          <div className="lg:col-span-6 bg-white border border-black/5 rounded-[28px] p-6 shadow-sm flex flex-col min-h-[380px]">
+          <div className="lg:col-span-6 bg-white border border-black/5 rounded-[28px] p-6 shadow-sm flex flex-col min-h-[420px]">
             <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2">Lifetime Balances Distribution</h3>
             <div className="flex-1 w-full relative min-h-0 mt-4 flex items-center justify-center">
-              <div className="absolute flex flex-col items-center justify-center pointer-events-none z-10">
-                <span className="text-[10px] uppercase font-extrabold text-neutral-400 tracking-wider">Total Funds</span>
-                <span className="text-2xl font-black text-neutral-850 mt-0.5">
+              <div className="absolute flex flex-col items-center justify-center pointer-events-none z-10 text-center">
+                <span className="text-[10px] uppercase font-black text-neutral-400 tracking-widest leading-none">Total Funds</span>
+                <span className="text-3xl font-black text-neutral-800 tracking-tight mt-1.5 select-none leading-tight">
                   {fmtMoney(
                     (financial.total_wallet ?? 0) + 
                     (financial.total_md_earnings ?? 0) + 
@@ -317,7 +317,7 @@ export default function AdminOverview() {
                   )}
                 </span>
               </div>
-              <ResponsiveContainer width="100%" height={200}>
+              <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <defs>
                     <linearGradient id="walletGrad" x1="0" y1="0" x2="0" y2="1">
@@ -337,8 +337,8 @@ export default function AdminOverview() {
                     data={lifetimeData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={65}
-                    outerRadius={88}
+                    innerRadius={90}
+                    outerRadius={115}
                     paddingAngle={4}
                     dataKey="value"
                   >
