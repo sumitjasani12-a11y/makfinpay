@@ -142,7 +142,7 @@ export default function AdminOverview() {
   const [customApplied, setCustomApplied] = useState(false);
 
   // Static counts (never filtered)
-  useEffect(() => { api.get("/admin/stats").then((r) => setStats(r.data)); }, []);
+  useEffect(() => { api.get("/admin/stats?full=true").then((r) => setStats(r.data)); }, []);
 
   const loadFinancial = useCallback(async (r, f, t) => {
     setLoadingFin(true);

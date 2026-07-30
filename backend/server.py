@@ -2614,10 +2614,22 @@ async def admin_hold_total(user=Depends(require_roles("admin"))):
         total = float(row["total"])
     return {"total": total}
 
+_bbps_cache = {"data": None, "timestamp": 0.0}
+
 @api.get("/admin/bbps-balance")
 async def admin_bbps_balance(user=Depends(require_roles("admin"))):
-    res = await call_irise_api("GET", "balance")
-    return res
+    import time
+    now = time.time()
+    if _bbps_cache["data"] is None or (now - _bbps_cache["timestamp"]) > 60.0:
+        try:
+            res = await call_irise_api("GET", "balance")
+            _bbps_cache["data"] = res
+            _bbps_cache["timestamp"] = now
+        except Exception as e:
+            logger.error(f"Failed to fetch BBPS balance from external API: {e}")
+            if _bbps_cache["data"] is None:
+                return {"status": "success", "data": {"balance": 0.0}}
+    return _bbps_cache["data"]
 
 @api.get("/wallet/ledger")
 async def my_ledger(user=Depends(get_current_user)):
@@ -5286,35 +5298,52 @@ async def admin_stats_financial(
     }
 
 @api.get("/admin/stats")
-async def admin_stats(user=Depends(require_roles("admin"))):
-    total_agents = await db.users.count_documents({"role": "agent", "is_deleted": False})
-    total_distributors = await db.users.count_documents({"role": "distributor", "is_deleted": False})
-    total_master_distributors = await db.users.count_documents({"role": "master_distributor", "is_deleted": False})
-    pending_recharges = await db.recharges.count_documents({"status": "pending"})
-    pending_withdrawals = await db.withdrawals.count_documents({"status": "pending"})
-    pending_transactions = await db.transactions.count_documents({"status": "pending"})
-    pending_kyc = await db.users.count_documents({"role": "agent", "kyc_status": "pending"})
-    # aggregate wallet total
-    agg = await db.wallets.aggregate([{"$group": {"_id": None, "total": {"$sum": "$balance"}}}]).to_list(1)
-    total_wallet = agg[0]["total"] if agg else 0
-    rev_agg = await db.recharges.aggregate([{"$match": {"status": "approved"}}, {"$group": {"_id": None, "total": {"$sum": "$commission_amount"}}}]).to_list(1)
-    total_revenue = rev_agg[0]["total"] if rev_agg else 0
-    txn_agg = await db.transactions.aggregate([{"$match": {"status": "success"}}, {"$group": {"_id": None, "total": {"$sum": "$amount"}, "count": {"$sum": 1}}}]).to_list(1)
-    total_txn_amount = txn_agg[0]["total"] if txn_agg else 0
-    total_txn_count = txn_agg[0]["count"] if txn_agg else 0
-    return {
-        "total_agents": total_agents,
-        "total_distributors": total_distributors,
-        "total_master_distributors": total_master_distributors,
+async def admin_stats(full: bool = False, user=Depends(require_roles("admin"))):
+    pending_recharges, pending_withdrawals, pending_transactions, pending_kyc = await asyncio.gather(
+        db.recharges.count_documents({"status": "pending"}),
+        db.withdrawals.count_documents({"status": "pending"}),
+        db.transactions.count_documents({"status": "pending"}),
+        db.users.count_documents({"role": "agent", "kyc_status": "pending"})
+    )
+    
+    stats = {
         "pending_recharges": pending_recharges,
         "pending_withdrawals": pending_withdrawals,
         "pending_transactions": pending_transactions,
-        "pending_kyc": pending_kyc,
-        "total_wallet": round(total_wallet, 2),
-        "total_revenue": round(total_revenue, 2),
-        "total_txn_amount": round(total_txn_amount, 2),
-        "total_txn_count": total_txn_count,
+        "pending_kyc": pending_kyc
     }
+    
+    if full:
+        # Load heavy dashboard aggregates only when requested
+        total_agents_task = db.users.count_documents({"role": "agent", "is_deleted": False})
+        total_distributors_task = db.users.count_documents({"role": "distributor", "is_deleted": False})
+        total_master_distributors_task = db.users.count_documents({"role": "master_distributor", "is_deleted": False})
+        
+        total_wallet_task = db.wallets.aggregate([{"$group": {"_id": None, "total": {"$sum": "$balance"}}}]).to_list(1)
+        total_revenue_task = db.recharges.aggregate([{"$match": {"status": "approved"}}, {"$group": {"_id": None, "total": {"$sum": "$commission_amount"}}}]).to_list(1)
+        total_txn_task = db.transactions.aggregate([{"$match": {"status": "success"}}, {"$group": {"_id": None, "total": {"$sum": "$amount"}, "count": {"$sum": 1}}}]).to_list(1)
+        
+        total_agents, total_distributors, total_master_distributors, agg, rev_agg, txn_agg = await asyncio.gather(
+            total_agents_task, total_distributors_task, total_master_distributors_task,
+            total_wallet_task, total_revenue_task, total_txn_task
+        )
+        
+        total_wallet = agg[0]["total"] if agg else 0
+        total_revenue = rev_agg[0]["total"] if rev_agg else 0
+        total_txn_amount = txn_agg[0]["total"] if txn_agg else 0
+        total_txn_count = txn_agg[0]["count"] if txn_agg else 0
+        
+        stats.update({
+            "total_agents": total_agents,
+            "total_distributors": total_distributors,
+            "total_master_distributors": total_master_distributors,
+            "total_wallet": round(total_wallet, 2),
+            "total_revenue": round(total_revenue, 2),
+            "total_txn_amount": round(total_txn_amount, 2),
+            "total_txn_count": total_txn_count,
+        })
+        
+    return stats
 
 @api.get("/distributor/stats")
 async def distributor_stats(user=Depends(require_approved_distributor())):

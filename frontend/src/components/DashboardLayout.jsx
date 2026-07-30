@@ -175,11 +175,11 @@ export default function DashboardLayout() {
       .catch((e) => console.log("Failed to fetch pending counts:", e.message));
   }, [user]);
 
-  // Fetch wallet balance and pending counts on route change / page view
+  // Fetch wallet balance and pending counts on mount
   useEffect(() => {
     fetchWallet();
     fetchPendingCounts();
-  }, [fetchWallet, fetchPendingCounts, location.pathname]);
+  }, [fetchWallet, fetchPendingCounts]);
 
   // Register WebSocket listeners to update balance & stats counts in real-time
   useWebSocketListener("recharge_created", fetchPendingCounts);
