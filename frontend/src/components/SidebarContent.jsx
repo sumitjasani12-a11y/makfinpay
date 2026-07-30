@@ -70,7 +70,7 @@ export function SidebarContent({ user, items, onLogout, pendingCounts = {}, coll
         <Logo
           variant="light"
           collapsed={collapsed}
-          className={`object-contain transition-all ${collapsed ? "h-7 w-7" : "h-12 w-auto"}`}
+          className={`w-full object-contain transition-all ${collapsed ? "h-7 w-7" : "h-10 scale-[1.75] translate-x-[4%]"}`}
         />
       </Link>
       
