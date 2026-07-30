@@ -1,13 +1,13 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { api, formatErr } from "@/lib/api";
 import { PageHeader, EmptyState } from "@/components/Shared";
 import { toast } from "sonner";
-import { Check, X, PencilLine } from "lucide-react";
+import { Check, X, PencilLine, Percent, ShieldCheck, Users, UserCheck, Coins, HelpCircle, Loader2 } from "lucide-react";
 
 function ModeToggle({ mode, onChange }) {
   // mode = 'default' | 'custom'
   return (
-    <div className="inline-flex rounded-full bg-[#F4F3ED] p-0.5" role="tablist">
+    <div className="inline-flex rounded-full bg-neutral-100 p-0.5 border border-neutral-200/40" role="tablist">
       {[
         { key: "default", label: "Default" },
         { key: "custom", label: "Custom" },
@@ -17,7 +17,7 @@ function ModeToggle({ mode, onChange }) {
           <button
             key={opt.key}
             onClick={() => onChange(opt.key)}
-            className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors ${active ? "bg-[#1B4332] text-white shadow-sm" : "text-neutral-600 hover:text-[#1B4332]"}`}
+            className={`px-3.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full transition-all duration-200 ${active ? "bg-[#1B4332] text-white shadow-sm" : "text-neutral-500 hover:text-[#1B4332]"}`}
             data-testid={`mode-${opt.key}`}
           >
             {opt.label}
@@ -98,7 +98,7 @@ function CommissionRow({ row, kind, defaultPct, onChanged }) {
           ) : (
             <span className="inline-flex items-center gap-2">
               <span className="font-semibold text-[#1B4332]" data-testid={`row-pct-${row.id}`}>{row.commission_percent}%</span>
-              <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full ${isDefault ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+              <span className={`text-[9px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-md border ${isDefault ? "bg-emerald-50 text-emerald-700 border-emerald-200/65" : "bg-amber-50 text-amber-700 border-amber-200/65"}`}>
                 {isDefault ? "Default" : "Custom"}
               </span>
             </span>
@@ -162,15 +162,14 @@ function CommissionTable({ rows, kind, defaultPct, onChanged }) {
       </div>
     </div>
   );
-}
-
-export default function AdminCommission() {
+}export default function AdminCommission() {
   const [defaultPct, setDefaultPct] = useState(1.2);
   const [draftDefault, setDraftDefault] = useState("1.2");
   const [savingSettings, setSavingSettings] = useState(false);
   const [masterDistributors, setMasterDistributors] = useState([]);
   const [distributors, setDistributors] = useState([]);
   const [adminAgents, setAdminAgents] = useState([]);
+  const [activeTab, setActiveTab] = useState("md"); // 'md' | 'dist' | 'agent'
 
   const loadAll = async () => {
     const [s, mds, dists, agents] = await Promise.all([
@@ -182,10 +181,10 @@ export default function AdminCommission() {
     setDefaultPct(s.data.default_percent);
     setDraftDefault(String(s.data.default_percent));
     setMasterDistributors(mds.data);
-    // Only admin-created distributors (not MD-managed) are editable here.
     setDistributors(dists.data.filter((d) => !d.md_id));
     setAdminAgents(agents.data.filter((a) => a.created_by_role !== "distributor" && a.created_by_role !== "master_distributor"));
   };
+
   useEffect(() => { loadAll(); }, []);
 
   const saveSettings = async () => {
@@ -200,52 +199,149 @@ export default function AdminCommission() {
     finally { setSavingSettings(false); }
   };
 
-  return (
-    <div>
-      <PageHeader title="Commission Settings" subtitle="Define the default commission for all new distributors and agents. Existing users on Default mode auto-update." />
+  const currentTabInfo = useMemo(() => {
+    switch (activeTab) {
+      case "md":
+        return {
+          title: "Master Distributor Commissions",
+          desc: "This % is the ADMIN's revenue portion for every recharge in each MD's downline. Cascades to all their distributors and agents.",
+          rows: masterDistributors,
+        };
+      case "dist":
+        return {
+          title: "Distributor Commissions (Admin Created)",
+          desc: "Manage commission for distributors created directly by Admin. MD-managed distributors are edited by their master distributor.",
+          rows: distributors,
+        };
+      case "agent":
+        return {
+          title: "Agent Commissions (Admin Created)",
+          desc: "Manage commission for agents created directly by Admin. Distributor-created agents are managed by their distributor.",
+          rows: adminAgents,
+        };
+      default:
+        return { title: "", desc: "", rows: [] };
+    }
+  }, [activeTab, masterDistributors, distributors, adminAgents]);
 
-      <div className="mfp-card p-6 max-w-xl mb-10">
-        <div className="space-y-4">
+  const tabBtn = (id, label, count) => {
+    const active = activeTab === id;
+    return (
+      <button
+        onClick={() => setActiveTab(id)}
+        className={`flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all duration-200 ${
+          active
+            ? "border-[#1B4332] text-[#1B4332]"
+            : "border-transparent text-neutral-400 hover:text-neutral-600 hover:border-neutral-200"
+        }`}
+      >
+        {label}
+        <span className={`text-[10px] px-2 py-0.5 rounded-full ${active ? "bg-[#1B4332] text-white" : "bg-neutral-100 text-neutral-500"}`}>
+          {count}
+        </span>
+      </button>
+    );
+  };
+
+  return (
+    <div className="space-y-8 animate-fadeIn">
+      <PageHeader 
+        title="Commission Settings" 
+        subtitle="Manage and configure default commissions and customize settings for master distributors, distributors, and agents." 
+      />
+
+      {/* Top Cards Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left card: Current default indicator */}
+        <div className="lg:col-span-5 bg-gradient-to-br from-[#1B4332] to-[#2D6A4F] text-white p-6 rounded-2xl border border-[#1b4332]/10 shadow-lg relative overflow-hidden flex flex-col justify-between h-[180px]">
+          <div className="absolute right-0 bottom-0 translate-x-6 translate-y-6 opacity-10">
+            <Coins className="h-44 w-44" />
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-white/10 rounded-xl">
+              <Percent className="h-5 w-5 text-emerald-300" />
+            </div>
+            <span className="text-[10px] font-black tracking-widest uppercase text-emerald-200/90">
+              Active System Default
+            </span>
+          </div>
           <div>
-            <label className="mfp-label">Default Commission %</label>
-            <input
-              className="mfp-input" type="number" min="0" step="0.01"
-              value={draftDefault}
-              onChange={(e) => setDraftDefault(e.target.value)}
-              data-testid="comm-default"
-            />
-            <div className="mt-2 text-xs text-neutral-500">
-              Saving will automatically update all distributors and admin-created agents that are on <strong>Default</strong> mode. Custom-mode records are unaffected.
+            <div className="text-4xl font-black">{defaultPct}%</div>
+            <p className="text-[11px] text-emerald-100/80 mt-1 max-w-[280px] leading-relaxed">
+              New members automatically inherit this commission percentage on registration.
+            </p>
+          </div>
+        </div>
+
+        {/* Right card: Configure input */}
+        <div className="lg:col-span-7 mfp-card p-6 bg-white flex flex-col justify-between h-[180px]">
+          <div>
+            <label className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest block mb-2">
+              Configure Default Commission
+            </label>
+            <div className="relative max-w-xs">
+              <input
+                className="mfp-input !pr-10 !py-2.5 font-bold text-neutral-800" 
+                type="number" min="0" step="0.01"
+                value={draftDefault}
+                onChange={(e) => setDraftDefault(e.target.value)}
+                data-testid="comm-default"
+                placeholder="1.20"
+              />
+              <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-black text-neutral-400 select-none pointer-events-none">
+                %
+              </span>
             </div>
           </div>
-          <button onClick={saveSettings} disabled={savingSettings} className="mfp-btn-primary" data-testid="comm-save">
-            {savingSettings ? "Saving…" : "Save Settings"}
-          </button>
+          <div className="flex flex-wrap items-center justify-between gap-4 mt-3">
+            <div className="text-[10px] text-neutral-400 font-semibold max-w-[340px] leading-tight flex items-start gap-1.5">
+              <HelpCircle className="h-3.5 w-3.5 shrink-0 text-neutral-300 mt-0.5" />
+              <span>
+                Saving automatically updates members currently using the <strong>Default</strong> mode.
+              </span>
+            </div>
+            <button 
+              onClick={saveSettings} 
+              disabled={savingSettings} 
+              className="px-5 py-2.5 bg-[#1B4332] text-white hover:bg-[#153527] transition-all rounded-xl text-xs font-bold shadow-md shadow-[#1b4332]/10 flex items-center gap-1.5 disabled:opacity-50"
+              data-testid="comm-save"
+            >
+              {savingSettings ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+              {savingSettings ? "Saving…" : "Save Settings"}
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="mb-12">
-        <div className="mb-4">
-          <h2 className="text-lg font-medium tracking-tight">Master Distributor Commissions</h2>
-          <p className="text-sm text-neutral-500">This % is the ADMIN&apos;s revenue portion for every recharge in each MD&apos;s downline. Cascades to all their distributors and agents.</p>
+      {/* Main Tabbed Commissions Card */}
+      <div className="mfp-card bg-white overflow-hidden shadow-md rounded-2xl">
+        {/* Tab switcher header */}
+        <div className="flex items-center justify-between border-b border-black/5 bg-neutral-50/50 px-6 flex-wrap">
+          <div className="flex items-center gap-1 scrollbar-none overflow-x-auto">
+            {tabBtn("md", "Master Distributors", masterDistributors.length)}
+            {tabBtn("dist", "Distributors", distributors.length)}
+            {tabBtn("agent", "Agents", adminAgents.length)}
+          </div>
         </div>
-        <CommissionTable rows={masterDistributors} kind="dist" defaultPct={defaultPct} onChanged={loadAll} />
-      </div>
 
-      <div className="mb-12">
-        <div className="mb-4">
-          <h2 className="text-lg font-medium tracking-tight">Distributor Commissions (Admin Created)</h2>
-          <p className="text-sm text-neutral-500">Manage commission for distributors created directly by Admin. MD-managed distributors are edited by their master distributor.</p>
-        </div>
-        <CommissionTable rows={distributors} kind="dist" defaultPct={defaultPct} onChanged={loadAll} />
-      </div>
+        {/* Tab Content Box */}
+        <div className="p-6 space-y-6">
+          <div className="border-l-4 border-[#1B4332] pl-4">
+            <h3 className="text-base font-black text-neutral-800 tracking-tight">
+              {currentTabInfo.title}
+            </h3>
+            <p className="text-xs text-neutral-500 mt-1 max-w-3xl leading-relaxed">
+              {currentTabInfo.desc}
+            </p>
+          </div>
 
-      <div>
-        <div className="mb-4">
-          <h2 className="text-lg font-medium tracking-tight">Agent Commissions (Admin Created)</h2>
-          <p className="text-sm text-neutral-500">Manage commission for agents created directly by Admin. Distributor-created agents are managed by their distributor.</p>
+          <CommissionTable 
+            rows={currentTabInfo.rows} 
+            kind={activeTab === "agent" ? "agent" : "dist"} 
+            defaultPct={defaultPct} 
+            onChanged={loadAll} 
+          />
         </div>
-        <CommissionTable rows={adminAgents} kind="agent" defaultPct={defaultPct} onChanged={loadAll} />
       </div>
     </div>
   );
