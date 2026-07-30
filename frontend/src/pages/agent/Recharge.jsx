@@ -810,6 +810,55 @@ export default function AgentRecharge() {
 
 
 
+                {/* OCR Mismatch Warning Panel */}
+                {shot && !ocrLoading && ocrValidation && !ocrValidation.allMatched && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3 mb-3">
+                    <div className="flex items-start gap-2.5">
+                      <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="text-xs font-bold text-amber-800">OCR Validation Mismatch</h4>
+                        <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
+                          The details detected on your payment screenshot do not match the values you typed. Please verify and correct your entries.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-[10px] bg-white/60 p-2.5 rounded-lg border border-amber-100">
+                      <div>
+                        <span className="text-neutral-500 block">UTR Reference</span>
+                        <span className="font-semibold text-neutral-800">{utr || "—"}</span>
+                        <span className={`block font-bold mt-1 ${ocrValidation.utrMatch ? "text-emerald-600" : "text-rose-600"}`}>
+                          {ocrValidation.utrMatch ? "✓ Matched" : `✗ Extracted: ${ocrValidation.extractedUtr || "Not Found"}`}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-neutral-500 block">Amount Paid</span>
+                        <span className="font-semibold text-neutral-800">₹{amount || "—"}</span>
+                        <span className={`block font-bold mt-1 ${ocrValidation.amountMatch ? "text-emerald-600" : "text-rose-600"}`}>
+                          {ocrValidation.amountMatch ? "✓ Matched" : `✗ Extracted: ${ocrValidation.extractedAmount ? `₹${ocrValidation.extractedAmount}` : "Not Found"}`}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-neutral-500 block">QR Code Used</span>
+                        <span className="font-semibold text-neutral-800">{olderQr ? (qrList24h.find(q => q.id === selectedQrId)?.label || "—") : (qr?.label || "—")}</span>
+                        <span className={`block font-bold mt-1 ${ocrValidation.qrMatch ? "text-emerald-600" : "text-rose-600"}`}>
+                          {ocrValidation.qrMatch ? "✓ Matched" : "✗ Label not found in receipt"}
+                        </span>
+                      </div>
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer pt-1 select-none">
+                      <input
+                        type="checkbox"
+                        checked={ocrBypass}
+                        onChange={(e) => setOcrBypass(e.target.checked)}
+                        className="rounded border-amber-300 text-amber-600 focus:ring-amber-500/20 h-4 w-4 cursor-pointer"
+                      />
+                      <span className="text-[11px] font-bold text-amber-800">
+                        I confirm the details I typed are correct and want to submit anyway
+                      </span>
+                    </label>
+                  </div>
+                )}
+
                 {/* Submit Button */}
                 <div className="pt-2">
                   <button
@@ -856,55 +905,6 @@ export default function AgentRecharge() {
                     <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-2.5 text-xs text-emerald-800 font-bold shadow-sm">
                       <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
                       <span>OCR Auto-verified successfully! All details match.</span>
-                    </div>
-                  )}
-
-                  {/* OCR Mismatch Warning Panel */}
-                  {shot && !ocrLoading && ocrValidation && !ocrValidation.allMatched && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
-                      <div className="flex items-start gap-2.5">
-                        <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-                        <div>
-                          <h4 className="text-xs font-bold text-amber-800">OCR Validation Mismatch</h4>
-                          <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
-                            The details detected on your payment screenshot do not match the values you typed. Please verify and correct your entries.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2 text-[10px] bg-white/60 p-2.5 rounded-lg border border-amber-100">
-                        <div>
-                          <span className="text-neutral-500 block">UTR Reference</span>
-                          <span className="font-semibold text-neutral-800">{utr || "—"}</span>
-                          <span className={`block font-bold mt-1 ${ocrValidation.utrMatch ? "text-emerald-600" : "text-rose-600"}`}>
-                            {ocrValidation.utrMatch ? "✓ Matched" : `✗ Extracted: ${ocrValidation.extractedUtr || "Not Found"}`}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-neutral-500 block">Amount Paid</span>
-                          <span className="font-semibold text-neutral-800">₹{amount || "—"}</span>
-                          <span className={`block font-bold mt-1 ${ocrValidation.amountMatch ? "text-emerald-600" : "text-rose-600"}`}>
-                            {ocrValidation.amountMatch ? "✓ Matched" : `✗ Extracted: ${ocrValidation.extractedAmount ? `₹${ocrValidation.extractedAmount}` : "Not Found"}`}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-neutral-500 block">QR Code Used</span>
-                          <span className="font-semibold text-neutral-800">{olderQr ? (qrList24h.find(q => q.id === selectedQrId)?.label || "—") : (qr?.label || "—")}</span>
-                          <span className={`block font-bold mt-1 ${ocrValidation.qrMatch ? "text-emerald-600" : "text-rose-600"}`}>
-                            {ocrValidation.qrMatch ? "✓ Matched" : "✗ Label not found in receipt"}
-                          </span>
-                        </div>
-                      </div>
-                      <label className="flex items-center gap-2 cursor-pointer pt-1 select-none">
-                        <input
-                          type="checkbox"
-                          checked={ocrBypass}
-                          onChange={(e) => setOcrBypass(e.target.checked)}
-                          className="rounded border-amber-300 text-amber-600 focus:ring-amber-500/20 h-4 w-4 cursor-pointer"
-                        />
-                        <span className="text-[11px] font-bold text-amber-800">
-                          I confirm the details I typed are correct and want to submit anyway
-                        </span>
-                      </label>
                     </div>
                   )}
                 </div>
