@@ -2547,6 +2547,26 @@ async def active_qr(is_t1: bool = False, user=Depends(require_roles("agent", "di
     qr = await db.qr_codes.find_one({"active": True, "is_t1": is_t1, "is_deleted": False}, {"_id": 0})
     return qr or {}
 
+@api.get("/agent/qr-list-24h")
+async def agent_qr_list_24h(is_t1: bool = False, user=Depends(require_roles("agent", "distributor"))):
+    if user["role"] == "agent" and user.get("kyc_status") != "approved":
+        raise HTTPException(403, "KYC is pending or rejected. Services are locked.")
+    
+    from datetime import datetime, timedelta
+    tf_hours_ago = (datetime.utcnow() - timedelta(hours=24)).isoformat() + "Z"
+    
+    query = {
+        "is_deleted": False,
+        "is_t1": is_t1,
+        "$or": [
+            {"active": True},
+            {"created_at": {"$gte": tf_hours_ago}}
+        ]
+    }
+    
+    qrs = await db.qr_codes.find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return qrs
+
 @api.post("/agent/recharges")
 async def agent_create_recharge(body: RechargeIn, user=Depends(require_approved_agent())):
     s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
@@ -2580,7 +2600,11 @@ async def agent_create_recharge(body: RechargeIn, user=Depends(require_approved_
             "This UTR has already been submitted. If you believe this is an error, please contact the admin.",
         )
 
-    active_qr = await db.qr_codes.find_one({"active": True, "is_t1": body.is_t1, "is_deleted": False}, {"_id": 0})
+    selected_qr = None
+    if body.older_qr and body.selected_qr_code_id:
+        selected_qr = await db.qr_codes.find_one({"id": body.selected_qr_code_id, "is_deleted": False}, {"_id": 0})
+    if not selected_qr:
+        selected_qr = await db.qr_codes.find_one({"active": True, "is_t1": body.is_t1, "is_deleted": False}, {"_id": 0})
     
     if body.is_t1:
         comm_pct = user.get("t1_commission_percent")
@@ -2596,8 +2620,8 @@ async def agent_create_recharge(body: RechargeIn, user=Depends(require_approved_
         "amount": body.amount,
         "utr": utr,
         "card_last4": body.card_last4,
-        "qr_code_id": active_qr["id"] if active_qr else None,
-        "qr_code_label": active_qr["label"] if active_qr else None,
+        "qr_code_id": selected_qr["id"] if selected_qr else None,
+        "qr_code_label": selected_qr["label"] if selected_qr else None,
         "screenshot_path": body.screenshot_path,
         "older_qr": body.older_qr or False,
         "status": "pending",

@@ -17,6 +17,9 @@ export default function AgentRecharge() {
   const [last4, setLast4] = useState("");
   const [shot, setShot] = useState("");
   const [olderQr, setOlderQr] = useState(false);
+  const [qrList24h, setQrList24h] = useState([]);
+  const [selectedQrId, setSelectedQrId] = useState("");
+  const [loadingQrs, setLoadingQrs] = useState(false);
   const [items, setItems] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [minLimit, setMinLimit] = useState(100);
@@ -39,6 +42,24 @@ export default function AgentRecharge() {
   useEffect(() => {
     fetchActiveQr();
   }, [fetchActiveQr]);
+
+  useEffect(() => {
+    if (olderQr) {
+      setLoadingQrs(true);
+      api.get(`/agent/qr-list-24h?is_t1=${isT1}`)
+        .then((r) => {
+          setQrList24h(r.data || []);
+          if (r.data && r.data.length > 0) {
+            setSelectedQrId(r.data[0].id);
+          }
+        })
+        .catch((e) => console.log("Failed to load older QRs:", e))
+        .finally(() => setLoadingQrs(false));
+    } else {
+      setSelectedQrId("");
+      setQrList24h([]);
+    }
+  }, [olderQr, isT1]);
 
   useEffect(() => {
     reload();
@@ -207,7 +228,7 @@ export default function AgentRecharge() {
   const utrValid = /^\d{12}$/.test(utr);
   const last4Valid = /^\d{4}$/.test(last4);
   const shotValid = Boolean(shot);
-  const canSubmit = !isSubmitting && amountValid && utrValid && last4Valid && shotValid;
+  const canSubmit = !isSubmitting && amountValid && utrValid && last4Valid && shotValid && (!olderQr || !!selectedQrId);
 
   const commAmt = amountValid ? +(amt * commPct / 100).toFixed(2) : 0;
   const netCredit = amountValid ? +(amt - commAmt).toFixed(2) : 0;
@@ -265,9 +286,10 @@ export default function AgentRecharge() {
         screenshot_path: shot,
         older_qr: olderQr,
         is_t1: isT1,
+        selected_qr_code_id: olderQr ? selectedQrId : undefined,
       });
       toast.success("Recharge request submitted — pending admin approval");
-      setAmount(""); setUtr(""); setLast4(""); setShot(""); setOlderQr(false); reload();
+      setAmount(""); setUtr(""); setLast4(""); setShot(""); setOlderQr(false); setSelectedQrId(""); reload();
       // brief cool-down to prevent a stray second click landing on the now-empty form
       setTimeout(() => setIsSubmitting(false), 1500);
     } catch (e) {
@@ -553,6 +575,48 @@ export default function AgentRecharge() {
                     Paid to an older QR code?
                   </label>
                 </div>
+
+                {/* Older QR Dropdown List */}
+                {olderQr && (
+                  <div className="space-y-1.5 p-3.5 rounded-xl bg-neutral-50 border border-neutral-200/50">
+                    <label className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest block">
+                      Select QR Paid To
+                    </label>
+                    {loadingQrs ? (
+                      <div className="flex items-center gap-2 text-xs text-neutral-500 py-1">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-[#00966B]" /> Loading QR codes…
+                      </div>
+                    ) : qrList24h.length === 0 ? (
+                      <div className="text-xs text-neutral-400 font-medium py-1">
+                        No QR codes active in the last 24 hours.
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <select
+                          className="w-full bg-white border border-black/10 focus:border-[#00966B] rounded-lg px-3 py-2 text-xs font-bold text-neutral-700 outline-none cursor-pointer"
+                          value={selectedQrId}
+                          onChange={(e) => setSelectedQrId(e.target.value)}
+                        >
+                          {qrList24h.map((q) => (
+                            <option key={q.id} value={q.id}>
+                              {q.label} ({q.upi_id || "No UPI ID"})
+                            </option>
+                          ))}
+                        </select>
+                        {(() => {
+                          const selected = qrList24h.find((q) => q.id === selectedQrId);
+                          if (!selected) return null;
+                          return (
+                            <div className="text-[10px] text-neutral-400 font-semibold px-0.5 mt-1.5 leading-tight">
+                              <div>UPI ID: <span className="text-neutral-600 font-bold font-mono">{selected.upi_id || "N/A"}</span></div>
+                              <div className="mt-0.5">Created at: <span className="text-neutral-600 font-bold">{fmtDate(selected.created_at)}</span></div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Submit Button */}
                 <div className="pt-2">
