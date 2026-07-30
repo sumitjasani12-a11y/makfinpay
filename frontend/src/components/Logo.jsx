@@ -33,16 +33,18 @@ export default function Logo({ variant = "dark", size, className = "", collapsed
   const height = size || (collapsed ? 28 : 44);
   const width = size || (collapsed ? 28 : undefined);
 
+  const sizeVal = size ? `${size}px` : undefined;
+
   return (
     <img
       src={src}
       alt="MAK FIN PAY logo"
       style={{
         ...blendStyle,
-        width: collapsed ? "28px" : "100%",
-        height: collapsed ? "28px" : "100%",
-        maxWidth: collapsed ? "28px" : "100%",
-        maxHeight: collapsed ? "28px" : "100%",
+        width: sizeVal || (collapsed ? "28px" : "100%"),
+        height: sizeVal || (collapsed ? "28px" : "100%"),
+        maxWidth: sizeVal || (collapsed ? "28px" : "100%"),
+        maxHeight: sizeVal || (collapsed ? "28px" : "100%"),
       }}
       className={`shrink-0 select-none object-contain ${className}`}
       draggable={false}
