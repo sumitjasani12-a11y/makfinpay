@@ -7,24 +7,49 @@ const AuthCtx = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [branding, setBranding] = useState({ logo_path: "", logo_collapsed_path: "", favicon_path: "", watermark_path: "" });
+  const [branding, setBranding] = useState(() => {
+    try {
+      const cached = localStorage.getItem("mfp_branding");
+      return cached ? JSON.parse(cached) : { logo_path: "", logo_collapsed_path: "", favicon_path: "", watermark_path: "" };
+    } catch {
+      return { logo_path: "", logo_collapsed_path: "", favicon_path: "", watermark_path: "" };
+    }
+  });
 
   const fetchBranding = useCallback(() => {
     api.get("/settings/branding-public")
       .then((r) => {
-        setBranding(r.data || { logo_path: "", logo_collapsed_path: "", favicon_path: "", watermark_path: "" });
-        if (r.data?.favicon_path) {
+        const val = r.data || { logo_path: "", logo_collapsed_path: "", favicon_path: "", watermark_path: "" };
+        setBranding(val);
+        try {
+          localStorage.setItem("mfp_branding", JSON.stringify(val));
+        } catch (e) {
+          console.error(e);
+        }
+        if (val.favicon_path) {
           let link = document.querySelector("link[rel~='icon']");
           if (!link) {
             link = document.createElement("link");
             link.rel = "icon";
             document.getElementsByTagName("head")[0].appendChild(link);
           }
-          link.href = fileUrl(r.data.favicon_path);
+          link.href = fileUrl(val.favicon_path);
         }
       })
       .catch((e) => console.log("Failed to fetch branding settings:", e));
   }, []);
+
+  useEffect(() => {
+    if (branding?.favicon_path) {
+      let link = document.querySelector("link[rel~='icon']");
+      if (!link) {
+        link = document.createElement("link");
+        link.rel = "icon";
+        document.getElementsByTagName("head")[0].appendChild(link);
+      }
+      link.href = fileUrl(branding.favicon_path);
+    }
+  }, [branding?.favicon_path]);
 
   useEffect(() => {
     fetchBranding();
