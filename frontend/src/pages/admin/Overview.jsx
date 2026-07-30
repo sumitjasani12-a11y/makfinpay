@@ -309,7 +309,7 @@ export default function AdminOverview() {
             <div className="flex-1 w-full relative min-h-0 mt-4 flex items-center justify-center">
               <div className="absolute flex flex-col items-center justify-center pointer-events-none z-10 text-center">
                 <span className="text-[10px] uppercase font-black text-neutral-400 tracking-widest leading-none">Total Funds</span>
-                <span className="text-3xl font-black text-neutral-800 tracking-tight mt-1.5 select-none leading-tight">
+                <span className="text-xl font-black text-neutral-800 tracking-tight mt-1 select-none leading-tight">
                   {fmtMoney(
                     (financial.total_wallet ?? 0) + 
                     (financial.total_md_earnings ?? 0) + 
