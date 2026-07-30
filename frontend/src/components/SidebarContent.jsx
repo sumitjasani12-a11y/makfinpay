@@ -59,19 +59,11 @@ export function SidebarContent({ user, items, onLogout, pendingCounts = {}, coll
     <>
       <Link
         to="/"
-        className={`h-16 flex items-center border-b border-white/5 select-none shrink-0 ${collapsed ? "justify-center px-0" : "px-6 gap-2.5"}`}
+        className="h-16 flex items-center justify-center border-b border-white/5 select-none shrink-0"
         data-testid="sidebar-logo"
         title="MAK FIN PAY"
       >
-        <Logo variant="light" size={collapsed ? 28 : 32} collapsed={collapsed} />
-        {!collapsed && (
-          <div className="leading-tight">
-            <div className="text-sm font-black tracking-wide text-white">MAK FIN PAY</div>
-            <div className="text-[9px] tracking-[0.2em] font-black uppercase text-neutral-300 mt-0.5">
-              {(user.role || "").replace("_", " ")}
-            </div>
-          </div>
-        )}
+        <Logo variant="light" size={collapsed ? 28 : 36} collapsed={collapsed} />
       </Link>
       
       <nav className={`flex-1 overflow-y-auto no-scrollbar ${collapsed ? "p-2.5 space-y-2" : "p-4 space-y-1.5"}`}>
