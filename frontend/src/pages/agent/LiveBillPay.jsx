@@ -161,6 +161,195 @@ const getBillerLogoUrl = (billerName) => {
   return null;
 };
 
+const renderBillerLogo = (o) => {
+  const logoUrl = getBillerLogoUrl(o.biller_name);
+  if (logoUrl) {
+    return (
+      <img 
+        src={logoUrl} 
+        alt={o.biller_name} 
+        className="h-10 w-auto max-w-[90%] object-contain" 
+        onError={(e) => {
+          e.target.style.display = 'none';
+          const fallback = e.target.parentElement.querySelector('.logo-fallback');
+          if (fallback) fallback.style.display = 'flex';
+        }}
+      />
+    );
+  }
+  
+  const name = o.biller_name.toLowerCase();
+  
+  if (name.includes("sbi") || name.includes("state bank of india")) {
+    return (
+      <svg viewBox="0 0 100 100" className="h-10 w-auto">
+        <circle cx="50" cy="50" r="40" fill="#00baf2"/>
+        <rect x="46" y="60" width="8" height="30" fill="#fff"/>
+        <circle cx="50" cy="50" r="16" fill="#fff"/>
+      </svg>
+    );
+  }
+  
+  if (name.includes("hdfc")) {
+    return (
+      <svg viewBox="0 0 120 35" className="h-9 w-auto">
+        <rect width="120" height="35" rx="6" fill="#1c3f94"/>
+        <text x="60" y="24" fontFamily="sans-serif" fontWeight="900" fontSize="13" fill="#fff" textAnchor="middle" letterSpacing="0.5">HDFC BANK</text>
+      </svg>
+    );
+  }
+  
+  if (name.includes("icici")) {
+    return (
+      <svg viewBox="0 0 120 35" className="h-9 w-auto">
+        <rect width="120" height="35" rx="6" fill="#75151e"/>
+        <text x="60" y="23" fontFamily="sans-serif" fontWeight="900" fontSize="14" fill="#fbb03b" textAnchor="middle">ICICI Bank</text>
+      </svg>
+    );
+  }
+  
+  if (name.includes("indusind")) {
+    return (
+      <svg viewBox="0 0 120 35" className="h-9 w-auto">
+        <rect width="120" height="35" rx="6" fill="#650d1b"/>
+        <text x="60" y="23" fontFamily="sans-serif" fontWeight="900" fontSize="13" fill="#e5a93b" textAnchor="middle">IndusInd</text>
+      </svg>
+    );
+  }
+  
+  if (name.includes("canara")) {
+    return (
+      <svg viewBox="0 0 120 35" className="h-9 w-auto">
+        <rect width="120" height="35" rx="6" fill="#0091ff"/>
+        <text x="60" y="23" fontFamily="sans-serif" fontWeight="900" fontSize="13" fill="#fff" textAnchor="middle">Canara Bank</text>
+      </svg>
+    );
+  }
+  
+  if (name.includes("au bank") || name.includes("au small")) {
+    return (
+      <svg viewBox="0 0 120 35" className="h-9 w-auto">
+        <rect width="120" height="35" rx="6" fill="#0c2340"/>
+        <text x="60" y="23" fontFamily="sans-serif" fontWeight="900" fontSize="13" fill="#ff7f00" textAnchor="middle">AU BANK</text>
+      </svg>
+    );
+  }
+  
+  if (name.includes("dbs")) {
+    return (
+      <svg viewBox="0 0 120 35" className="h-9 w-auto">
+        <rect width="120" height="35" rx="6" fill="#db232a"/>
+        <text x="60" y="23" fontFamily="sans-serif" fontWeight="900" fontSize="15" fill="#fff" textAnchor="middle">DBS</text>
+      </svg>
+    );
+  }
+  
+  if (name.includes("hsbc")) {
+    return (
+      <svg viewBox="0 0 120 35" className="h-9 w-auto">
+        <rect width="120" height="35" rx="6" fill="#db0011"/>
+        <text x="60" y="24" fontFamily="sans-serif" fontWeight="900" fontSize="15" fill="#fff" textAnchor="middle">HSBC</text>
+      </svg>
+    );
+  }
+  
+  if (name.includes("dhanlaxmi")) {
+    return (
+      <svg viewBox="0 0 120 35" className="h-9 w-auto">
+        <rect width="120" height="35" rx="6" fill="#4a3b8c"/>
+        <text x="60" y="23" fontFamily="sans-serif" fontWeight="900" fontSize="11" fill="#fff" textAnchor="middle">Dhanlaxmi</text>
+      </svg>
+    );
+  }
+  
+  if (name.includes("idbi")) {
+    return (
+      <svg viewBox="0 0 120 35" className="h-9 w-auto">
+        <rect width="120" height="35" rx="6" fill="#006644"/>
+        <text x="60" y="23" fontFamily="sans-serif" fontWeight="900" fontSize="13" fill="#fff" textAnchor="middle">IDBI BANK</text>
+      </svg>
+    );
+  }
+  
+  if (name.includes("idfc") || name.includes("first bank")) {
+    return (
+      <svg viewBox="0 0 120 35" className="h-9 w-auto">
+        <rect width="120" height="35" rx="6" fill="#9e1b32"/>
+        <text x="60" y="23" fontFamily="sans-serif" fontWeight="900" fontSize="12" fill="#f3d03b" textAnchor="middle">IDFC FIRST</text>
+      </svg>
+    );
+  }
+  
+  if (name.includes("yes bank")) {
+    return (
+      <svg viewBox="0 0 120 35" className="h-9 w-auto">
+        <rect width="120" height="35" rx="6" fill="#005ea6"/>
+        <text x="60" y="23" fontFamily="sans-serif" fontWeight="900" fontSize="13" fill="#fff" textAnchor="middle">YES BANK</text>
+      </svg>
+    );
+  }
+  
+  if (name.includes("slice")) {
+    return (
+      <svg viewBox="0 0 120 35" className="h-9 w-auto">
+        <rect width="120" height="35" rx="6" fill="#000"/>
+        <text x="60" y="23" fontFamily="sans-serif" fontWeight="900" fontSize="15" fill="#fff" textAnchor="middle">slice</text>
+      </svg>
+    );
+  }
+  
+  if (name.includes("cub") || name.includes("city union")) {
+    return (
+      <svg viewBox="0 0 120 35" className="h-9 w-auto">
+        <rect width="120" height="35" rx="6" fill="#0b2e83"/>
+        <text x="60" y="23" fontFamily="sans-serif" fontWeight="900" fontSize="15" fill="#ffcd00" textAnchor="middle">CUB</text>
+      </svg>
+    );
+  }
+  
+  if (name.includes("rbl")) {
+    return (
+      <svg viewBox="0 0 120 35" className="h-9 w-auto">
+        <rect width="120" height="35" rx="6" fill="#0b4da2"/>
+        <text x="60" y="23" fontFamily="sans-serif" fontWeight="900" fontSize="15" fill="#fff" textAnchor="middle">RBL Bank</text>
+      </svg>
+    );
+  }
+  
+  if (name.includes("j and k") || name.includes("jammu")) {
+    return (
+      <svg viewBox="0 0 120 35" className="h-9 w-auto">
+        <rect width="120" height="35" rx="6" fill="#003da5"/>
+        <text x="60" y="23" fontFamily="sans-serif" fontWeight="900" fontSize="14" fill="#fff" textAnchor="middle">J&amp;K Bank</text>
+      </svg>
+    );
+  }
+  
+  if (name.includes("tmb") || name.includes("tamilnad")) {
+    return (
+      <svg viewBox="0 0 120 35" className="h-9 w-auto">
+        <rect width="120" height="35" rx="6" fill="#005ea6"/>
+        <text x="60" y="23" fontFamily="sans-serif" fontWeight="900" fontSize="15" fill="#fff" textAnchor="middle">TMB</text>
+      </svg>
+    );
+  }
+
+  if (name.includes("iob") || name.includes("overseas")) {
+    return (
+      <svg viewBox="0 0 120 35" className="h-9 w-auto">
+        <rect width="120" height="35" rx="6" fill="#0a469b"/>
+        <text x="60" y="23" fontFamily="sans-serif" fontWeight="900" fontSize="15" fill="#fff" textAnchor="middle">IOB</text>
+      </svg>
+    );
+  }
+
+  return (
+    <div className="logo-fallback h-9 w-9 rounded-xl bg-indigo-50 text-indigo-600 text-xs font-black flex items-center justify-center border border-indigo-100/50">
+      {o.biller_name[0].toUpperCase()}
+    </div>
+  );
+};
+
 export default function LiveBillPay() {
   const { user } = useAuth();
   const [categories, setCategories] = useState([]);
@@ -665,32 +854,7 @@ export default function LiveBillPay() {
 
                         {/* Centered Logo Container */}
                         <div className="h-12 w-full flex items-center justify-center mb-3 transition-transform duration-300 group-hover:scale-105">
-                          {logoUrl ? (
-                            <>
-                              <img 
-                                src={logoUrl} 
-                                alt={o.biller_name} 
-                                className="h-10 w-auto max-w-[90%] object-contain" 
-                                onError={(e) => {
-                                  e.target.style.display = 'none';
-                                  const fallback = e.target.parentElement.querySelector('.logo-fallback');
-                                  if (fallback) fallback.style.display = 'flex';
-                                }}
-                              />
-                              <div 
-                                className="logo-fallback h-9 w-9 rounded-xl bg-indigo-50 text-indigo-600 text-xs font-black flex items-center justify-center border border-indigo-100/50"
-                                style={{ display: 'none' }}
-                              >
-                                {o.biller_name[0].toUpperCase()}
-                              </div>
-                            </>
-                          ) : (
-                            <div 
-                              className="h-9 w-9 rounded-xl bg-indigo-50 text-indigo-600 text-xs font-black flex items-center justify-center border border-indigo-100/50"
-                            >
-                              {o.biller_name[0].toUpperCase()}
-                            </div>
-                          )}
+                          {renderBillerLogo(o)}
                         </div>
                         
                         <span className="font-bold text-slate-700 text-xs sm:text-xs leading-tight group-hover:text-indigo-600 transition-colors block w-full px-1 line-clamp-2">
