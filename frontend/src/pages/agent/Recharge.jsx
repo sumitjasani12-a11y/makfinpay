@@ -20,6 +20,19 @@ export default function AgentRecharge() {
   const [qrList24h, setQrList24h] = useState([]);
   const [selectedQrId, setSelectedQrId] = useState("");
   const [loadingQrs, setLoadingQrs] = useState(false);
+  const [qrSelectOpen, setQrSelectOpen] = useState(false);
+  const [qrSearch, setQrSearch] = useState("");
+
+  const filteredQrs = useMemo(() => {
+    const q = qrSearch.toLowerCase().trim();
+    if (!q) return qrList24h;
+    return qrList24h.filter(item => 
+      (item.label || "").toLowerCase().includes(q) ||
+      (item.upi_id || "").toLowerCase().includes(q) ||
+      (item.created_at || "").toLowerCase().includes(q)
+    );
+  }, [qrList24h, qrSearch]);
+
   const [items, setItems] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [minLimit, setMinLimit] = useState(100);
@@ -578,7 +591,7 @@ export default function AgentRecharge() {
 
                 {/* Older QR Dropdown List */}
                 {olderQr && (
-                  <div className="space-y-1.5 p-3.5 rounded-xl bg-neutral-50 border border-neutral-200/50">
+                  <div className="space-y-1.5 p-3.5 rounded-xl bg-neutral-50 border border-neutral-200/50 relative">
                     <label className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest block">
                       Select QR Paid To
                     </label>
@@ -591,28 +604,86 @@ export default function AgentRecharge() {
                         No QR codes active in the last 24 hours.
                       </div>
                     ) : (
-                      <div className="space-y-1">
-                        <select
-                          className="w-full bg-white border border-black/10 focus:border-[#00966B] rounded-lg px-3 py-2 text-xs font-bold text-neutral-700 outline-none cursor-pointer"
-                          value={selectedQrId}
-                          onChange={(e) => setSelectedQrId(e.target.value)}
+                      <div className="relative">
+                        {/* Custom Select Trigger Button */}
+                        <button
+                          type="button"
+                          onClick={() => setQrSelectOpen(!qrSelectOpen)}
+                          className="w-full bg-white border border-black/10 focus:border-[#00966B] rounded-lg px-3 py-2 text-xs font-bold text-neutral-700 text-left flex items-center justify-between shadow-sm"
                         >
-                          {qrList24h.map((q) => (
-                            <option key={q.id} value={q.id}>
-                              {q.label} ({q.upi_id || "No UPI ID"})
-                            </option>
-                          ))}
-                        </select>
-                        {(() => {
-                          const selected = qrList24h.find((q) => q.id === selectedQrId);
-                          if (!selected) return null;
-                          return (
-                            <div className="text-[10px] text-neutral-400 font-semibold px-0.5 mt-1.5 leading-tight">
-                              <div>UPI ID: <span className="text-neutral-600 font-bold font-mono">{selected.upi_id || "N/A"}</span></div>
-                              <div className="mt-0.5">Created at: <span className="text-neutral-600 font-bold">{fmtDate(selected.created_at)}</span></div>
+                          {(() => {
+                            const selected = qrList24h.find((q) => q.id === selectedQrId);
+                            if (!selected) return <span className="text-neutral-400 font-normal">— Not Selected (Use Active QR) —</span>;
+                            return (
+                              <span className="truncate">
+                                {selected.label} ({selected.upi_id || "No UPI"}) — {fmtDate(selected.created_at)}
+                              </span>
+                            );
+                          })()}
+                          <span className="text-neutral-400 shrink-0 ml-1 text-[9px]">▼</span>
+                        </button>
+
+                        {/* Dropdown Panel */}
+                        {qrSelectOpen && (
+                          <>
+                            {/* Backdrop to close dropdown on click outside */}
+                            <div className="fixed inset-0 z-30" onClick={() => { setQrSelectOpen(false); setQrSearch(""); }} />
+
+                            {/* Dropdown Options List */}
+                            <div className="absolute left-0 right-0 mt-1 bg-white border border-neutral-200 shadow-xl rounded-xl z-40 max-h-60 flex flex-col overflow-hidden">
+                              {/* Search Box */}
+                              <div className="p-2 border-b border-neutral-100">
+                                <input
+                                  type="text"
+                                  value={qrSearch}
+                                  onChange={(e) => setQrSearch(e.target.value)}
+                                  placeholder="Search by name, UPI or date..."
+                                  className="w-full bg-neutral-50 border border-black/5 focus:border-[#00966B] rounded-lg px-2.5 py-1.5 text-xs outline-none"
+                                  autoFocus
+                                />
+                              </div>
+
+                              {/* Scrollable list of items */}
+                              <div className="overflow-y-auto flex-1">
+                                {/* Option 1: Not Selected */}
+                                <button
+                                  type="button"
+                                  onClick={() => { setSelectedQrId(""); setQrSelectOpen(false); setQrSearch(""); }}
+                                  className={`w-full text-left px-3 py-2 text-xs border-b border-neutral-50 hover:bg-neutral-50 transition-colors ${!selectedQrId ? "bg-neutral-50/50 text-[#00966B] font-extrabold" : "text-neutral-500 font-semibold"}`}
+                                >
+                                  — Not Selected (Use Active QR) —
+                                </button>
+
+                                {/* Filtered items */}
+                                {filteredQrs.length === 0 ? (
+                                  <div className="p-3 text-center text-xs text-neutral-400 font-medium">
+                                    No matching QR codes found.
+                                  </div>
+                                ) : (
+                                  filteredQrs.map((q) => {
+                                    const isSelected = q.id === selectedQrId;
+                                    return (
+                                      <button
+                                        key={q.id}
+                                        type="button"
+                                        onClick={() => { setSelectedQrId(q.id); setQrSelectOpen(false); setQrSearch(""); }}
+                                        className={`w-full text-left px-3 py-2 text-xs flex flex-col gap-0.5 border-b border-neutral-50 hover:bg-[#00966B]/5 transition-colors ${isSelected ? "bg-[#00966B]/5 text-[#00966B] font-extrabold" : "text-neutral-700"}`}
+                                      >
+                                        <div className="font-bold flex items-center justify-between">
+                                          <span>{q.label}</span>
+                                          <span className="text-[10px] text-neutral-400 font-semibold font-mono">{q.upi_id || "No UPI"}</span>
+                                        </div>
+                                        <div className="text-[10px] text-neutral-400 font-semibold mt-0.5">
+                                          Created: {fmtDate(q.created_at)}
+                                        </div>
+                                      </button>
+                                    );
+                                  })
+                                )}
+                              </div>
                             </div>
-                          );
-                        })()}
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
