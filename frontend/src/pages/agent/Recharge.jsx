@@ -1021,7 +1021,7 @@ export default function AgentRecharge() {
             { key: "utr", label: "UTR" },
             { key: "card_last4", label: "Card / Acc", render: (r) => r.card_last4 ? `XXXX ${r.card_last4}` : "—" },
             { key: "status", label: "Status", render: (r) => (
-              <div className="flex flex-col">
+              <div className="flex flex-col items-center justify-center text-center">
                 <StatusBadge status={r.status} />
                 {r.status === "rejected" && r.note && (
                   <span className="text-[10px] text-rose-500 font-black mt-1 uppercase tracking-wider max-w-[150px] break-words">
