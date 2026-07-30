@@ -15,16 +15,9 @@ const STATUSES = [
   { key: "rejected", label: "Rejected" },
 ];
 
-function RejectModal({ onClose, onConfirm }) {
+function RejectModal({ onClose, onConfirm, predefined = [] }) {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
-  const [predefined, setPredefined] = useState([]);
-
-  useEffect(() => {
-    api.get("/rejection-reasons/active?target=qr")
-      .then((res) => setPredefined(res.data || []))
-      .catch((e) => console.log("Failed to fetch recharge rejection reasons:", e));
-  }, []);
 
   const confirm = async () => {
     if (!reason.trim()) return toast.error("Please provide a rejection reason");
@@ -79,6 +72,13 @@ export default function AdminRecharges() {
   const [detail, setDetail] = useState(null);
   const [adminOcrBypass, setAdminOcrBypass] = useState(false);
   const [rejectTargetId, setRejectTargetId] = useState(null);
+  const [predefinedReasons, setPredefinedReasons] = useState([]);
+
+  useEffect(() => {
+    api.get("/rejection-reasons/active?target=qr")
+      .then((res) => setPredefinedReasons(res.data || []))
+      .catch((e) => console.log("Failed to fetch recharge rejection reasons:", e));
+  }, []);
 
   // filter state
   const [q, setQ] = useState("");
@@ -648,6 +648,7 @@ export default function AdminRecharges() {
         <RejectModal
           onClose={() => setRejectTargetId(null)}
           onConfirm={handleRejectConfirm}
+          predefined={predefinedReasons}
         />
       )}
     </div>

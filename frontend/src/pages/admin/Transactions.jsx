@@ -7,16 +7,9 @@ import { toast } from "sonner";
 import { Check, RotateCcw, Search, X, FileDown, FileSpreadsheet, Loader2 } from "lucide-react";
 import { useWebSocketListener } from "@/lib/ws";
 
-function RejectModal({ onClose, onConfirm }) {
+function RejectModal({ onClose, onConfirm, predefined = [] }) {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
-  const [predefined, setPredefined] = useState([]);
-
-  useEffect(() => {
-    api.get("/rejection-reasons/active?target=bill")
-      .then((res) => setPredefined(res.data || []))
-      .catch((e) => console.log("Failed to fetch bill reversal reasons:", e));
-  }, []);
 
   const confirm = async () => {
     if (!reason.trim()) return toast.error("Please provide a reason for reversal");
@@ -117,10 +110,17 @@ export default function AdminTransactions() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [rejectTargetId, setRejectTargetId] = useState(null);
+  const [predefinedReasons, setPredefinedReasons] = useState([]);
 
   useEffect(() => {
     fetchToggles();
   }, [fetchToggles]);
+
+  useEffect(() => {
+    api.get("/rejection-reasons/active?target=bill")
+      .then((res) => setPredefinedReasons(res.data || []))
+      .catch((e) => console.log("Failed to fetch bill reversal reasons:", e));
+  }, []);
 
   const params = useMemo(() => {
     const { from_ts, to_ts } = range === "custom" && !customApplied
@@ -555,6 +555,7 @@ export default function AdminTransactions() {
         <RejectModal
           onClose={() => setRejectTargetId(null)}
           onConfirm={handleRejectConfirm}
+          predefined={predefinedReasons}
         />
       )}
     </div>
