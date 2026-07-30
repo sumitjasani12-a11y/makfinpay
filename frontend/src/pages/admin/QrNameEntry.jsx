@@ -260,7 +260,7 @@ export default function AdminQrNameEntry() {
               <div className="relative flex-1">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
                 <input
-                  className="mfp-input pl-10"
+                  className="mfp-input !pl-11"
                   placeholder="Search by name or mobile..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
