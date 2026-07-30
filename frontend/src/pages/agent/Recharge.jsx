@@ -585,7 +585,7 @@ export default function AgentRecharge() {
                     onChange={(e) => setOlderQr(e.target.checked)}
                   />
                   <label htmlFor="older-qr-checkbox" className="text-xs font-semibold text-neutral-600 cursor-pointer">
-                    Paid to an older QR code?
+                    Request to older QR code
                   </label>
                 </div>
 
