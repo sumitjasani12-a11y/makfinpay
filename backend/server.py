@@ -2967,6 +2967,45 @@ async def agent_create_recharge(body: RechargeIn, user=Depends(require_approved_
 async def agent_list_recharges(user=Depends(require_roles("agent"))):
     return await db.recharges.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(500)
 
+@api.get("/admin/recharges/stats")
+async def admin_recharges_stats(
+    status: Optional[str] = None,
+    agent_id: Optional[str] = None,
+    qr_code_id: Optional[str] = None,
+    from_ts: Optional[str] = None,
+    to_ts: Optional[str] = None,
+    q: Optional[str] = None,
+    amount: Optional[str] = None,
+    agent_search: Optional[str] = None,
+    qr_search: Optional[str] = None,
+    user=Depends(require_roles("admin")),
+):
+    query = _build_recharge_query(
+        status=status, agent_id=agent_id, qr_code_id=qr_code_id,
+        from_ts=from_ts, to_ts=to_ts, q=q, amount=amount,
+        agent_search=agent_search, qr_search=qr_search
+    )
+    
+    pipeline = [
+        {"$match": query},
+        {"$group": {
+            "_id": "$status",
+            "total_amount": {"$sum": "$amount"},
+            "count": {"$sum": 1}
+        }}
+    ]
+    cursor = db.recharges.aggregate(pipeline)
+    rows = await cursor.to_list(100)
+    
+    res = {}
+    for r in rows:
+        status_key = r["_id"] or "unknown"
+        res[status_key] = {
+            "amount": round(r["total_amount"], 2),
+            "count": r["count"]
+        }
+    return res
+
 @api.get("/admin/recharges")
 async def admin_list_recharges(
     status: Optional[str] = None,
@@ -3840,6 +3879,55 @@ async def usepay_webhook(request: Request):
 @api.get("/agent/live-billpay/transactions")
 async def get_live_billpay_transactions(user=Depends(require_roles("agent"))):
     return await db.transactions.find({"user_id": user["id"], "type": "live_bill"}, {"_id": 0}).sort("created_at", -1).to_list(500)
+
+@api.get("/admin/transactions/stats")
+async def admin_transactions_stats(
+    status: Optional[str] = None,
+    agent_id: Optional[str] = None,
+    operator: Optional[str] = None,
+    from_ts: Optional[str] = None,
+    to_ts: Optional[str] = None,
+    q: Optional[str] = None,
+    amount: Optional[str] = None,
+    type: Optional[str] = None,
+    txn_id: Optional[str] = None,
+    api_txn_id: Optional[str] = None,
+    agent_search: Optional[str] = None,
+    bank_search: Optional[str] = None,
+    user=Depends(require_roles("admin")),
+):
+    matched_ids = None
+    if txn_id and txn_id.strip().lower().startswith("txn"):
+        needle = txn_id.strip().lower()
+        recent_txs = await db.transactions.find({}, {"id": 1}).sort("created_at", -1).to_list(2000)
+        matched_ids = [tx["id"] for tx in recent_txs if tx.get("id") and needle in get_short_txn_id(tx["id"]).lower()]
+        
+    query = _build_transaction_query(
+        status=status, agent_id=agent_id, operator=operator,
+        from_ts=from_ts, to_ts=to_ts, q=q, amount=amount, txn_type=type,
+        txn_id=txn_id, api_txn_id=api_txn_id, matched_ids=matched_ids,
+        agent_search=agent_search, bank_search=bank_search
+    )
+    
+    pipeline = [
+        {"$match": query},
+        {"$group": {
+            "_id": "$status",
+            "total_amount": {"$sum": "$amount"},
+            "count": {"$sum": 1}
+        }}
+    ]
+    cursor = db.transactions.aggregate(pipeline)
+    rows = await cursor.to_list(100)
+    
+    res = {}
+    for r in rows:
+        status_key = r["_id"] or "unknown"
+        res[status_key] = {
+            "amount": round(r["total_amount"], 2),
+            "count": r["count"]
+        }
+    return res
 
 @api.get("/admin/transactions")
 async def admin_transactions(
@@ -5602,6 +5690,14 @@ async def _ensure_indexes() -> None:
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions (user_id)')
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_ledger_user_id ON ledger (user_id)')
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_withdrawals_user_id ON withdrawals (user_id)')
+
+        # Sorting speed indexes
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_users_created_at ON users (created_at DESC)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_recharges_created_at ON recharges (created_at DESC)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON transactions (created_at DESC)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_withdrawals_created_at ON withdrawals (created_at DESC)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_ledger_created_at ON ledger (created_at DESC)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_users_role_created_at ON users (role, created_at DESC)')
         await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS older_qr BOOLEAN DEFAULT FALSE')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS logo_path TEXT')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS favicon_path TEXT')

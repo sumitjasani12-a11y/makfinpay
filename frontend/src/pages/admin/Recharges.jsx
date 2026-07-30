@@ -123,37 +123,27 @@ export default function AdminRecharges() {
     // paginated list
     const pagePromise = api.get("/admin/recharges", { params });
 
-    // unpaginated list for correct totals (projecting only necessary fields for speed)
-    const statsParams = { ...params, fields: "amount,status,commission_amount" };
+    // fetch optimized stats
+    const statsParams = { ...params };
     delete statsParams.paginated;
     delete statsParams.page;
     delete statsParams.page_size;
-    const statsPromise = api.get("/admin/recharges", { params: statsParams });
+    const statsPromise = api.get("/admin/recharges/stats", { params: statsParams });
 
     return Promise.all([pagePromise, statsPromise])
       .then(([pageRes, statsRes]) => {
         setItems(pageRes.data.items || []);
         setTotal(pageRes.data.total || 0);
 
-        let approved = 0, approvedCount = 0;
-        let pending = 0, pendingCount = 0;
-        let rejected = 0, rejectedCount = 0;
-
-        const allMatched = statsRes.data || [];
-        allMatched.forEach((item) => {
-          const amt = item.amount || 0;
-          if (item.status === "approved") {
-            approved += amt;
-            approvedCount++;
-          } else if (item.status === "pending") {
-            pending += amt;
-            pendingCount++;
-          } else if (item.status === "rejected") {
-            rejected += amt;
-            rejectedCount++;
-          }
+        const sd = statsRes.data || {};
+        setStats({
+          approved: sd.approved?.amount || 0,
+          approvedCount: sd.approved?.count || 0,
+          pending: sd.pending?.amount || 0,
+          pendingCount: sd.pending?.count || 0,
+          rejected: sd.rejected?.amount || 0,
+          rejectedCount: sd.rejected?.count || 0
         });
-        setStats({ approved, approvedCount, pending, pendingCount, rejected, rejectedCount });
       })
       .catch((e) => toast.error(formatErr(e.response?.data?.detail) || "Failed to load recharges"))
       .finally(() => setLoading(false));

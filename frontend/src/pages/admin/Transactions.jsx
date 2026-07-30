@@ -142,37 +142,27 @@ export default function AdminTransactions() {
     // paginated list
     const pagePromise = api.get("/admin/transactions", { params });
 
-    // unpaginated list for correct totals (projecting only necessary fields for speed)
-    const statsParams = { ...params, fields: "amount,total_amount,status" };
+    // fetch optimized stats
+    const statsParams = { ...params };
     delete statsParams.paginated;
     delete statsParams.page;
     delete statsParams.page_size;
-    const statsPromise = api.get("/admin/transactions", { params: statsParams });
+    const statsPromise = api.get("/admin/transactions/stats", { params: statsParams });
 
     return Promise.all([pagePromise, statsPromise])
       .then(([pageRes, statsRes]) => {
         setItems(pageRes.data.items || []);
         setTotal(pageRes.data.total || 0);
 
-        let success = 0, successCount = 0;
-        let pending = 0, pendingCount = 0;
-        let reversed = 0, reversedCount = 0;
-
-        const allMatched = statsRes.data || [];
-        allMatched.forEach((item) => {
-          const amt = item.total_amount ?? item.amount ?? 0;
-          if (item.status === "success") {
-            success += amt;
-            successCount++;
-          } else if (item.status === "pending") {
-            pending += amt;
-            pendingCount++;
-          } else if (item.status === "reversed") {
-            reversed += amt;
-            reversedCount++;
-          }
+        const sd = statsRes.data || {};
+        setStats({
+          success: sd.success?.amount || 0,
+          successCount: sd.success?.count || 0,
+          pending: sd.pending?.amount || 0,
+          pendingCount: sd.pending?.count || 0,
+          reversed: sd.reversed?.amount || sd.failed?.amount || 0,
+          reversedCount: sd.reversed?.count || sd.failed?.count || 0
         });
-        setStats({ success, successCount, pending, pendingCount, reversed, reversedCount });
       })
       .catch((e) => toast.error(formatErr(e.response?.data?.detail) || "Failed to load transactions"))
       .finally(() => setLoading(false));
