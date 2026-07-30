@@ -136,28 +136,6 @@ const getBillerLogoUrl = (billerName) => {
   if (name.includes("south indian") || name.includes("sib")) return "/assets/banks/south_indian_logo.png";
   if (name.includes("suryoday")) return "/assets/banks/suryoday_logo.png";
 
-  // Fallbacks to Clearbit API for other bank logos
-  if (name.includes("sbi") || name.includes("state bank of india")) return "https://logo.clearbit.com/sbi.co.in";
-  if (name.includes("hdfc")) return "https://logo.clearbit.com/hdfcbank.com";
-  if (name.includes("icici")) return "https://logo.clearbit.com/icicibank.com";
-  if (name.includes("rbl")) return "https://logo.clearbit.com/rblbank.com";
-  if (name.includes("yes bank")) return "https://logo.clearbit.com/yesbank.in";
-  if (name.includes("idfc") || name.includes("first bank")) return "https://logo.clearbit.com/idfcfirstbank.com";
-  if (name.includes("canara")) return "https://logo.clearbit.com/canarabank.com";
-  if (name.includes("indusind")) return "https://logo.clearbit.com/indusind.com";
-  if (name.includes("hsbc")) return "https://logo.clearbit.com/hsbc.co.in";
-  if (name.includes("dbs")) return "https://logo.clearbit.com/dbs.com";
-  if (name.includes("au bank") || name.includes("au small")) return "https://logo.clearbit.com/aubank.in";
-  if (name.includes("idbi")) return "https://logo.clearbit.com/idbi.com";
-  if (name.includes("maharashtra")) return "https://logo.clearbit.com/bankofmaharashtra.in";
-  if (name.includes("central bank")) return "https://logo.clearbit.com/centralbankofindia.co.in";
-  if (name.includes("dhanlaxmi")) return "https://logo.clearbit.com/dhanbank.com";
-  if (name.includes("karur vysya") || name.includes("kvb")) return "https://logo.clearbit.com/kvb.co.in";
-  if (name.includes("uco")) return "https://logo.clearbit.com/ucobank.com";
-  if (name.includes("slice")) return "https://logo.clearbit.com/sliceit.com";
-  if (name.includes("onecard")) return "https://logo.clearbit.com/getonecard.com";
-  if (name.includes("equitas")) return "https://logo.clearbit.com/equitasbank.com";
-  if (name.includes("cub") || name.includes("city union")) return "https://logo.clearbit.com/cityunionbank.com";
   return null;
 };
 
