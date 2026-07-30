@@ -2509,7 +2509,7 @@ async def admin_delete_user(uid: str, request: Request, user=Depends(require_rol
     if not u:
         raise HTTPException(404, "User not found")
         
-    await db.users.delete_many({"id": uid})
+    # Delete child rows first to satisfy foreign key constraints
     await db.kyc.delete_many({"user_id": uid})
     await db.wallets.delete_many({"user_id": uid})
     await db.ledger.delete_many({"user_id": uid})
@@ -2521,6 +2521,9 @@ async def admin_delete_user(uid: str, request: Request, user=Depends(require_rol
     await db.fraud_flags.delete_many({"user_id": uid})
     await db.audit_logs.delete_many({"user_id": uid})
     await db.audit_logs.delete_many({"target": uid})
+    
+    # Delete parent user last
+    await db.users.delete_many({"id": uid})
     
     await write_audit(user["id"], "delete_user", target=uid, request=request)
     return {"ok": True}
