@@ -133,6 +133,7 @@ export default function MpinVerify() {
                   value={digit}
                   onChange={(e) => handleChange(index, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(index, e)}
+                  autoComplete="one-time-code"
                   className="w-full h-14 bg-slate-50 border-2 border-slate-200/80 focus:border-indigo-500 focus:bg-white text-center text-xl font-bold rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-slate-800"
                   required
                 />

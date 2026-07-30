@@ -147,6 +147,7 @@ export default function MpinSetup() {
                     value={digit}
                     onChange={(e) => handlePinChange(index, e.target.value)}
                     onKeyDown={(e) => handlePinKeyDown(index, e)}
+                    autoComplete="one-time-code"
                     className="w-full h-12 bg-slate-50 border-2 border-slate-200/80 focus:border-indigo-500 focus:bg-white text-center text-lg font-bold rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-slate-800"
                     required
                   />
@@ -167,6 +168,7 @@ export default function MpinSetup() {
                     value={digit}
                     onChange={(e) => handleConfirmChange(index, e.target.value)}
                     onKeyDown={(e) => handleConfirmKeyDown(index, e)}
+                    autoComplete="one-time-code"
                     className="w-full h-12 bg-slate-50 border-2 border-slate-200/80 focus:border-indigo-500 focus:bg-white text-center text-lg font-bold rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-slate-800"
                     required
                   />
