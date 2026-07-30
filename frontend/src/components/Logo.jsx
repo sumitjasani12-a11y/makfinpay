@@ -19,7 +19,7 @@ export default function Logo({ variant = "dark", size, className = "", collapsed
   const branding = auth?.branding;
   const isLight = variant === "light";
 
-  let src = isLight ? "/assets/makfinpay-white.svg" : "/assets/makfinpay-logo.png";
+  let src = isLight ? "/assets/makfinpay-white.png" : "/assets/makfinpay-logo.png";
   let blendStyle = isLight ? undefined : { mixBlendMode: "multiply" };
 
   if (collapsed && branding?.logo_collapsed_path) {
