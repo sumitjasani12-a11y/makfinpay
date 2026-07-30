@@ -195,9 +195,7 @@ export default function AdminManagement() {
         </button>
       </div>
 
-      {loading ? (
-        <div className="flex h-48 items-center justify-center text-neutral-400">Loading administrators list…</div>
-      ) : admins.length === 0 ? (
+      {admins.length === 0 && !loading ? (
         <div className="mfp-card p-12 text-center text-neutral-400">
           No sub-admin accounts created yet.
         </div>
