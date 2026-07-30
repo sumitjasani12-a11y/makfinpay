@@ -3,6 +3,7 @@ import { api, formatErr, fmtMoney, fmtDate, fileUrl } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { PageHeader, DataTable, StatusBadge, EmptyState } from "@/components/Shared";
 import FileUpload from "@/components/FileUpload";
+import ZoomableImage from "@/components/ZoomableImage";
 import { createWorker } from "tesseract.js";
 import { toast } from "sonner";
 import { Loader2, Coins, KeyRound, CreditCard, QrCode, Info, Sparkles, CheckCircle2, History, Check, ShieldAlert, FileDown, FileSpreadsheet, Clock, X, Eye } from "lucide-react";
@@ -846,12 +847,8 @@ export default function AgentRecharge() {
               {shot ? (
                 <div className="space-y-4">
                   {/* Image Preview */}
-                  <div className="rounded-2xl border border-black/5 overflow-hidden bg-slate-50 p-2 flex justify-center items-center shadow-sm">
-                    <img 
-                      src={fileUrl(shot)} 
-                      alt="Payment receipt preview" 
-                      className="max-h-72 w-auto object-contain rounded-xl hover:scale-102 transition-transform duration-200" 
-                    />
+                  <div className="overflow-hidden shadow-sm w-full">
+                    <ZoomableImage src={fileUrl(shot)} alt="Payment receipt preview" />
                   </div>
 
                   {/* OCR Details Panel */}
