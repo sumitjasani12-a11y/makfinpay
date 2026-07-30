@@ -42,7 +42,6 @@ export default function DashboardLayout() {
       if (currentPath.startsWith("/admin")) {
         const sub = currentPath === "/admin" || currentPath === "/admin/" ? "dashboard" : currentPath.replace("/admin/", "");
         const baseKey = sub.split("/")[0];
-        if (baseKey === "admins") return; // Always allow Admin Management screen
         const allowed = user.permissions || [];
         if (!allowed.includes(baseKey)) {
           nav("/admin");
@@ -55,7 +54,6 @@ export default function DashboardLayout() {
   if (user.role === "admin" && user.email !== "jigs.vanani@gmail.com") {
     const allowed = user.permissions || [];
     items = items.filter(it => {
-      if (it.to === "/admin/admins") return true; // Always show Admin Management to all admins
       const key = it.to === "/admin" ? "dashboard" : it.to.replace("/admin/", "");
       return allowed.includes(key);
     });
