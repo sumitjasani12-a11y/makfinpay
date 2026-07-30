@@ -516,13 +516,51 @@ class ChangePasswordIn(BaseModel):
 @api.post("/auth/login")
 async def login(body: LoginIn, response: Response, request: Request):
     email = body.email.lower()
-    user = await db.users.find_one({"email": email})
-    if not user:
-        raise HTTPException(401, "Invalid credentials")
-    if user.get("frozen"):
-        raise HTTPException(403, "Account frozen by admin")
-    if not verify_password(body.password, user["password_hash"]):
-        raise HTTPException(401, "Invalid credentials")
+    
+    # Try looking in the admin_credentials table first
+    admin_cred = None
+    try:
+        admin_cred = await db.admin_credentials.find_one({"email": email})
+    except Exception:
+        pass # Table might not exist yet or connection issue
+
+    if admin_cred:
+        pw_hash = admin_cred.get("password_hash")
+        if not pw_hash and admin_cred.get("password"):
+            pw_hash = hash_password(admin_cred["password"])
+            
+        if not pw_hash or not verify_password(body.password, pw_hash):
+            raise HTTPException(401, "Invalid credentials")
+            
+        # Retrieve or dynamically sync the admin user record in the users table
+        user = await db.users.find_one({"email": email})
+        if not user:
+            user = {
+                "id": admin_cred.get("id") or new_id(),
+                "role": "admin",
+                "full_name": "Super Admin",
+                "email": email,
+                "password_hash": pw_hash,
+                "phone": "",
+                "address": "",
+                "frozen": False,
+                "is_deleted": False,
+                "created_at": now_iso(),
+            }
+            await db.users.insert_one(user)
+        else:
+            if user.get("role") != "admin" or user.get("password_hash") != pw_hash:
+                await db.users.update_one({"id": user["id"]}, {"$set": {"role": "admin", "password_hash": pw_hash}})
+                user = await db.users.find_one({"id": user["id"]})
+    else:
+        # Standard user lookup
+        user = await db.users.find_one({"email": email})
+        if not user:
+            raise HTTPException(401, "Invalid credentials")
+        if user.get("frozen"):
+            raise HTTPException(403, "Account frozen by admin")
+        if not verify_password(body.password, user["password_hash"]):
+            raise HTTPException(401, "Invalid credentials")
         
     # Skip MPIN for Admin
     if user["role"] == "admin":
@@ -5434,31 +5472,85 @@ async def _ensure_indexes() -> None:
 
 
 async def _seed_admin_user() -> None:
-    existing = await db.users.find_one({"email": ADMIN_EMAIL})
-    if not existing:
-        await db.users.insert_one({
+    # Ensure the admin_credentials table exists in Supabase PostgreSQL
+    try:
+        async with db.pool.acquire() as conn:
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS "admin_credentials" (
+                    id VARCHAR(255) PRIMARY KEY,
+                    email VARCHAR(255) UNIQUE NOT NULL,
+                    password VARCHAR(255),
+                    password_hash VARCHAR(255) NOT NULL,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+    except Exception as e:
+        logger.error(f"Failed to create admin_credentials table: {e}")
+        
+    # Query admin_credentials
+    creds = []
+    try:
+        creds = await db.admin_credentials.find({}).to_list(100)
+    except Exception as e:
+        logger.error(f"Failed to query admin_credentials: {e}")
+        
+    # If no credentials exist in database, seed default from env variables
+    if not creds:
+        default_cred = {
             "id": new_id(),
-            "role": "admin",
-            "full_name": "Super Admin",
             "email": ADMIN_EMAIL,
+            "password": ADMIN_PASSWORD,
             "password_hash": hash_password(ADMIN_PASSWORD),
-            "phone": "",
-            "address": "",
-            "frozen": False,
-            "is_deleted": False,
-            "created_at": now_iso(),
-        })
-        logger.info(f"Seeded admin: {ADMIN_EMAIL}")
-        return
-    updates = {}
-    if not verify_password(ADMIN_PASSWORD, existing["password_hash"]):
-        updates["password_hash"] = hash_password(ADMIN_PASSWORD)
-    if existing.get("frozen"):
-        updates["frozen"] = False
-    if "agent_code" in existing:
-        await db.users.update_one({"email": ADMIN_EMAIL}, {"$unset": {"agent_code": ""}})
-    if updates:
-        await db.users.update_one({"email": ADMIN_EMAIL}, {"$set": updates})
+            "created_at": now_iso()
+        }
+        try:
+            await db.admin_credentials.insert_one(default_cred)
+            creds = [default_cred]
+            logger.info("Seeded default admin credentials into admin_credentials table")
+        except Exception as e:
+            logger.error(f"Failed to seed default admin credentials: {e}")
+            
+    # Sync all credentials from admin_credentials to the users table
+    for cred in creds:
+        email = cred["email"].lower()
+        password_hash = cred.get("password_hash") or hash_password(cred.get("password") or ADMIN_PASSWORD)
+        
+        existing = await db.users.find_one({"email": email})
+        if not existing:
+            try:
+                await db.users.insert_one({
+                    "id": cred.get("id") or new_id(),
+                    "role": "admin",
+                    "full_name": "Super Admin",
+                    "email": email,
+                    "password_hash": password_hash,
+                    "phone": "",
+                    "address": "",
+                    "frozen": False,
+                    "is_deleted": False,
+                    "created_at": now_iso(),
+                })
+                logger.info(f"Synced and seeded admin user: {email}")
+            except Exception as e:
+                logger.error(f"Failed to insert synced admin: {e}")
+        else:
+            updates = {}
+            if existing.get("role") != "admin":
+                updates["role"] = "admin"
+            if existing.get("password_hash") != password_hash:
+                updates["password_hash"] = password_hash
+            if existing.get("frozen"):
+                updates["frozen"] = False
+            if "agent_code" in existing:
+                try:
+                    await db.users.update_one({"email": email}, {"$unset": {"agent_code": ""}})
+                except Exception:
+                    pass
+            if updates:
+                try:
+                    await db.users.update_one({"email": email}, {"$set": updates})
+                except Exception as e:
+                    logger.error(f"Failed to update synced admin: {e}")
 
 
 async def _ensure_commission_settings() -> None:

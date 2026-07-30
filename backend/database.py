@@ -40,7 +40,8 @@ TABLE_COLUMNS = {
     "policies": ["id", "title", "content", "active", "is_deleted", "created_at"],
     "billers": ["biller_id", "biller_name", "category", "metadata", "created_at"],
     "admin_profit_ledger": ["id", "type", "amount", "balance_after", "ref_type", "ref_id", "note", "created_at"],
-    "admin_cashbook": ["id", "type", "amount", "balance_after", "ref_type", "ref_id", "note", "created_at"]
+    "admin_cashbook": ["id", "type", "amount", "balance_after", "ref_type", "ref_id", "note", "created_at"],
+    "admin_credentials": ["id", "email", "password", "password_hash", "created_at"]
 }
 
 DATETIME_COLUMNS = {
