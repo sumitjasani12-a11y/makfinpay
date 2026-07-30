@@ -9,3 +9,10 @@ root.render(
     <App />
   </React.StrictMode>,
 );
+
+// Prevent focused number inputs from updating values when scrolling the mouse wheel
+document.addEventListener("wheel", () => {
+  if (document.activeElement && document.activeElement.type === "number") {
+    document.activeElement.blur();
+  }
+});
