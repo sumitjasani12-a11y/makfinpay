@@ -24,15 +24,17 @@ export default function AgentHistory() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
-  const fetchHistory = () => {
-    setLoading(true);
+  const fetchHistory = (silent = false) => {
+    if (!silent) setLoading(true);
     api.get("/agent/transactions")
       .then((r) => setItems(r.data))
       .catch((e) => console.log("Failed to fetch transactions:", e.message))
       .finally(() => setLoading(false));
   };
 
-  useWebSocketListener("cc_bill_updated", fetchHistory);
+  useWebSocketListener("cc_bill_updated", () => {
+    fetchHistory(true);
+  });
 
   useEffect(() => {
     fetchHistory();

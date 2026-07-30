@@ -137,8 +137,8 @@ export default function AdminTransactions() {
     return p;
   }, [status, range, from, to, customApplied, debouncedQ, debouncedAmt, debouncedAgent, debouncedBank, page, pageSize]);
 
-  const reload = useCallback(() => {
-    setLoading(true);
+  const reload = useCallback((silent = false) => {
+    if (!silent) setLoading(true);
     // paginated list
     const pagePromise = api.get("/admin/transactions", { params });
 
@@ -160,7 +160,7 @@ export default function AdminTransactions() {
 
         const allMatched = statsRes.data || [];
         allMatched.forEach((item) => {
-          const amt = item.bill_amount ?? item.amount ?? 0;
+          const amt = item.total_amount ?? item.amount ?? 0;
           if (item.status === "success") {
             success += amt;
             successCount++;
@@ -181,12 +181,11 @@ export default function AdminTransactions() {
   useEffect(() => { reload(); }, [reload]);
 
   useWebSocketListener("cc_bill_created", () => {
-    reload();
-    toast.info("New Credit Card Bill payment request received!");
+    reload(true);
   });
 
   useWebSocketListener("cc_bill_updated", () => {
-    reload();
+    reload(true);
   });
   useEffect(() => { setPage(1); }, [status, debouncedAgent, debouncedBank, range, from, to, customApplied, debouncedQ, debouncedAmt, pageSize]);
 

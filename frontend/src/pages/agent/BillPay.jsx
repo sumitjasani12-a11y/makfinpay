@@ -83,15 +83,17 @@ export default function AgentBillPay() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
-  const fetchHistory = () => {
-    setLoadingHistory(true);
+  const fetchHistory = (silent = false) => {
+    if (!silent) setLoadingHistory(true);
     api.get("/agent/transactions")
       .then((r) => setHistoryItems(r.data || []))
       .catch((e) => console.log("Failed to fetch transactions:", e.message))
       .finally(() => setLoadingHistory(false));
   };
 
-  useWebSocketListener("cc_bill_updated", fetchHistory);
+  useWebSocketListener("cc_bill_updated", () => {
+    fetchHistory(true);
+  });
 
   useEffect(() => {
     setPage(1);

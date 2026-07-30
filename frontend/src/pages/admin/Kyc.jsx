@@ -187,7 +187,6 @@ export default function AdminKyc() {
 
   useWebSocketListener("kyc_submitted", () => {
     reload();
-    toast.info("New KYC request received!");
   });
 
   useWebSocketListener("kyc_updated", () => {

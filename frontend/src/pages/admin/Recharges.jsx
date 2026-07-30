@@ -117,8 +117,8 @@ export default function AdminRecharges() {
     return p;
   }, [status, range, from, to, customApplied, debouncedQ, debouncedAmt, debouncedAgent, debouncedQr, page, pageSize]);
 
-  const reload = useCallback(() => {
-    setLoading(true);
+  const reload = useCallback((silent = false) => {
+    if (!silent) setLoading(true);
     // paginated list
     const pagePromise = api.get("/admin/recharges", { params });
 
@@ -161,12 +161,11 @@ export default function AdminRecharges() {
   useEffect(() => { reload(); }, [reload]);
 
   useWebSocketListener("recharge_created", () => {
-    reload();
-    toast.info("New QR Load wallet request received!");
+    reload(true);
   });
 
   useWebSocketListener("recharge_updated", () => {
-    reload();
+    reload(true);
   });
 
   // Reset page to 1 when any filter (other than page/pageSize) changes.
