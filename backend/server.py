@@ -964,8 +964,12 @@ async def adjust_balance(user_id: str, delta: float) -> float:
     w = await get_or_create_wallet(user_id)
     new_balance = round(w["balance"] + delta, 2)
     u = await db.users.find_one({"id": user_id})
-    if new_balance < 0 and u and u.get("role") == "agent":
-        raise HTTPException(400, "Insufficient wallet balance")
+    role = u.get("role") if u else "agent"
+    if new_balance < 0:
+        if role == "agent":
+            raise HTTPException(400, "Insufficient wallet balance")
+        else:
+            new_balance = 0.0
     await db.wallets.update_one({"user_id": user_id}, {"$set": {"balance": new_balance, "updated_at": now_iso()}})
     return new_balance
 
