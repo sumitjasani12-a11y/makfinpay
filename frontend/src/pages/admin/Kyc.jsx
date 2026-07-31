@@ -112,7 +112,7 @@ function KycDetailModal({ record, onClose, onApprove, onReject }) {
                   <div className="bg-neutral-100 rounded-lg h-24 overflow-hidden border border-neutral-200/50 flex items-center justify-center">
                     {/* Render preview if it is an image */}
                     {doc.path.match(/\.(jpeg|jpg|gif|png|webp)/i) ? (
-                      <img src={fileUrl(doc.path)} alt={doc.label} className="h-full w-full object-cover" />
+                      <img src={fileUrl(doc.path) + "&thumbnail=true"} alt={doc.label} className="h-full w-full object-cover" />
                     ) : (
                       <span className="text-[10px] text-neutral-500 uppercase font-mono">Document File</span>
                     )}

@@ -165,6 +165,53 @@ def put_object(path: str, data: bytes, content_type: str):
     )
     r.raise_for_status()
     return r.json()
+def make_thumbnail(data: bytes, ext: str) -> bytes:
+    import io
+    from PIL import Image
+    try:
+        img = Image.open(io.BytesIO(data))
+        img.thumbnail((300, 300))
+        out = io.BytesIO()
+        fmt = img.format if img.format else 'JPEG'
+        if fmt == 'JPEG' and img.mode in ('RGBA', 'LA'):
+            img = img.convert('RGB')
+        img.save(out, format=fmt, quality=75)
+        return out.getvalue()
+    except Exception as e:
+        logger.error(f"Failed to generate thumbnail: {e}")
+        return data
+
+def get_object_thumbnail(path: str):
+    local_cache_path = os.path.join("cache", "thumbnails", path)
+    if os.path.exists(local_cache_path):
+        try:
+            with open(local_cache_path, "rb") as f:
+                content = f.read()
+            ext = path.rsplit(".", 1)[-1].lower() if "." in path else "bin"
+            ct_map = {
+                "png": "image/png",
+                "jpg": "image/jpeg",
+                "jpeg": "image/jpeg",
+                "webp": "image/webp"
+            }
+            return content, ct_map.get(ext, "image/jpeg")
+        except Exception as e:
+            logger.error(f"Failed to read thumbnail cache: {e}")
+
+    original_data, ct = get_object(path)
+    if not ct.startswith("image/"):
+        return original_data, ct
+        
+    thumbnail_data = make_thumbnail(original_data, path.rsplit(".", 1)[-1].lower() if "." in path else "jpeg")
+    
+    try:
+        os.makedirs(os.path.dirname(local_cache_path), exist_ok=True)
+        with open(local_cache_path, "wb") as f:
+            f.write(thumbnail_data)
+    except Exception as e:
+        logger.error(f"Failed to write thumbnail cache: {e}")
+        
+    return thumbnail_data, ct
 
 def get_object(path: str):
     supabase_url = os.environ.get("SUPABASE_URL")
@@ -865,7 +912,7 @@ async def upload_file(file: UploadFile = File(...), user: dict = Depends(get_cur
     return {"path": result["path"], "size": result.get("size", len(data))}
 
 @api.get("/files/{path:path}")
-async def serve_file(path: str, auth: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
+async def serve_file(path: str, auth: Optional[str] = Query(None), authorization: Optional[str] = Header(None), thumbnail: Optional[bool] = Query(None)):
     token = None
     if authorization and authorization.startswith("Bearer "):
         token = authorization[7:]
@@ -887,7 +934,12 @@ async def serve_file(path: str, auth: Optional[str] = Query(None), authorization
     rec = await db.files.find_one({"storage_path": path, "is_deleted": False}, {"_id": 0})
     if not rec:
         raise HTTPException(404, "File not found")
-    data, ct = get_object(path)
+    
+    if thumbnail and rec.get("content_type", "").startswith("image/"):
+        data, ct = get_object_thumbnail(path)
+    else:
+        data, ct = get_object(path)
+        
     return FastResponse(content=data, media_type=rec.get("content_type", ct))
 
 # ---------- LEDGER + WALLET HELPERS ----------
@@ -4352,37 +4404,55 @@ async def admin_kyc(user=Depends(require_roles("admin"))):
     """List every agent's KYC record with full details for review.
     Joined with the agent (name/phone/address) and the creating distributor.
     """
-    items = await db.kyc.find({}, {"_id": 0}).sort("updated_at", -1).to_list(2000)
-    # Build lookup maps in one shot
-    user_ids = [it["user_id"] for it in items]
-    users_map: dict = {}
-    parent_ids: set = set()
-    async for u in db.users.find({"id": {"$in": user_ids}},
-                                  {"_id": 0, "id": 1, "full_name": 1, "email": 1, "role": 1,
-                                   "phone": 1, "address": 1, "parent_id": 1,
-                                   "firm_name": 1, "firm_address": 1,
-                                   "created_by_role": 1, "kyc_status": 1, "created_at": 1}):
-        users_map[u["id"]] = u
-        if u.get("parent_id"):
-            parent_ids.add(u["parent_id"])
-    dist_map: dict = {}
-    if parent_ids:
-        async for d in db.users.find({"id": {"$in": list(parent_ids)}}, {"_id": 0, "id": 1, "full_name": 1}):
-            dist_map[d["id"]] = d.get("full_name", "")
+    async with db.pool.acquire() as conn:
+        rows = await conn.fetch('''
+            SELECT 
+                k.id, k.user_id, k.status as kyc_record_status, k.rejection_reason, k.updated_at, k.reviewed_at, k.reviewed_by,
+                k.aadhaar_path, k.pan_path, k.aadhaar_back_path, k.pan_back_path, k.selfie_path, k.cheque_path, k.firm_front_path,
+                u.full_name, u.email, u.role, u.phone, u.address, u.parent_id, u.firm_name, u.firm_address, u.created_by_role, u.kyc_status, u.created_at,
+                p.full_name as distributor_name
+            FROM kyc k
+            JOIN users u ON k.user_id = u.id
+            LEFT JOIN users p ON u.parent_id = p.id
+            WHERE u.role IN ('agent', 'distributor', 'master_distributor') AND u.is_deleted = FALSE
+            ORDER BY k.updated_at DESC
+            LIMIT 2000
+        ''')
+        
     enriched = []
-    for it in items:
-        u = users_map.get(it["user_id"], {})
-        if u.get("role") not in ("agent", "distributor", "master_distributor"):
-            continue
-        it["user"] = u
-        it["distributor_name"] = (
-            dist_map.get(u.get("parent_id"), "Admin")
-            if u.get("parent_id") else "Admin"
-        )
-        # Prefer the agent's authoritative kyc_status (kept in sync below)
-        it["status"] = u.get("kyc_status", it.get("status", "pending"))
-        it["submitted_at"] = u.get("created_at") or it.get("updated_at")
-        enriched.append(it)
+    for r in rows:
+        enriched.append({
+            "id": str(r["id"]),
+            "user_id": str(r["user_id"]),
+            "aadhaar_path": r["aadhaar_path"],
+            "pan_path": r["pan_path"],
+            "aadhaar_back_path": r["aadhaar_back_path"],
+            "pan_back_path": r["pan_back_path"],
+            "selfie_path": r["selfie_path"],
+            "cheque_path": r["cheque_path"],
+            "firm_front_path": r["firm_front_path"],
+            "status": r["kyc_status"] or r["kyc_record_status"] or "pending",
+            "rejection_reason": r["rejection_reason"],
+            "updated_at": r["updated_at"].isoformat() if r["updated_at"] else None,
+            "reviewed_at": r["reviewed_at"].isoformat() if r["reviewed_at"] else None,
+            "reviewed_by": str(r["reviewed_by"]) if r["reviewed_by"] else None,
+            "submitted_at": r["created_at"].isoformat() if r["created_at"] else (r["updated_at"].isoformat() if r["updated_at"] else None),
+            "distributor_name": r["distributor_name"] or "Admin",
+            "user": {
+                "id": str(r["user_id"]),
+                "full_name": r["full_name"],
+                "email": r["email"],
+                "role": r["role"],
+                "phone": r["phone"],
+                "address": r["address"],
+                "parent_id": str(r["parent_id"]) if r["parent_id"] else None,
+                "firm_name": r["firm_name"],
+                "firm_address": r["firm_address"],
+                "created_by_role": r["created_by_role"],
+                "kyc_status": r["kyc_status"],
+                "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+            }
+        })
     return enriched
 
 
@@ -5873,6 +5943,7 @@ async def _ensure_indexes() -> None:
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_withdrawals_created_at ON withdrawals (created_at DESC)')
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_ledger_created_at ON ledger (created_at DESC)')
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_users_role_created_at ON users (role, created_at DESC)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_kyc_updated_at ON kyc (updated_at DESC)')
         await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS older_qr BOOLEAN DEFAULT FALSE')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS logo_path TEXT')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS favicon_path TEXT')
