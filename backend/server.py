@@ -3077,11 +3077,11 @@ async def agent_create_recharge(body: RechargeIn, user=Depends(require_approved_
     if not body.card_last4 or not body.card_last4.isdigit() or len(body.card_last4) != 4:
         raise HTTPException(400, "Please enter exactly 4 digits")
 
-    # Idempotency guard — reject duplicate UTR for the same agent if a prior
+    # Idempotency guard — reject duplicate UTR across all agents if a prior
     # pending/approved recharge with that UTR already exists. Rejected recharges
     # do NOT block re-submission (admin may have asked the agent to retry).
     duplicate = await db.recharges.find_one(
-        {"user_id": user["id"], "utr": utr, "status": {"$in": ["pending", "approved"]}},
+        {"utr": utr, "status": {"$in": ["pending", "approved"]}},
         {"_id": 0, "id": 1},
     )
     if duplicate:
@@ -5944,6 +5944,11 @@ async def _ensure_indexes() -> None:
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_ledger_created_at ON ledger (created_at DESC)')
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_users_role_created_at ON users (role, created_at DESC)')
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_kyc_updated_at ON kyc (updated_at DESC)')
+        try:
+            await conn.execute('DROP INDEX IF EXISTS uniq_user_utr_active')
+            await conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS uniq_utr_active ON recharges (utr) WHERE status IN ('pending', 'approved')")
+        except Exception as e:
+            logger.warning(f"Could not create unique UTR index: {e}")
         await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS older_qr BOOLEAN DEFAULT FALSE')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS logo_path TEXT')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS favicon_path TEXT')

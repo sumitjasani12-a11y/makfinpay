@@ -21,7 +21,18 @@ def client():
 def _login(client, email, password):
     r = client.post("/api/auth/login", json={"email": email, "password": password})
     assert r.status_code == 200, f"Login failed for {email}: {r.text}"
-    return r.json()["token"]
+    data = r.json()
+    if data.get("status") == "setup_mpin_required":
+        pre_auth_token = data["pre_auth_token"]
+        r_mpin = client.post("/api/auth/setup-mpin", json={"pre_auth_token": pre_auth_token, "mpin": "123456"})
+        assert r_mpin.status_code == 200, f"Setup MPIN failed: {r_mpin.text}"
+        return r_mpin.json()["token"]
+    elif data.get("status") == "mpin_required":
+        pre_auth_token = data["pre_auth_token"]
+        r_mpin = client.post("/api/auth/verify-mpin", json={"pre_auth_token": pre_auth_token, "mpin": "123456"})
+        assert r_mpin.status_code == 200, f"Verify MPIN failed: {r_mpin.text}"
+        return r_mpin.json()["token"]
+    return data["token"]
 
 def _h(token):
     return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
@@ -126,3 +137,51 @@ def test_normal_admin_cannot_adjust_balance(client, normal_admin_token, super_ad
     r_adj = client.post(f"/api/admin/users/{uid}/adjust-balance", headers=_h(normal_admin_token), json=payload)
     assert r_adj.status_code == 403
     assert "Only the Super Admin" in r_adj.text
+
+def test_global_utr_duplicate_prevention(client, super_admin_token):
+    import random
+    uid_1 = f"agent1_{random.randint(1000, 9999)}"
+    uid_2 = f"agent2_{random.randint(1000, 9999)}"
+    
+    agent1_email = f"{uid_1}@example.com"
+    agent2_email = f"{uid_2}@example.com"
+    
+    # Create Agent 1
+    r1 = client.post("/api/admin/users", headers=_h(super_admin_token), json={
+        "role": "agent", "full_name": "Agent One", "email": agent1_email,
+        "password": "TestPass@123", "phone": "9998881111", "address": "Addr 1",
+        "commission_percent": 1.0, "t1_commission_percent": 1.5
+    })
+    assert r1.status_code == 200
+    agent1 = r1.json()
+    client.post(f"/api/admin/kyc/{agent1['id']}/approve", headers=_h(super_admin_token))
+    
+    # Create Agent 2
+    r2 = client.post("/api/admin/users", headers=_h(super_admin_token), json={
+        "role": "agent", "full_name": "Agent Two", "email": agent2_email,
+        "password": "TestPass@123", "phone": "9998882222", "address": "Addr 2",
+        "commission_percent": 1.0, "t1_commission_percent": 1.5
+    })
+    assert r2.status_code == 200
+    agent2 = r2.json()
+    client.post(f"/api/admin/kyc/{agent2['id']}/approve", headers=_h(super_admin_token))
+    
+    utr = "".join(random.choices("0123456789", k=12))
+    
+    # Login as Agent 1 and submit recharge with UTR
+    t1 = _login(client, agent1_email, "TestPass@123")
+    r_sub1 = client.post("/api/agent/recharges", headers=_h(t1), json={
+        "amount": 500, "utr": utr, "card_last4": "1234", "screenshot_path": "uploads/test.png"
+    })
+    assert r_sub1.status_code == 200
+    
+    # Login as Agent 2 and try to submit recharge with SAME UTR
+    t2 = _login(client, agent2_email, "TestPass@123")
+    r_sub2 = client.post("/api/agent/recharges", headers=_h(t2), json={
+        "amount": 500, "utr": utr, "card_last4": "1234", "screenshot_path": "uploads/test.png"
+    })
+    assert r_sub2.status_code == 409
+    
+    # Clean up
+    client.post(f"/api/admin/users/{agent1['id']}/delete", headers=_h(super_admin_token))
+    client.post(f"/api/admin/users/{agent2['id']}/delete", headers=_h(super_admin_token))
