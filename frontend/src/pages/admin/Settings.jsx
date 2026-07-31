@@ -12,6 +12,7 @@ export default function AdminSettings() {
   // limits settings
   const [minLimit, setMinLimit] = useState("");
   const [maxLimit, setMaxLimit] = useState("");
+  const [liveBillMaxLimit, setLiveBillMaxLimit] = useState("");
   const [apiCharge, setApiCharge] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -28,6 +29,7 @@ export default function AdminSettings() {
       const { data } = await api.get("/admin/settings/recharge-limits");
       setMinLimit(String(data.min_recharge_limit ?? 100));
       setMaxLimit(String(data.max_recharge_limit ?? 300000));
+      setLiveBillMaxLimit(String(data.live_bill_max_limit ?? 100000));
       setApiCharge(String(data.live_bill_api_charge ?? 0));
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Failed to load settings");
@@ -53,6 +55,7 @@ export default function AdminSettings() {
     e.preventDefault();
     const minVal = parseFloat(minLimit);
     const maxVal = parseFloat(maxLimit);
+    const liveBillMaxVal = parseFloat(liveBillMaxLimit);
     const chargeVal = parseFloat(apiCharge);
 
     if (Number.isNaN(minVal) || minVal <= 0) {
@@ -64,6 +67,9 @@ export default function AdminSettings() {
     if (maxVal < minVal) {
       return toast.error("Maximum limit cannot be less than minimum limit");
     }
+    if (Number.isNaN(liveBillMaxVal) || liveBillMaxVal <= 0) {
+      return toast.error("Live Bill maximum limit must be a number greater than 0");
+    }
     if (Number.isNaN(chargeVal) || chargeVal < 0) {
       return toast.error("API Charge must be a positive number or zero");
     }
@@ -73,6 +79,7 @@ export default function AdminSettings() {
       await api.put("/admin/settings/recharge-limits", {
         min_recharge_limit: minVal,
         max_recharge_limit: maxVal,
+        live_bill_max_limit: liveBillMaxVal,
       });
       await api.put("/admin/settings/recharge-toggles", {
         live_bill_api_charge: chargeVal,
@@ -210,6 +217,27 @@ export default function AdminSettings() {
                       onChange={(e) => setApiCharge(e.target.value)}
                       className="mfp-input !pl-9"
                       placeholder="0.00"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="mfp-label font-bold text-neutral-600">
+                    Live Bill Maximum Limit (₹) <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-400 font-bold text-xs pointer-events-none">
+                      ₹
+                    </span>
+                    <input
+                      type="number"
+                      min="1"
+                      step="0.01"
+                      required
+                      value={liveBillMaxLimit}
+                      onChange={(e) => setLiveBillMaxLimit(e.target.value)}
+                      className="mfp-input !pl-9"
+                      placeholder="100000.00"
                     />
                   </div>
                 </div>

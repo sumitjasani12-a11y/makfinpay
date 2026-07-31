@@ -457,6 +457,7 @@ class CommissionSettingsIn(BaseModel):
 class RechargeLimitsIn(BaseModel):
     min_recharge_limit: float
     max_recharge_limit: float
+    live_bill_max_limit: Optional[float] = 100000.0
 
 class RechargeTogglesIn(BaseModel):
     qr_enabled: Optional[bool] = None
@@ -3343,7 +3344,7 @@ async def agent_bill_payment(body: BillPaymentIn, user=Depends(require_approved_
             break
             
     if not matched:
-        service_charge = 15.0 if body.amount <= 50000 else 25.0
+        raise HTTPException(400, "Invalid bill amount. The amount must fall within one of the active service charge slabs.")
         
     total_amount = round(body.amount + service_charge, 2)
     w = await get_or_create_wallet(user["id"])
@@ -3731,6 +3732,10 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
         
     if body.amount <= 0:
         raise HTTPException(status_code=400, detail="Invalid bill amount")
+        
+    max_limit = float(s.get("live_bill_max_limit", 100000.0))
+    if body.amount > max_limit:
+        raise HTTPException(status_code=400, detail=f"Bill amount cannot exceed ₹{max_limit:,.2f}")
         
     # Calculate service charge based on active slabs
     slabs = await db.service_charge_slabs.find({"is_deleted": False, "active": True}).sort("min_amount", 1).to_list(100)
@@ -4861,6 +4866,7 @@ async def get_admin_recharge_limits(user=Depends(require_roles("admin"))):
     return {
         "min_recharge_limit": float(s.get("min_recharge_limit", 100)),
         "max_recharge_limit": float(s.get("max_recharge_limit", 300000)),
+        "live_bill_max_limit": float(s.get("live_bill_max_limit", 100000)),
         "qr_enabled": bool(s.get("qr_enabled", True)),
         "t1_qr_enabled": bool(s.get("t1_qr_enabled", True)),
         "recharge_enabled": bool(s.get("recharge_enabled", True)),
@@ -4877,10 +4883,13 @@ async def update_admin_recharge_limits(body: RechargeLimitsIn, request: Request,
         raise HTTPException(status_code=400, detail="Minimum limit must be greater than zero")
     if body.max_recharge_limit < body.min_recharge_limit:
         raise HTTPException(status_code=400, detail="Maximum limit cannot be less than minimum limit")
+    if body.live_bill_max_limit is not None and body.live_bill_max_limit <= 0:
+        raise HTTPException(status_code=400, detail="Live Bill maximum limit must be greater than zero")
     
     doc = {
         "min_recharge_limit": body.min_recharge_limit,
         "max_recharge_limit": body.max_recharge_limit,
+        "live_bill_max_limit": body.live_bill_max_limit if body.live_bill_max_limit is not None else 100000.0,
         "updated_at": now_iso()
     }
     await db.settings.update_one({"id": "commission"}, {"$set": doc})
@@ -5803,6 +5812,7 @@ async def _ensure_indexes() -> None:
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS logo_collapsed_path TEXT')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS watermark_path TEXT')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS t1_recharge_enabled BOOLEAN DEFAULT TRUE')
+        await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS live_bill_max_limit NUMERIC(15, 2) DEFAULT 100000')
         await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS firm_name VARCHAR(255)')
         await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS firm_address TEXT')
         await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS first_login BOOLEAN DEFAULT TRUE')
