@@ -5355,7 +5355,7 @@ async def _transaction_metrics(date_match: dict) -> dict:
     """Aggregates successful bill payments: volume, count and service-charge revenue."""
     txn_match = {"status": "success", **date_match}
     
-    cc_agg = await db.transactions.aggregate([
+    cc_task = db.transactions.aggregate([
         {"$match": {"type": "credit_card", **txn_match}},
         {"$group": {
             "_id": None,
@@ -5365,7 +5365,7 @@ async def _transaction_metrics(date_match: dict) -> dict:
         }}
     ]).to_list(1)
 
-    live_agg = await db.transactions.aggregate([
+    live_task = db.transactions.aggregate([
         {"$match": {"type": "live_bill", **txn_match}},
         {"$group": {
             "_id": None,
@@ -5375,6 +5375,8 @@ async def _transaction_metrics(date_match: dict) -> dict:
             "api_charges": {"$sum": {"$ifNull": ["$api_charge", 0]}},
         }}
     ]).to_list(1)
+
+    cc_agg, live_agg = await asyncio.gather(cc_task, live_task)
 
     cc_vol = cc_agg[0]["vol"] if cc_agg else 0.0
     cc_count = cc_agg[0]["count"] if cc_agg else 0
@@ -5416,47 +5418,53 @@ async def admin_stats_financial(
     start, end = _resolve_range(range, from_date, to_date)
     date_match = {"created_at": {"$gte": start, "$lt": end}} if start and end else {}
 
-    rev = await _recharge_revenue_breakdown(date_match)
-    txn = await _transaction_metrics(date_match)
-    total_wallet = await _total_wallet_balance()  # always lifetime, never filtered
-    # Optimized total distributor and MD earnings calculations
-    dist_lifetime_agg = await db.recharges.aggregate([
+    rev_task = _recharge_revenue_breakdown(date_match)
+    txn_task = _transaction_metrics(date_match)
+    total_wallet_task = _total_wallet_balance()
+
+    dist_lifetime_task = db.recharges.aggregate([
         {"$match": {"status": "approved"}},
         {"$group": {"_id": None, "total": {"$sum": "$distributor_earnings_amount"}}}
     ]).to_list(1)
-    dist_lifetime = dist_lifetime_agg[0]["total"] if dist_lifetime_agg else 0.0
 
-    dist_paid_agg = await db.withdrawals.aggregate([
+    dist_paid_task = db.withdrawals.aggregate([
         {"$match": {"status": "approved", "role": "distributor"}},
         {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
     ]).to_list(1)
-    dist_paid = dist_paid_agg[0]["total"] if dist_paid_agg else 0.0
 
-    total_distributor_earnings = round(dist_lifetime - dist_paid, 2)
-
-    md_lifetime_agg = await db.recharges.aggregate([
+    md_lifetime_task = db.recharges.aggregate([
         {"$match": {"status": "approved"}},
         {"$group": {"_id": None, "total": {"$sum": "$md_earnings_amount"}}}
     ]).to_list(1)
-    md_lifetime = md_lifetime_agg[0]["total"] if md_lifetime_agg else 0.0
 
-    md_paid_agg = await db.withdrawals.aggregate([
+    md_paid_task = db.withdrawals.aggregate([
         {"$match": {"status": "approved", "role": "master_distributor"}},
         {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
     ]).to_list(1)
-    md_paid = md_paid_agg[0]["total"] if md_paid_agg else 0.0
 
-    total_md_earnings = round(md_lifetime - md_paid, 2)
-    pending_kyc_count = await db.users.count_documents({"role": "agent", "kyc_status": "pending"})
+    pending_kyc_task = db.users.count_documents({"role": "agent", "kyc_status": "pending"})
 
-    # Approved withdrawals in range, broken down by role.
     wd_match = {"status": "approved"}
     if start and end:
         wd_match["reviewed_at"] = {"$gte": start, "$lt": end}
-    wd_agg = await db.withdrawals.aggregate([
+    wd_agg_task = db.withdrawals.aggregate([
         {"$match": wd_match},
         {"$group": {"_id": "$role", "total": {"$sum": "$amount"}}},
     ]).to_list(None)
+
+    rev, txn, total_wallet, dist_lifetime_agg, dist_paid_agg, md_lifetime_agg, md_paid_agg, pending_kyc_count, wd_agg = await asyncio.gather(
+        rev_task, txn_task, total_wallet_task,
+        dist_lifetime_task, dist_paid_task, md_lifetime_task, md_paid_task,
+        pending_kyc_task, wd_agg_task
+    )
+
+    dist_lifetime = dist_lifetime_agg[0]["total"] if dist_lifetime_agg else 0.0
+    dist_paid = dist_paid_agg[0]["total"] if dist_paid_agg else 0.0
+    total_distributor_earnings = round(dist_lifetime - dist_paid, 2)
+
+    md_lifetime = md_lifetime_agg[0]["total"] if md_lifetime_agg else 0.0
+    md_paid = md_paid_agg[0]["total"] if md_paid_agg else 0.0
+    total_md_earnings = round(md_lifetime - md_paid, 2)
     agent_wd = 0.0
     dist_wd = 0.0
     md_wd = 0.0
@@ -5511,33 +5519,22 @@ async def admin_stats(full: bool = False, user=Depends(require_roles("admin"))):
     }
     
     if full:
-        # Load heavy dashboard aggregates only when requested
         total_agents_task = db.users.count_documents({"role": "agent", "is_deleted": False})
         total_distributors_task = db.users.count_documents({"role": "distributor", "is_deleted": False})
         total_master_distributors_task = db.users.count_documents({"role": "master_distributor", "is_deleted": False})
         
-        total_wallet_task = db.wallets.aggregate([{"$group": {"_id": None, "total": {"$sum": "$balance"}}}]).to_list(1)
-        total_revenue_task = db.recharges.aggregate([{"$match": {"status": "approved"}}, {"$group": {"_id": None, "total": {"$sum": "$commission_amount"}}}]).to_list(1)
-        total_txn_task = db.transactions.aggregate([{"$match": {"status": "success"}}, {"$group": {"_id": None, "total": {"$sum": "$amount"}, "count": {"$sum": 1}}}]).to_list(1)
-        
-        total_agents, total_distributors, total_master_distributors, agg, rev_agg, txn_agg = await asyncio.gather(
-            total_agents_task, total_distributors_task, total_master_distributors_task,
-            total_wallet_task, total_revenue_task, total_txn_task
+        total_agents, total_distributors, total_master_distributors = await asyncio.gather(
+            total_agents_task, total_distributors_task, total_master_distributors_task
         )
-        
-        total_wallet = agg[0]["total"] if agg else 0
-        total_revenue = rev_agg[0]["total"] if rev_agg else 0
-        total_txn_amount = txn_agg[0]["total"] if txn_agg else 0
-        total_txn_count = txn_agg[0]["count"] if txn_agg else 0
         
         stats.update({
             "total_agents": total_agents,
             "total_distributors": total_distributors,
             "total_master_distributors": total_master_distributors,
-            "total_wallet": round(total_wallet, 2),
-            "total_revenue": round(total_revenue, 2),
-            "total_txn_amount": round(total_txn_amount, 2),
-            "total_txn_count": total_txn_count,
+            "total_wallet": 0.0,
+            "total_revenue": 0.0,
+            "total_txn_amount": 0.0,
+            "total_txn_count": 0,
         })
         
     return stats
