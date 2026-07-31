@@ -3347,8 +3347,8 @@ async def agent_bill_payment(body: BillPaymentIn, user=Depends(require_approved_
         
     total_amount = round(body.amount + service_charge, 2)
     w = await get_or_create_wallet(user["id"])
-    if w["balance"] < total_amount:
-        raise HTTPException(400, "Insufficient wallet balance")
+    if w["balance"] - total_amount < 500.0:
+        raise HTTPException(400, "Insufficient wallet balance. A minimum balance of ₹500.00 must be maintained in the wallet.")
     new_balance = await adjust_balance(user["id"], -total_amount)
     tx = {
         "id": new_id(),
@@ -3751,8 +3751,8 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
     total_amount = round(body.amount + service_charge, 2)
 
     wallet = await get_or_create_wallet(user["id"])
-    if wallet["balance"] < total_amount:
-        raise HTTPException(status_code=400, detail="Insufficient wallet balance")
+    if wallet["balance"] - total_amount < 500.0:
+        raise HTTPException(status_code=400, detail="Insufficient wallet balance. A minimum balance of ₹500.00 must be maintained in the wallet.")
         
     # Verify TPIN
     tpin_hash = user.get("tpin_hash")
