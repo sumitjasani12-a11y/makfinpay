@@ -2283,36 +2283,68 @@ async def admin_list_users(
 
     parent_ids = list({it.get("parent_id") for it in items if it.get("parent_id")})
     md_ids_for_map = list({it.get("md_id") for it in items if it.get("md_id")})
-    parent_map = await _build_parent_name_map(list({*parent_ids, *md_ids_for_map}))
-    wallets_map = await _wallet_balances_for([it["id"] for it in items])
-    wallet_details = {w["user_id"]: w async for w in db.wallets.find({"user_id": {"$in": [it["id"] for it in items]}})}
+    
+    parent_map_task = _build_parent_name_map(list({*parent_ids, *md_ids_for_map}))
+    wallets_map_task = _wallet_balances_for([it["id"] for it in items])
+    wallet_details_task = db.wallets.find({"user_id": {"$in": [it["id"] for it in items]}}).to_list(None)
+    
     distributor_ids = [it["id"] for it in items if it.get("role") == "distributor"]
-    earnings_map = await _distributor_earnings_batch(distributor_ids)
+    earnings_map_task = _distributor_earnings_batch(distributor_ids)
+    
     md_ids = [it["id"] for it in items if it.get("role") == "master_distributor"]
-    md_earnings_map = await _md_earnings_batch(md_ids)
+    md_earnings_map_task = _md_earnings_batch(md_ids)
 
-    # For MD rows, also count their downstream users (distributors + agents).
-    md_dist_counts: dict = {}
-    md_agent_counts: dict = {}
+    md_dist_task = None
+    md_agent_task = None
     if md_ids:
-        async for row in db.users.aggregate([
+        md_dist_task = db.users.aggregate([
             {"$match": {"md_id": {"$in": md_ids}, "role": "distributor", "is_deleted": False}},
             {"$group": {"_id": "$md_id", "n": {"$sum": 1}}},
-        ]):
-            md_dist_counts[row["_id"]] = row["n"]
-        async for row in db.users.aggregate([
+        ]).to_list(None)
+        md_agent_task = db.users.aggregate([
             {"$match": {"md_id": {"$in": md_ids}, "role": "agent", "is_deleted": False}},
             {"$group": {"_id": "$md_id", "n": {"$sum": 1}}},
-        ]):
-            md_agent_counts[row["_id"]] = row["n"]
+        ]).to_list(None)
 
-    dist_agent_counts: dict = {}
+    dist_agent_task = None
     if distributor_ids:
-        async for row in db.users.aggregate([
+        dist_agent_task = db.users.aggregate([
             {"$match": {"parent_id": {"$in": distributor_ids}, "role": "agent", "is_deleted": False}},
             {"$group": {"_id": "$parent_id", "n": {"$sum": 1}}},
-        ]):
-            dist_agent_counts[row["_id"]] = row["n"]
+        ]).to_list(None)
+
+    tasks = [
+        parent_map_task,
+        wallets_map_task,
+        wallet_details_task,
+        earnings_map_task,
+        md_earnings_map_task,
+    ]
+    if md_dist_task: tasks.append(md_dist_task)
+    if md_agent_task: tasks.append(md_agent_task)
+    if dist_agent_task: tasks.append(dist_agent_task)
+
+    results = await asyncio.gather(*tasks)
+
+    parent_map = results[0]
+    wallets_map = results[1]
+    wallet_details = {w["user_id"]: w for w in results[2]}
+    earnings_map = results[3]
+    md_earnings_map = results[4]
+
+    idx = 5
+    md_dist_counts = {}
+    if md_dist_task:
+        md_dist_counts = {row["_id"]: row["n"] for row in results[idx]}
+        idx += 1
+    md_agent_counts = {}
+    if md_agent_task:
+        md_agent_counts = {row["_id"]: row["n"] for row in results[idx]}
+        idx += 1
+    dist_agent_counts = {}
+    if dist_agent_task:
+        dist_agent_counts = {row["_id"]: row["n"] for row in results[idx]}
+        idx += 1
 
     for it in items:
         it["wallet_balance"] = wallets_map.get(it["id"], 0)
@@ -5755,6 +5787,8 @@ async def _ensure_indexes() -> None:
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions (user_id)')
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_ledger_user_id ON ledger (user_id)')
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_withdrawals_user_id ON withdrawals (user_id)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_recharges_distributor_id ON recharges (distributor_id)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_recharges_md_id ON recharges (md_id)')
 
         # Sorting speed indexes
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_users_created_at ON users (created_at DESC)')
