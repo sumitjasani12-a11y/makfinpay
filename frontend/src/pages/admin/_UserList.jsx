@@ -938,13 +938,13 @@ function AdjustBalanceModal({ user, onClose, onUpdated }) {
     }
     setBusy(true);
     try {
-      await api.post(`/admin/users/${user.id}/adjust-balance`, {
+      const { data } = await api.post(`/admin/users/${user.id}/adjust-balance`, {
         amount: parseFloat(amount),
         type,
         note: note.trim()
       });
-      toast.success(`Wallet balance ${type === "credit" ? "credited" : "debited"} successfully`);
-      onUpdated();
+      toast.success(`Balance ${type === "credit" ? "added" : "deducted"} successfully`);
+      onUpdated(data.new_balance, user.id);
       onClose();
     } catch (err) {
       toast.error(formatErr(err.response?.data?.detail) || err.message);
@@ -1078,6 +1078,27 @@ export function AdminUserList({ role }) {
       .catch((e) => toast.error(formatErr(e.response?.data?.detail) || "Failed to load users"))
       .finally(() => setLoading(false));
   }, [params]);
+
+  const handleUserUpdated = useCallback((newBalance, userId) => {
+    if (userId && newBalance !== undefined) {
+      setItems(prev => prev.map(item => {
+        if (item.id === userId) {
+          const diff = newBalance - (item.wallet_balance || 0);
+          const updatedEarnings = (item.earnings !== undefined)
+            ? Math.round((parseFloat(item.earnings || 0) + diff) * 100) / 100
+            : undefined;
+          return {
+            ...item,
+            wallet_balance: newBalance,
+            ...(updatedEarnings !== undefined ? { earnings: updatedEarnings } : {})
+          };
+        }
+        return item;
+      }));
+    } else {
+      reload();
+    }
+  }, [reload]);
 
   useEffect(() => { reload(); }, [reload]);
   useEffect(() => { setPage(1); }, [debouncedQ, pageSize, role]);
@@ -1528,7 +1549,7 @@ export function AdminUserList({ role }) {
         <AdjustBalanceModal
           user={adjustingBalanceUser}
           onClose={() => setAdjustingBalanceUser(null)}
-          onUpdated={reload}
+          onUpdated={handleUserUpdated}
         />
       )}
 
