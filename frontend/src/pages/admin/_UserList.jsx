@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { api, formatErr, fmtMoney, fmtDate, fileUrl } from "@/lib/api";
 import { useDebounced } from "@/lib/hooks";
+import { useAuth } from "@/lib/auth";
 import { PageHeader, DataTable, StatusBadge, EmptyState } from "@/components/Shared";
 import FileUpload from "@/components/FileUpload";
 import { toast } from "sonner";
@@ -923,7 +924,127 @@ function DistributorDetailModal({ distributor, onClose }) {
   );
 }
 
+function AdjustBalanceModal({ user, onClose, onUpdated }) {
+  const [amount, setAmount] = useState("");
+  const [type, setType] = useState("credit");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!amount || parseFloat(amount) <= 0) {
+      toast.error("Please enter a valid amount greater than 0");
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.post(`/admin/users/${user.id}/adjust-balance`, {
+        amount: parseFloat(amount),
+        type,
+        note: note.trim()
+      });
+      toast.success(`Wallet balance ${type === "credit" ? "credited" : "debited"} successfully`);
+      onUpdated();
+      onClose();
+    } catch (err) {
+      toast.error(formatErr(err.response?.data?.detail) || err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4">
+      <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-black/5 shadow-2xl space-y-6 relative">
+        <button type="button" onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-neutral-100 rounded-xl transition-all text-neutral-400 hover:text-neutral-700">
+          <X className="h-6 w-6" />
+        </button>
+
+        <div>
+          <div className="text-[10px] uppercase font-black tracking-widest text-[#1B4332]/60">Super Admin / Wallet Action</div>
+          <h3 className="text-lg font-black text-neutral-800 capitalize leading-tight">Adjust Wallet Balance</h3>
+          <p className="text-xs text-neutral-500 mt-1 capitalize">For {user.full_name} ({user.role?.replace("_", " ")})</p>
+        </div>
+
+        <div className="bg-emerald-50/50 border border-emerald-100/80 rounded-2xl p-4 flex justify-between items-center">
+          <span className="text-xs font-bold text-neutral-500">Current Balance:</span>
+          <span className="text-base font-black text-emerald-800">{fmtMoney(user.wallet_balance)}</span>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3 p-1 bg-neutral-100 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setType("credit")}
+              className={`py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${type === "credit" ? "bg-[#1B4332] text-white shadow-sm" : "text-neutral-500 hover:text-neutral-800"}`}
+            >
+              Add Money (+)
+            </button>
+            <button
+              type="button"
+              onClick={() => setType("debit")}
+              className={`py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${type === "debit" ? "bg-rose-700 text-white shadow-sm" : "text-[#be123c] hover:text-[#be123c]/90"}`}
+            >
+              Deduct Money (-)
+            </button>
+          </div>
+
+          <div className="bg-[#F8F7F2] rounded-2xl p-4 border border-black/[0.02]">
+            <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Amount (₹)</label>
+            <div className="flex items-center mt-1">
+              <span className={`text-base font-black mr-1.5 ${type === "credit" ? "text-[#1B4332]" : "text-rose-700"}`}>₹</span>
+              <input 
+                type="number" 
+                step="0.01"
+                min="0.01"
+                required
+                className="w-full text-base font-black text-neutral-800 bg-transparent border-b border-neutral-100 focus:outline-none py-1" 
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+          </div>
+
+          <div className="bg-[#F8F7F2] rounded-2xl p-4 border border-black/[0.02]">
+            <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Note / Reason</label>
+            <input 
+              type="text"
+              className="w-full text-sm font-semibold text-neutral-800 bg-transparent border-b border-neutral-100 focus:outline-none py-1 mt-1" 
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="e.g. Migration from old system"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button 
+              type="button" 
+              onClick={onClose} 
+              className="w-1/2 text-center text-xs font-bold text-neutral-700 bg-white border border-neutral-200 hover:bg-neutral-50 py-3 rounded-xl transition-all shadow-sm"
+              disabled={busy}
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit" 
+              className={`w-1/2 text-center text-xs font-bold text-white py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 ${type === "credit" ? "bg-[#1B4332] hover:bg-[#133024]" : "bg-rose-700 hover:bg-rose-800"}`}
+              disabled={busy}
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export function AdminUserList({ role }) {
+  const { user: currentUser } = useAuth();
+  const isSuperAdmin = currentUser?.email?.toLowerCase() === "jigs.vanani@gmail.com";
+  const [adjustingBalanceUser, setAdjustingBalanceUser] = useState(null);
+
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -1151,6 +1272,16 @@ export function AdminUserList({ role }) {
             { key: "created_at", label: "Created", render: (r) => fmtDate(r.created_at) },
             { key: "actions", label: "Action", render: (r) => (
               <div className="flex items-center gap-2">
+                {isSuperAdmin && (
+                  <button 
+                    className="p-1.5 border border-emerald-200 text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors inline-flex items-center justify-center font-semibold bg-white" 
+                    onClick={() => setAdjustingBalanceUser(r)} 
+                    title="Adjust Balance"
+                    data-testid={`adjust-balance-${r.id}`}
+                  >
+                    <IndianRupee className="h-4 w-4" />
+                  </button>
+                )}
                 <button 
                   className="p-1.5 border border-neutral-200 text-neutral-600 hover:bg-neutral-50 rounded-lg transition-colors inline-flex items-center justify-center font-semibold" 
                   onClick={() => { setShow(false); setEditingUser(r); }} 
@@ -1287,13 +1418,24 @@ export function AdminUserList({ role }) {
                     {/* Bottom part: Status & Actions */}
                     <div className="flex items-center justify-between border-t border-black/5 pt-4">
                       {/* Status Badge & Comm Info */}
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <StatusBadge status={r.frozen ? "rejected" : (!r.kyc_status || r.kyc_status === "approved" ? "approved" : (r.kyc_status === "rejected" ? "rejected" : "pending"))} />
                         <span className="text-[10px] font-bold text-neutral-400 bg-neutral-100 px-2 py-0.5 rounded-md">Comm: {r.commission_percent ?? 0}%</span>
+                        <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">Bal: {fmtMoney(r.wallet_balance)}</span>
                       </div>
 
                       {/* Actions */}
                       <div className="flex items-center gap-2">
+                        {isSuperAdmin && (
+                          <button
+                            className="p-1.5 border border-emerald-200 text-emerald-700 hover:bg-[#1B4332] hover:text-white hover:border-[#1B4332] rounded-xl transition-all inline-flex items-center justify-center bg-white shadow-sm hover:shadow-md"
+                            onClick={() => setAdjustingBalanceUser(r)}
+                            title="Adjust Balance"
+                            data-testid={`adjust-balance-${r.id}`}
+                          >
+                            <IndianRupee className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                         <button
                           className="p-1.5 border border-neutral-200 text-neutral-600 hover:bg-[#1B4332] hover:text-white hover:border-[#1B4332] rounded-xl transition-all inline-flex items-center justify-center bg-white shadow-sm hover:shadow-md"
                           onClick={() => setDetail(r)}
@@ -1382,6 +1524,13 @@ export function AdminUserList({ role }) {
 
       {detail && isMd && <MdDetailModal md={detail} onClose={() => setDetail(null)} />}
       {detail && isDistributor && <DistributorDetailModal distributor={detail} onClose={() => setDetail(null)} />}
+      {adjustingBalanceUser && (
+        <AdjustBalanceModal
+          user={adjustingBalanceUser}
+          onClose={() => setAdjustingBalanceUser(null)}
+          onUpdated={reload}
+        />
+      )}
 
       {createdCreds && (
         <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4">

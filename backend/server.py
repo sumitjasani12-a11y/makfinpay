@@ -385,6 +385,11 @@ class UpdateUserIn(BaseModel):
     hold_balance_amount: Optional[float] = None
     hold_active: Optional[bool] = None
 
+class AdjustBalanceIn(BaseModel):
+    amount: float = Field(..., gt=0)
+    type: Literal["credit", "debit"]
+    note: Optional[str] = ""
+
 class ChangeFirstPasswordIn(BaseModel):
     password: str
 
@@ -2538,6 +2543,51 @@ async def admin_delete_user(uid: str, request: Request, user=Depends(require_rol
     
     await write_audit(user["id"], "delete_user", target=uid, request=request)
     return {"ok": True}
+
+@api.post("/admin/users/{uid}/adjust-balance")
+async def admin_adjust_balance(uid: str, body: AdjustBalanceIn, request: Request, user=Depends(require_roles("admin"))):
+    if user.get("email", "").lower() != "jigs.vanani@gmail.com":
+        raise HTTPException(403, "Access denied: Only the Super Admin jigs.vanani@gmail.com can adjust wallet balances.")
+        
+    u = await db.users.find_one({"id": uid, "is_deleted": False})
+    if not u:
+        raise HTTPException(404, "User not found")
+        
+    if body.amount <= 0:
+        raise HTTPException(400, "Amount must be greater than zero")
+        
+    delta = body.amount if body.type == "credit" else -body.amount
+    
+    # Check current balance for debit operation
+    wallet = await get_or_create_wallet(uid)
+    if body.type == "debit" and wallet["balance"] < body.amount:
+        raise HTTPException(400, f"Insufficient wallet balance. User has ₹{wallet['balance']:.2f}")
+        
+    new_balance = await adjust_balance(uid, delta)
+    
+    note = body.note or f"Balance adjusted by Super Admin ({body.type})"
+    await ledger_entry(
+        user_id=uid,
+        kind=body.type,
+        amount=body.amount,
+        balance_after=new_balance,
+        ref_type="admin_adjustment",
+        ref_id=user["id"],
+        note=note
+    )
+    
+    await write_audit(
+        user_id=user["id"],
+        action="adjust_balance",
+        target=uid,
+        meta={"amount": body.amount, "type": body.type, "note": note},
+        request=request
+    )
+    
+    await manager.send_to_user(uid, {"event": "recharge_updated", "data": {}})
+    
+    return {"ok": True, "new_balance": new_balance}
+
 
 @api.patch("/distributor/agents/{uid}/freeze")
 async def distributor_freeze(uid: str, request: Request, user=Depends(require_approved_distributor())):
