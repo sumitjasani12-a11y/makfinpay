@@ -5537,8 +5537,14 @@ async def admin_stats_financial(
         {"$group": {"_id": "$role", "total": {"$sum": "$amount"}}},
     ]).to_list(None)
 
+    rev, txn, total_wallet, dist_lifetime_agg, dist_paid_agg, md_lifetime_agg, md_paid_agg, pending_kyc_count, wd_agg = await asyncio.gather(
+        rev_task, txn_task, total_wallet_task,
+        dist_lifetime_task, dist_paid_task, md_lifetime_task, md_paid_task,
+        pending_kyc_task, wd_agg_task
+    )
+
     async with db.pool.acquire() as conn:
-        dist_adj_task = conn.fetchval('''
+        dist_adj = await conn.fetchval('''
             SELECT COALESCE(SUM(
                 CASE WHEN l.kind = 'credit' THEN l.amount ELSE -l.amount END
             ), 0)
@@ -5546,7 +5552,7 @@ async def admin_stats_financial(
             JOIN users u ON l.user_id = u.id
             WHERE l.ref_type = 'admin_adjustment' AND u.role = 'distributor' AND u.is_deleted = FALSE
         ''')
-        md_adj_task = conn.fetchval('''
+        md_adj = await conn.fetchval('''
             SELECT COALESCE(SUM(
                 CASE WHEN l.kind = 'credit' THEN l.amount ELSE -l.amount END
             ), 0)
@@ -5554,12 +5560,6 @@ async def admin_stats_financial(
             JOIN users u ON l.user_id = u.id
             WHERE l.ref_type = 'admin_adjustment' AND u.role = 'master_distributor' AND u.is_deleted = FALSE
         ''')
-
-        rev, txn, total_wallet, dist_lifetime_agg, dist_paid_agg, md_lifetime_agg, md_paid_agg, pending_kyc_count, wd_agg, dist_adj, md_adj = await asyncio.gather(
-            rev_task, txn_task, total_wallet_task,
-            dist_lifetime_task, dist_paid_task, md_lifetime_task, md_paid_task,
-            pending_kyc_task, wd_agg_task, dist_adj_task, md_adj_task
-        )
 
     dist_lifetime = (dist_lifetime_agg[0]["total"] if dist_lifetime_agg else 0.0) + float(dist_adj or 0.0)
     dist_paid = dist_paid_agg[0]["total"] if dist_paid_agg else 0.0
