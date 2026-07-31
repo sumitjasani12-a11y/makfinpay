@@ -963,7 +963,8 @@ async def log_admin_cashbook(type_str: str, amount: float, ref_type: str = "", r
 async def adjust_balance(user_id: str, delta: float) -> float:
     w = await get_or_create_wallet(user_id)
     new_balance = round(w["balance"] + delta, 2)
-    if new_balance < 0:
+    u = await db.users.find_one({"id": user_id})
+    if new_balance < 0 and u and u.get("role") == "agent":
         raise HTTPException(400, "Insufficient wallet balance")
     await db.wallets.update_one({"user_id": user_id}, {"$set": {"balance": new_balance, "updated_at": now_iso()}})
     return new_balance
@@ -2631,7 +2632,7 @@ async def admin_adjust_balance(uid: str, body: AdjustBalanceIn, request: Request
     
     # Check current balance for debit operation
     wallet = await get_or_create_wallet(uid)
-    if body.type == "debit" and wallet["balance"] < body.amount:
+    if body.type == "debit" and u.get("role") == "agent" and wallet["balance"] < body.amount:
         raise HTTPException(400, f"Insufficient wallet balance. User has ₹{wallet['balance']:.2f}")
         
     new_balance = await adjust_balance(uid, delta)
