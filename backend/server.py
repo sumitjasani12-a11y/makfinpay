@@ -1401,7 +1401,35 @@ async def _distributor_lifetime_earnings(dist_id: str) -> float:
         {"$match": {"status": "approved", "distributor_id": dist_id}},
         {"$group": {"_id": None, "total": {"$sum": "$distributor_earnings_amount"}}},
     ]).to_list(1)
-    return round(agg[0]["total"], 2) if agg else 0.0
+    recharge_earnings = round(agg[0]["total"], 2) if agg else 0.0
+    adj = await _admin_adjustments_sum_for(dist_id)
+    return round(recharge_earnings + adj, 2)
+
+
+async def _admin_adjustments_sum_batch(user_ids: List[str]) -> dict:
+    if not user_ids:
+        return {}
+    rows = await db.ledger.find(
+        {"user_id": {"$in": user_ids}, "ref_type": "admin_adjustment"},
+        {"_id": 0, "user_id": 1, "kind": 1, "amount": 1}
+    ).to_list(100000)
+    out = {uid: 0.0 for uid in user_ids}
+    for row in rows:
+        uid = row["user_id"]
+        kind = row.get("kind")
+        amount = float(row.get("amount") or 0.0)
+        if kind == "credit":
+            out[uid] += amount
+        elif kind == "debit":
+            out[uid] -= amount
+    for uid in out:
+        out[uid] = round(out[uid], 2)
+    return out
+
+
+async def _admin_adjustments_sum_for(user_id: str) -> float:
+    res = await _admin_adjustments_sum_batch([user_id])
+    return res.get(user_id, 0.0)
 
 
 async def _distributor_earnings_for(dist_id: str, dist_base_pct: float = 0.0) -> float:
@@ -1451,9 +1479,13 @@ async def _distributor_earnings_batch(dist_ids: List[str]) -> dict:
     async for row in cursor:
         lifetime[row["_id"]] = round(row.get("total") or 0, 2)
     paid_out = await _withdrawals_sum_batch(dist_ids, ["approved"])
+    adjustments = await _admin_adjustments_sum_batch(dist_ids)
     out: dict = {}
     for did in dist_ids:
-        out[did] = round(lifetime.get(did, 0.0) - paid_out.get(did, 0.0), 2)
+        recharge_earnings = lifetime.get(did, 0.0)
+        withdrawn = paid_out.get(did, 0.0)
+        adj = adjustments.get(did, 0.0)
+        out[did] = round(recharge_earnings - withdrawn + adj, 2)
     return out
 
 
@@ -1464,7 +1496,9 @@ async def _md_lifetime_earnings(md_id: str) -> float:
         {"$match": {"status": "approved", "md_id": md_id}},
         {"$group": {"_id": None, "total": {"$sum": "$md_earnings_amount"}}},
     ]).to_list(1)
-    return round(agg[0]["total"], 2) if agg else 0.0
+    recharge_earnings = round(agg[0]["total"], 2) if agg else 0.0
+    adj = await _admin_adjustments_sum_for(md_id)
+    return round(recharge_earnings + adj, 2)
 
 
 async def _md_earnings_for(md_id: str) -> float:
@@ -1487,9 +1521,13 @@ async def _md_earnings_batch(md_ids: List[str]) -> dict:
     async for row in cursor:
         lifetime[row["_id"]] = round(row.get("total") or 0, 2)
     paid_out = await _withdrawals_sum_batch(md_ids, ["approved"])
+    adjustments = await _admin_adjustments_sum_batch(md_ids)
     out: dict = {}
     for mid in md_ids:
-        out[mid] = round(lifetime.get(mid, 0.0) - paid_out.get(mid, 0.0), 2)
+        recharge_earnings = lifetime.get(mid, 0.0)
+        withdrawn = paid_out.get(mid, 0.0)
+        adj = adjustments.get(mid, 0.0)
+        out[mid] = round(recharge_earnings - withdrawn + adj, 2)
     return out
 
 
