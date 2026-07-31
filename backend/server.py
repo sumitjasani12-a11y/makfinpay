@@ -5483,8 +5483,14 @@ async def _transaction_metrics(date_match: dict) -> dict:
 
 
 async def _total_wallet_balance() -> float:
-    agg = await db.wallets.aggregate([{"$group": {"_id": None, "total": {"$sum": "$balance"}}}]).to_list(1)
-    return agg[0]["total"] if agg else 0
+    async with db.pool.acquire() as conn:
+        val = await conn.fetchval('''
+            SELECT COALESCE(SUM(w.balance), 0)
+            FROM wallets w
+            JOIN users u ON w.user_id = u.id
+            WHERE u.role = 'agent' AND u.is_deleted = FALSE
+        ''')
+        return float(val or 0.0)
 
 
 @api.get("/admin/stats/financial")
@@ -5531,17 +5537,35 @@ async def admin_stats_financial(
         {"$group": {"_id": "$role", "total": {"$sum": "$amount"}}},
     ]).to_list(None)
 
-    rev, txn, total_wallet, dist_lifetime_agg, dist_paid_agg, md_lifetime_agg, md_paid_agg, pending_kyc_count, wd_agg = await asyncio.gather(
-        rev_task, txn_task, total_wallet_task,
-        dist_lifetime_task, dist_paid_task, md_lifetime_task, md_paid_task,
-        pending_kyc_task, wd_agg_task
-    )
+    async with db.pool.acquire() as conn:
+        dist_adj_task = conn.fetchval('''
+            SELECT COALESCE(SUM(
+                CASE WHEN l.kind = 'credit' THEN l.amount ELSE -l.amount END
+            ), 0)
+            FROM ledger l
+            JOIN users u ON l.user_id = u.id
+            WHERE l.ref_type = 'admin_adjustment' AND u.role = 'distributor' AND u.is_deleted = FALSE
+        ''')
+        md_adj_task = conn.fetchval('''
+            SELECT COALESCE(SUM(
+                CASE WHEN l.kind = 'credit' THEN l.amount ELSE -l.amount END
+            ), 0)
+            FROM ledger l
+            JOIN users u ON l.user_id = u.id
+            WHERE l.ref_type = 'admin_adjustment' AND u.role = 'master_distributor' AND u.is_deleted = FALSE
+        ''')
 
-    dist_lifetime = dist_lifetime_agg[0]["total"] if dist_lifetime_agg else 0.0
+        rev, txn, total_wallet, dist_lifetime_agg, dist_paid_agg, md_lifetime_agg, md_paid_agg, pending_kyc_count, wd_agg, dist_adj, md_adj = await asyncio.gather(
+            rev_task, txn_task, total_wallet_task,
+            dist_lifetime_task, dist_paid_task, md_lifetime_task, md_paid_task,
+            pending_kyc_task, wd_agg_task, dist_adj_task, md_adj_task
+        )
+
+    dist_lifetime = (dist_lifetime_agg[0]["total"] if dist_lifetime_agg else 0.0) + float(dist_adj or 0.0)
     dist_paid = dist_paid_agg[0]["total"] if dist_paid_agg else 0.0
     total_distributor_earnings = round(dist_lifetime - dist_paid, 2)
 
-    md_lifetime = md_lifetime_agg[0]["total"] if md_lifetime_agg else 0.0
+    md_lifetime = (md_lifetime_agg[0]["total"] if md_lifetime_agg else 0.0) + float(md_adj or 0.0)
     md_paid = md_paid_agg[0]["total"] if md_paid_agg else 0.0
     total_md_earnings = round(md_lifetime - md_paid, 2)
     agent_wd = 0.0
