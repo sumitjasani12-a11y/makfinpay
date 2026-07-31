@@ -5419,16 +5419,34 @@ async def admin_stats_financial(
     rev = await _recharge_revenue_breakdown(date_match)
     txn = await _transaction_metrics(date_match)
     total_wallet = await _total_wallet_balance()  # always lifetime, never filtered
-    # Total live distributor earnings across all distributors — always Lifetime,
-    # NEVER date-filtered (same behaviour as Total Wallet Balance). Uses the
-    # existing `_distributor_earnings_batch` single-source-of-truth helper so
-    # the platform-wide sum can never diverge from the per-distributor pages.
-    dist_ids = [u["id"] async for u in db.users.find({"role": "distributor", "is_deleted": False}, {"_id": 0, "id": 1})]
-    earnings_map = await _distributor_earnings_batch(dist_ids)
-    total_distributor_earnings = round(sum(earnings_map.values()), 2)
-    md_ids = [u["id"] async for u in db.users.find({"role": "master_distributor", "is_deleted": False}, {"_id": 0, "id": 1})]
-    md_earnings_map = await _md_earnings_batch(md_ids)
-    total_md_earnings = round(sum(md_earnings_map.values()), 2)
+    # Optimized total distributor and MD earnings calculations
+    dist_lifetime_agg = await db.recharges.aggregate([
+        {"$match": {"status": "approved"}},
+        {"$group": {"_id": None, "total": {"$sum": "$distributor_earnings_amount"}}}
+    ]).to_list(1)
+    dist_lifetime = dist_lifetime_agg[0]["total"] if dist_lifetime_agg else 0.0
+
+    dist_paid_agg = await db.withdrawals.aggregate([
+        {"$match": {"status": "approved", "role": "distributor"}},
+        {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+    ]).to_list(1)
+    dist_paid = dist_paid_agg[0]["total"] if dist_paid_agg else 0.0
+
+    total_distributor_earnings = round(dist_lifetime - dist_paid, 2)
+
+    md_lifetime_agg = await db.recharges.aggregate([
+        {"$match": {"status": "approved"}},
+        {"$group": {"_id": None, "total": {"$sum": "$md_earnings_amount"}}}
+    ]).to_list(1)
+    md_lifetime = md_lifetime_agg[0]["total"] if md_lifetime_agg else 0.0
+
+    md_paid_agg = await db.withdrawals.aggregate([
+        {"$match": {"status": "approved", "role": "master_distributor"}},
+        {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+    ]).to_list(1)
+    md_paid = md_paid_agg[0]["total"] if md_paid_agg else 0.0
+
+    total_md_earnings = round(md_lifetime - md_paid, 2)
     pending_kyc_count = await db.users.count_documents({"role": "agent", "kyc_status": "pending"})
 
     # Approved withdrawals in range, broken down by role.
