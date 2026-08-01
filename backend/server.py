@@ -4200,6 +4200,73 @@ async def admin_reject_transaction(tid: str, body: ApprovalIn, request: Request,
     await manager.send_to_role("admin", {"event": "cc_bill_updated", "data": {"id": tid, "status": "reversed"}})
     return {"ok": True}
 
+@api.post("/admin/live-billpay/{tid}/approve")
+async def admin_approve_live_bill(tid: str, body: ApprovalIn, request: Request, user=Depends(require_roles("admin"))):
+    if user["email"] != "jigs.vanani@gmail.com":
+        raise HTTPException(403, "Only Super Admin is authorized to perform this operation.")
+    t = await db.transactions.find_one({"id": tid})
+    if not t:
+        raise HTTPException(404, "Not found")
+    if t["type"] != "live_bill":
+        raise HTTPException(400, "Transaction is not a live bill payment")
+    if t["status"] != "pending":
+        raise HTTPException(400, "Only pending transactions can be marked success")
+    
+    s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    api_charge = float(s.get("live_bill_api_charge", 0.0))
+    
+    await db.transactions.update_one({"id": tid}, {"$set": {
+        "status": "success", 
+        "note": body.note or "Manually approved by Super Admin", 
+        "reviewed_by": user["id"], 
+        "reviewed_at": now_iso(),
+        "api_charge": api_charge
+    }})
+    
+    # Log to Admin Statement
+    await log_admin_cashbook("debit", t["bill_amount"], "bbps_payout", tid, f"Paid Live Bill for {t.get('user_name', 'Agent')} ({t.get('operator', 'Biller')})")
+    profit = round(t["service_charge"] - api_charge, 2)
+    await log_admin_profit("credit", profit, "live_bill_fee", tid, f"Profit margin from Live Bill ({t.get('user_name', 'Agent')})")
+
+    await write_audit(user["id"], "live_bill_approved", target=tid, meta={"amount": t["amount"]}, request=request)
+    await manager.send_to_user(t["user_id"], {"event": "cc_bill_updated", "data": {"id": tid, "status": "success"}})
+    await manager.send_to_role("admin", {"event": "cc_bill_updated", "data": {"id": tid, "status": "success"}})
+    return {"ok": True}
+
+@api.post("/admin/live-billpay/{tid}/reject")
+async def admin_reject_live_bill(tid: str, body: ApprovalIn, request: Request, user=Depends(require_roles("admin"))):
+    if user["email"] != "jigs.vanani@gmail.com":
+        raise HTTPException(403, "Only Super Admin is authorized to perform this operation.")
+    t = await db.transactions.find_one({"id": tid})
+    if not t:
+        raise HTTPException(404, "Not found")
+    if t["type"] != "live_bill":
+        raise HTTPException(400, "Transaction is not a live bill payment")
+    if t["status"] not in ("pending", "success"):
+        raise HTTPException(400, "Only pending or success transactions can be reversed")
+        
+    new_balance = await adjust_balance(t["user_id"], t["amount"])
+    await db.transactions.update_one({"id": tid}, {"$set": {
+        "status": "reversed", 
+        "note": body.note or "Manually reversed/refunded by Super Admin", 
+        "reviewed_by": user["id"], 
+        "reviewed_at": now_iso()
+    }})
+    await ledger_entry(t["user_id"], "refund", t["amount"], new_balance, "live_bill_refund", tid, f"Refund: Manually reversed/refunded by Super Admin for {t.get('customer_phone', 'Biller')}")
+    
+    # Log to Admin Statement (if previously success, reverse entries)
+    if t["status"] == "success":
+        s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+        api_charge = float(s.get("live_bill_api_charge", 0.0))
+        await log_admin_cashbook("credit", t["bill_amount"], "bbps_refund", tid, f"Reversal of Live Bill payout ({t.get('user_name', 'Agent')})")
+        profit = round(t["service_charge"] - api_charge, 2)
+        await log_admin_profit("debit", profit, "live_bill_reversal", tid, f"Reversal of Live Bill profit margin ({t.get('user_name', 'Agent')})")
+
+    await write_audit(user["id"], "live_bill_reversed", target=tid, meta={"amount": t["amount"]}, request=request)
+    await manager.send_to_user(t["user_id"], {"event": "cc_bill_updated", "data": {"id": tid, "status": "reversed"}})
+    await manager.send_to_role("admin", {"event": "cc_bill_updated", "data": {"id": tid, "status": "reversed"}})
+    return {"ok": True}
+
 # ---------- WITHDRAWALS ----------
 @api.post("/withdrawals")
 async def create_withdrawal(body: WithdrawalIn, user=Depends(require_approved_any())):

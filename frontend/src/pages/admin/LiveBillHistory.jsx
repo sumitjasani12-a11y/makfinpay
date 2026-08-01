@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { api, formatErr, fmtDate, fmtMoney } from "@/lib/api";
 import { DATE_RANGES, todayStr, rangeWindowIso } from "@/lib/filters";
 import { useDebounced } from "@/lib/hooks";
+import { useAuth } from "@/lib/auth";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import { toast } from "sonner";
 import { Check, RotateCcw, Search, X, FileDown, FileSpreadsheet, Loader2 } from "lucide-react";
@@ -19,11 +20,12 @@ const getShortTxnId = (id) => {
 
 
 export default function AdminLiveBillHistory() {
+  const { user } = useAuth();
+  const [actionId, setActionId] = useState(null);
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [agents, setAgents] = useState([]);
-
   // filter state
   const [q, setQ] = useState("");
   const debouncedQ = useDebounced(q, 350);
@@ -121,6 +123,34 @@ export default function AdminLiveBillHistory() {
     reload();
   }, [reload]);
 
+  const handleApprove = async (id) => {
+    if (!window.confirm("Are you sure you want to manually SUCCESS this live bill payment?")) return;
+    setActionId(id);
+    try {
+      await api.post(`/admin/live-billpay/${id}/approve`, { note: "Manually approved by Super Admin" });
+      toast.success("Transaction approved successfully!");
+      reload();
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail) || "Failed to approve transaction");
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  const handleReject = async (id) => {
+    if (!window.confirm("Are you sure you want to REVERSE this live bill payment and REFUND the agent's wallet?")) return;
+    setActionId(id);
+    try {
+      await api.post(`/admin/live-billpay/${id}/reject`, { note: "Manually reversed/refunded by Super Admin" });
+      toast.success("Transaction reversed and refunded successfully!");
+      reload();
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail) || "Failed to reverse transaction");
+    } finally {
+      setActionId(null);
+    }
+  };
+
   const handleToggleLiveBill = async (val) => {
     setLiveBillEnabled(val);
     try {
@@ -196,7 +226,36 @@ export default function AdminLiveBillHistory() {
       );
     } },
     { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
-  ], []);
+    {
+      key: "action",
+      label: "Action",
+      render: (r) => {
+        const isSuperAdmin = user?.email === "jigs.vanani@gmail.com";
+        const isBusy = actionId === r.id;
+        if (r.status === "pending" && isSuperAdmin) {
+          return (
+            <div className="flex items-center gap-1.5 justify-center">
+              <button
+                disabled={isBusy}
+                onClick={() => handleApprove(r.id)}
+                className="px-2 py-1 text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Approve
+              </button>
+              <button
+                disabled={isBusy}
+                onClick={() => handleReject(r.id)}
+                className="px-2 py-1 text-[10px] font-bold text-white bg-rose-600 hover:bg-rose-700 rounded transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Reject
+              </button>
+            </div>
+          );
+        }
+        return <div className="text-neutral-400 text-center text-xs">—</div>;
+      }
+    }
+  ], [user, actionId, handleApprove, handleReject]);
 
   const [exportingPdf, setExportingPdf] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
