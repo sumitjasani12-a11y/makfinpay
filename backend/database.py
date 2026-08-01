@@ -737,6 +737,25 @@ class PostgresDatabase:
                 pass
         return MockAcquireContext(self)
 
+    async def execute(self, query, *params):
+        await self.execute_query(query, list(params))
+        return "SUCCESS"
+
+    async def fetch(self, query, *params):
+        return await self.execute_query(query, list(params))
+
+    async def fetchrow(self, query, *params):
+        res = await self.execute_query(query, list(params))
+        return res[0] if res else None
+
+    async def fetchval(self, query, *params):
+        res = await self.execute_query(query, list(params))
+        if res and isinstance(res, list) and len(res) > 0:
+            row = res[0]
+            if isinstance(row, dict):
+                return list(row.values())[0]
+        return None
+
     async def execute_query(self, query, params=None):
         if params is None:
             params = []
