@@ -61,6 +61,8 @@ def convert_val(key, val):
             pass
     if isinstance(val, uuid.UUID):
         return str(val)
+    if isinstance(val, (bytes, bytearray)):
+        return "\\x" + val.hex()
     return val
 
 def compile_filter(filter_dict, params):
@@ -247,24 +249,23 @@ class PostgresCursor:
 
     async def to_list(self, length):
         sql = self._build_sql()
-        async with self.db.pool.acquire() as conn:
-            records = await conn.fetch(sql, *self.params)
-            # Standardize records: parse JSON string fields, convert UUIDs to str, and Decimals to floats
-            res_list = []
-            for r in records:
-                d = dict(r)
-                for k, v in d.items():
-                    if isinstance(v, uuid.UUID):
-                        d[k] = str(v)
-                    elif isinstance(v, Decimal):
-                        d[k] = float(v)
-                    elif isinstance(v, str) and (v.startswith("{") or v.startswith("[")):
-                        try:
-                            d[k] = json.loads(v)
-                        except Exception:
-                            pass
-                res_list.append(d)
-            return res_list
+        records = await self.db.execute_query(sql, self.params)
+        res_list = []
+        for r in records:
+            d = dict(r)
+            for k, v in d.items():
+                if isinstance(v, str) and (v.startswith("{") or v.startswith("[")):
+                    try:
+                        d[k] = json.loads(v)
+                    except Exception:
+                        pass
+                elif isinstance(v, str) and (v.startswith("\\x") or v.startswith(r"\x")):
+                    try:
+                        d[k] = bytes.fromhex(v[2:])
+                    except Exception:
+                        pass
+            res_list.append(d)
+        return res_list[:length] if length else res_list
 
     def _build_sql(self):
         sql = self.query
@@ -282,23 +283,23 @@ class PostgresCursor:
     async def __anext__(self):
         if not hasattr(self, "_records"):
             sql = self._build_sql()
-            async with self.db.pool.acquire() as conn:
-                records = await conn.fetch(sql, *self.params)
-                self._records = []
-                for r in records:
-                    d = dict(r)
-                    for k, v in d.items():
-                        if isinstance(v, uuid.UUID):
-                            d[k] = str(v)
-                        elif isinstance(v, Decimal):
-                            d[k] = float(v)
-                        elif isinstance(v, str) and (v.startswith("{") or v.startswith("[")):
-                            try:
-                                d[k] = json.loads(v)
-                            except Exception:
-                                pass
-                    self._records.append(d)
-                self._index = 0
+            records = await self.db.execute_query(sql, self.params)
+            self._records = []
+            for r in records:
+                d = dict(r)
+                for k, v in d.items():
+                    if isinstance(v, str) and (v.startswith("{") or v.startswith("[")):
+                        try:
+                            d[k] = json.loads(v)
+                        except Exception:
+                            pass
+                    elif isinstance(v, str) and (v.startswith("\\x") or v.startswith(r"\x")):
+                        try:
+                            d[k] = bytes.fromhex(v[2:])
+                        except Exception:
+                            pass
+                self._records.append(d)
+            self._index = 0
         if self._index < len(self._records):
             r = self._records[self._index]
             self._index += 1
@@ -349,26 +350,21 @@ class PostgresCollection:
 
         sql = f"SELECT {select_cols} FROM {safe_table} WHERE {where_clause}{sort_clause} LIMIT 1"
         try:
-            async with self.db.pool.acquire() as conn:
-                row = await conn.fetchrow(sql, *params)
-                if not row:
-                    return None
-                d = dict(row)
-                for k, v in d.items():
-                    if isinstance(v, uuid.UUID):
-                        d[k] = str(v)
-                    elif isinstance(v, Decimal):
-                        d[k] = float(v)
-                    elif isinstance(v, str) and (v.startswith("{") or v.startswith("[")):
-                        try:
-                            d[k] = json.loads(v)
-                        except Exception:
-                            pass
-                return d
+            rows = await self.db.execute_query(sql, params)
+            if not rows:
+                return None
+            d = rows[0]
+            for k, v in d.items():
+                if isinstance(v, str) and (v.startswith("{") or v.startswith("[")):
+                    try:
+                        d[k] = json.loads(v)
+                    except Exception:
+                        pass
+            return d
         except Exception as e:
             logger.error(f"find_one SQL failed: {sql} with {params}. Error: {e}")
             raise e
-
+ 
     def find(self, filter_dict, projection=None):
         params = []
         where_clause = compile_filter(filter_dict, params)
@@ -386,7 +382,7 @@ class PostgresCollection:
                     
         sql = f"SELECT {select_cols} FROM {safe_table} WHERE {where_clause}"
         return PostgresCursor(self.db, sql, params, self.table_name)
-
+ 
     async def insert_one(self, doc):
         table_cols = TABLE_COLUMNS.get(self.table_name, [])
         cols = []
@@ -404,18 +400,17 @@ class PostgresCollection:
         safe_table = f'"{self.table_name}"' if "." in self.table_name else self.table_name
         sql = f"INSERT INTO {safe_table} ({', '.join(cols)}) VALUES ({', '.join(vals)})"
         try:
-            async with self.db.pool.acquire() as conn:
-                await conn.execute(sql, *params)
+            await self.db.execute_query(sql, params)
             class InsertOneResult:
                 def __init__(self, inserted_id):
                     self.inserted_id = inserted_id
             return InsertOneResult(doc.get("id") or doc.get("_id"))
-        except asyncpg.exceptions.UniqueViolationError:
-            raise DuplicateKeyError("Unique constraint violation in Supabase PostgreSQL")
         except Exception as e:
+            if "unique constraint" in str(e).lower() or "duplicate key" in str(e).lower():
+                raise DuplicateKeyError("Unique constraint violation in Supabase PostgreSQL")
             logger.error(f"insert_one SQL failed: {sql} with {params}. Error: {e}")
             raise e
-
+ 
     async def insert_many(self, docs):
         if not docs:
             return
@@ -440,11 +435,10 @@ class PostgresCollection:
             
         sql = f"INSERT INTO {safe_table} ({', '.join(cols)}) VALUES {', '.join(value_groups)}"
         try:
-            async with self.db.pool.acquire() as conn:
-                await conn.execute(sql, *params)
-        except asyncpg.exceptions.UniqueViolationError:
-            raise DuplicateKeyError("Unique constraint violation in Supabase PostgreSQL during insert_many")
+            await self.db.execute_query(sql, params)
         except Exception as e:
+            if "unique constraint" in str(e).lower() or "duplicate key" in str(e).lower():
+                raise DuplicateKeyError("Unique constraint violation in Supabase PostgreSQL during insert_many")
             logger.error(f"insert_many SQL failed: {sql[:1000]}... with {len(params)} params. Error: {e}")
             raise e
 
@@ -497,14 +491,13 @@ class PostgresCollection:
         safe_table = f'"{self.table_name}"' if "." in self.table_name else self.table_name
         sql = f"UPDATE {safe_table} SET {set_str} WHERE {where_clause}"
         try:
-            async with self.db.pool.acquire() as conn:
-                await conn.execute(sql, *params)
-        except asyncpg.exceptions.UniqueViolationError:
-            raise DuplicateKeyError("Unique constraint violation in Supabase PostgreSQL during update")
+            await self.db.execute_query(sql, params)
         except Exception as e:
+            if "unique constraint" in str(e).lower() or "duplicate key" in str(e).lower():
+                raise DuplicateKeyError("Unique constraint violation in Supabase PostgreSQL during update")
             logger.error(f"update_one SQL failed: {sql} with {params}. Error: {e}")
             raise e
-
+ 
     async def update_many(self, filter_dict, update_dict):
         params = []
         set_clauses = []
@@ -540,51 +533,40 @@ class PostgresCollection:
         safe_table = f'"{self.table_name}"' if "." in self.table_name else self.table_name
         sql = f"UPDATE {safe_table} SET {set_str} WHERE {where_clause}"
         try:
-            async with self.db.pool.acquire() as conn:
-                res = await conn.execute(sql, *params)
-            count = 0
-            if res and res.startswith("UPDATE "):
-                try:
-                    count = int(res.split(" ")[1])
-                except Exception:
-                    pass
+            res = await self.db.execute_query(sql, params)
+            count = res.get("row_count", 0) if isinstance(res, dict) else 0
             class UpdateResult:
                 def __init__(self, modified_count):
                     self.modified_count = modified_count
             return UpdateResult(count)
-        except asyncpg.exceptions.UniqueViolationError:
-            raise DuplicateKeyError("Unique constraint violation in Supabase PostgreSQL during update_many")
         except Exception as e:
+            if "unique constraint" in str(e).lower() or "duplicate key" in str(e).lower():
+                raise DuplicateKeyError("Unique constraint violation in Supabase PostgreSQL during update_many")
             logger.error(f"update_many SQL failed: {sql} with {params}. Error: {e}")
             raise e
-
+ 
     async def count_documents(self, filter_dict):
         params = []
         where_clause = compile_filter(filter_dict, params)
         safe_table = f'"{self.table_name}"' if "." in self.table_name else self.table_name
         sql = f"SELECT COUNT(*) FROM {safe_table} WHERE {where_clause}"
         try:
-            async with self.db.pool.acquire() as conn:
-                val = await conn.fetchval(sql, *params)
-                return val or 0
+            res = await self.db.execute_query(sql, params)
+            if res and isinstance(res, list) and len(res) > 0:
+                return int(res[0].get("count", 0))
+            return 0
         except Exception as e:
             logger.error(f"count_documents SQL failed: {sql} with {params}. Error: {e}")
             raise e
-
+ 
     async def delete_many(self, filter_dict):
         params = []
         where_clause = compile_filter(filter_dict, params)
         safe_table = f'"{self.table_name}"' if "." in self.table_name else self.table_name
         sql = f"DELETE FROM {safe_table} WHERE {where_clause}"
         try:
-            async with self.db.pool.acquire() as conn:
-                res = await conn.execute(sql, *params)
-            count = 0
-            if res and res.startswith("DELETE "):
-                try:
-                    count = int(res.split(" ")[1])
-                except Exception:
-                    pass
+            res = await self.db.execute_query(sql, params)
+            count = res.get("row_count", 0) if isinstance(res, dict) else 0
             class DeleteResult:
                 def __init__(self, deleted_count):
                     self.deleted_count = deleted_count
@@ -592,16 +574,14 @@ class PostgresCollection:
         except Exception as e:
             logger.error(f"delete_many SQL failed: {sql} with {params}. Error: {e}")
             raise e
-
+ 
     async def delete_one(self, filter_dict):
         params = []
         where_clause = compile_filter(filter_dict, params)
         safe_table = f'"{self.table_name}"' if "." in self.table_name else self.table_name
-        # Note: use inner query lookup to delete exactly one row
         sql = f"DELETE FROM {safe_table} WHERE id = (SELECT id FROM {safe_table} WHERE {where_clause} LIMIT 1)"
         try:
-            async with self.db.pool.acquire() as conn:
-                await conn.execute(sql, *params)
+            await self.db.execute_query(sql, params)
         except Exception as e:
             logger.error(f"delete_one SQL failed: {sql} with {params}. Error: {e}")
             raise e
@@ -621,8 +601,16 @@ class GridFSUploadStream:
         self.buffer = bytearray()
         self.chunk_index = 0
         self.total_length = 0
+        self._initialized = False
         
+    async def _init_file_record(self):
+        sql = 'INSERT INTO "backups_fs.files" (_id, length, "chunkSize", "uploadDate", filename, "contentType", metadata) VALUES ($1, 0, $2, CURRENT_TIMESTAMP, $3, $4, $5)'
+        await self.db.execute_query(sql, [self._id, self.chunk_size, self.filename, "application/gzip", json.dumps(self.metadata)])
+        self._initialized = True
+
     async def write(self, data):
+        if not self._initialized:
+            await self._init_file_record()
         self.buffer.extend(data)
         self.total_length += len(data)
         while len(self.buffer) >= self.chunk_size:
@@ -633,18 +621,18 @@ class GridFSUploadStream:
     async def _write_chunk(self, chunk_data):
         chunk_id = secrets.token_hex(12)
         sql = 'INSERT INTO "backups_fs.chunks" (_id, files_id, n, data) VALUES ($1, $2, $3, $4)'
-        async with self.db.pool.acquire() as conn:
-            await conn.execute(sql, chunk_id, self._id, self.chunk_index, bytes(chunk_data))
+        await self.db.execute_query(sql, [chunk_id, self._id, self.chunk_index, bytes(chunk_data)])
         self.chunk_index += 1
         
     async def close(self):
+        if not self._initialized:
+            await self._init_file_record()
         if self.buffer:
             await self._write_chunk(self.buffer)
             self.buffer = bytearray()
             
-        sql = 'INSERT INTO "backups_fs.files" (_id, length, "chunkSize", "uploadDate", filename, "contentType", metadata) VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4, $5, $6)'
-        async with self.db.pool.acquire() as conn:
-            await conn.execute(sql, self._id, self.total_length, self.chunk_size, self.filename, "application/gzip", json.dumps(self.metadata))
+        sql = 'UPDATE "backups_fs.files" SET length = $1 WHERE _id = $2'
+        await self.db.execute_query(sql, [self.total_length, self._id])
 
 class GridFSDownloadStream:
     def __init__(self, db, files_id):
@@ -657,9 +645,17 @@ class GridFSDownloadStream:
     async def _load_chunks(self):
         if not self._chunks:
             sql = 'SELECT data FROM "backups_fs.chunks" WHERE files_id = $1 ORDER BY n ASC'
-            async with self.db.pool.acquire() as conn:
-                rows = await conn.fetch(sql, self.files_id)
-                self._chunks = [bytes(r['data']) for r in rows]
+            rows = await self.db.execute_query(sql, [self.files_id])
+            self._chunks = []
+            for r in rows:
+                v = r['data']
+                if isinstance(v, str) and (v.startswith("\\x") or v.startswith(r"\x")):
+                    try:
+                        self._chunks.append(bytes.fromhex(v[2:]))
+                    except Exception:
+                        self._chunks.append(v.encode('utf-8'))
+                else:
+                    self._chunks.append(bytes(v) if not isinstance(v, str) else v.encode('utf-8'))
                 
     async def read(self):
         await self._load_chunks()
@@ -695,8 +691,7 @@ class PostgresGridFSBucket:
         
     async def delete(self, files_id):
         fid = str(files_id)
-        async with self.db.pool.acquire() as conn:
-            await conn.execute('DELETE FROM "backups_fs.files" WHERE _id = $1', fid)
+        await self.db.execute_query('DELETE FROM "backups_fs.files" WHERE _id = $1', [fid])
 
 AsyncIOMotorGridFSBucket = PostgresGridFSBucket
 
@@ -706,15 +701,76 @@ class AsyncIOMotorClient:
 
 class PostgresDatabase:
     def __init__(self):
-        self.pool = None
+        self.url = os.environ.get("SUPABASE_URL")
+        self.anon_key = os.environ.get("SUPABASE_ANON_KEY")
+        self.secret_token = "Jigscse@3521_makfinpay_secret"
+        self.client = None
+        self.pool = self
 
     async def init_pool(self, dsn):
-        if self.pool is None:
-            self.pool = await asyncpg.create_pool(dsn, min_size=1, max_size=10)
+        if self.client is None:
+            import httpx
+            limits = httpx.Limits(max_keepalive_connections=20, max_connections=100)
+            self.client = httpx.AsyncClient(
+                base_url=self.url,
+                headers={
+                    "apikey": self.anon_key,
+                    "Authorization": f"Bearer {self.anon_key}",
+                    "Content-Type": "application/json"
+                },
+                limits=limits,
+                timeout=30.0
+            )
 
-    def close(self):
-        # Synchronous close helper
-        pass
+    async def close(self):
+        if self.client:
+            await self.client.aclose()
+
+    def acquire(self):
+        # Mock connection pool context manager as a fallback
+        class MockAcquireContext:
+            def __init__(self, db):
+                self.db = db
+            async def __aenter__(self):
+                return self.db
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                pass
+        return MockAcquireContext(self)
+
+    async def execute_query(self, query, params=None):
+        if params is None:
+            params = []
+        
+        # Standardize params to be JSON serializable
+        clean_params = []
+        for p in params:
+            if isinstance(p, (bytes, bytearray)):
+                clean_params.append(convert_val(None, p))
+            elif isinstance(p, uuid.UUID):
+                clean_params.append(str(p))
+            elif isinstance(p, Decimal):
+                clean_params.append(float(p))
+            elif isinstance(p, datetime.datetime):
+                clean_params.append(p.isoformat())
+            else:
+                clean_params.append(p)
+                
+        payload = {
+            "query_text": query,
+            "params": clean_params,
+            "secret_token": self.secret_token
+        }
+        res = await self.client.post("/rest/v1/rpc/execute_sql", json=payload)
+        if res.status_code != 200:
+            logger.error(f"Supabase RPC Query Failed: {query} with {clean_params}. Error: {res.text}")
+            raise Exception(f"Supabase RPC Error: {res.text}")
+            
+        data = res.json()
+        if isinstance(data, dict) and "error" in data:
+            logger.error(f"Supabase RPC SQL Exec Exception: {data['error']} in query: {data.get('query')}")
+            raise Exception(f"SQL execution failed: {data['error']}")
+            
+        return data
 
     def __getattr__(self, name):
         return PostgresCollection(self, name)
