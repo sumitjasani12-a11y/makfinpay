@@ -760,6 +760,8 @@ class PostgresDatabase:
         if params is None:
             params = []
         
+        query = query.strip()
+        
         # Standardize params to be JSON serializable
         clean_params = []
         for p in params:
