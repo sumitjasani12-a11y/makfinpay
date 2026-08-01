@@ -5696,7 +5696,7 @@ async def admin_stats(full: bool = False, user=Depends(require_roles("admin"))):
     pending_recharges, pending_withdrawals, pending_transactions, pending_kyc = await asyncio.gather(
         db.recharges.count_documents({"status": "pending"}),
         db.withdrawals.count_documents({"status": "pending"}),
-        db.transactions.count_documents({"status": "pending"}),
+        db.transactions.count_documents({"status": "pending", "type": "credit_card"}),
         db.users.count_documents({"role": "agent", "kyc_status": "pending"})
     )
     
