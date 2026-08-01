@@ -3769,24 +3769,39 @@ async def get_live_billpay_categories(user=Depends(require_approved_agent())):
         raise HTTPException(status_code=500, detail=f"Failed to fetch categories from database: {str(e)}")
 
 def is_bank_match(biller_name: str, bank_name: str) -> bool:
-    def clean(s):
+    def get_keywords(s):
         s = s.lower()
-        for word in ["credit card", "creditcard", "card", "co-operative", "limited", "ltd", "india", "bank", "-", "(india)", "one"]:
-            s = s.replace(word, "")
-        tokens = [t.strip() for t in s.split() if t.strip()]
-        return "".join(tokens)
-    
-    cb = clean(biller_name)
-    ck = clean(bank_name)
+        for char in ["-", "(", ")", "&", "/", ".", ","]:
+            s = s.replace(char, " ")
+        words = s.split()
+        ignore = {
+            "bank", "credit", "card", "creditcard", "cards", "limited", "ltd", "india", 
+            "co-operative", "co", "operative", "one", "limited", "of", "and", "the"
+        }
+        keywords = []
+        for w in words:
+            if w == "bob" or w == "bobcard":
+                w = "baroda"
+            elif w == "ubi" or w == "union":
+                w = "union"
+            elif w == "pnb" or w == "punjab":
+                w = "punjab"
+            elif w == "j" or w == "k" or w == "j&k" or w == "jandk":
+                w = "jk"
+            elif w == "sbm" or w == "sbmb":
+                w = "sbm"
+            
+            if w not in ignore and len(w) > 1:
+                keywords.append(w)
+        if "bank" in words and "of" in words and "india" in words and "union" not in words:
+            keywords.append("boi")
+        return set(keywords)
+
+    cb = get_keywords(biller_name)
+    ck = get_keywords(bank_name)
     if not cb or not ck:
         return False
-    if cb == "unionof" and ck == "ubi":
-        return True
-    if cb == "ubi" and ck == "unionof":
-        return True
-    if ("baroda" in cb or "bob" in cb) and ("baroda" in ck or "bob" in ck):
-        return True
-    return cb in ck or ck in cb
+    return len(cb.intersection(ck)) > 0
 
 @api.get("/agent/live-billpay/operators")
 async def get_live_billpay_operators(category_id: str, user=Depends(require_approved_agent())):
