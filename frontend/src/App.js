@@ -31,6 +31,7 @@ import AdminPolicies from "@/pages/admin/Policies";
 import AdminStatement from "@/pages/admin/Statement";
 import AdminManagement from "@/pages/admin/AdminManagement";
 import UserPolicies from "@/pages/UserPolicies";
+import Maintenance from "@/pages/Maintenance";
 
 
 import DistOverview from "@/pages/distributor/Overview";
@@ -154,6 +155,7 @@ export default function App() {
             <Route path="policies" element={<UserPolicies />} />
           </Route>
 
+          <Route path="/maintenance" element={<Maintenance />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </BrowserRouter>

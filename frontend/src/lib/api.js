@@ -19,6 +19,11 @@ api.interceptors.response.use(
         window.location.href = "/login";
       }
     }
+    if (error.response && error.response.status === 503) {
+      if (window.location.pathname !== "/maintenance") {
+        window.location.href = "/maintenance";
+      }
+    }
     return Promise.reject(error);
   }
 );

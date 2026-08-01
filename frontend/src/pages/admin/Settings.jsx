@@ -14,6 +14,7 @@ export default function AdminSettings() {
   const [maxLimit, setMaxLimit] = useState("");
   const [liveBillMaxLimit, setLiveBillMaxLimit] = useState("");
   const [apiCharge, setApiCharge] = useState("");
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -31,6 +32,7 @@ export default function AdminSettings() {
       setMaxLimit(String(data.max_recharge_limit ?? 300000));
       setLiveBillMaxLimit(String(data.live_bill_max_limit ?? 100000));
       setApiCharge(String(data.live_bill_api_charge ?? 0));
+      setMaintenanceMode(!!data.maintenance_mode);
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Failed to load settings");
     } finally {
@@ -92,6 +94,19 @@ export default function AdminSettings() {
     }
   };
 
+  const handleToggleMaintenance = async (val) => {
+    setMaintenanceMode(val);
+    try {
+      await api.put("/admin/settings/recharge-toggles", {
+        maintenance_mode: val,
+      });
+      toast.success(`Maintenance Mode ${val ? "Enabled" : "Disabled"}`);
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail) || "Failed to update maintenance mode");
+      setMaintenanceMode(!val);
+    }
+  };
+
   const handleSaveBranding = async (e) => {
     e.preventDefault();
     setSavingBranding(true);
@@ -124,8 +139,9 @@ export default function AdminSettings() {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-          <form onSubmit={handleSave} className="w-full">
-            <div className="mfp-card p-6 space-y-6">
+          <div className="w-full space-y-6">
+            <form onSubmit={handleSave} className="w-full">
+              <div className="mfp-card p-6 space-y-6">
               <div>
                 <h3 className="text-base font-semibold text-neutral-800 border-b border-black/5 pb-2.5 mb-4">
                   Recharge Wallet Limits
@@ -256,6 +272,43 @@ export default function AdminSettings() {
               </div>
             </div>
           </form>
+
+            <div className="mfp-card p-6 space-y-6">
+              <div>
+                <h3 className="text-base font-semibold text-neutral-800 border-b border-black/5 pb-2.5 mb-4">
+                  System Status & Maintenance
+                </h3>
+                <p className="text-xs text-neutral-500 mb-6 leading-relaxed">
+                  Put the application under maintenance mode. When active, all non-admin users (agents, distributors, master distributors) will be blocked from accessing services and shown a maintenance screen.
+                </p>
+              </div>
+              
+              <div className="flex items-center justify-between bg-neutral-50/50 border border-neutral-100 rounded-2xl p-4">
+                <div className="space-y-0.5">
+                  <div className="text-sm font-bold text-neutral-800">Maintenance Mode</div>
+                  <div className="text-xs text-neutral-400">Temporarily suspend all user activity for updates.</div>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <span className={`text-[10px] font-extrabold uppercase tracking-wider ${maintenanceMode ? "text-rose-600" : "text-emerald-600"}`}>
+                    {maintenanceMode ? "ACTIVE (UNDER MAINTENANCE)" : "OFF (LIVE)"}
+                  </span>
+                  <button
+                    onClick={() => handleToggleMaintenance(!maintenanceMode)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      maintenanceMode ? "bg-rose-600" : "bg-neutral-200"
+                    }`}
+                    type="button"
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        maintenanceMode ? "translate-x-5" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <form onSubmit={handleSaveBranding} className="w-full">
             <div className="mfp-card p-6 space-y-6">

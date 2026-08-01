@@ -339,6 +339,10 @@ async def get_current_user(request: Request) -> dict:
         raise HTTPException(401, "User not found")
     if user.get("frozen"):
         raise HTTPException(403, "Account frozen")
+    if user.get("role") != "admin":
+        s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+        if s.get("maintenance_mode"):
+            raise HTTPException(503, "Site is under maintenance. Please try again later.")
     user.pop("password_hash", None)
     return user
 
@@ -515,6 +519,7 @@ class RechargeTogglesIn(BaseModel):
     bill_pay_enabled: Optional[bool] = None
     live_bill_enabled: Optional[bool] = None
     live_bill_api_charge: Optional[float] = None
+    maintenance_mode: Optional[bool] = None
 
 class HeadlineIn(BaseModel):
     message: str
@@ -4959,7 +4964,8 @@ async def public_commission(user: dict = Depends(get_current_user)):
     return {"default_percent": (s or {}).get("default_percent", 1.2)}
 
 @api.get("/settings/recharge-limits-public")
-async def public_recharge_limits(user: dict = Depends(get_current_user)):
+async def public_recharge_limits(response: Response, user: dict = Depends(get_current_user)):
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
     s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
     return {
         "min_recharge_limit": float(s.get("min_recharge_limit", 100)),
@@ -4970,11 +4976,13 @@ async def public_recharge_limits(user: dict = Depends(get_current_user)):
         "t1_recharge_enabled": bool(s.get("t1_recharge_enabled", True)),
         "withdrawal_enabled": bool(s.get("withdrawal_enabled", True)),
         "bill_pay_enabled": bool(s.get("bill_pay_enabled", True)),
-        "live_bill_enabled": bool(s.get("live_bill_enabled", True))
+        "live_bill_enabled": bool(s.get("live_bill_enabled", True)),
+        "maintenance_mode": bool(s.get("maintenance_mode", False))
     }
 
 @api.get("/admin/settings/recharge-limits")
-async def get_admin_recharge_limits(user=Depends(require_roles("admin"))):
+async def get_admin_recharge_limits(response: Response, user=Depends(require_roles("admin"))):
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
     s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
     return {
         "min_recharge_limit": float(s.get("min_recharge_limit", 100)),
@@ -4987,7 +4995,8 @@ async def get_admin_recharge_limits(user=Depends(require_roles("admin"))):
         "withdrawal_enabled": bool(s.get("withdrawal_enabled", True)),
         "bill_pay_enabled": bool(s.get("bill_pay_enabled", True)),
         "live_bill_enabled": bool(s.get("live_bill_enabled", True)),
-        "live_bill_api_charge": float(s.get("live_bill_api_charge", 0.0))
+        "live_bill_api_charge": float(s.get("live_bill_api_charge", 0.0)),
+        "maintenance_mode": bool(s.get("maintenance_mode", False))
     }
 
 @api.put("/admin/settings/recharge-limits")
@@ -5021,6 +5030,7 @@ async def update_admin_recharge_toggles(body: RechargeTogglesIn, request: Reques
     bill_pay_val = body.bill_pay_enabled if body.bill_pay_enabled is not None else settings.get("bill_pay_enabled", True)
     live_bill_val = body.live_bill_enabled if body.live_bill_enabled is not None else settings.get("live_bill_enabled", True)
     live_bill_api_charge_val = body.live_bill_api_charge if body.live_bill_api_charge is not None else float(settings.get("live_bill_api_charge", 0.0))
+    maintenance_mode_val = body.maintenance_mode if body.maintenance_mode is not None else settings.get("maintenance_mode", False)
     
     doc = {
         "qr_enabled": qr_val,
@@ -5031,6 +5041,7 @@ async def update_admin_recharge_toggles(body: RechargeTogglesIn, request: Reques
         "bill_pay_enabled": bill_pay_val,
         "live_bill_enabled": live_bill_val,
         "live_bill_api_charge": live_bill_api_charge_val,
+        "maintenance_mode": maintenance_mode_val,
         "updated_at": now_iso()
     }
     await db.settings.update_one({"id": "commission"}, {"$set": doc})
@@ -5898,6 +5909,7 @@ async def _ensure_indexes() -> None:
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS recharge_enabled BOOLEAN DEFAULT TRUE')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS withdrawal_enabled BOOLEAN DEFAULT TRUE')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS bill_pay_enabled BOOLEAN DEFAULT TRUE')
+        await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS maintenance_mode BOOLEAN DEFAULT FALSE')
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS qr_activation_history (
                 id VARCHAR(255) PRIMARY KEY,

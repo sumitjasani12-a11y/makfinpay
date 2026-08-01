@@ -156,7 +156,7 @@ export default function AgentRecharge() {
   const reload = () => api.get("/agent/recharges").then((r) => setItems(r.data || []));
 
   const fetchConfig = useCallback(() => {
-    api.get("/settings/recharge-limits-public")
+    api.get(`/settings/recharge-limits-public?_t=${Date.now()}`)
       .then((r) => {
         setMinLimit(r.data.min_recharge_limit ?? 100);
         setMaxLimit(r.data.max_recharge_limit ?? 300000);

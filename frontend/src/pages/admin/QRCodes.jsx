@@ -48,7 +48,7 @@ export default function AdminQRCodes() {
     });
     api.get("/admin/qr-name-entries").then((r) => setQrEntries(r.data || []));
     api.get("/admin/qrcodes/history").then((r) => setHistory(r.data || []));
-    api.get("/admin/settings/recharge-limits").then((r) => {
+    api.get(`/admin/settings/recharge-limits?_t=${Date.now()}`).then((r) => {
       setQrEnabled(r.data.qr_enabled ?? true);
       setT1QrEnabled(r.data.t1_qr_enabled ?? true);
       setRechargeEnabled(r.data.recharge_enabled ?? true);
