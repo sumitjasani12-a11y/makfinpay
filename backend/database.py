@@ -4,6 +4,7 @@ import uuid
 import secrets
 import logging
 import asyncpg
+import datetime
 from decimal import Decimal
 
 logger = logging.getLogger("supabase_adapter")
@@ -64,6 +65,28 @@ def convert_val(key, val):
     if isinstance(val, (bytes, bytearray)):
         return "\\x" + val.hex()
     return val
+
+def parse_db_row(d):
+    if not isinstance(d, dict):
+        return d
+    for k, v in d.items():
+        if k in DATETIME_COLUMNS and isinstance(v, str):
+            try:
+                clean_v = v.replace("Z", "+00:00")
+                d[k] = datetime.datetime.fromisoformat(clean_v)
+            except Exception:
+                pass
+        elif isinstance(v, str) and (v.startswith("{") or v.startswith("[")):
+            try:
+                d[k] = json.loads(v)
+            except Exception:
+                pass
+        elif isinstance(v, str) and (v.startswith("\\x") or v.startswith(r"\x")):
+            try:
+                d[k] = bytes.fromhex(v[2:])
+            except Exception:
+                pass
+    return d
 
 def compile_filter(filter_dict, params):
     if not filter_dict:
@@ -252,19 +275,7 @@ class PostgresCursor:
         records = await self.db.execute_query(sql, self.params)
         res_list = []
         for r in records:
-            d = dict(r)
-            for k, v in d.items():
-                if isinstance(v, str) and (v.startswith("{") or v.startswith("[")):
-                    try:
-                        d[k] = json.loads(v)
-                    except Exception:
-                        pass
-                elif isinstance(v, str) and (v.startswith("\\x") or v.startswith(r"\x")):
-                    try:
-                        d[k] = bytes.fromhex(v[2:])
-                    except Exception:
-                        pass
-            res_list.append(d)
+            res_list.append(parse_db_row(dict(r)))
         return res_list[:length] if length else res_list
 
     def _build_sql(self):
@@ -286,19 +297,7 @@ class PostgresCursor:
             records = await self.db.execute_query(sql, self.params)
             self._records = []
             for r in records:
-                d = dict(r)
-                for k, v in d.items():
-                    if isinstance(v, str) and (v.startswith("{") or v.startswith("[")):
-                        try:
-                            d[k] = json.loads(v)
-                        except Exception:
-                            pass
-                    elif isinstance(v, str) and (v.startswith("\\x") or v.startswith(r"\x")):
-                        try:
-                            d[k] = bytes.fromhex(v[2:])
-                        except Exception:
-                            pass
-                self._records.append(d)
+                self._records.append(parse_db_row(dict(r)))
             self._index = 0
         if self._index < len(self._records):
             r = self._records[self._index]
@@ -354,13 +353,7 @@ class PostgresCollection:
             if not rows:
                 return None
             d = rows[0]
-            for k, v in d.items():
-                if isinstance(v, str) and (v.startswith("{") or v.startswith("[")):
-                    try:
-                        d[k] = json.loads(v)
-                    except Exception:
-                        pass
-            return d
+            return parse_db_row(d)
         except Exception as e:
             logger.error(f"find_one SQL failed: {sql} with {params}. Error: {e}")
             raise e
@@ -742,11 +735,12 @@ class PostgresDatabase:
         return "SUCCESS"
 
     async def fetch(self, query, *params):
-        return await self.execute_query(query, list(params))
+        res = await self.execute_query(query, list(params))
+        return [parse_db_row(dict(r)) for r in res] if isinstance(res, list) else []
 
     async def fetchrow(self, query, *params):
         res = await self.execute_query(query, list(params))
-        return res[0] if res else None
+        return parse_db_row(dict(res[0])) if res and isinstance(res, list) else None
 
     async def fetchval(self, query, *params):
         res = await self.execute_query(query, list(params))
