@@ -5700,35 +5700,49 @@ async def admin_audit(
 # ---------- DASHBOARDS / STATS ----------
 def _resolve_range(range_key: str, from_date: Optional[str], to_date: Optional[str]):
     """Return (start_iso, end_iso) or (None, None) for lifetime."""
-    now = datetime.now(timezone.utc)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    ist_tz = timezone(timedelta(hours=5, minutes=30))
+    now_ist = datetime.now(ist_tz)
+    today_start_ist = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
+    
     if range_key == "today":
-        return today_start.isoformat(), (today_start + timedelta(days=1)).isoformat()
+        start = today_start_ist.astimezone(timezone.utc)
+        end = (today_start_ist + timedelta(days=1)).astimezone(timezone.utc)
+        return start.isoformat(), end.isoformat()
     if range_key == "yesterday":
-        y = today_start - timedelta(days=1)
-        return y.isoformat(), today_start.isoformat()
+        y = today_start_ist - timedelta(days=1)
+        start = y.astimezone(timezone.utc)
+        end = today_start_ist.astimezone(timezone.utc)
+        return start.isoformat(), end.isoformat()
     if range_key == "last7":
-        return (today_start - timedelta(days=7)).isoformat(), (today_start + timedelta(days=1)).isoformat()
+        start = (today_start_ist - timedelta(days=7)).astimezone(timezone.utc)
+        end = (today_start_ist + timedelta(days=1)).astimezone(timezone.utc)
+        return start.isoformat(), end.isoformat()
     if range_key == "last30":
-        return (today_start - timedelta(days=30)).isoformat(), (today_start + timedelta(days=1)).isoformat()
+        start = (today_start_ist - timedelta(days=30)).astimezone(timezone.utc)
+        end = (today_start_ist + timedelta(days=1)).astimezone(timezone.utc)
+        return start.isoformat(), end.isoformat()
     if range_key == "this_month":
-        first_day = today_start.replace(day=1)
-        if first_day.month == 12:
-            next_month = first_day.replace(year=first_day.year + 1, month=1)
+        first_day_ist = today_start_ist.replace(day=1)
+        if first_day_ist.month == 12:
+            next_month_ist = first_day_ist.replace(year=first_day_ist.year + 1, month=1)
         else:
-            next_month = first_day.replace(month=first_day.month + 1)
-        return first_day.isoformat(), next_month.isoformat()
+            next_month_ist = first_day_ist.replace(month=first_day_ist.month + 1)
+        start = first_day_ist.astimezone(timezone.utc)
+        end = next_month_ist.astimezone(timezone.utc)
+        return start.isoformat(), end.isoformat()
     if range_key == "custom":
         if not from_date or not to_date:
             raise HTTPException(400, "Custom range requires 'from' and 'to' dates")
         try:
-            fd = datetime.fromisoformat(from_date).replace(tzinfo=timezone.utc, hour=0, minute=0, second=0, microsecond=0)
-            td = datetime.fromisoformat(to_date).replace(tzinfo=timezone.utc, hour=0, minute=0, second=0, microsecond=0)
+            fd = datetime.fromisoformat(from_date).replace(tzinfo=ist_tz, hour=0, minute=0, second=0, microsecond=0)
+            td = datetime.fromisoformat(to_date).replace(tzinfo=ist_tz, hour=0, minute=0, second=0, microsecond=0)
         except Exception:
             raise HTTPException(400, "Invalid date format. Use YYYY-MM-DD")
         if fd > td:
             raise HTTPException(400, "From date cannot be after To date")
-        return fd.isoformat(), (td + timedelta(days=1)).isoformat()
+        start = fd.astimezone(timezone.utc)
+        end = (td + timedelta(days=1)).astimezone(timezone.utc)
+        return start.isoformat(), end.isoformat()
     # lifetime
     return None, None
 
