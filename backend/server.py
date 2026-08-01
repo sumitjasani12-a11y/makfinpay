@@ -1019,25 +1019,39 @@ async def log_admin_cashbook(type_str: str, amount: float, ref_type: str = "", r
     })
 
 async def adjust_balance(user_id: str, delta: float) -> float:
-    w = await get_or_create_wallet(user_id)
-    new_balance = round(w["balance"] + delta, 2)
+    await get_or_create_wallet(user_id)
     u = await db.users.find_one({"id": user_id})
     role = u.get("role") if u else "agent"
-    if new_balance < 0:
-        if role == "agent":
+    
+    if role == "agent":
+        res = await db.execute_query(
+            "UPDATE wallets SET balance = balance + $1, updated_at = $2 WHERE user_id = $3 AND balance + $1 >= 0",
+            [delta, now_iso(), user_id]
+        )
+        if not res or res.get("row_count", 0) == 0:
             raise HTTPException(400, "Insufficient wallet balance")
-        else:
-            new_balance = 0.0
-    await db.wallets.update_one({"user_id": user_id}, {"$set": {"balance": new_balance, "updated_at": now_iso()}})
-    return new_balance
+    else:
+        res = await db.execute_query(
+            "UPDATE wallets SET balance = GREATEST(balance + $1, 0.0), updated_at = $2 WHERE user_id = $3",
+            [delta, now_iso(), user_id]
+        )
+        if not res or res.get("row_count", 0) == 0:
+            raise HTTPException(400, "Insufficient wallet balance")
+            
+    w = await db.wallets.find_one({"user_id": user_id})
+    return float(w["balance"])
 
 async def adjust_t1_balance(user_id: str, delta: float) -> float:
-    w = await get_or_create_wallet(user_id)
-    new_t1_balance = round(w.get("t1_balance", 0.0) + delta, 2)
-    if new_t1_balance < 0:
+    await get_or_create_wallet(user_id)
+    res = await db.execute_query(
+        "UPDATE wallets SET t1_balance = t1_balance + $1, updated_at = $2 WHERE user_id = $3 AND t1_balance + $1 >= 0",
+        [delta, now_iso(), user_id]
+    )
+    if not res or res.get("row_count", 0) == 0:
         raise HTTPException(400, "Insufficient T+1 balance")
-    await db.wallets.update_one({"user_id": user_id}, {"$set": {"t1_balance": new_t1_balance, "updated_at": now_iso()}})
-    return new_t1_balance
+        
+    w = await db.wallets.find_one({"user_id": user_id})
+    return float(w["t1_balance"])
 
 # ---------- ADMIN: USERS ----------
 @dataclass
@@ -3311,11 +3325,16 @@ async def distributor_list_recharges(user=Depends(require_approved_distributor()
 
 @api.post("/admin/recharges/{rid}/approve")
 async def admin_approve_recharge(rid: str, body: ApprovalIn, request: Request, user=Depends(require_roles("admin"))):
+    res = await db.execute_query(
+        "UPDATE recharges SET status = 'approved' WHERE id = $1 AND status = 'pending'",
+        [rid]
+    )
+    if not res or res.get("row_count", 0) == 0:
+        raise HTTPException(400, "This recharge request has already been processed or does not exist.")
+        
     r = await db.recharges.find_one({"id": rid})
     if not r:
         raise HTTPException(404, "Not found")
-    if r["status"] != "pending":
-        raise HTTPException(400, "Already processed")
 
     # ---- Snapshot live commission state into the recharge record (one-way write) ----
     is_t1_request = r.get("is_t1", False)
@@ -3409,12 +3428,18 @@ async def admin_approve_recharge(rid: str, body: ApprovalIn, request: Request, u
 
 @api.post("/admin/recharges/{rid}/reject")
 async def admin_reject_recharge(rid: str, body: ApprovalIn, request: Request, user=Depends(require_roles("admin"))):
+    res = await db.execute_query(
+        "UPDATE recharges SET status = 'rejected' WHERE id = $1 AND status = 'pending'",
+        [rid]
+    )
+    if not res or res.get("row_count", 0) == 0:
+        raise HTTPException(400, "This recharge request has already been processed or does not exist.")
+        
     r = await db.recharges.find_one({"id": rid})
     if not r:
         raise HTTPException(404, "Not found")
-    if r["status"] != "pending":
-        raise HTTPException(400, "Already processed")
-    await db.recharges.update_one({"id": rid}, {"$set": {"status": "rejected", "note": body.note or "", "reviewed_at": now_iso(), "reviewed_by": user["id"]}})
+        
+    await db.recharges.update_one({"id": rid}, {"$set": {"note": body.note or "", "reviewed_at": now_iso(), "reviewed_by": user["id"]}})
     await write_audit(user["id"], "reject_recharge", target=rid, request=request)
     await manager.send_to_user(r["user_id"], {"event": "recharge_updated", "data": {"id": rid, "status": "rejected"}})
     await manager.send_to_role("admin", {"event": "recharge_updated", "data": {"id": rid, "status": "rejected"}})
