@@ -268,7 +268,7 @@ export default function AgentBillPay() {
   useEffect(() => {
     api.get("/wallet").then((r) => setWallet(r.data));
     api.get("/billing/service-slabs").then((r) => setSlabs(r.data)).catch((e) => console.log("Failed to fetch slabs:", e.message));
-    api.get("/billing/banks").then((r) => setBanks(r.data.map(b => b.name))).catch((e) => console.log("Failed to fetch banks:", e.message));
+    api.get(`/billing/banks?t=${Date.now()}`).then((r) => setBanks(r.data.map(b => b.name))).catch((e) => console.log("Failed to fetch banks:", e.message));
     fetchHistory();
 
     const fetchConfig = () => {

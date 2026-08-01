@@ -463,7 +463,7 @@ export default function LiveBillPay() {
   const fetchBillers = async (catId) => {
     setLoadingOps(true);
     try {
-      const res = await api.get(`/agent/live-billpay/operators?category_id=${catId}`);
+      const res = await api.get(`/agent/live-billpay/operators?category_id=${catId}&t=${Date.now()}`);
       setBillers(res.data?.data || []);
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Failed to load billers");
