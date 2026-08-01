@@ -756,28 +756,45 @@ class PostgresDatabase:
         
         query = query.strip()
         
-        # Standardize params to be JSON serializable
-        clean_params = []
-        for p in params:
-            if isinstance(p, (bytes, bytearray)):
-                clean_params.append(convert_val(None, p))
-            elif isinstance(p, uuid.UUID):
-                clean_params.append(str(p))
-            elif isinstance(p, Decimal):
-                clean_params.append(float(p))
-            elif isinstance(p, datetime.datetime):
-                clean_params.append(p.isoformat())
-            else:
-                clean_params.append(p)
-                
+        # Standardize and interpolate params in Python to bypass buggy server-side string replacement
+        if params:
+            import re
+            def escape_val(val):
+                if val is None:
+                    return "NULL"
+                if isinstance(val, bool):
+                    return "true" if val else "false"
+                if isinstance(val, (int, float, Decimal)):
+                    return str(val)
+                if isinstance(val, (bytes, bytearray)):
+                    return f"'\\x{val.hex()}'"
+                if isinstance(val, datetime.datetime):
+                    return f"'{val.isoformat()}'"
+                if isinstance(val, uuid.UUID):
+                    return f"'{str(val)}'"
+                if isinstance(val, (dict, list)):
+                    escaped = json.dumps(val).replace("'", "''")
+                    return f"'{escaped}'"
+                escaped = str(val).replace("'", "''")
+                return f"'{escaped}'"
+
+            def replace_match(m):
+                idx = int(m.group(1)) - 1
+                if 0 <= idx < len(params):
+                    return escape_val(params[idx])
+                return m.group(0)
+
+            query = re.sub(r'\$(\d+)', replace_match, query)
+            params = []
+            
         payload = {
             "query_text": query,
-            "params": clean_params,
+            "params": [],
             "secret_token": self.secret_token
         }
         res = await self.client.post("/rest/v1/rpc/execute_sql", json=payload)
         if res.status_code != 200:
-            logger.error(f"Supabase RPC Query Failed: {query} with {clean_params}. Error: {res.text}")
+            logger.error(f"Supabase RPC Query Failed: {query}. Error: {res.text}")
             raise Exception(f"Supabase RPC Error: {res.text}")
             
         data = res.json()
