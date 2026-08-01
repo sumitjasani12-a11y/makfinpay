@@ -32,7 +32,8 @@ const PERMISSIONS_LIST = [
   { key: "change-password", label: "Change Password" },
   { key: "settings", label: "Settings" },
   { key: "policies", label: "Rules & Policies" },
-  { key: "admins", label: "Admin Management" }
+  { key: "admins", label: "Admin Management" },
+  { key: "show_passwords", label: "Show Passwords & MPINs" }
 ];
 
 export default function AdminManagement() {

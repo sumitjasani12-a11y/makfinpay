@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { PageHeader, DataTable, StatusBadge, EmptyState } from "@/components/Shared";
 import FileUpload from "@/components/FileUpload";
 import { toast } from "sonner";
-import { Plus, Eye, X, FileDown, Loader2, Search, RotateCcw, Pencil, Trash2, FileSpreadsheet, Users, UserCheck, IndianRupee, Phone, Mail, Building2, Sparkles, ShieldCheck, ArrowLeft, Percent, Camera } from "lucide-react";
+import { Plus, Eye, EyeOff, KeyRound, X, FileDown, Loader2, Search, RotateCcw, Pencil, Trash2, FileSpreadsheet, Users, UserCheck, IndianRupee, Phone, Mail, Building2, Sparkles, ShieldCheck, ArrowLeft, Percent, Camera } from "lucide-react";
 
 function UserForm({ role, editingUser, onCreated, onCancel }) {
   const [form, setForm] = useState({ 
@@ -26,6 +26,8 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
   });
   const [busy, setBusy] = useState(false);
   const [activeTab, setActiveTab] = useState("firm");
+  const [showPlainPassword, setShowPlainPassword] = useState(false);
+  const [showPlainMpin, setShowPlainMpin] = useState(false);
   const isAgent = role === "agent";
   const isMd = role === "master_distributor";
 
@@ -376,6 +378,57 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
                             </div>
                           </div>
                         </>
+                      )}
+                      
+                      {(editingUser?.plain_password || editingUser?.plain_mpin) && (
+                        <div className="bg-[#F8F7F2] rounded-2xl p-5 border border-black/[0.02] space-y-4">
+                          <div>
+                            <label className="text-[10px] font-black uppercase tracking-wider text-[#1B4332] flex items-center gap-1">
+                              <KeyRound className="h-3 w-3" /> Security Credentials
+                            </label>
+                            <span className="text-[11px] text-neutral-500 font-medium block mb-3">
+                              View credentials (visible to authorized admins only)
+                            </span>
+                            
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              {editingUser.plain_password && (
+                                <div className="bg-white border border-neutral-100 rounded-xl px-4 py-3 flex items-center justify-between">
+                                  <div className="space-y-0.5">
+                                    <span className="text-[9px] font-extrabold uppercase tracking-wider text-neutral-400 block">Password</span>
+                                    <span className="text-xs font-mono font-bold text-neutral-700">
+                                      {showPlainPassword ? editingUser.plain_password : "••••••••"}
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowPlainPassword(!showPlainPassword)}
+                                    className="p-1.5 hover:bg-neutral-100 rounded-lg text-neutral-400 hover:text-neutral-600 transition-colors"
+                                  >
+                                    {showPlainPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                  </button>
+                                </div>
+                              )}
+
+                              {editingUser.plain_mpin && (
+                                <div className="bg-white border border-neutral-100 rounded-xl px-4 py-3 flex items-center justify-between">
+                                  <div className="space-y-0.5">
+                                    <span className="text-[9px] font-extrabold uppercase tracking-wider text-neutral-400 block">M-PIN</span>
+                                    <span className="text-xs font-mono font-bold text-neutral-700">
+                                      {showPlainMpin ? editingUser.plain_mpin : "••••••"}
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowPlainMpin(!showPlainMpin)}
+                                    className="p-1.5 hover:bg-neutral-100 rounded-lg text-neutral-400 hover:text-neutral-600 transition-colors"
+                                  >
+                                    {showPlainMpin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       )}
                     </div>
                   ) : (
