@@ -151,6 +151,19 @@ export default function AdminLiveBillHistory() {
     }
   }, [reload]);
 
+  const handleCheckStatus = useCallback(async (id) => {
+    setActionId(id);
+    try {
+      const res = await api.post(`/admin/live-billpay/${id}/check-status`);
+      toast.success(res.data?.message || "Status checked successfully!");
+      reload();
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail) || "Failed to check transaction status");
+    } finally {
+      setActionId(null);
+    }
+  }, [reload]);
+
   const handleToggleLiveBill = async (val) => {
     setLiveBillEnabled(val);
     try {
@@ -249,13 +262,20 @@ export default function AdminLiveBillHistory() {
               >
                 Reject
               </button>
+              <button
+                disabled={isBusy}
+                onClick={() => handleCheckStatus(r.id)}
+                className="px-2 py-1 text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Check Status
+              </button>
             </div>
           );
         }
         return <div className="text-neutral-400 text-center text-xs">—</div>;
       }
     }
-  ], [user, actionId, handleApprove, handleReject]);
+  ], [user, actionId, handleApprove, handleReject, handleCheckStatus]);
 
   const [exportingPdf, setExportingPdf] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);

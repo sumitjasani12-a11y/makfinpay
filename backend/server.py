@@ -4271,6 +4271,70 @@ async def admin_reject_live_bill(tid: str, body: ApprovalIn, request: Request, u
     await manager.send_to_role("admin", {"event": "cc_bill_updated", "data": {"id": tid, "status": "reversed"}})
     return {"ok": True}
 
+@api.post("/admin/live-billpay/{tid}/check-status")
+async def admin_check_live_bill_status(tid: str, request: Request, user=Depends(require_roles("admin"))):
+    t = await db.transactions.find_one({"id": tid})
+    if not t:
+        raise HTTPException(404, "Not found")
+    if t["type"] != "live_bill":
+        raise HTTPException(400, "Transaction is not a live bill payment")
+    
+    op_txn_id = t.get("operator_txn_id")
+    if not op_txn_id:
+        raise HTTPException(400, "Cannot check status: No operator transaction ID is associated with this transaction.")
+        
+    try:
+        res = await call_irise_api("GET", f"status/{op_txn_id}")
+    except Exception as e:
+        raise HTTPException(502, f"Failed to fetch status from provider: {str(e)}")
+        
+    if not res or res.get("status") != "success":
+        raise HTTPException(400, f"Provider status check returned error: {res.get('message', 'Unknown error')}")
+        
+    data = res.get("data") or {}
+    current_status = data.get("current_status") or "pending"
+    
+    if t["status"] == "pending":
+        if current_status == "success":
+            s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+            api_charge = float(s.get("live_bill_api_charge", 0.0))
+            
+            await db.transactions.update_one({"id": tid}, {"$set": {
+                "status": "success",
+                "reviewed_by": user["id"],
+                "reviewed_at": now_iso(),
+                "api_charge": api_charge
+            }})
+            
+            await log_admin_cashbook("debit", t["bill_amount"], "bbps_payout", tid, f"Paid Live Bill for {t.get('user_name', 'Agent')} ({t.get('operator', 'Biller')})")
+            profit = round(t["service_charge"] - api_charge, 2)
+            await log_admin_profit("credit", profit, "live_bill_fee", tid, f"Profit margin from Live Bill ({t.get('user_name', 'Agent')})")
+            
+            await write_audit(user["id"], "live_bill_status_success", target=tid, meta={"amount": t["amount"], "op_txn_id": op_txn_id}, request=request)
+            await manager.send_to_user(t["user_id"], {"event": "cc_bill_updated", "data": {"id": tid, "status": "success"}})
+            await manager.send_to_role("admin", {"event": "cc_bill_updated", "data": {"id": tid, "status": "success"}})
+            return {"ok": True, "status": "success", "message": "Transaction marked as SUCCESS based on Usepay API."}
+            
+        elif current_status in ("failed", "reversed"):
+            new_balance = await adjust_balance(t["user_id"], t["amount"])
+            await db.transactions.update_one({"id": tid}, {"$set": {
+                "status": "reversed",
+                "note": f"Automatically reversed/refunded based on Usepay API status: {current_status}",
+                "reviewed_by": user["id"],
+                "reviewed_at": now_iso()
+            }})
+            await ledger_entry(t["user_id"], "refund", t["amount"], new_balance, "live_bill_refund", tid, f"Refund: Auto-reversed based on Usepay API status for {t.get('customer_phone', 'Biller')}")
+            
+            await write_audit(user["id"], "live_bill_status_failed", target=tid, meta={"amount": t["amount"], "op_txn_id": op_txn_id}, request=request)
+            await manager.send_to_user(t["user_id"], {"event": "cc_bill_updated", "data": {"id": tid, "status": "reversed"}})
+            await manager.send_to_role("admin", {"event": "cc_bill_updated", "data": {"id": tid, "status": "reversed"}})
+            return {"ok": True, "status": "reversed", "message": "Transaction marked as FAILED & REFUNDED based on Usepay API."}
+            
+        else:
+            return {"ok": True, "status": "pending", "message": "Transaction is still PENDING at Usepay."}
+    else:
+        return {"ok": True, "status": t["status"], "message": f"Transaction is already in status: {t['status']}"}
+
 # ---------- WITHDRAWALS ----------
 @api.post("/withdrawals")
 async def create_withdrawal(body: WithdrawalIn, user=Depends(require_approved_any())):
