@@ -3,7 +3,8 @@ import { Link } from "react-router-dom";
 import {
   Shield, Zap, Smartphone, Wifi, Droplet, Flame, Car, CreditCard,
   Lightbulb, Tv, ArrowRight, CheckCircle2, Phone, Mail, MapPin,
-  HeartHandshake, Sparkles, Rocket, Users, Plane, Hotel, Receipt
+  HeartHandshake, Sparkles, Rocket, Users, Plane, Hotel, Receipt,
+  Eye, HelpCircle, CheckSquare, Target
 } from "lucide-react";
 import Logo from "@/components/Logo";
 
@@ -45,7 +46,7 @@ export const VALUES = [
 ];
 
 export const HERO_STATS = [
-  { id: "services", k: "8+", v: "Utility Services" },
+  { id: "services", k: "12+", v: "Utility Services" },
   { id: "secure", k: "100%", v: "Secure" },
   { id: "support", k: "24/7", v: "Support" },
 ];
@@ -61,23 +62,25 @@ export const BENEFITS = [
 
 export function LandingNav() {
   return (
-    <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-black/5">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2" data-testid="nav-logo">
-          <Logo variant="dark" size={36} />
+    <header className="sticky top-0 z-50 bg-[#030712]/80 backdrop-blur-xl border-b border-white/[0.06] transition-all duration-300">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+        <Link to="/" className="flex items-center gap-3.5 group" data-testid="nav-logo">
+          <div className="p-1 rounded-xl bg-white/[0.03] border border-white/[0.08] group-hover:border-emerald-500/30 transition-colors">
+            <Logo variant="dark" size={40} />
+          </div>
           <div className="leading-tight">
-            <div className="text-base font-semibold">MAK FIN PAY</div>
-            <div className="text-[10px] tracking-[0.2em] uppercase text-neutral-500">Digital Utility</div>
+            <div className="text-lg font-black tracking-tight text-white group-hover:text-emerald-400 transition-colors">MAK FIN PAY</div>
+            <div className="text-[10px] tracking-[0.25em] font-extrabold uppercase text-neutral-500">Digital Utility</div>
           </div>
         </Link>
-        <nav className="hidden md:flex items-center gap-8 text-sm">
-          <a href="#services" className="text-neutral-600 hover:text-[#1B4332] transition-colors">Services</a>
-          <a href="#about" className="text-neutral-600 hover:text-[#1B4332] transition-colors">About</a>
-          <a href="#why" className="text-neutral-600 hover:text-[#1B4332] transition-colors">Why Us</a>
-          <a href="#contact" className="text-neutral-600 hover:text-[#1B4332] transition-colors">Contact</a>
+        <nav className="hidden md:flex items-center gap-10 text-sm font-semibold">
+          <a href="#services" className="text-neutral-400 hover:text-white hover:translate-y-[-1px] transition-all duration-300">Services</a>
+          <a href="#about" className="text-neutral-400 hover:text-white hover:translate-y-[-1px] transition-all duration-300">About</a>
+          <a href="#why" className="text-neutral-400 hover:text-white hover:translate-y-[-1px] transition-all duration-300">Why Us</a>
+          <a href="#contact" className="text-neutral-400 hover:text-white hover:translate-y-[-1px] transition-all duration-300">Contact</a>
         </nav>
-        <Link to="/login" className="mfp-btn-primary" data-testid="nav-login-btn">
-          Login <ArrowRight className="h-4 w-4" />
+        <Link to="/login" className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-neutral-950 font-black text-sm shadow-[0_0_20px_rgba(16,185,129,0.25)] hover:shadow-[0_0_30px_rgba(16,185,129,0.45)] hover:-translate-y-0.5 transition-all duration-300" data-testid="nav-login-btn">
+          Login <ArrowRight className="h-4 w-4 stroke-[3px]" />
         </Link>
       </div>
     </header>
@@ -86,42 +89,52 @@ export function LandingNav() {
 
 export function HeroSection() {
   return (
-    <section className="relative overflow-hidden">
+    <section className="relative overflow-hidden pt-20 pb-24 lg:pt-32 lg:pb-36">
+      {/* Decorative Glow Blobs */}
+      <div className="absolute top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2 -z-20 w-[500px] h-[500px] rounded-full bg-emerald-500/10 blur-[120px] pointer-events-none" />
+      <div className="absolute top-1/3 right-1/4 translate-x-1/2 -translate-y-1/2 -z-20 w-[600px] h-[600px] rounded-full bg-indigo-500/10 blur-[140px] pointer-events-none" />
+      
+      {/* Background Graphic Overlay */}
       <div
-        className="absolute inset-0 -z-10 opacity-60"
+        className="absolute inset-0 -z-10 opacity-30 select-none pointer-events-none mix-blend-overlay"
         style={{ backgroundImage: `url(${HERO_BG})`, backgroundSize: "cover", backgroundPosition: "right center" }}
       />
-      <div className="absolute inset-0 -z-10 bg-gradient-to-r from-white via-white/95 to-transparent" />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 lg:py-32 grid lg:grid-cols-12 gap-12 items-center">
-        <div className="lg:col-span-7 fade-up">
-          <div className="mfp-pill bg-[#E8E5D7] text-[#1B4332] mb-6">
-            <Sparkles className="h-3.5 w-3.5" /> Fast. Secure. Reliable.
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-12 gap-16 items-center">
+        <div className="lg:col-span-7 flex flex-col items-start text-left animate-scaleUp">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/5 text-emerald-400 text-xs font-black tracking-widest uppercase mb-8 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+            <Sparkles className="h-3.5 w-3.5" /> Fast · Secure · Reliable
           </div>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl tracking-tight leading-none font-medium">
+          <h1 className="text-4xl sm:text-5xl lg:text-[70px] tracking-tight leading-[1.05] font-black text-white">
             Simplifying Digital <br />
-            <span className="text-[#CC5500]">Utility Payments</span> <br /> For Everyone.
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400">Utility Payments</span> <br /> For Everyone.
           </h1>
-          <p className="mt-6 text-lg text-neutral-600 max-w-xl leading-relaxed">
+          <p className="mt-8 text-base sm:text-lg text-neutral-400 max-w-xl leading-relaxed font-medium">
             Fast, secure, and reliable utility payment solutions designed for modern businesses and customers. From mobile recharge to bill payments, MAK FIN PAY helps users complete essential services quickly and conveniently.
           </p>
           <div className="mt-10 flex flex-wrap items-center gap-4">
-            <Link to="/login" className="mfp-btn-primary" data-testid="hero-get-started-btn">
-              Get Started <ArrowRight className="h-4 w-4" />
+            <Link to="/login" className="inline-flex items-center gap-2 px-8 py-4.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-neutral-950 font-black shadow-[0_0_25px_rgba(16,185,129,0.3)] hover:shadow-[0_0_35px_rgba(16,185,129,0.5)] hover:-translate-y-0.5 transition-all duration-300" data-testid="hero-get-started-btn">
+              Get Started <ArrowRight className="h-4.5 w-4.5 stroke-[3px]" />
             </Link>
-            <a href="#contact" className="mfp-btn-outline" data-testid="hero-contact-btn">Contact Us</a>
+            <a href="#contact" className="inline-flex items-center justify-center border border-white/10 hover:border-white/20 bg-white/[0.02] hover:bg-white/[0.05] px-8 py-4.5 rounded-2xl text-white font-black hover:-translate-y-0.5 transition-all duration-300" data-testid="hero-contact-btn">
+              Contact Us
+            </a>
           </div>
-          <div className="mt-12 grid grid-cols-3 gap-6 max-w-md">
+          <div className="mt-16 grid grid-cols-3 gap-8 max-w-md w-full pt-8 border-t border-white/[0.06]">
             {HERO_STATS.map((s) => (
               <div key={s.id}>
-                <div className="text-3xl font-semibold tracking-tight">{s.k}</div>
-                <div className="text-xs uppercase tracking-[0.2em] text-neutral-500 mt-1">{s.v}</div>
+                <div className="text-3xl sm:text-4xl font-black text-white tracking-tight">{s.k}</div>
+                <div className="text-[10px] uppercase font-bold tracking-[0.2em] text-neutral-500 mt-2">{s.v}</div>
               </div>
             ))}
           </div>
         </div>
-        <div className="lg:col-span-5 fade-up">
-          <div className="relative">
-            <img src={PAY_IMG} alt="Digital payment" className="rounded-3xl shadow-2xl object-cover h-[460px] w-full border border-black/5" />
+        <div className="lg:col-span-5 flex justify-center">
+          <div className="relative group w-full max-w-[440px]">
+            <div className="absolute -inset-1.5 rounded-[2.5rem] bg-gradient-to-r from-emerald-500 to-cyan-500 opacity-20 blur-xl group-hover:opacity-35 transition-all duration-700" />
+            <div className="relative rounded-[2rem] overflow-hidden border border-white/[0.08] bg-[#090D1A] p-2.5 shadow-2xl">
+              <img src={PAY_IMG} alt="Digital payment" className="rounded-[1.75rem] object-cover h-[440px] w-full scale-100 group-hover:scale-102 transition-transform duration-700" />
+            </div>
           </div>
         </div>
       </div>
@@ -131,20 +144,29 @@ export function HeroSection() {
 
 export function AboutSection() {
   return (
-    <section id="about" className="py-24 lg:py-32 bg-[#F4F3ED]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-12 gap-12 items-center">
-        <div className="lg:col-span-5">
-          <img src={TEAM_IMG} alt="Team" className="rounded-3xl object-cover h-[420px] w-full border border-black/5" />
+    <section id="about" className="py-24 lg:py-32 bg-gradient-to-b from-[#030712] via-[#080d1a] to-[#030712] relative overflow-hidden border-y border-white/[0.04]">
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -z-20 w-[600px] h-[600px] rounded-full bg-indigo-500/5 blur-[120px] pointer-events-none" />
+      
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-12 gap-16 items-center">
+        <div className="lg:col-span-5 flex justify-center">
+          <div className="relative group w-full max-w-[400px]">
+            <div className="absolute -inset-1 rounded-[2.25rem] bg-gradient-to-r from-purple-500 to-indigo-500 opacity-15 blur-xl group-hover:opacity-30 transition-all duration-700" />
+            <div className="relative rounded-[2rem] overflow-hidden border border-white/[0.08] bg-[#090D1A] p-2 shadow-2xl">
+              <img src={TEAM_IMG} alt="Team" className="rounded-[1.75rem] object-cover h-[400px] w-full scale-100 group-hover:scale-103 transition-transform duration-700" />
+            </div>
+          </div>
         </div>
-        <div className="lg:col-span-7">
-          <div className="mfp-overline">About MAK FIN PAY</div>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl tracking-tight leading-tight font-medium mt-3">
+        <div className="lg:col-span-7 flex flex-col items-start text-left">
+          <div className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 text-xs font-black tracking-widest uppercase">
+            About MAK FIN PAY
+          </div>
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight mt-4 leading-tight">
             A growing digital utility services company committed to simplifying everyday payments.
           </h2>
-          <p className="mt-6 text-lg text-neutral-600 leading-relaxed">
+          <p className="mt-6 text-base sm:text-lg text-neutral-400 leading-relaxed font-medium">
             MAK FIN PAY is a newly established digital utility services company delivering convenient and secure payment solutions across India. We aim to simplify everyday utility services through a user-friendly platform that helps customers complete transactions quickly and efficiently.
           </p>
-          <p className="mt-4 text-base text-neutral-600 leading-relaxed">
+          <p className="mt-4 text-sm sm:text-base text-neutral-500 leading-relaxed font-medium">
             Our focus is on reliability, customer satisfaction, and building long-term trust through transparent and smooth services.
           </p>
         </div>
@@ -155,25 +177,31 @@ export function AboutSection() {
 
 export function ServicesSection() {
   return (
-    <section id="services" className="py-24 lg:py-32">
+    <section id="services" className="py-24 lg:py-32 relative">
+      <div className="absolute top-1/3 right-1/4 -z-20 w-[400px] h-[400px] rounded-full bg-cyan-500/5 blur-[100px] pointer-events-none" />
+      
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-end justify-between flex-wrap gap-6 mb-12">
+        <div className="flex items-end justify-between flex-wrap gap-8 mb-16">
           <div>
-            <div className="mfp-overline">Utility Services</div>
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl tracking-tight leading-tight font-medium mt-3 max-w-2xl">
+            <div className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 text-xs font-black tracking-widest uppercase">
+              Utility Services
+            </div>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight mt-4 max-w-2xl leading-tight">
               Everything you need, on a single platform.
             </h2>
           </div>
-          <img src={SERVICES_IMG} alt="Services" className="h-28 hidden md:block" />
+          <div className="hidden md:block p-3 rounded-2xl bg-white/[0.02] border border-white/[0.06] shadow-xl shrink-0">
+            <img src={SERVICES_IMG} alt="Services" className="h-24 opacity-80" />
+          </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {SERVICES.map((s) => (
-            <div key={s.id} className="mfp-card p-6" data-testid={`service-card-${s.id}`}>
-              <div className="h-12 w-12 rounded-xl bg-[#E8E5D7] text-[#1B4332] grid place-items-center mb-5">
-                <s.icon className="h-5 w-5" strokeWidth={1.5} />
+            <div key={s.id} className="relative group bg-white/[0.01] hover:bg-white/[0.03] border border-white/[0.05] hover:border-emerald-500/30 rounded-3xl p-7 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_12px_30px_-10px_rgba(16,185,129,0.12)]" data-testid={`service-card-${s.id}`}>
+              <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-emerald-500/10 to-cyan-500/10 text-emerald-400 border border-emerald-500/25 grid place-items-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                <s.icon className="h-5.5 w-5.5 stroke-[1.5]" />
               </div>
-              <div className="text-lg font-medium">{s.title}</div>
-              <p className="mt-2 text-sm text-neutral-600 leading-relaxed">{s.desc}</p>
+              <div className="text-lg font-black text-white tracking-tight">{s.title}</div>
+              <p className="mt-2.5 text-xs sm:text-sm text-neutral-400 leading-relaxed font-semibold">{s.desc}</p>
             </div>
           ))}
         </div>
@@ -184,25 +212,33 @@ export function ServicesSection() {
 
 export function WhyChooseSection() {
   return (
-    <section id="why" className="py-24 lg:py-32 bg-[#1B4332] text-[#FDFCF8]">
+    <section id="why" className="py-24 lg:py-32 bg-gradient-to-b from-[#030712] via-[#05140e] to-[#030712] border-y border-white/[0.04] relative overflow-hidden">
+      <div className="absolute top-1/4 left-1/3 -z-20 w-[500px] h-[500px] rounded-full bg-emerald-500/5 blur-[120px] pointer-events-none" />
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid lg:grid-cols-12 gap-12">
-          <div className="lg:col-span-5">
-            <div className="text-xs uppercase tracking-[0.2em] font-semibold text-[#E8E5D7]/80">Why Choose Us</div>
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl tracking-tight leading-tight font-medium mt-3">
+        <div className="grid lg:grid-cols-12 gap-16">
+          <div className="lg:col-span-5 flex flex-col items-start justify-center">
+            <div className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 text-xs font-black tracking-widest uppercase">
+              Why Choose Us
+            </div>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight mt-4 leading-tight">
               Built on trust, speed, and clarity.
             </h2>
-            <p className="mt-6 text-[#E8E5D7]/80 leading-relaxed">
+            <p className="mt-6 text-sm sm:text-base text-neutral-400 leading-relaxed font-medium">
               MAK FIN PAY makes everyday payments simpler with a platform that values reliability and customer satisfaction above all.
             </p>
-            <img src={NET_IMG} alt="Network" className="mt-8 rounded-2xl border border-white/10 opacity-90" />
+            <div className="relative group mt-10 w-full rounded-2xl overflow-hidden border border-white/[0.08] bg-[#090D1A] p-2 shadow-2xl">
+              <img src={NET_IMG} alt="Network" className="rounded-xl opacity-90 w-full" />
+            </div>
           </div>
           <div className="lg:col-span-7 grid sm:grid-cols-2 gap-6">
             {WHY.map((w) => (
-              <div key={w.id} className="bg-white/5 backdrop-blur border border-white/10 rounded-2xl p-6">
-                <w.icon className="h-6 w-6 text-[#E8E5D7] mb-4" strokeWidth={1.5} />
-                <div className="text-lg font-medium">{w.title}</div>
-                <p className="mt-2 text-sm text-[#E8E5D7]/75 leading-relaxed">{w.desc}</p>
+              <div key={w.id} className="bg-white/[0.02] border border-white/[0.06] hover:border-emerald-500/20 rounded-3xl p-7 transition-all duration-300 hover:-translate-y-1">
+                <div className="h-11 w-11 rounded-xl bg-emerald-500/10 text-emerald-400 grid place-items-center mb-5">
+                  <w.icon className="h-5 w-5" strokeWidth={1.5} />
+                </div>
+                <div className="text-lg font-black text-white tracking-tight">{w.title}</div>
+                <p className="mt-2 text-xs sm:text-sm text-neutral-400 leading-relaxed font-semibold">{w.desc}</p>
               </div>
             ))}
           </div>
@@ -214,17 +250,29 @@ export function WhyChooseSection() {
 
 export function VisionMissionSection() {
   return (
-    <section className="py-24 lg:py-32">
+    <section className="py-24 lg:py-32 relative">
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -z-20 w-[500px] h-[500px] rounded-full bg-indigo-500/5 blur-[120px] pointer-events-none" />
+      
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid md:grid-cols-2 gap-8">
-        <div className="mfp-card p-10">
-          <div className="mfp-overline">Our Vision</div>
-          <h3 className="text-2xl sm:text-3xl font-medium mt-3 leading-tight">
+        <div className="relative overflow-hidden bg-white/[0.01] hover:bg-white/[0.02] border border-white/[0.06] hover:border-white/[0.1] rounded-[2rem] p-10 transition-all duration-300">
+          <div className="h-12 w-12 rounded-2xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 grid place-items-center mb-6">
+            <Eye className="h-6 w-6 stroke-[1.5]" />
+          </div>
+          <div className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400 text-xs font-black tracking-widest uppercase">
+            Our Vision
+          </div>
+          <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight mt-4 leading-snug">
             To become a trusted digital utility payment platform that simplifies essential services for everyone.
           </h3>
         </div>
-        <div className="mfp-card p-10 bg-[#E8E5D7]/40">
-          <div className="mfp-overline">Our Mission</div>
-          <h3 className="text-2xl sm:text-3xl font-medium mt-3 leading-tight">
+        <div className="relative overflow-hidden bg-gradient-to-br from-emerald-500/[0.02] to-cyan-500/[0.02] hover:bg-[#071611]/20 border border-emerald-500/10 hover:border-emerald-500/20 rounded-[2rem] p-10 transition-all duration-300">
+          <div className="h-12 w-12 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 grid place-items-center mb-6">
+            <Target className="h-6 w-6 stroke-[1.5]" />
+          </div>
+          <div className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 text-xs font-black tracking-widest uppercase">
+            Our Mission
+          </div>
+          <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight mt-4 leading-snug">
             Provide fast, secure, accessible utility payments while building trust, transparency and satisfaction.
           </h3>
         </div>
@@ -235,17 +283,19 @@ export function VisionMissionSection() {
 
 export function BenefitsSection() {
   return (
-    <section className="pb-24">
+    <section className="pb-24 lg:pb-32">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mfp-overline">Benefits</div>
-        <h2 className="text-3xl sm:text-4xl tracking-tight font-medium mt-3 mb-12 max-w-2xl">
+        <div className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 text-xs font-black tracking-widest uppercase mb-4">
+          Benefits
+        </div>
+        <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight mb-12 max-w-2xl leading-tight">
           Why teams choose MAK FIN PAY for daily operations.
         </h2>
-        <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {BENEFITS.map((b) => (
-            <li key={b.id} className="flex items-start gap-3 bg-[#F4F3ED] rounded-2xl p-5">
-              <CheckCircle2 className="h-5 w-5 text-[#2D6A4F] mt-0.5" />
-              <span className="text-neutral-700">{b.text}</span>
+            <li key={b.id} className="flex items-center gap-4 bg-white/[0.01] hover:bg-white/[0.03] border border-white/[0.05] rounded-2xl p-5.5 transition-colors duration-300">
+              <CheckCircle2 className="h-5.5 w-5.5 text-emerald-400 shrink-0 stroke-[2.5]" />
+              <span className="text-neutral-300 font-semibold text-sm sm:text-base">{b.text}</span>
             </li>
           ))}
         </ul>
@@ -256,16 +306,18 @@ export function BenefitsSection() {
 
 export function ValuesSection() {
   return (
-    <section className="py-24 bg-[#F4F3ED]">
+    <section className="py-24 lg:py-32 bg-gradient-to-b from-[#030712] via-[#0b0805] to-[#030712] border-y border-white/[0.04]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mfp-overline">Core Values</div>
-        <h2 className="text-3xl sm:text-4xl tracking-tight font-medium mt-3 mb-12 max-w-2xl">What we stand for.</h2>
+        <div className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-400 text-xs font-black tracking-widest uppercase mb-4">
+          Core Values
+        </div>
+        <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight mb-12 max-w-2xl">What we stand for.</h2>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {VALUES.map((v, i) => (
-            <div key={v.id} className="mfp-card p-8">
-              <div className="text-3xl font-medium text-[#CC5500]">{String(i + 1).padStart(2, "0")}</div>
-              <div className="text-xl font-medium mt-4">{v.title}</div>
-              <p className="mt-2 text-sm text-neutral-600 leading-relaxed">{v.desc}</p>
+            <div key={v.id} className="bg-white/[0.01] hover:bg-white/[0.03] border border-white/[0.06] hover:border-orange-500/20 rounded-3xl p-8 transition-all duration-300 hover:-translate-y-1">
+              <div className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-300">{String(i + 1).padStart(2, "0")}</div>
+              <div className="text-xl font-black text-white tracking-tight mt-5">{v.title}</div>
+              <p className="mt-2.5 text-xs sm:text-sm text-neutral-400 leading-relaxed font-semibold">{v.desc}</p>
             </div>
           ))}
         </div>
@@ -276,22 +328,46 @@ export function ValuesSection() {
 
 export function ContactSection() {
   return (
-    <section id="contact" className="py-24 lg:py-32">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-2 gap-12 items-center">
-        <div>
-          <div className="mfp-overline">Get In Touch</div>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl tracking-tight font-medium mt-3 leading-tight">
+    <section id="contact" className="py-24 lg:py-32 relative">
+      <div className="absolute top-1/3 left-1/4 -z-20 w-[400px] h-[400px] rounded-full bg-emerald-500/5 blur-[100px] pointer-events-none" />
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-12 gap-16 items-center">
+        <div className="lg:col-span-7 flex flex-col items-start">
+          <div className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 text-xs font-black tracking-widest uppercase">
+            Get In Touch
+          </div>
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight mt-4 leading-tight">
             Start your digital payment journey with MAK FIN PAY today.
           </h2>
-          <p className="mt-6 text-lg text-neutral-600">Have questions or need assistance? Our team is here to help.</p>
-          <div className="mt-10 space-y-5">
-            <div className="flex items-center gap-4"><div className="h-11 w-11 rounded-xl bg-[#E8E5D7] grid place-items-center"><Phone className="h-5 w-5" /></div><div><div className="text-xs uppercase tracking-[0.2em] text-neutral-500">Phone</div><div className="text-base font-medium">+91 97127 41212</div></div></div>
-            <div className="flex items-center gap-4"><div className="h-11 w-11 rounded-xl bg-[#E8E5D7] grid place-items-center"><Mail className="h-5 w-5" /></div><div><div className="text-xs uppercase tracking-[0.2em] text-neutral-500">Email</div><div className="text-base font-medium">support@makfinpay.com</div></div></div>
-            <div className="flex items-start gap-4">
-              <div className="h-11 w-11 rounded-xl bg-[#E8E5D7] grid place-items-center shrink-0"><MapPin className="h-5 w-5" /></div>
+          <p className="mt-6 text-sm sm:text-base text-neutral-400 leading-relaxed font-semibold">
+            Have questions or need assistance? Our team is here to help.
+          </p>
+          <div className="mt-10 space-y-6 w-full max-w-md">
+            <div className="flex items-center gap-4.5 bg-white/[0.01] border border-white/[0.05] rounded-2xl p-4.5">
+              <div className="h-11 w-11 rounded-xl bg-emerald-500/10 text-emerald-400 grid place-items-center shrink-0">
+                <Phone className="h-5 w-5" />
+              </div>
               <div>
-                <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">Office</div>
-                <div className="text-base font-medium leading-relaxed">
+                <div className="text-[10px] uppercase font-bold tracking-wider text-neutral-500">Phone</div>
+                <div className="text-sm sm:text-base font-black text-white mt-0.5">+91 97127 41212</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-4.5 bg-white/[0.01] border border-white/[0.05] rounded-2xl p-4.5">
+              <div className="h-11 w-11 rounded-xl bg-emerald-500/10 text-emerald-400 grid place-items-center shrink-0">
+                <Mail className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="text-[10px] uppercase font-bold tracking-wider text-neutral-500">Email</div>
+                <div className="text-sm sm:text-base font-black text-white mt-0.5">support@makfinpay.com</div>
+              </div>
+            </div>
+            <div className="flex items-start gap-4.5 bg-white/[0.01] border border-white/[0.05] rounded-2xl p-4.5">
+              <div className="h-11 w-11 rounded-xl bg-emerald-500/10 text-emerald-400 grid place-items-center shrink-0 mt-0.5">
+                <MapPin className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="text-[10px] uppercase font-bold tracking-wider text-neutral-500">Office</div>
+                <div className="text-xs sm:text-sm font-semibold text-neutral-300 leading-relaxed mt-0.5">
                   Yasin Baug Shop No. 2A, Plot No. 580,<br />
                   AV School Ground Opposite,<br />
                   Near Police Line, Navapara,<br />
@@ -301,12 +377,20 @@ export function ContactSection() {
             </div>
           </div>
         </div>
-        <div className="rounded-2xl bg-[#1B4332] text-white p-10 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-[#1B4332]">
-          <h3 className="text-2xl font-medium text-white">Ready to begin?</h3>
-          <p className="mt-3 text-white/90">Login with your agent credentials to access your dashboard.</p>
-          <Link to="/login" className="mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-[#CC5500] hover:bg-[#A64500] text-white px-5 py-3 text-sm font-semibold transition-colors" data-testid="contact-login-btn">
-            Open Dashboard <ArrowRight className="h-4 w-4" />
-          </Link>
+        <div className="lg:col-span-5 w-full">
+          <div className="relative group">
+            <div className="absolute -inset-1.5 rounded-[2.5rem] bg-gradient-to-r from-orange-500 to-rose-500 opacity-20 blur-xl group-hover:opacity-35 transition-all duration-700" />
+            <div className="relative rounded-[2rem] bg-gradient-to-br from-[#090D1A] to-[#030712] border border-white/[0.08] p-10 shadow-2xl flex flex-col items-start">
+              <div className="absolute top-0 right-0 w-[200px] h-[200px] bg-emerald-500/10 blur-[80px] rounded-full pointer-events-none" />
+              <h3 className="text-2xl font-black text-white tracking-tight">Ready to begin?</h3>
+              <p className="mt-3 text-xs sm:text-sm text-neutral-400 leading-relaxed font-semibold">
+                Login with your operator credentials to access your dashboard.
+              </p>
+              <Link to="/login" className="mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#CC5500] to-[#FD7E14] hover:from-[#A64500] hover:to-[#DD6B20] text-white px-7 py-3.5 text-sm font-black shadow-[0_0_20px_rgba(204,85,0,0.25)] hover:shadow-[0_0_30px_rgba(204,85,0,0.45)] hover:-translate-y-0.5 transition-all duration-300" data-testid="contact-login-btn">
+                Open Dashboard <ArrowRight className="h-4 w-4 stroke-[3px]" />
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -315,13 +399,15 @@ export function ContactSection() {
 
 export function LandingFooter() {
   return (
-    <footer className="border-t border-black/5 py-10">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <Logo variant="dark" size={28} />
-          <div className="text-sm font-medium">MAK FIN PAY · Simple Payments. Trusted Service.</div>
+    <footer className="border-t border-white/[0.06] py-12 bg-[#02050c]">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6">
+        <div className="flex items-center gap-3">
+          <Logo variant="dark" size={32} />
+          <div className="text-sm font-semibold text-neutral-300">
+            MAK FIN PAY <span className="text-neutral-500 font-normal">· Simple Payments. Trusted Service.</span>
+          </div>
         </div>
-        <div className="text-xs text-neutral-500">© {new Date().getFullYear()} MAK FIN PAY. All rights reserved.</div>
+        <div className="text-xs font-semibold text-neutral-500">© {new Date().getFullYear()} MAK FIN PAY. All rights reserved.</div>
       </div>
     </footer>
   );
