@@ -21,7 +21,8 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
     commission_percent: editingUser?.commission_percent || "",
     t1_commission_percent: editingUser?.t1_commission_percent || "",
     hold_balance_amount: editingUser?.hold_balance || 0,
-    hold_active: editingUser?.hold_active || false
+    hold_active: editingUser?.hold_active || false,
+    is_tester: editingUser?.is_tester || false
   });
   const [busy, setBusy] = useState(false);
   const [activeTab, setActiveTab] = useState("firm");
@@ -62,10 +63,11 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
         commission_percent: editingUser.commission_percent ?? "",
         t1_commission_percent: editingUser.t1_commission_percent ?? "",
         hold_balance_amount: editingUser.hold_balance ?? 0,
-        hold_active: editingUser.hold_active ?? false
+        hold_active: editingUser.hold_active ?? false,
+        is_tester: editingUser.is_tester ?? false
       });
     } else {
-      setForm({ role, full_name: "", email: "", password: "", phone: "", address: "", firm_name: "", firm_address: "", selfie_path: "", commission_percent: "", t1_commission_percent: "", hold_balance_amount: 0, hold_active: false });
+      setForm({ role, full_name: "", email: "", password: "", phone: "", address: "", firm_name: "", firm_address: "", selfie_path: "", commission_percent: "", t1_commission_percent: "", hold_balance_amount: 0, hold_active: false, is_tester: false });
     }
   }, [editingUser, role]);
 
@@ -93,6 +95,7 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
       if (isAgent) {
         body.hold_balance_amount = parseFloat(form.hold_balance_amount || 0);
         body.hold_active = !!form.hold_active;
+        body.is_tester = !!form.is_tester;
       }
       
       if (editingUser) {
@@ -349,6 +352,28 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
                                 </div>
                               </div>
                             )}
+                          </div>
+
+                          <div className="bg-[#F8F7F2] rounded-2xl p-5 border border-black/[0.02] space-y-4">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-[#1B4332] block">
+                                  Tester User
+                                </label>
+                                <span className="text-[11px] text-neutral-500 font-medium">
+                                  Enable service bypass for testing when global toggles are OFF
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setForm(prev => ({ ...prev, is_tester: !prev.is_tester }))}
+                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${form.is_tester ? "bg-[#1B4332]" : "bg-neutral-200"}`}
+                              >
+                                <span
+                                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${form.is_tester ? "translate-x-5" : "translate-x-0"}`}
+                                />
+                              </button>
+                            </div>
                           </div>
                         </>
                       )}

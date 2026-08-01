@@ -341,7 +341,7 @@ async def get_current_user(request: Request) -> dict:
         raise HTTPException(403, "Account frozen")
     if user.get("role") != "admin":
         s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
-        if s.get("maintenance_mode"):
+        if s.get("maintenance_mode") and not user.get("is_tester", False):
             raise HTTPException(503, "Site is under maintenance. Please try again later.")
     user.pop("password_hash", None)
     return user
@@ -435,6 +435,7 @@ class UpdateUserIn(BaseModel):
     t1_commission_percent: Optional[float] = None
     hold_balance_amount: Optional[float] = None
     hold_active: Optional[bool] = None
+    is_tester: Optional[bool] = None
 
 class AdjustBalanceIn(BaseModel):
     amount: float = Field(..., gt=0)
@@ -2570,6 +2571,9 @@ async def admin_update_user(uid: str, body: UpdateUserIn, user=Depends(require_r
     if body.selfie_path:
         upd["selfie_path"] = body.selfie_path
         
+    if body.is_tester is not None:
+        upd["is_tester"] = body.is_tester
+        
     if u["role"] == "agent":
         if body.aadhaar_path:
             upd["aadhaar_path"] = body.aadhaar_path
@@ -3420,7 +3424,7 @@ async def admin_reject_recharge(rid: str, body: ApprovalIn, request: Request, us
 @api.post("/agent/bill-payments")
 async def agent_bill_payment(body: BillPaymentIn, user=Depends(require_approved_agent())):
     s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
-    if not s.get("bill_pay_enabled", True):
+    if not s.get("bill_pay_enabled", True) and not user.get("is_tester", False):
         raise HTTPException(status_code=400, detail="Credit Card Bill Payment service is temporarily disabled by administrator.")
     if body.amount <= 0:
         raise HTTPException(400, "Invalid amount")
@@ -3814,7 +3818,7 @@ async def get_live_billpay_operators(category_id: str, user=Depends(require_appr
 @api.post("/agent/live-billpay/fetch")
 async def post_live_billpay_fetch(body: LiveBillFetchIn, user=Depends(require_approved_agent())):
     s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
-    if not s.get("live_bill_enabled", True):
+    if not s.get("live_bill_enabled", True) and not user.get("is_tester", False):
         raise HTTPException(status_code=400, detail="Live Bill Payment service is temporarily disabled by administrator.")
     payload = {
         "billerId": body.billerId,
@@ -3827,7 +3831,7 @@ async def post_live_billpay_fetch(body: LiveBillFetchIn, user=Depends(require_ap
 @api.post("/agent/live-billpay/pay")
 async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depends(require_approved_agent())):
     s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
-    if not s.get("live_bill_enabled", True):
+    if not s.get("live_bill_enabled", True) and not user.get("is_tester", False):
         raise HTTPException(status_code=400, detail="Live Bill Payment service is temporarily disabled by administrator.")
         
     if body.amount <= 0:
@@ -4271,7 +4275,7 @@ async def admin_reject_live_bill(tid: str, body: ApprovalIn, request: Request, u
 @api.post("/withdrawals")
 async def create_withdrawal(body: WithdrawalIn, user=Depends(require_approved_any())):
     s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
-    if not s.get("withdrawal_enabled", True):
+    if not s.get("withdrawal_enabled", True) and not user.get("is_tester", False):
         raise HTTPException(status_code=400, detail="Withdrawal service is currently disabled by administrator.")
     if body.amount <= 0:
         raise HTTPException(400, "Invalid amount")
@@ -5034,6 +5038,22 @@ async def public_commission(user: dict = Depends(get_current_user)):
 async def public_recharge_limits(response: Response, user: dict = Depends(get_current_user)):
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
     s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    
+    is_tester = bool(user.get("is_tester", False)) if user else False
+    if is_tester:
+        return {
+            "min_recharge_limit": float(s.get("min_recharge_limit", 100)),
+            "max_recharge_limit": float(s.get("max_recharge_limit", 300000)),
+            "qr_enabled": True,
+            "t1_qr_enabled": True,
+            "recharge_enabled": True,
+            "t1_recharge_enabled": True,
+            "withdrawal_enabled": True,
+            "bill_pay_enabled": True,
+            "live_bill_enabled": True,
+            "maintenance_mode": False
+        }
+        
     return {
         "min_recharge_limit": float(s.get("min_recharge_limit", 100)),
         "max_recharge_limit": float(s.get("max_recharge_limit", 300000)),
@@ -5874,6 +5894,7 @@ async def _ensure_indexes() -> None:
         await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS ocr_qr_name TEXT')
         await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS ocr_match BOOLEAN DEFAULT FALSE')
         await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS ocr_bypass BOOLEAN DEFAULT FALSE')
+        await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS is_tester BOOLEAN DEFAULT FALSE')
 
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS billers (

@@ -123,7 +123,7 @@ export default function AdminLiveBillHistory() {
     reload();
   }, [reload]);
 
-  const handleApprove = async (id) => {
+  const handleApprove = useCallback(async (id) => {
     if (!window.confirm("Are you sure you want to manually SUCCESS this live bill payment?")) return;
     setActionId(id);
     try {
@@ -135,9 +135,9 @@ export default function AdminLiveBillHistory() {
     } finally {
       setActionId(null);
     }
-  };
+  }, [reload]);
 
-  const handleReject = async (id) => {
+  const handleReject = useCallback(async (id) => {
     if (!window.confirm("Are you sure you want to REVERSE this live bill payment and REFUND the agent's wallet?")) return;
     setActionId(id);
     try {
@@ -149,7 +149,7 @@ export default function AdminLiveBillHistory() {
     } finally {
       setActionId(null);
     }
-  };
+  }, [reload]);
 
   const handleToggleLiveBill = async (val) => {
     setLiveBillEnabled(val);
