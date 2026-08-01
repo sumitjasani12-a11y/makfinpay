@@ -3768,6 +3768,26 @@ async def get_live_billpay_categories(user=Depends(require_approved_agent())):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch categories from database: {str(e)}")
 
+def is_bank_match(biller_name: str, bank_name: str) -> bool:
+    def clean(s):
+        s = s.lower()
+        for word in ["credit card", "creditcard", "card", "co-operative", "limited", "ltd", "india", "bank", "-", "(india)", "one"]:
+            s = s.replace(word, "")
+        tokens = [t.strip() for t in s.split() if t.strip()]
+        return "".join(tokens)
+    
+    cb = clean(biller_name)
+    ck = clean(bank_name)
+    if not cb or not ck:
+        return False
+    if cb == "unionof" and ck == "ubi":
+        return True
+    if cb == "ubi" and ck == "unionof":
+        return True
+    if ("baroda" in cb or "bob" in cb) and ("baroda" in ck or "bob" in ck):
+        return True
+    return cb in ck or ck in cb
+
 @api.get("/agent/live-billpay/operators")
 async def get_live_billpay_operators(category_id: str, user=Depends(require_approved_agent())):
     count = await db.billers.count_documents({})
@@ -3809,9 +3829,43 @@ async def get_live_billpay_operators(category_id: str, user=Depends(require_appr
         try:
             res = await call_irise_api("GET", "billers", params={"category_id": category_id})
             if res.get("status") == "success" and "data" in res:
-                return res
+                api_data = res.get("data") or []
+                if cat_name == "Credit Card" or str(category_id) == "5":
+                    disabled_banks = await db.banks.find({
+                        "$or": [
+                            {"bill_pay_enabled": False},
+                            {"active": False},
+                            {"is_deleted": True}
+                        ]
+                    }, {"_id": 0, "name": 1}).to_list(500)
+                    disabled_names = [dbk["name"] for dbk in disabled_banks]
+                    
+                    def is_disabled(biller_name):
+                        for db_name in disabled_names:
+                            if is_bank_match(biller_name, db_name):
+                                return True
+                        return False
+                    api_data = [b for b in api_data if not is_disabled(b.get("biller_name", ""))]
+                return {"status": "success", "data": api_data}
         except Exception:
             pass
+            
+    if cat_name == "Credit Card" or str(category_id) == "5":
+        disabled_banks = await db.banks.find({
+            "$or": [
+                {"bill_pay_enabled": False},
+                {"active": False},
+                {"is_deleted": True}
+            ]
+        }, {"_id": 0, "name": 1}).to_list(500)
+        disabled_names = [dbk["name"] for dbk in disabled_banks]
+        
+        def is_disabled(biller_name):
+            for db_name in disabled_names:
+                if is_bank_match(biller_name, db_name):
+                    return True
+            return False
+        billers_list = [b for b in billers_list if not is_disabled(b.get("biller_name", ""))]
             
     return {"status": "success", "data": billers_list}
 
