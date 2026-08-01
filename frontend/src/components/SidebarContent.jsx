@@ -33,6 +33,7 @@ const getIconColor = (label) => {
     "Commission": "text-[#F15BB5]", // Pink
     "Service Slabs": "text-[#2A9D8F]", // Dark Sage
     "Bank Entry": "text-[#E9D8A6]", // Soft Yellow
+    "CC Billers": "text-[#7209B7]", // Purple
     "KYC Review": "text-[#EE9B00]", // Ochre
     "Reason Entry": "text-[#9B5DE5]", // Light Violet
     "Audit Logs": "text-[#90A955]", // Soft Green

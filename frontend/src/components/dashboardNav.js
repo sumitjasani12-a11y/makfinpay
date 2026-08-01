@@ -24,6 +24,7 @@ export const NAV = {
     { to: "/admin/commission", label: "Set Commission", icon: Percent },
     { to: "/admin/service-slabs", label: "Service Slabs", icon: Layers },
     { to: "/admin/banks", label: "Bank Entry", icon: Landmark },
+    { to: "/admin/cc-billers", label: "CC Billers", icon: Landmark },
     { to: "/admin/kyc", label: "KYC Requests", icon: FileCheck2 },
     { to: "/admin/reasons", label: "Reason Entry", icon: ClipboardList },
     { to: "/admin/audit", label: "Audit Logs", icon: ScrollText },

@@ -41,6 +41,7 @@ const ROUTE_META = {
   "/admin/audit": { title: "Audit Logs | MAK FIN PAY" },
   "/admin/backups": { title: "Backup & Restore | MAK FIN PAY" },
   "/admin/change-password": { title: "Change Password | MAK FIN PAY" },
+  "/admin/cc-billers": { title: "CC Billers | MAK FIN PAY" },
 
   // Distributor
   "/distributor": { title: "Dashboard | MAK FIN PAY" },
