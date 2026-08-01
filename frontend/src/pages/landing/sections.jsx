@@ -7,6 +7,11 @@ import {
   Eye, Target, Wallet
 } from "lucide-react";
 import Logo from "@/components/Logo";
+export const HERO_BG = "https://static.prod-images.emergentagent.com/jobs/4435fab4-fa13-47b5-be07-f927a34d78ae/images/d1c97dc87b4387f65bd1f92ab7e8f5c82b7cb0b0edc3d929082ae6ddf85ad45e.png";
+export const SERVICES_IMG = "https://static.prod-images.emergentagent.com/jobs/4435fab4-fa13-47b5-be07-f927a34d78ae/images/5762606c4317726bc335ef5d98c8964cc9d9fd0bc2d20a367fefc6dafafb29cf.png";
+export const NET_IMG = "https://static.prod-images.emergentagent.com/jobs/4435fab4-fa13-47b5-be07-f927a34d78ae/images/1b6162600c64b957c27c0c2c3e222bc03610df0a0a709b5522f1a1c2b183971e.png";
+export const TEAM_IMG = "https://images.unsplash.com/photo-1690378820474-b468b8ee64d3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzR8MHwxfHNlYXJjaHwyfHxidXNpbmVzcyUyMHRlYW0lMjBvZmZpY2V8ZW58MHx8fHwxNzc4NzU4MTA2fDA&ixlib=rb-4.1.0&q=85";
+export const PAY_IMG = "https://images.unsplash.com/photo-1599050751795-6cdaafbc2319?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzOTB8MHwxfHNlYXJjaHwyfHxkaWdpdGFsJTIwcGF5bWVudCUyMHNtYXJ0cGhvbmV8ZW58MHx8fHwxNzc4NzU4MTA2fDA&ixlib=rb-4.1.0&q=85";
 
 export const SERVICES = [
   { id: "mobile", icon: Smartphone, title: "Mobile Recharge", desc: "Instant prepaid and postpaid recharge with fast processing." },
