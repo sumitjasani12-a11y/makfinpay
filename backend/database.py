@@ -270,6 +270,9 @@ class PostgresCursor:
         self._limit = f" LIMIT {count}"
         return self
 
+    def batch_size(self, size):
+        return self
+
     async def to_list(self, length):
         sql = self._build_sql()
         records = await self.db.execute_query(sql, self.params)
@@ -305,6 +308,18 @@ class PostgresCursor:
             return r
         else:
             raise StopAsyncIteration
+
+class UpdateResult:
+    def __init__(self, modified_count, upserted_id=None):
+        self.modified_count = modified_count
+        self.matched_count = modified_count
+        self.upserted_id = upserted_id
+        self.acknowledged = True
+
+class DeleteResult:
+    def __init__(self, deleted_count):
+        self.deleted_count = deleted_count
+        self.acknowledged = True
 
 class PostgresCollection:
     def __init__(self, db, name):
@@ -445,10 +460,13 @@ class PostgresCollection:
                         doc[k] = v
                 set_fields = update_dict.get("$set", {})
                 doc.update(set_fields)
+                inc_fields = update_dict.get("$inc", {})
+                for k, v in inc_fields.items():
+                    doc[k] = v
                 await self.insert_one(doc)
-                return
+                return UpdateResult(1, upserted_id=(doc.get("id") or doc.get("_id")))
             else:
-                return
+                return UpdateResult(0)
         
         params = []
         set_clauses = []
@@ -474,17 +492,26 @@ class PostgresCollection:
             for col in table_cols:
                 if col in unset_fields:
                     set_clauses.append(f"{col} = NULL")
+
+            inc_fields = update_dict.get("$inc", {})
+            for col in table_cols:
+                if col in inc_fields:
+                    val = inc_fields[col]
+                    params.append(convert_val(col, val))
+                    set_clauses.append(f"{col} = COALESCE({col}, 0) + ${len(params)}")
                     
             set_str = ", ".join(set_clauses)
             
         if not set_str:
-            return
+            return UpdateResult(0)
             
         where_clause = compile_filter(filter_dict, params)
         safe_table = f'"{self.table_name}"' if "." in self.table_name else self.table_name
         sql = f"UPDATE {safe_table} SET {set_str} WHERE {where_clause}"
         try:
-            await self.db.execute_query(sql, params)
+            res = await self.db.execute_query(sql, params)
+            count = res.get("row_count", 0) if isinstance(res, dict) else 1
+            return UpdateResult(count)
         except Exception as e:
             if "unique constraint" in str(e).lower() or "duplicate key" in str(e).lower():
                 raise DuplicateKeyError("Unique constraint violation in Supabase PostgreSQL during update")
@@ -516,11 +543,18 @@ class PostgresCollection:
             for col in table_cols:
                 if col in unset_fields:
                     set_clauses.append(f"{col} = NULL")
+
+            inc_fields = update_dict.get("$inc", {})
+            for col in table_cols:
+                if col in inc_fields:
+                    val = inc_fields[col]
+                    params.append(convert_val(col, val))
+                    set_clauses.append(f"{col} = COALESCE({col}, 0) + ${len(params)}")
                     
             set_str = ", ".join(set_clauses)
             
         if not set_str:
-            return
+            return UpdateResult(0)
             
         where_clause = compile_filter(filter_dict, params)
         safe_table = f'"{self.table_name}"' if "." in self.table_name else self.table_name
@@ -528,9 +562,6 @@ class PostgresCollection:
         try:
             res = await self.db.execute_query(sql, params)
             count = res.get("row_count", 0) if isinstance(res, dict) else 0
-            class UpdateResult:
-                def __init__(self, modified_count):
-                    self.modified_count = modified_count
             return UpdateResult(count)
         except Exception as e:
             if "unique constraint" in str(e).lower() or "duplicate key" in str(e).lower():
@@ -560,9 +591,6 @@ class PostgresCollection:
         try:
             res = await self.db.execute_query(sql, params)
             count = res.get("row_count", 0) if isinstance(res, dict) else 0
-            class DeleteResult:
-                def __init__(self, deleted_count):
-                    self.deleted_count = deleted_count
             return DeleteResult(count)
         except Exception as e:
             logger.error(f"delete_many SQL failed: {sql} with {params}. Error: {e}")
@@ -574,7 +602,9 @@ class PostgresCollection:
         safe_table = f'"{self.table_name}"' if "." in self.table_name else self.table_name
         sql = f"DELETE FROM {safe_table} WHERE id = (SELECT id FROM {safe_table} WHERE {where_clause} LIMIT 1)"
         try:
-            await self.db.execute_query(sql, params)
+            res = await self.db.execute_query(sql, params)
+            count = res.get("row_count", 0) if isinstance(res, dict) else 1
+            return DeleteResult(count)
         except Exception as e:
             logger.error(f"delete_one SQL failed: {sql} with {params}. Error: {e}")
             raise e
@@ -626,6 +656,10 @@ class GridFSUploadStream:
             
         sql = 'UPDATE "backups_fs.files" SET length = $1 WHERE _id = $2'
         await self.db.execute_query(sql, [self.total_length, self._id])
+
+    async def abort(self):
+        await self.db.execute_query('DELETE FROM "backups_fs.chunks" WHERE files_id = $1', [self._id])
+        await self.db.execute_query('DELETE FROM "backups_fs.files" WHERE _id = $1', [self._id])
 
 class GridFSDownloadStream:
     def __init__(self, db, files_id):
@@ -694,8 +728,8 @@ class AsyncIOMotorClient:
 
 class PostgresDatabase:
     def __init__(self):
-        self.url = os.environ.get("SUPABASE_URL")
-        self.anon_key = os.environ.get("SUPABASE_ANON_KEY")
+        self.url = os.environ.get("SUPABASE_URL", "")
+        self.anon_key = os.environ.get("SUPABASE_ANON_KEY", "")
         self.secret_token = "Jigscse@3521_makfinpay_secret"
         self.client = None
         self.pool = self
@@ -778,10 +812,11 @@ class PostgresDatabase:
                 escaped = str(val).replace("'", "''")
                 return f"'{escaped}'"
 
+            p_list: list = params or []
             def replace_match(m):
                 idx = int(m.group(1)) - 1
-                if 0 <= idx < len(params):
-                    return escape_val(params[idx])
+                if 0 <= idx < len(p_list):
+                    return escape_val(p_list[idx])
                 return m.group(0)
 
             query = re.sub(r'\$(\d+)', replace_match, query)
@@ -792,6 +827,8 @@ class PostgresDatabase:
             "params": [],
             "secret_token": self.secret_token
         }
+        if self.client is None:
+            raise Exception("Database client is not initialized.")
         res = await self.client.post("/rest/v1/rpc/execute_sql", json=payload)
         if res.status_code != 200:
             logger.error(f"Supabase RPC Query Failed: {query}. Error: {res.text}")
@@ -804,9 +841,13 @@ class PostgresDatabase:
             
         return data
 
+    async def list_collection_names(self):
+        return list(TABLE_COLUMNS.keys())
+
     def __getattr__(self, name):
         return PostgresCollection(self, name)
 
-    def __getitem__(self, name):
-        # Allows db["users"] or client[db_name] syntaxes
-        return self
+    def __getitem__(self, name) -> PostgresCollection:
+        # Allows db["users"] syntax and type-hints it correctly for Pyrefly
+        return PostgresCollection(self, name)
+
