@@ -77,37 +77,31 @@ export default function AdminWithdrawals() {
     // paginated list
     const pagePromise = api.get("/admin/withdrawals", { params });
 
-    // unpaginated list for correct totals
+    // fetch optimized stats
     const statsParams = { ...params };
     delete statsParams.paginated;
     delete statsParams.page;
     delete statsParams.page_size;
-    const statsPromise = api.get("/admin/withdrawals", { params: statsParams });
+    const statsPromise = api.get("/admin/withdrawals/stats", { params: statsParams });
 
     return Promise.all([pagePromise, statsPromise])
       .then(([pageRes, statsRes]) => {
         setItems(pageRes.data.items || []);
         setTotal(pageRes.data.total || 0);
 
-        let approved = 0, approvedCount = 0;
-        let pending = 0, pendingCount = 0;
-        let rejected = 0, rejectedCount = 0;
+        const sd = statsRes.data || {};
+        const approvedVal = sd.approved || {};
+        const pendingVal = sd.pending || {};
+        const rejectedVal = sd.rejected || {};
 
-        const allMatched = statsRes.data || [];
-        allMatched.forEach((item) => {
-          const amt = item.amount || 0;
-          if (item.status === "approved") {
-            approved += amt;
-            approvedCount++;
-          } else if (item.status === "pending") {
-            pending += amt;
-            pendingCount++;
-          } else if (item.status === "rejected") {
-            rejected += amt;
-            rejectedCount++;
-          }
+        setStats({
+          approved: approvedVal.amount || 0,
+          approvedCount: approvedVal.count || 0,
+          pending: pendingVal.amount || 0,
+          pendingCount: pendingVal.count || 0,
+          rejected: rejectedVal.amount || 0,
+          rejectedCount: rejectedVal.count || 0
         });
-        setStats({ approved, approvedCount, pending, pendingCount, rejected, rejectedCount });
       })
       .catch((e) => toast.error(formatErr(e.response?.data?.detail) || "Failed to load withdrawals"))
       .finally(() => setLoading(false));

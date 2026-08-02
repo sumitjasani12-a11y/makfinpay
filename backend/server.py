@@ -4199,6 +4199,9 @@ async def admin_transactions_stats(
         {"$group": {
             "_id": "$status",
             "total_amount": {"$sum": "$amount"},
+            "total_bill_amount": {"$sum": "$bill_amount"},
+            "total_service_charge": {"$sum": "$service_charge"},
+            "total_api_charge": {"$sum": "$api_charge"},
             "count": {"$sum": 1}
         }}
     ]
@@ -4209,7 +4212,10 @@ async def admin_transactions_stats(
     for r in rows:
         status_key = r["_id"] or "unknown"
         res[status_key] = {
-            "amount": round(r["total_amount"], 2),
+            "amount": round(r.get("total_amount") or 0.0, 2),
+            "bill_amount": round(r.get("total_bill_amount") or r.get("total_amount") or 0.0, 2),
+            "service_charge": round(r.get("total_service_charge") or 0.0, 2),
+            "api_charge": round(r.get("total_api_charge") or 0.0, 2),
             "count": r["count"]
         }
     return res
@@ -4498,6 +4504,38 @@ async def create_withdrawal(body: WithdrawalIn, user=Depends(require_approved_an
 @api.get("/withdrawals/mine")
 async def my_withdrawals(user=Depends(require_approved_any())):
     return await db.withdrawals.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(500)
+
+@api.get("/admin/withdrawals/stats")
+async def admin_withdrawals_stats(
+    status: Optional[str] = None,
+    role_filter: Optional[str] = None,
+    from_ts: Optional[str] = None,
+    to_ts: Optional[str] = None,
+    q: Optional[str] = None,
+    amount: Optional[str] = None,
+    user=Depends(require_roles("admin")),
+):
+    query = _build_withdrawal_query(status=status, role_filter=role_filter,
+                                     from_ts=from_ts, to_ts=to_ts, q=q, amount=amount)
+    pipeline = [
+        {"$match": query},
+        {"$group": {
+            "_id": "$status",
+            "total_amount": {"$sum": "$amount"},
+            "count": {"$sum": 1}
+        }}
+    ]
+    cursor = db.withdrawals.aggregate(pipeline)
+    rows = await cursor.to_list(100)
+    
+    res = {}
+    for r in rows:
+        status_key = r["_id"] or "unknown"
+        res[status_key] = {
+            "amount": round(r.get("total_amount") or 0.0, 2),
+            "count": r["count"]
+        }
+    return res
 
 @api.get("/admin/withdrawals")
 async def admin_withdrawals(

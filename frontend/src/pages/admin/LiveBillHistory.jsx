@@ -86,33 +86,26 @@ export default function AdminLiveBillHistory() {
     delete statsParams.paginated;
     delete statsParams.page;
     delete statsParams.page_size;
-    const statsPromise = api.get("/admin/transactions", { params: statsParams });
+    const statsPromise = api.get("/admin/transactions/stats", { params: statsParams });
 
     return Promise.all([pagePromise, statsPromise])
       .then(([pageRes, statsRes]) => {
         setItems(pageRes.data.items || []);
         setTotal(pageRes.data.total || 0);
 
-        let success = 0, successCount = 0;
-        let pending = 0, pendingCount = 0;
-        let reversed = 0, reversedCount = 0;
-        let totalProfit = 0;
+        const sd = statsRes.data || {};
+        const successVal = sd.success || {};
+        const pendingVal = sd.pending || {};
+        const reversedVal = sd.reversed || sd.failed || {};
 
-        const allMatched = statsRes.data || [];
-        allMatched.forEach((item) => {
-          const amt = item.bill_amount ?? item.amount ?? 0;
-          if (item.status === "success") {
-            success += amt;
-            successCount++;
-            totalProfit += (item.service_charge ?? 0) - (item.api_charge ?? 0);
-          } else if (item.status === "pending") {
-            pending += amt;
-            pendingCount++;
-          } else if (item.status === "reversed" || item.status === "failed") {
-            reversed += amt;
-            reversedCount++;
-          }
-        });
+        const success = successVal.bill_amount || 0;
+        const successCount = successVal.count || 0;
+        const pending = pendingVal.bill_amount || 0;
+        const pendingCount = pendingVal.count || 0;
+        const reversed = reversedVal.bill_amount || 0;
+        const reversedCount = reversedVal.count || 0;
+        const totalProfit = (successVal.service_charge || 0) - (successVal.api_charge || 0);
+
         setStats({ success, successCount, pending, pendingCount, reversed, reversedCount, totalProfit });
       })
       .catch((e) => toast.error(formatErr(e.response?.data?.detail) || "Failed to load transactions"))
