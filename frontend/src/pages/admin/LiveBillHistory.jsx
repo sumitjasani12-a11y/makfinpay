@@ -167,12 +167,7 @@ export default function AdminLiveBillHistory() {
   const handleToggleLiveBill = async (val) => {
     setLiveBillEnabled(val);
     try {
-      const res = await api.get("/admin/settings/recharge-limits");
       await api.put("/admin/settings/recharge-toggles", {
-        qr_enabled: res.data.qr_enabled ?? true,
-        recharge_enabled: res.data.recharge_enabled ?? true,
-        withdrawal_enabled: res.data.withdrawal_enabled ?? true,
-        bill_pay_enabled: res.data.bill_pay_enabled ?? true,
         live_bill_enabled: val
       });
       toast.success(`Live Bill service ${val ? "Enabled" : "Disabled"}`);

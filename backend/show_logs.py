@@ -20,8 +20,14 @@ async def main():
         
     await db.init_pool(uri)
     
-    # Query latest 10 live bill transactions
-    txs = await db.transactions.find({"type": "live_bill"}, {"_id": 0}).sort("created_at", -1).to_list(10)
+    # Query user
+    u = await db.users.find_one({"email": "jigs.vanani@gmail.com"})
+    print("=" * 80)
+    print("USER DOCUMENT:")
+    print(u)
+    print("=" * 80)
+    return
+    txs = []
     
     print("=" * 80)
     print(f"LATEST LIVE BILL TRANSACTIONS LOGS (Database)")
@@ -35,9 +41,10 @@ async def main():
             print(f"Agent:      {tx.get('user_name')} ({tx.get('user_id')})")
             print(f"Biller:     {tx.get('operator')}")
             print(f"Mobile:     {tx.get('customer_phone')}")
-            print(f"Amount:     ₹{tx.get('bill_amount')}")
+            print(f"Amount:     Rs.{tx.get('bill_amount')}")
             print(f"Status:     {tx.get('status')}")
             print(f"Error Note: {tx.get('note')}")
+            print(f"Operator Tx:{tx.get('operator_txn_id')}")
             print("-" * 80)
 
 if __name__ == "__main__":

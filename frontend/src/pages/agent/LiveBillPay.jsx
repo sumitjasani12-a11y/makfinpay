@@ -360,6 +360,7 @@ export default function LiveBillPay() {
 
   // Slabs state
   const [slabs, setSlabs] = useState([]);
+  const [liveBillMaxLimit, setLiveBillMaxLimit] = useState(100000);
 
   // Pagination states for history
   const [page, setPage] = useState(1);
@@ -371,6 +372,17 @@ export default function LiveBillPay() {
       setWalletBalance(res.data?.balance);
     } catch (e) {
       console.log("Failed to fetch wallet balance:", e.message);
+    }
+  };
+
+  const fetchLimits = async () => {
+    try {
+      const res = await api.get("/settings/recharge-limits-public");
+      if (res.data && res.data.live_bill_max_limit !== undefined) {
+        setLiveBillMaxLimit(res.data.live_bill_max_limit);
+      }
+    } catch (e) {
+      console.log("Failed to fetch limits:", e.message);
     }
   };
 
@@ -486,6 +498,7 @@ export default function LiveBillPay() {
     reloadHistory();
     fetchWallet();
     fetchSlabs();
+    fetchLimits();
   }, []);
 
   const handleCategoryChange = (catId) => {
@@ -1045,12 +1058,12 @@ export default function LiveBillPay() {
                         );
                       })()}
 
-                      {/* Over 50k warning alert */}
-                      {parseFloat(payAmount) > 50000 && (
+                      {/* Over limit warning alert */}
+                      {parseFloat(payAmount) > liveBillMaxLimit && (
                         <div className="flex items-start gap-2 bg-rose-50 border border-rose-200 text-rose-800 text-[10px] p-3 rounded-2xl animate-fadeIn">
                           <AlertCircle className="h-4.5 w-4.5 shrink-0 mt-0.5 text-rose-600" />
                           <span className="font-semibold leading-relaxed">
-                            Amount must be less than ₹50,000 per transaction. Please split your payment.
+                            Amount must be less than {fmtMoney(liveBillMaxLimit)} per transaction. Please split your payment.
                           </span>
                         </div>
                       )}
@@ -1104,7 +1117,7 @@ export default function LiveBillPay() {
                             pin1Ref.current?.focus();
                           }, 100);
                         }}
-                        disabled={loadingPay || parseFloat(payAmount) > 50000 || !payAmount}
+                        disabled={loadingPay || parseFloat(payAmount) > liveBillMaxLimit || !payAmount}
                         className="w-full py-3.5 px-4 flex items-center justify-center gap-2 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md bg-[#00966B] hover:bg-[#007f5a] shadow-[#00966B]/15 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed active:scale-98"
                       >
                         {loadingPay ? (

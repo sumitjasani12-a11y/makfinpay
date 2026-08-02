@@ -711,7 +711,7 @@ async def setup_mpin(body: MpinSetupIn, response: Response, request: Request):
     hashed = hash_password(body.mpin)
     await db.users.update_one(
         {"id": user["id"]},
-        {"$set": {"mpin_hash": hashed, "plain_mpin": body.mpin}}
+        {"$set": {"mpin_hash": hashed}}
     )
     
     await write_audit(user["id"], "setup_mpin", request=request)
@@ -733,7 +733,7 @@ async def change_mpin(body: MpinChangeIn, user=Depends(require_roles("agent", "d
     hashed = hash_password(body.new_mpin)
     await db.users.update_one(
         {"id": user["id"]},
-        {"$set": {"mpin_hash": hashed, "plain_mpin": body.new_mpin}}
+        {"$set": {"mpin_hash": hashed}}
     )
     
     if request:
@@ -882,7 +882,7 @@ async def change_password(body: ChangePasswordIn, request: Request, user: dict =
 
     # ---- STEP 4: update password ----
     new_hash = hash_password(body.new_password)
-    await db.users.update_one({"id": user["id"]}, {"$set": {"password_hash": new_hash, "plain_password": body.new_password, "password_changed_at": now_iso()}})
+    await db.users.update_one({"id": user["id"]}, {"$set": {"password_hash": new_hash, "password_changed_at": now_iso()}})
     
     if user.get("role") == "admin":
         try:
@@ -1374,7 +1374,6 @@ async def create_subuser(
         "full_name": body.full_name,
         "email": email,
         "password_hash": hash_password(raw_password),
-        "plain_password": raw_password,
         "phone": body.phone,
         "address": body.address,
         "firm_name": body.firm_name or "",
@@ -2547,13 +2546,6 @@ async def admin_user_detail(uid: str, user=Depends(require_roles("admin"))):
     u = await db.users.find_one({"id": uid}, {"_id": 0, "password_hash": 0})
     if not u:
         raise HTTPException(404, "Not found")
-        
-    is_super = user.get("email", "").lower() == "jigs.vanani@gmail.com"
-    has_perm = "show_passwords" in (user.get("permissions") or [])
-    if not is_super and not has_perm:
-        u.pop("plain_password", None)
-        u.pop("plain_mpin", None)
-        
     w = await db.wallets.find_one({"user_id": uid}, {"_id": 0}) or {"balance": 0}
     txns = await db.transactions.find({"user_id": uid}, {"_id": 0}).sort("created_at", -1).to_list(100)
     return {"user": u, "wallet": w, "transactions": txns}
@@ -2589,7 +2581,6 @@ async def admin_update_user(uid: str, body: UpdateUserIn, user=Depends(require_r
     
     if body.password:
         upd["password_hash"] = hash_password(body.password)
-        upd["plain_password"] = body.password
 
     if body.selfie_path:
         upd["selfie_path"] = body.selfie_path
@@ -5211,6 +5202,7 @@ async def public_recharge_limits(response: Response, user: dict = Depends(get_cu
         return {
             "min_recharge_limit": float(s.get("min_recharge_limit", 100)),
             "max_recharge_limit": float(s.get("max_recharge_limit", 300000)),
+            "live_bill_max_limit": float(s.get("live_bill_max_limit", 100000)),
             "qr_enabled": True,
             "t1_qr_enabled": True,
             "recharge_enabled": True,
@@ -5224,6 +5216,7 @@ async def public_recharge_limits(response: Response, user: dict = Depends(get_cu
     return {
         "min_recharge_limit": float(s.get("min_recharge_limit", 100)),
         "max_recharge_limit": float(s.get("max_recharge_limit", 300000)),
+        "live_bill_max_limit": float(s.get("live_bill_max_limit", 100000)),
         "qr_enabled": bool(s.get("qr_enabled", True)),
         "t1_qr_enabled": bool(s.get("t1_qr_enabled", True)),
         "recharge_enabled": bool(s.get("recharge_enabled", True)),
