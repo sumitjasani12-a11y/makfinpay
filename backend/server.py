@@ -5374,12 +5374,36 @@ class AdminAdjustmentIn(BaseModel):
     note: str
 
 @api.get("/admin/profit-ledger")
-async def get_admin_profit_ledger(user=Depends(require_roles("admin"))):
-    return await db.admin_profit_ledger.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+async def get_admin_profit_ledger(
+    page: int = 1,
+    page_size: int = 50,
+    user=Depends(require_roles("admin"))
+):
+    page = max(1, page); page_size = max(1, min(200, page_size))
+    total = await db.admin_profit_ledger.count_documents({})
+    items = await db.admin_profit_ledger.find({}, {"_id": 0}).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
+    
+    # Get overall current balance
+    latest = await db.admin_profit_ledger.find_one({}, sort=[("created_at", -1)]) or {}
+    balance = float(latest.get("balance_after", 0.0))
+    
+    return {"items": items, "total": total, "page": page, "page_size": page_size, "balance": balance}
 
 @api.get("/admin/cashbook")
-async def get_admin_cashbook(user=Depends(require_roles("admin"))):
-    return await db.admin_cashbook.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+async def get_admin_cashbook(
+    page: int = 1,
+    page_size: int = 50,
+    user=Depends(require_roles("admin"))
+):
+    page = max(1, page); page_size = max(1, min(200, page_size))
+    total = await db.admin_cashbook.count_documents({})
+    items = await db.admin_cashbook.find({}, {"_id": 0}).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
+    
+    # Get overall current balance
+    latest = await db.admin_cashbook.find_one({}, sort=[("created_at", -1)]) or {}
+    balance = float(latest.get("balance_after", 0.0))
+    
+    return {"items": items, "total": total, "page": page, "page_size": page_size, "balance": balance}
 
 @api.get("/admin/system-ledger")
 async def get_admin_system_ledger(

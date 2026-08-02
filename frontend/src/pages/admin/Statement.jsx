@@ -14,9 +14,17 @@ export default function AdminStatement() {
   const [systemPage, setSystemPage] = useState(1);
   const [systemPageSize] = useState(50);
 
-  // Profit & Cashbook states
+  // Profit states
   const [profitItems, setProfitItems] = useState([]);
+  const [profitTotal, setProfitTotal] = useState(0);
+  const [profitPage, setProfitPage] = useState(1);
+  const [profitPageSize] = useState(50);
+
+  // Cashbook states
   const [cashbookItems, setCashbookItems] = useState([]);
+  const [cashbookTotal, setCashbookTotal] = useState(0);
+  const [cashbookPage, setCashbookPage] = useState(1);
+  const [cashbookPageSize] = useState(50);
 
   // Balance states
   const [profitBalance, setProfitBalance] = useState(0);
@@ -42,35 +50,27 @@ export default function AdminStatement() {
 
   const fetchProfitLedger = useCallback(() => {
     setLoading(true);
-    api.get("/admin/profit-ledger")
+    api.get("/admin/profit-ledger", { params: { page: profitPage, page_size: profitPageSize } })
       .then((res) => {
-        const items = res.data || [];
-        setProfitItems(items);
-        if (items.length > 0) {
-          setProfitBalance(items[0].balance_after || 0);
-        } else {
-          setProfitBalance(0);
-        }
+        setProfitItems(res.data.items || []);
+        setProfitTotal(res.data.total || 0);
+        setProfitBalance(res.data.balance || 0);
       })
       .catch((e) => toast.error(formatErr(e.response?.data?.detail) || "Failed to load profit ledger"))
       .finally(() => setLoading(false));
-  }, []);
+  }, [profitPage, profitPageSize]);
 
   const fetchCashbook = useCallback(() => {
     setLoading(true);
-    api.get("/admin/cashbook")
+    api.get("/admin/cashbook", { params: { page: cashbookPage, page_size: cashbookPageSize } })
       .then((res) => {
-        const items = res.data || [];
-        setCashbookItems(items);
-        if (items.length > 0) {
-          setCashbookBalance(items[0].balance_after || 0);
-        } else {
-          setCashbookBalance(0);
-        }
+        setCashbookItems(res.data.items || []);
+        setCashbookTotal(res.data.total || 0);
+        setCashbookBalance(res.data.balance || 0);
       })
       .catch((e) => toast.error(formatErr(e.response?.data?.detail) || "Failed to load cashbook"))
       .finally(() => setLoading(false));
-  }, []);
+  }, [cashbookPage, cashbookPageSize]);
 
   const reloadActive = useCallback(() => {
     if (activeTab === "system") fetchSystemLedger();
@@ -407,9 +407,27 @@ export default function AdminStatement() {
             }}
           />
         ) : activeTab === "profit" ? (
-          <DataTable rows={profitItems} columns={getProfitColumns()} />
+          <DataTable
+            rows={profitItems}
+            columns={getProfitColumns()}
+            pagination={{
+              total: profitTotal,
+              page: profitPage,
+              pageSize: profitPageSize,
+              onPageChange: (p) => setProfitPage(p),
+            }}
+          />
         ) : (
-          <DataTable rows={cashbookItems} columns={getCashbookColumns()} />
+          <DataTable
+            rows={cashbookItems}
+            columns={getCashbookColumns()}
+            pagination={{
+              total: cashbookTotal,
+              page: cashbookPage,
+              pageSize: cashbookPageSize,
+              onPageChange: (p) => setCashbookPage(p),
+            }}
+          />
         )}
       </div>
 
