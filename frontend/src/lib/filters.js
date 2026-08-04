@@ -43,6 +43,11 @@ export function rangeWindow(key, from, to) {
     const t = new Date(to); t.setHours(0, 0, 0, 0); t.setDate(t.getDate() + 1);
     return [f.getTime(), t.getTime()];
   }
+  if (key === "this_month") {
+    const s = new Date(now.getFullYear(), now.getMonth(), 1);
+    const e = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    return [s.getTime(), e.getTime()];
+  }
   return [null, null];
 }
 

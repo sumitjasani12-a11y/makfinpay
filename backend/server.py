@@ -2942,14 +2942,37 @@ async def md_list_agents(user=Depends(require_approved_md())):
 
 
 @api.get("/master-distributor/recharges")
-async def md_list_downline_recharges(user=Depends(require_approved_md())):
-    """Read-only view of recharges from every agent in the MD's downline."""
+async def md_list_downline_recharges(
+    status: Optional[str] = None,
+    from_ts: Optional[str] = None,
+    to_ts: Optional[str] = None,
+    q: Optional[str] = None,
+    amount: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20,
+    paginated: bool = False,
+    user=Depends(require_approved_md())
+):
+    """Read-only view of recharges from every agent in the MD's downline with filtering and 20-20 pagination."""
     agent_ids = [u["id"] async for u in db.users.find(
         {"md_id": user["id"], "role": "agent"}, {"_id": 0, "id": 1}
     )]
     if not agent_ids:
-        return []
-    return await db.recharges.find({"user_id": {"$in": agent_ids}}, {"_id": 0}).sort("created_at", -1).to_list(None)
+        return {"items": [], "total": 0, "page": page, "page_size": page_size} if paginated else []
+    
+    query = _build_recharge_query(
+        status=status, from_ts=from_ts, to_ts=to_ts, q=q, amount=amount
+    )
+    query["user_id"] = {"$in": agent_ids}
+
+    if paginated:
+        page = max(1, page); page_size = max(1, min(200, page_size))
+        total_task = db.recharges.count_documents(query)
+        items_task = db.recharges.find(query, {"_id": 0}).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
+        total, items = await asyncio.gather(total_task, items_task)
+        return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+    return await db.recharges.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
 
 
 @api.get("/master-distributor/stats")
@@ -3491,9 +3514,35 @@ async def download_recharge_gallery_zip(
     return StreamingResponse(zip_buffer, media_type="application/zip", headers=headers)
 
 @api.get("/distributor/recharges")
-async def distributor_list_recharges(user=Depends(require_approved_distributor())):
+async def distributor_list_recharges(
+    status: Optional[str] = None,
+    from_ts: Optional[str] = None,
+    to_ts: Optional[str] = None,
+    q: Optional[str] = None,
+    amount: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20,
+    paginated: bool = False,
+    user=Depends(require_approved_distributor())
+):
+    """Read-only view of recharges from every agent in Distributor's network with filtering and 20-20 pagination."""
     agent_ids = [u["id"] async for u in db.users.find({"parent_id": user["id"]}, {"_id": 0, "id": 1})]
-    return await db.recharges.find({"user_id": {"$in": agent_ids}}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    if not agent_ids:
+        return {"items": [], "total": 0, "page": page, "page_size": page_size} if paginated else []
+
+    query = _build_recharge_query(
+        status=status, from_ts=from_ts, to_ts=to_ts, q=q, amount=amount
+    )
+    query["user_id"] = {"$in": agent_ids}
+
+    if paginated:
+        page = max(1, page); page_size = max(1, min(200, page_size))
+        total_task = db.recharges.count_documents(query)
+        items_task = db.recharges.find(query, {"_id": 0}).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
+        total, items = await asyncio.gather(total_task, items_task)
+        return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+    return await db.recharges.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
 
 @api.post("/admin/recharges/{rid}/approve")
 async def admin_approve_recharge(rid: str, body: ApprovalIn, request: Request, user=Depends(require_roles("admin"))):
