@@ -6792,7 +6792,12 @@ async def _migrate_commission_schema() -> None:
 
 @app.on_event("startup")
 async def startup():
-    await db.init_pool(os.environ["SUPABASE_POSTGRES_URI"])
+    postgres_uri = (
+        os.environ.get("SUPABASE_POSTGRES_URI") or 
+        os.environ.get("DATABASE_URL") or 
+        "postgresql://postgres:Jigscse%40123@db.itbtuduqkhgtfkwpamcw.supabase.co:5432/postgres?sslmode=require"
+    )
+    await db.init_pool(postgres_uri)
     init_storage()
     await _ensure_indexes()
     await _seed_admin_user()
