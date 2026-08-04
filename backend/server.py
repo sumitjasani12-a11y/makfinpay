@@ -30,10 +30,10 @@ from starlette.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, EmailStr
 
 # ---------- CONFIG ----------
-JWT_SECRET = os.environ["JWT_SECRET"]
+JWT_SECRET = os.environ.get("JWT_SECRET", "AQZ3FxRJniXnp2qAbQ2hq3ZJburQogdsyQ4njZdrzZYHEm7mYkgCksBOXcxdGacIuBD3fje2LmwLUSvPkrWdYQ==")
 JWT_ALGO = "HS256"
-ADMIN_EMAIL = os.environ["ADMIN_EMAIL"].lower()
-ADMIN_PASSWORD = os.environ["ADMIN_PASSWORD"]
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "makfinpay@gmail.com").lower()
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Riyaz@1212")
 APP_NAME = os.environ.get("APP_NAME", "makfinpay")
 EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
 STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
