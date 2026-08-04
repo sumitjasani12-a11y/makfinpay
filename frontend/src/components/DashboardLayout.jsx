@@ -67,7 +67,6 @@ export default function DashboardLayout() {
     items = items.filter(it => {
       if (it.to === "/agent/billpay" && !limits.bill_pay_enabled) return false;
       if (it.to === "/agent/live-billpay" && !limits.live_bill_enabled) return false;
-      if (it.to === "/agent/live-billpay/history" && !limits.live_bill_enabled) return false;
       return true;
     });
   }
@@ -344,7 +343,7 @@ export default function DashboardLayout() {
           );
         })()}
         {(() => {
-          const isLiveBillPath = location.pathname.startsWith("/agent/live-billpay");
+          const isLiveBillPath = location.pathname === "/agent/live-billpay";
           const isCcBillPath = location.pathname === "/agent/billpay";
 
           if (user && user.role === "agent" && (isLiveBillPath || isCcBillPath) && !limits) {
