@@ -6795,7 +6795,7 @@ async def startup():
     postgres_uri = (
         os.environ.get("SUPABASE_POSTGRES_URI") or 
         os.environ.get("DATABASE_URL") or 
-        "postgresql://postgres:Jigscse%40123@db.itbtuduqkhgtfkwpamcw.supabase.co:5432/postgres?sslmode=require"
+        "postgresql://postgres:Jigscse%40123@db.itbtuduqkhgtfkwpamcw.supabase.co:6543/postgres?sslmode=require"
     )
     await db.init_pool(postgres_uri)
     init_storage()
