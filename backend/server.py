@@ -1734,7 +1734,7 @@ async def get_md_available_for_withdrawal(md_id: str) -> float:
     """Amount an MD can request to withdraw RIGHT NOW = lifetime − approved − pending.
     Pending requests are reserved so an MD cannot double-spend earnings while one request
     is still awaiting admin review."""
-    lifetime = await _md_lifetime_earnings(md_id)
+    lifetime = await _md_earnings_for(md_id)
     reserved = await _withdrawals_sum_for(md_id, ["approved", "pending"])
     return round(lifetime - reserved, 2)
 
@@ -4685,7 +4685,7 @@ async def admin_approve_withdrawal(wid: str, body: ApprovalIn, request: Request,
             raise HTTPException(400, f"Cannot approve — distributor's live earnings balance is ₹{live_balance:.2f}")
         await db.withdrawals.update_one({"id": wid}, {"$set": {"status": "approved", "note": body.note or "", "reviewed_at": now_iso(), "reviewed_by": user["id"]}})
     elif role == "master_distributor":
-        lifetime = await _md_lifetime_earnings(w["user_id"])
+        lifetime = await _md_earnings_for(w["user_id"])
         already_paid = await _withdrawals_sum_for(w["user_id"], ["approved"])
         live_balance = round(lifetime - already_paid, 2)
         if w["amount"] > live_balance:
