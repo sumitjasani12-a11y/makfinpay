@@ -3086,7 +3086,7 @@ _bbps_cache = {"data": None, "timestamp": 0.0}
 async def admin_bbps_balance(user=Depends(require_roles("admin"))):
     import time
     now = time.time()
-    if _bbps_cache["data"] is None or (now - _bbps_cache["timestamp"]) > 60.0:
+    if _bbps_cache["data"] is None or (now - _bbps_cache["timestamp"]) > 30.0:
         try:
             res = await call_irise_api("GET", "balance")
             _bbps_cache["data"] = res
@@ -3094,8 +3094,21 @@ async def admin_bbps_balance(user=Depends(require_roles("admin"))):
         except Exception as e:
             logger.error(f"Failed to fetch BBPS balance from external API: {e}")
             if _bbps_cache["data"] is None:
-                return {"status": "success", "data": {"balance": 0.0}}
-    return _bbps_cache["data"]
+                return {"status": "success", "data": {"balance": 0.0}, "balance": 0.0}
+    
+    raw = _bbps_cache["data"] or {}
+    val = 0.0
+    if isinstance(raw, dict):
+        if "data" in raw and isinstance(raw["data"], dict):
+            val = raw["data"].get("balance", raw["data"].get("wallet_balance", 0.0))
+        elif "balance" in raw:
+            val = raw.get("balance", 0.0)
+    try:
+        val = float(val)
+    except (ValueError, TypeError):
+        val = 0.0
+
+    return {"status": "success", "data": {"balance": val}, "balance": val}
 
 @api.get("/wallet/ledger")
 async def my_ledger(user=Depends(get_current_user)):
@@ -3985,6 +3998,13 @@ async def call_irise_api(method: str, endpoint: str, params: dict = None, json_d
                         "txnReferenceId": f"BBPS{uuid.uuid4().hex[:8].upper()}",
                         "txnStatus": "SUCCESS"
                     }
+                }
+            }
+        elif ep == "balance":
+            return {
+                "status": "success",
+                "data": {
+                    "balance": 0.0
                 }
             }
         return {"status": "failed", "message": "Mock API endpoint not found"}
