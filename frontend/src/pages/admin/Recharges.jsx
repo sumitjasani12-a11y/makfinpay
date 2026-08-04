@@ -195,18 +195,13 @@ export default function AdminRecharges() {
 
   const handleRejectConfirm = async (note) => {
     try {
-      const supabase = getSupabase();
-      const { error } = await supabase.rpc("reject_recharge_direct", {
-        p_recharge_id: rejectTargetId,
-        p_note: note
-      });
-      if (error) throw error;
+      await api.post(`/admin/recharges/${rejectTargetId}/reject`, { note: note || "" });
       toast.success("Recharge rejected");
       setRejectTargetId(null);
       setDetail(null);
       reload();
     } catch (e) {
-      toast.error(e.message || formatErr(e.response?.data?.detail));
+      toast.error(formatErr(e.response?.data?.detail) || e.message);
     }
   };
 
@@ -216,18 +211,13 @@ export default function AdminRecharges() {
       return;
     }
     try {
-      const supabase = getSupabase();
-      const { error } = await supabase.rpc("approve_recharge_direct", {
-        p_recharge_id: id,
-        p_note: ""
-      });
-      if (error) throw error;
+      await api.post(`/admin/recharges/${id}/approve`, { note: "" });
       toast.success(`Recharge approved`);
       setDetail(null);
       reload();
     }
     catch (e) {
-      toast.error(e.message || formatErr(e.response?.data?.detail));
+      toast.error(formatErr(e.response?.data?.detail) || e.message);
     }
   }, [reload]);
 
