@@ -74,6 +74,7 @@ export default function DashboardLayout() {
 
   const [open, setOpen] = useState(false);
   const [balance, setBalance] = useState(null);
+  const [earningsBalance, setEarningsBalance] = useState(null);
   const [t1Balance, setT1Balance] = useState(null);
   const [t1Total, setT1Total] = useState(null);
   const [bbpsBalance, setBbpsBalance] = useState(null);
@@ -140,6 +141,16 @@ export default function DashboardLayout() {
           setHoldActive(r.data.hold_active);
         })
         .catch((e) => console.log("Failed to fetch header wallet:", e.message));
+
+      if (user.role === "master_distributor") {
+        api.get("/master-distributor/stats")
+          .then((r) => setEarningsBalance(r.data.earnings ?? 0))
+          .catch((e) => console.log("Failed to fetch MD header earnings:", e.message));
+      } else if (user.role === "distributor") {
+        api.get("/distributor/stats")
+          .then((r) => setEarningsBalance(r.data.earnings ?? 0))
+          .catch((e) => console.log("Failed to fetch Distributor header earnings:", e.message));
+      }
     } else if (user.role === "admin") {
       const now = Date.now();
       if (window._cachedAdminHeaderData && (now - (window._lastAdminFetchTime || 0) < 15000)) {
@@ -275,6 +286,12 @@ export default function DashboardLayout() {
               <span className="font-extrabold text-neutral-800 bg-[#E8F5E9] text-[#00966B] px-3.5 py-1 rounded-full text-xs flex items-center gap-1.5 border border-[#C8E6C9] shadow-sm transition-all" data-testid="header-balance">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#00966B] animate-pulse" />
                 Wallet: {fmtMoney(balance)}
+              </span>
+            )}
+            {(user.role === "master_distributor" || user.role === "distributor") && earningsBalance !== null && (
+              <span className="font-extrabold text-neutral-800 bg-[#E0F7FA] text-[#00838F] px-3.5 py-1 rounded-full text-xs flex items-center gap-1.5 border border-[#B2EBF2] shadow-sm transition-all" data-testid="header-earnings-balance">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#00838F] animate-pulse" />
+                Earnings: {fmtMoney(earningsBalance)}
               </span>
             )}
             {user.role === "agent" && t1Balance !== null && (
