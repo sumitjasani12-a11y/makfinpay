@@ -2965,12 +2965,48 @@ async def md_list_downline_recharges(
     )
     query["user_id"] = {"$in": agent_ids}
 
+    # Summary stats for the selected date range and filter
+    stats_query = {k: v for k, v in query.items() if k != "status"}
+    pipeline = [
+        {"$match": stats_query},
+        {"$group": {
+            "_id": "$status",
+            "total_amount": {"$sum": "$amount"},
+            "md_earnings": {"$sum": "$md_earnings_amount"},
+            "count": {"$sum": 1}
+        }}
+    ]
+    cursor = db.recharges.aggregate(pipeline)
+    rows = await cursor.to_list(100)
+
+    stats = {
+        "approved_amount": 0.0, "approved_count": 0,
+        "pending_amount": 0.0, "pending_count": 0,
+        "rejected_amount": 0.0, "rejected_count": 0,
+        "earnings": 0.0
+    }
+    for row in rows:
+        st = row.get("_id")
+        amt = round(float(row.get("total_amount") or 0.0), 2)
+        cnt = int(row.get("count") or 0)
+        earn = round(float(row.get("md_earnings") or 0.0), 2)
+        if st == "approved":
+            stats["approved_amount"] = amt
+            stats["approved_count"] = cnt
+            stats["earnings"] = earn
+        elif st == "pending":
+            stats["pending_amount"] = amt
+            stats["pending_count"] = cnt
+        elif st == "rejected":
+            stats["rejected_amount"] = amt
+            stats["rejected_count"] = cnt
+
     if paginated:
         page = max(1, page); page_size = max(1, min(200, page_size))
         total_task = db.recharges.count_documents(query)
         items_task = db.recharges.find(query, {"_id": 0}).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
         total, items = await asyncio.gather(total_task, items_task)
-        return {"items": items, "total": total, "page": page, "page_size": page_size}
+        return {"items": items, "total": total, "page": page, "page_size": page_size, "stats": stats}
 
     return await db.recharges.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
 
@@ -3535,12 +3571,48 @@ async def distributor_list_recharges(
     )
     query["user_id"] = {"$in": agent_ids}
 
+    # Summary stats for the selected date range and filter
+    stats_query = {k: v for k, v in query.items() if k != "status"}
+    pipeline = [
+        {"$match": stats_query},
+        {"$group": {
+            "_id": "$status",
+            "total_amount": {"$sum": "$amount"},
+            "dist_earnings": {"$sum": "$distributor_earnings_amount"},
+            "count": {"$sum": 1}
+        }}
+    ]
+    cursor = db.recharges.aggregate(pipeline)
+    rows = await cursor.to_list(100)
+
+    stats = {
+        "approved_amount": 0.0, "approved_count": 0,
+        "pending_amount": 0.0, "pending_count": 0,
+        "rejected_amount": 0.0, "rejected_count": 0,
+        "earnings": 0.0
+    }
+    for row in rows:
+        st = row.get("_id")
+        amt = round(float(row.get("total_amount") or 0.0), 2)
+        cnt = int(row.get("count") or 0)
+        earn = round(float(row.get("dist_earnings") or 0.0), 2)
+        if st == "approved":
+            stats["approved_amount"] = amt
+            stats["approved_count"] = cnt
+            stats["earnings"] = earn
+        elif st == "pending":
+            stats["pending_amount"] = amt
+            stats["pending_count"] = cnt
+        elif st == "rejected":
+            stats["rejected_amount"] = amt
+            stats["rejected_count"] = cnt
+
     if paginated:
         page = max(1, page); page_size = max(1, min(200, page_size))
         total_task = db.recharges.count_documents(query)
         items_task = db.recharges.find(query, {"_id": 0}).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
         total, items = await asyncio.gather(total_task, items_task)
-        return {"items": items, "total": total, "page": page, "page_size": page_size}
+        return {"items": items, "total": total, "page": page, "page_size": page_size, "stats": stats}
 
     return await db.recharges.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
 

@@ -4,7 +4,7 @@ import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import { rangeWindowIso, todayStr } from "@/lib/filters";
 import { useDebounced } from "@/lib/hooks";
 import { useWebSocketListener } from "@/lib/ws";
-import { Search, RotateCcw, ChevronLeft, ChevronRight, Calendar } from "lucide-react";
+import { Search, RotateCcw, ChevronLeft, ChevronRight, Calendar, CheckCircle2, Clock, XCircle, Coins } from "lucide-react";
 
 const DATE_OPTIONS = [
   { key: "today", label: "Today" },
@@ -37,6 +37,14 @@ export default function DistRecharges() {
   const pageSize = 20;
   const [total, setTotal] = useState(0);
 
+  // Summary Stats State
+  const [stats, setStats] = useState({
+    approved_amount: 0, approved_count: 0,
+    pending_amount: 0, pending_count: 0,
+    rejected_amount: 0, rejected_count: 0,
+    earnings: 0
+  });
+
   // Data & Loading States
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -65,9 +73,10 @@ export default function DistRecharges() {
       if (debouncedAmount.trim()) params.amount = debouncedAmount.trim();
 
       const res = await api.get("/distributor/recharges", { params });
-      if (res.data && Array.isArray(res.data.items)) {
+      if (res.data && res.data.items) {
         setItems(res.data.items);
         setTotal(res.data.total || 0);
+        if (res.data.stats) setStats(res.data.stats);
       } else if (Array.isArray(res.data)) {
         setItems(res.data);
         setTotal(res.data.length);
@@ -115,6 +124,57 @@ export default function DistRecharges() {
         title="Agent Recharge Activity"
         subtitle="See recharge requests and their status across your agents."
       />
+
+      {/* SUMMARY STATS CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Approved Stats Card */}
+        <div className="bg-gradient-to-br from-[#0F5132] to-[#198754] text-white border border-emerald-500/20 rounded-2xl p-4 shadow-sm flex items-center justify-between">
+          <div>
+            <span className="text-[10px] uppercase font-extrabold tracking-wider text-emerald-100/80">Approved Recharges</span>
+            <div className="text-xl font-black text-white mt-1">{fmtMoney(stats.approved_amount || 0)}</div>
+            <p className="text-[9.5px] text-emerald-100/80 font-semibold mt-0.5">{stats.approved_count || 0} Successful Requests</p>
+          </div>
+          <div className="p-2.5 bg-white/10 text-emerald-200 border border-white/10 rounded-xl shrink-0">
+            <CheckCircle2 className="h-5 w-5" />
+          </div>
+        </div>
+
+        {/* Pending Stats Card */}
+        <div className="bg-gradient-to-br from-[#664D03] to-[#FD7E14] text-white border border-orange-500/20 rounded-2xl p-4 shadow-sm flex items-center justify-between">
+          <div>
+            <span className="text-[10px] uppercase font-extrabold tracking-wider text-orange-100/80">Pending Recharges</span>
+            <div className="text-xl font-black text-white mt-1">{fmtMoney(stats.pending_amount || 0)}</div>
+            <p className="text-[9.5px] text-orange-100/80 font-semibold mt-0.5">{stats.pending_count || 0} Awaiting Review</p>
+          </div>
+          <div className="p-2.5 bg-white/10 text-orange-200 border border-white/10 rounded-xl shrink-0">
+            <Clock className="h-5 w-5" />
+          </div>
+        </div>
+
+        {/* Rejected Stats Card */}
+        <div className="bg-gradient-to-br from-[#842029] to-[#DC3545] text-white border border-rose-500/20 rounded-2xl p-4 shadow-sm flex items-center justify-between">
+          <div>
+            <span className="text-[10px] uppercase font-extrabold tracking-wider text-rose-100/80">Rejected Recharges</span>
+            <div className="text-xl font-black text-white mt-1">{fmtMoney(stats.rejected_amount || 0)}</div>
+            <p className="text-[9.5px] text-rose-100/80 font-semibold mt-0.5">{stats.rejected_count || 0} Declined Requests</p>
+          </div>
+          <div className="p-2.5 bg-white/10 text-rose-200 border border-white/10 rounded-xl shrink-0">
+            <XCircle className="h-5 w-5" />
+          </div>
+        </div>
+
+        {/* My Earnings Card */}
+        <div className="bg-gradient-to-br from-[#0A3641] to-[#0D6EFD] text-white border border-blue-500/20 rounded-2xl p-4 shadow-sm flex items-center justify-between">
+          <div>
+            <span className="text-[10px] uppercase font-extrabold tracking-wider text-blue-100/80">My Earnings</span>
+            <div className="text-xl font-black text-white mt-1">{fmtMoney(stats.earnings || 0)}</div>
+            <p className="text-[9.5px] text-blue-100/80 font-semibold mt-0.5">Filter Period Commission</p>
+          </div>
+          <div className="p-2.5 bg-white/10 text-blue-200 border border-white/10 rounded-xl shrink-0">
+            <Coins className="h-5 w-5" />
+          </div>
+        </div>
+      </div>
 
       {/* FILTER TOOLBAR */}
       <div className="bg-white rounded-2xl border border-black/5 p-4 shadow-sm space-y-4">
