@@ -3822,13 +3822,13 @@ async def agent_transactions(user=Depends(require_roles("agent"))):
     return await db.transactions.find({"user_id": user["id"], "type": "credit_card"}, {"_id": 0}).sort("created_at", -1).to_list(500)
 
 # ---------- LIVE BILL PAYMENTS (Irise API Integration) ----------
-IRISE_BASE_URL = os.getenv("IRISE_BASE_URL", "https://irise.co.in/api/v2/")
-IRISE_PUBLIC_KEY = os.getenv("IRISE_PUBLIC_KEY", "")
-IRISE_SECRET_KEY = os.getenv("IRISE_SECRET_KEY", "")
-
 async def call_irise_api(method: str, endpoint: str, params: dict = None, json_data: dict = None):
-    # Fallback to mock data for local testing/walkthrough if credentials are missing
-    if not IRISE_PUBLIC_KEY or not IRISE_SECRET_KEY:
+    base_url = os.getenv("IRISE_BASE_URL", "https://www.usepay.in/api/v1/b2b")
+    public_key = os.getenv("IRISE_PUBLIC_KEY", "")
+    secret_key = os.getenv("IRISE_SECRET_KEY", "")
+
+    # Fallback to mock data ONLY if credentials are missing
+    if not public_key or not secret_key:
         ep = endpoint.strip("/")
         if ep == "categories":
             return {
@@ -4012,10 +4012,10 @@ async def call_irise_api(method: str, endpoint: str, params: dict = None, json_d
     headers = {
         "Accept": "application/json",
         "Content-Type": "application/json",
-        "x-api-key": IRISE_PUBLIC_KEY,
-        "x-secret-key": IRISE_SECRET_KEY
+        "x-api-key": public_key,
+        "x-secret-key": secret_key
     }
-    url = f"{IRISE_BASE_URL.rstrip('/')}/{endpoint.lstrip('/')}"
+    url = f"{base_url.rstrip('/')}/{endpoint.lstrip('/')}"
     print(f"\n[USEPAY API REQUEST] Method: {method} | Endpoint: {endpoint} | URL: {url}")
     if params:
         print(f"[USEPAY API REQUEST PARAMS]: {params}")
