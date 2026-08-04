@@ -3,6 +3,7 @@ import json
 import uuid
 import secrets
 import logging
+import asyncio
 import asyncpg
 import datetime
 from decimal import Decimal
@@ -739,10 +740,12 @@ class PostgresDatabase:
     async def init_pool(self, dsn):
         if self.client is None:
             import asyncpg
+            min_size = int(os.environ.get("DB_POOL_MIN_SIZE", "2"))
+            max_size = int(os.environ.get("DB_POOL_MAX_SIZE", "10"))
             self.client = await asyncpg.create_pool(
                 dsn,
-                min_size=2,
-                max_size=15,
+                min_size=min_size,
+                max_size=max_size,
                 command_timeout=30,
                 max_inactive_connection_lifetime=60
             )
@@ -823,24 +826,34 @@ class PostgresDatabase:
         if self.client is None:
             raise Exception("Database client is not initialized.")
             
-        async with self.client.acquire() as conn:
-            query_lower = query.lower().lstrip()
-            is_select = query_lower.startswith("select") or query_lower.startswith("with") or query_lower.startswith("show") or "returning" in query_lower
-            
-            if is_select:
-                rows = await conn.fetch(query)
-                return [parse_db_row(dict(r)) for r in rows]
-            else:
-                status = await conn.execute(query)
-                row_count = 0
-                if status:
-                    parts = status.split()
-                    if parts:
-                        try:
-                            row_count = int(parts[-1])
-                        except ValueError:
-                            pass
-                return {"ok": True, "row_count": row_count}
+        retries = 3
+        for attempt in range(retries):
+            try:
+                async with self.client.acquire() as conn:
+                    query_lower = query.lower().lstrip()
+                    is_select = query_lower.startswith("select") or query_lower.startswith("with") or query_lower.startswith("show") or "returning" in query_lower
+                    
+                    if is_select:
+                        rows = await conn.fetch(query)
+                        return [parse_db_row(dict(r)) for r in rows]
+                    else:
+                        status = await conn.execute(query)
+                        row_count = 0
+                        if status:
+                            parts = status.split()
+                            if parts:
+                                try:
+                                    row_count = int(parts[-1])
+                                except ValueError:
+                                    pass
+                        return {"ok": True, "row_count": row_count}
+            except Exception as e:
+                err_msg = str(e)
+                if ("EMAXCONNSESSION" in err_msg or "max clients reached" in err_msg or "pool" in err_msg.lower() or "timeout" in err_msg.lower()) and attempt < retries - 1:
+                    logger.warning(f"Database query error (attempt {attempt + 1}/{retries}), retrying in {(attempt + 1) * 0.2}s: {e}")
+                    await asyncio.sleep((attempt + 1) * 0.2)
+                else:
+                    raise
 
     async def list_collection_names(self):
         return list(TABLE_COLUMNS.keys())

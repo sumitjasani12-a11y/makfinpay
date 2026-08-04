@@ -6038,7 +6038,7 @@ async def admin_stats_financial(
     now = time.time()
     if cache_key in _financial_stats_cache:
         cached_res, ts = _financial_stats_cache[cache_key]
-        if now - ts < 5.0:
+        if now - ts < 15.0:
             return cached_res
 
     start, end = _resolve_range(range, from_date, to_date)
