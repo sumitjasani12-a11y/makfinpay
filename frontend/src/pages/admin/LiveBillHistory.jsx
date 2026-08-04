@@ -279,6 +279,21 @@ export default function AdminLiveBillHistory() {
             </div>
           );
         }
+        if (r.status === "success" && isSuperAdmin) {
+          return (
+            <div className="flex items-center gap-1.5 justify-center">
+              <button
+                disabled={isBusy}
+                onClick={() => handleReject(r.id)}
+                className="px-2.5 py-1 text-[10px] font-bold text-white bg-rose-600 hover:bg-rose-700 rounded transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                title="Reverse transaction and refund agent wallet"
+              >
+                <RotateCcw className="w-3 h-3" />
+                Reverse / Refund
+              </button>
+            </div>
+          );
+        }
         return <div className="text-neutral-400 text-center text-xs">—</div>;
       }
     }
