@@ -740,14 +740,15 @@ class PostgresDatabase:
     async def init_pool(self, dsn):
         if self.client is None:
             import asyncpg
-            min_size = int(os.environ.get("DB_POOL_MIN_SIZE", "2"))
-            max_size = int(os.environ.get("DB_POOL_MAX_SIZE", "10"))
+            min_size = int(os.environ.get("DB_POOL_MIN_SIZE", "1"))
+            max_size = int(os.environ.get("DB_POOL_MAX_SIZE", "5"))
             self.client = await asyncpg.create_pool(
                 dsn,
                 min_size=min_size,
                 max_size=max_size,
                 command_timeout=30,
-                max_inactive_connection_lifetime=60
+                max_inactive_connection_lifetime=30,
+                statement_cache_size=0
             )
 
     async def close(self):
