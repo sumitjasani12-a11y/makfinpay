@@ -9,7 +9,7 @@ export default function AgentLedger() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(20);
 
   useEffect(() => {
     api.get("/wallet/ledger").then((r) => setItems(r.data || []));

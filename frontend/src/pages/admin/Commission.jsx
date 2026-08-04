@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { api, formatErr } from "@/lib/api";
 import { PageHeader, EmptyState } from "@/components/Shared";
 import { toast } from "sonner";
-import { Check, X, PencilLine, Percent, ShieldCheck, Users, UserCheck, Coins, HelpCircle, Loader2, Search } from "lucide-react";
+import { Check, X, PencilLine, Percent, ShieldCheck, Users, UserCheck, Coins, HelpCircle, Loader2 } from "lucide-react";
 
 function ModeToggle({ mode, onChange }) {
   // mode = 'default' | 'custom'
@@ -137,106 +137,29 @@ function CommissionRow({ row, kind, defaultPct, onChanged }) {
 }
 
 function CommissionTable({ rows, kind, defaultPct, onChanged }) {
-  const [q, setQ] = useState("");
-  const [page, setPage] = useState(1);
-  const pageSize = 15;
-
-  const filtered = useMemo(() => {
-    const searchLower = q.toLowerCase();
-    return rows.filter(
-      (r) =>
-        r.full_name?.toLowerCase().includes(searchLower) ||
-        r.email?.toLowerCase().includes(searchLower) ||
-        r.phone?.includes(searchLower)
-    );
-  }, [rows, q]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [q]);
-
-  const paginated = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, page]);
-
-  const totalPages = Math.ceil(filtered.length / pageSize);
-
   return (
-    <div className="space-y-4">
-      {/* Search Input */}
-      <div className="relative max-w-sm">
-        <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-400 pointer-events-none">
-          <Search className="h-4 w-4" />
-        </span>
-        <input
-          type="text"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search by name, email, or phone..."
-          className="w-full pl-10 pr-4 py-2 text-xs border border-black/10 rounded-xl focus:outline-none focus:border-[#1b4332]"
-        />
+    <div className="mfp-card overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full mfp-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>Commission %</th>
+              <th>Mode</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr><td colSpan={6}><EmptyState>No {kind === "dist" ? "distributors" : "admin-created agents"} yet.</EmptyState></td></tr>
+            ) : rows.map((r) => (
+              <CommissionRow key={r.id} row={r} kind={kind} defaultPct={defaultPct} onChanged={onChanged} />
+            ))}
+          </tbody>
+        </table>
       </div>
-
-      <div className="mfp-card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full mfp-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Phone</th>
-                <th>Commission %</th>
-                <th>Mode</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginated.length === 0 ? (
-                <tr>
-                  <td colSpan={6}>
-                    <EmptyState>
-                      No {kind === "dist" ? "distributors" : "admin-created agents"} found matching the criteria.
-                    </EmptyState>
-                  </td>
-                </tr>
-              ) : (
-                paginated.map((r) => (
-                  <CommissionRow key={r.id} row={r} kind={kind} defaultPct={defaultPct} onChanged={onChanged} />
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Pagination Controls */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between pt-4 border-t border-black/5 flex-wrap gap-3">
-          <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
-            Showing {Math.min(filtered.length, (page - 1) * pageSize + 1)}-{Math.min(filtered.length, page * pageSize)} of {filtered.length} entries
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="px-3 py-1.5 rounded-xl border border-black/5 text-xs font-bold bg-white hover:bg-neutral-50 disabled:opacity-50 transition-all select-none"
-            >
-              Prev
-            </button>
-            <span className="text-xs font-semibold px-2 text-neutral-500">
-              Page {page} of {totalPages}
-            </span>
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-              className="px-3 py-1.5 rounded-xl border border-black/5 text-xs font-bold bg-white hover:bg-neutral-50 disabled:opacity-50 transition-all select-none"
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }export default function AdminCommission() {

@@ -81,7 +81,7 @@ export default function AgentBillPay() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(20);
 
   const fetchHistory = (silent = false) => {
     if (!silent) setLoadingHistory(true);
@@ -280,7 +280,7 @@ export default function AgentBillPay() {
     };
 
     fetchConfig();
-    const interval = setInterval(fetchConfig, 4000);
+    const interval = setInterval(fetchConfig, 30000);
     return () => clearInterval(interval);
   }, []);
 

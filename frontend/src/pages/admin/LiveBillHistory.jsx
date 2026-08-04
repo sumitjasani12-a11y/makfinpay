@@ -47,14 +47,21 @@ export default function AdminLiveBillHistory() {
 
   // pagination
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(20);
   const [rejectTargetId, setRejectTargetId] = useState(null);
 
-  const [liveBillEnabled, setLiveBillEnabled] = useState(true);
+  const [liveBillEnabled, setLiveBillEnabled] = useState(() => {
+    try {
+      const v = localStorage.getItem("set_live_bill_enabled");
+      return v !== null ? JSON.parse(v) : true;
+    } catch (e) { return true; }
+  });
 
   const fetchToggles = useCallback(() => {
     api.get("/admin/settings/recharge-limits").then((r) => {
-      setLiveBillEnabled(r.data.live_bill_enabled ?? true);
+      const lbe = r.data.live_bill_enabled ?? true;
+      setLiveBillEnabled(lbe);
+      try { localStorage.setItem("set_live_bill_enabled", JSON.stringify(lbe)); } catch (e) {}
     });
   }, []);
 
@@ -86,26 +93,33 @@ export default function AdminLiveBillHistory() {
     delete statsParams.paginated;
     delete statsParams.page;
     delete statsParams.page_size;
-    const statsPromise = api.get("/admin/transactions/stats", { params: statsParams });
+    const statsPromise = api.get("/admin/transactions", { params: statsParams });
 
     return Promise.all([pagePromise, statsPromise])
       .then(([pageRes, statsRes]) => {
         setItems(pageRes.data.items || []);
         setTotal(pageRes.data.total || 0);
 
-        const sd = statsRes.data || {};
-        const successVal = sd.success || {};
-        const pendingVal = sd.pending || {};
-        const reversedVal = sd.reversed || sd.failed || {};
+        let success = 0, successCount = 0;
+        let pending = 0, pendingCount = 0;
+        let reversed = 0, reversedCount = 0;
+        let totalProfit = 0;
 
-        const success = successVal.bill_amount || 0;
-        const successCount = successVal.count || 0;
-        const pending = pendingVal.bill_amount || 0;
-        const pendingCount = pendingVal.count || 0;
-        const reversed = reversedVal.bill_amount || 0;
-        const reversedCount = reversedVal.count || 0;
-        const totalProfit = (successVal.service_charge || 0) - (successVal.api_charge || 0);
-
+        const allMatched = statsRes.data || [];
+        allMatched.forEach((item) => {
+          const amt = item.bill_amount ?? item.amount ?? 0;
+          if (item.status === "success") {
+            success += amt;
+            successCount++;
+            totalProfit += (item.service_charge ?? 0) - (item.api_charge ?? 0);
+          } else if (item.status === "pending") {
+            pending += amt;
+            pendingCount++;
+          } else if (item.status === "reversed" || item.status === "failed") {
+            reversed += amt;
+            reversedCount++;
+          }
+        });
         setStats({ success, successCount, pending, pendingCount, reversed, reversedCount, totalProfit });
       })
       .catch((e) => toast.error(formatErr(e.response?.data?.detail) || "Failed to load transactions"))
@@ -160,7 +174,12 @@ export default function AdminLiveBillHistory() {
   const handleToggleLiveBill = async (val) => {
     setLiveBillEnabled(val);
     try {
+      const res = await api.get("/admin/settings/recharge-limits");
       await api.put("/admin/settings/recharge-toggles", {
+        qr_enabled: res.data.qr_enabled ?? true,
+        recharge_enabled: res.data.recharge_enabled ?? true,
+        withdrawal_enabled: res.data.withdrawal_enabled ?? true,
+        bill_pay_enabled: res.data.bill_pay_enabled ?? true,
         live_bill_enabled: val
       });
       toast.success(`Live Bill service ${val ? "Enabled" : "Disabled"}`);
@@ -537,7 +556,7 @@ export default function AdminLiveBillHistory() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-black/5">
           <div className="text-sm text-neutral-600" data-testid="tx-results-count">
-            {loading ? "Loading…" : <>Matched <span className="font-semibold">{total.toLocaleString("en-IN")}</span> transactions</>}
+            {loading ? <span className="inline-flex items-center gap-1.5 text-neutral-400"><Loader2 className="h-3.5 w-3.5 animate-spin text-[#1B4332]" /></span> : <>Matched <span className="font-semibold">{total.toLocaleString("en-IN")}</span> transactions</>}
           </div>
           <button onClick={clearAll} className="mfp-btn-ghost" data-testid="tx-clear-all">
             <RotateCcw className="h-3.5 w-3.5" /> Clear All Filters
@@ -548,7 +567,7 @@ export default function AdminLiveBillHistory() {
       <DataTable
         columns={columns}
         rows={items}
-        empty={loading ? "Loading…" : "No transactions found for selected filters"}
+        empty={loading ? <div className="flex items-center justify-center gap-2 py-6 text-neutral-400 font-medium"><Loader2 className="h-5 w-5 animate-spin text-[#1B4332]" /></div> : "No transactions found for selected filters"}
         pagination={{
           page,
           pageSize,

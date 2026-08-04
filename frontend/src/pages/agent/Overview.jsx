@@ -7,11 +7,13 @@ import { Wallet, QrCode, CreditCard, Clock, ChevronLeft, ChevronRight } from "lu
 
 export default function AgentOverview() {
   const { user } = useAuth();
-  const [stats, setStats] = useState({
-    wallet_balance: 0,
-    qr_payment: 0,
-    live_bill_payment: 0,
-    pending_requests: 0
+  const [stats, setStats] = useState(() => {
+    try {
+      const v = localStorage.getItem("mfp_cache_agent_stats");
+      return v ? JSON.parse(v) : { wallet_balance: 0, qr_payment: 0, live_bill_payment: 0, pending_requests: 0 };
+    } catch {
+      return { wallet_balance: 0, qr_payment: 0, live_bill_payment: 0, pending_requests: 0 };
+    }
   });
   const [headlines, setHeadlines] = useState([]);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
@@ -19,7 +21,10 @@ export default function AgentOverview() {
   useEffect(() => {
     if (user && user.kyc_status === "approved" && !user.first_login) {
       api.get("/agent/dashboard-stats")
-        .then((r) => setStats(r.data))
+        .then((r) => {
+          setStats(r.data);
+          try { localStorage.setItem("mfp_cache_agent_stats", JSON.stringify(r.data)); } catch (e) {}
+        })
         .catch((e) => console.log("Stats error ignored:", e.message));
       api.get("/headlines/active")
         .then((r) => setHeadlines(r.data || []))

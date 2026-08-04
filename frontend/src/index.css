@@ -39,7 +39,7 @@
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: hsl(var(--border) / 1);
   }
   html, body {
     @apply bg-background text-foreground;

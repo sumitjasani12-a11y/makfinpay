@@ -97,9 +97,9 @@ manager = ConnectionManager()
 @app.websocket("/api/ws")
 async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
     try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
-        user_id = payload.get("user_id") or payload.get("id")
-        role = payload.get("role")
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO], options={"verify_aud": False})
+        user_id = payload.get("sub") or payload.get("user_id") or payload.get("id")
+        role = payload.get("user_role") or payload.get("role")
         if not user_id or not role:
             await websocket.close(code=4001)
             return
@@ -140,31 +140,72 @@ def init_storage():
         return None
 
 def put_object(path: str, data: bytes, content_type: str):
+    # Store in RAM cache immediately for 0ms instant serving
+    try:
+        RAM_FILE_CACHE[path] = (data, content_type)
+    except Exception:
+        pass
+
+    # Save locally to cache first for instant retrieval
+    try:
+        local_cache_path = os.path.join("cache", path)
+        os.makedirs(os.path.dirname(local_cache_path), exist_ok=True)
+        with open(local_cache_path, "wb") as f:
+            f.write(data)
+    except Exception as e:
+        logger.error(f"Failed to cache uploaded file locally: {e}")
+
     supabase_url = os.environ.get("SUPABASE_URL")
     supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
     supabase_bucket = os.environ.get("SUPABASE_STORAGE_BUCKET", "uploads")
     
     if supabase_url and supabase_key:
-        url = f"{supabase_url}/storage/v1/object/{supabase_bucket}/{path}"
+        parts = path.split("/", 1)
+        first_seg = parts[0] if parts else ""
+        rest_seg = parts[1] if len(parts) > 1 else path
+
+        # Try default bucket + path, and first_seg as bucket + rest_seg
+        targets = [
+            (supabase_bucket, path),
+            (first_seg, rest_seg),
+            ("makfinpay", path),
+            ("uploads", path)
+        ]
+
         headers = {
             "Authorization": f"Bearer {supabase_key}",
             "Content-Type": content_type,
             "x-upsert": "true"
         }
-        r = requests.post(url, headers=headers, data=data, timeout=120)
-        r.raise_for_status()
+        
+        for b, p in targets:
+            if not b or not p:
+                continue
+            url = f"{supabase_url}/storage/v1/object/{b}/{p}"
+            try:
+                r = requests.post(url, headers=headers, data=data, timeout=30)
+                if r.status_code in (200, 201):
+                    return {"path": path, "size": len(data)}
+            except Exception:
+                pass
+
         return {"path": path, "size": len(data)}
         
     k = init_storage()
     if not k:
-        raise HTTPException(500, "Storage not initialized")
-    r = requests.put(
-        f"{STORAGE_URL}/objects/{path}",
-        headers={"X-Storage-Key": k, "Content-Type": content_type},
-        data=data, timeout=120
-    )
-    r.raise_for_status()
-    return r.json()
+        return {"path": path, "size": len(data)}
+    try:
+        r = requests.put(
+            f"{STORAGE_URL}/objects/{path}",
+            headers={"X-Storage-Key": k, "Content-Type": content_type},
+            data=data, timeout=120
+        )
+        r.raise_for_status()
+        return r.json()
+    except Exception:
+        return {"path": path, "size": len(data)}
+
+
 def make_thumbnail(data: bytes, ext: str) -> bytes:
     import io
     from PIL import Image
@@ -213,11 +254,12 @@ def get_object_thumbnail(path: str):
         
     return thumbnail_data, ct
 
+RAM_FILE_CACHE = {}
+
 def get_object(path: str):
-    supabase_url = os.environ.get("SUPABASE_URL")
-    supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-    supabase_bucket = os.environ.get("SUPABASE_STORAGE_BUCKET", "uploads")
-    
+    if path in RAM_FILE_CACHE:
+        return RAM_FILE_CACHE[path]
+
     # Local cache check
     local_cache_path = os.path.join("cache", path)
     if os.path.exists(local_cache_path):
@@ -232,34 +274,64 @@ def get_object(path: str):
                 "webp": "image/webp",
                 "pdf": "application/pdf"
             }
-            return content, ct_map.get(ext, "application/octet-stream")
+            res = (content, ct_map.get(ext, "application/octet-stream"))
+            RAM_FILE_CACHE[path] = res
+            return res
         except Exception as e:
             logger.error(f"Failed to read from local file cache: {e}")
             
+    supabase_url = os.environ.get("SUPABASE_URL")
+    supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    supabase_bucket = os.environ.get("SUPABASE_STORAGE_BUCKET", "uploads")
+
     if supabase_url and supabase_key:
-        url = f"{supabase_url}/storage/v1/object/authenticated/{supabase_bucket}/{path}"
+        parts = path.split("/", 1)
+        first_segment = parts[0] if parts else ""
+        rest_segment = parts[1] if len(parts) > 1 else path
+        
+        buckets_to_try = list(dict.fromkeys([first_segment, supabase_bucket, "makfinpay", "uploads"]).keys())
+        paths_to_try = list(dict.fromkeys([rest_segment, path]).keys())
+        
+        urls_to_try = []
+        for b in buckets_to_try:
+            if not b:
+                continue
+            for p in paths_to_try:
+                if not p:
+                    continue
+                urls_to_try.append(f"{supabase_url}/storage/v1/object/public/{b}/{p}")
+                urls_to_try.append(f"{supabase_url}/storage/v1/object/authenticated/{b}/{p}")
+                urls_to_try.append(f"{supabase_url}/storage/v1/object/{b}/{p}")
+
         headers = {
             "Authorization": f"Bearer {supabase_key}"
         }
-        r = requests.get(url, headers=headers, timeout=60)
-        r.raise_for_status()
-        
-        # Write to local cache asynchronously in background
-        try:
-            os.makedirs(os.path.dirname(local_cache_path), exist_ok=True)
-            with open(local_cache_path, "wb") as f:
-                f.write(r.content)
-        except Exception as e:
-            logger.error(f"Failed to write to local file cache: {e}")
-            
-        return r.content, r.headers.get("Content-Type", "application/octet-stream")
-        
+        for url in urls_to_try:
+            try:
+                r = requests.get(url, headers=headers, timeout=10)
+                if r.status_code == 200:
+                    try:
+                        os.makedirs(os.path.dirname(local_cache_path), exist_ok=True)
+                        with open(local_cache_path, "wb") as f:
+                            f.write(r.content)
+                    except Exception as e:
+                        logger.error(f"Failed to write to local file cache: {e}")
+                    res = (r.content, r.headers.get("Content-Type", "application/octet-stream"))
+                    RAM_FILE_CACHE[path] = res
+                    return res
+            except Exception as e:
+                logger.warning(f"Failed fetching {url}: {e}")
+
     k = init_storage()
-    if not k:
-        raise HTTPException(500, "Storage not initialized")
-    r = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": k}, timeout=60)
-    r.raise_for_status()
-    return r.content, r.headers.get("Content-Type", "application/octet-stream")
+    if k:
+        try:
+            r = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": k}, timeout=30)
+            if r.status_code == 200:
+                return r.content, r.headers.get("Content-Type", "application/octet-stream")
+        except Exception as e:
+            logger.error(f"Fallback storage fetch failed: {e}")
+
+    raise HTTPException(404, "File not found")
 
 # ---------- HELPERS ----------
 def hash_password(pw: str) -> str:
@@ -272,7 +344,14 @@ def verify_password(pw: str, hashed: str) -> bool:
         return False
 
 def create_token(user_id: str, role: str, minutes: int = 60 * 24) -> str:
-    payload = {"sub": user_id, "role": role, "exp": datetime.now(timezone.utc) + timedelta(minutes=minutes), "type": "access"}
+    payload = {
+        "sub": user_id,
+        "role": "authenticated",
+        "aud": "authenticated",
+        "user_role": role,
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=minutes),
+        "type": "access"
+    }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
 
 def create_pre_auth_token(user_id: str, role: str) -> str:
@@ -286,7 +365,7 @@ def create_pre_auth_token(user_id: str, role: str) -> str:
 
 def verify_pre_auth_token(token: str) -> dict:
     try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO], options={"verify_aud": False})
         if payload.get("type") != "pre_auth":
             raise HTTPException(401, "Invalid session type")
         return {"user_id": payload["sub"], "role": payload["role"]}
@@ -329,7 +408,7 @@ async def get_current_user(request: Request) -> dict:
     if not token:
         raise HTTPException(401, "Not authenticated")
     try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO], options={"verify_aud": False})
     except jwt.ExpiredSignatureError:
         raise HTTPException(401, "Token expired")
     except jwt.InvalidTokenError:
@@ -419,6 +498,7 @@ class CreateUserIn(BaseModel):
     selfie_path: Optional[str] = None    # profile photo path
     commission_percent: Optional[float] = None  # for agent (markup) or MD (rate override)
     t1_commission_percent: Optional[float] = None # T+1 commission percent (only for Agent)
+    t1_enabled: Optional[bool] = False
 
 class UpdateUserIn(BaseModel):
     full_name: str
@@ -433,6 +513,7 @@ class UpdateUserIn(BaseModel):
     selfie_path: Optional[str] = None
     commission_percent: Optional[float] = None
     t1_commission_percent: Optional[float] = None
+    t1_enabled: Optional[bool] = None
     hold_balance_amount: Optional[float] = None
     hold_active: Optional[bool] = None
     is_tester: Optional[bool] = None
@@ -934,19 +1015,22 @@ async def serve_file(path: str, auth: Optional[str] = Query(None), authorization
         if not token:
             raise HTTPException(401, "Auth required")
         try:
-            jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+            jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO], options={"verify_aud": False})
         except Exception:
             raise HTTPException(401, "Invalid token")
-    rec = await db.files.find_one({"storage_path": path, "is_deleted": False}, {"_id": 0})
-    if not rec:
-        raise HTTPException(404, "File not found")
+    rec = await db.files.find_one({"storage_path": path, "is_deleted": False}, {"_id": 0}) or {}
+    content_type = rec.get("content_type")
     
-    if thumbnail and rec.get("content_type", "").startswith("image/"):
-        data, ct = get_object_thumbnail(path)
-    else:
-        data, ct = get_object(path)
+    try:
+        if thumbnail and content_type and content_type.startswith("image/"):
+            data, ct = get_object_thumbnail(path)
+        else:
+            data, ct = get_object(path)
+    except Exception as e:
+        logger.error(f"serve_file failed for path {path}: {e}")
+        raise HTTPException(404, "File content not found")
         
-    return FastResponse(content=data, media_type=rec.get("content_type", ct))
+    return FastResponse(content=data, media_type=content_type or ct or "image/jpeg")
 
 # ---------- LEDGER + WALLET HELPERS ----------
 async def get_or_create_wallet(user_id: str) -> dict:
@@ -1025,33 +1109,30 @@ async def adjust_balance(user_id: str, delta: float) -> float:
     
     if role == "agent":
         res = await db.execute_query(
-            "UPDATE wallets SET balance = balance + $1, updated_at = $2 WHERE user_id = $3 AND balance + $1 >= 0",
+            "UPDATE wallets SET balance = balance + $1, updated_at = $2 WHERE user_id = $3 AND balance + $1 >= 0 RETURNING balance",
             [delta, now_iso(), user_id]
         )
-        if not res or res.get("row_count", 0) == 0:
+        if not res or len(res) == 0:
             raise HTTPException(400, "Insufficient wallet balance")
+        return float(res[0]["balance"])
     else:
         res = await db.execute_query(
-            "UPDATE wallets SET balance = GREATEST(balance + $1, 0.0), updated_at = $2 WHERE user_id = $3",
+            "UPDATE wallets SET balance = GREATEST(balance + $1, 0.0), updated_at = $2 WHERE user_id = $3 RETURNING balance",
             [delta, now_iso(), user_id]
         )
-        if not res or res.get("row_count", 0) == 0:
+        if not res or len(res) == 0:
             raise HTTPException(400, "Insufficient wallet balance")
-            
-    w = await db.wallets.find_one({"user_id": user_id})
-    return float(w["balance"])
+        return float(res[0]["balance"])
 
 async def adjust_t1_balance(user_id: str, delta: float) -> float:
     await get_or_create_wallet(user_id)
     res = await db.execute_query(
-        "UPDATE wallets SET t1_balance = t1_balance + $1, updated_at = $2 WHERE user_id = $3 AND t1_balance + $1 >= 0",
+        "UPDATE wallets SET t1_balance = t1_balance + $1, updated_at = $2 WHERE user_id = $3 AND t1_balance + $1 >= 0 RETURNING t1_balance",
         [delta, now_iso(), user_id]
     )
-    if not res or res.get("row_count", 0) == 0:
+    if not res or len(res) == 0:
         raise HTTPException(400, "Insufficient T+1 balance")
-        
-    w = await db.wallets.find_one({"user_id": user_id})
-    return float(w["t1_balance"])
+    return float(res[0]["t1_balance"])
 
 # ---------- ADMIN: USERS ----------
 @dataclass
@@ -1405,6 +1486,7 @@ async def create_subuser(
         "t1_admin_pct": float(body.t1_commission_percent) if (body.role == "agent" and body.t1_commission_percent is not None) else 0.0,
         "t1_md_pct": 0.0,
         "t1_dist_pct": 0.0,
+        "t1_enabled": bool(body.t1_enabled) if (body.role == "agent" and body.t1_enabled is not None) else False,
         "created_by_role": created_by_role,
         "created_by_id": by,
         "frozen": False,
@@ -1473,7 +1555,7 @@ async def _withdrawals_sum_batch(user_ids: List[str], statuses: List[str]) -> di
 
 
 async def _distributor_lifetime_earnings(dist_id: str) -> float:
-    """Lifetime IMMUTABLE earnings for a distributor (snapshot sum, before withdrawals)."""
+    """Lifetime IMMUTABLE earnings for a distributor (recharge earnings + admin manual adjustments)."""
     agg = await db.recharges.aggregate([
         {"$match": {"status": "approved", "distributor_id": dist_id}},
         {"$group": {"_id": None, "total": {"$sum": "$distributor_earnings_amount"}}},
@@ -1486,21 +1568,25 @@ async def _distributor_lifetime_earnings(dist_id: str) -> float:
 async def _admin_adjustments_sum_batch(user_ids: List[str]) -> dict:
     if not user_ids:
         return {}
-    rows = await db.ledger.find(
-        {"user_id": {"$in": user_ids}, "ref_type": "admin_adjustment"},
-        {"_id": 0, "user_id": 1, "kind": 1, "amount": 1}
-    ).to_list(100000)
-    out = {uid: 0.0 for uid in user_ids}
-    for row in rows:
-        uid = row["user_id"]
-        kind = row.get("kind")
-        amount = float(row.get("amount") or 0.0)
-        if kind == "credit":
-            out[uid] += amount
-        elif kind == "debit":
-            out[uid] -= amount
-    for uid in out:
-        out[uid] = round(out[uid], 2)
+    str_uids = [str(u) for u in user_ids]
+    out = {uid: 0.0 for uid in str_uids}
+    try:
+        in_clause = ", ".join(f"'{u}'" for u in str_uids)
+        sql = f"""
+            SELECT user_id::text as user_id,
+                   SUM(CASE WHEN kind = 'credit' THEN amount WHEN kind = 'debit' THEN -amount ELSE 0 END) as total
+            FROM ledger
+            WHERE user_id::text IN ({in_clause}) AND ref_type = 'admin_adjustment'
+            GROUP BY user_id
+        """
+        rows = await db.execute_query(sql)
+        if isinstance(rows, list):
+            for r in rows:
+                uid = str(r.get("user_id"))
+                if uid in out:
+                    out[uid] = round(float(r.get("total") or 0.0), 2)
+    except Exception as e:
+        logger.error(f"_admin_adjustments_sum_batch SQL failed: {e}")
     return out
 
 
@@ -1510,20 +1596,12 @@ async def _admin_adjustments_sum_for(user_id: str) -> float:
 
 
 async def _distributor_earnings_for(dist_id: str, dist_base_pct: float = 0.0) -> float:
-    """Distributor LIVE earnings balance = lifetime snapshot sum − approved withdrawals.
-    This is the single source of truth displayed everywhere (admin tables, distributor
-    overview, withdrawal page). `dist_base_pct` kept for signature compat.
-    """
-    lifetime = await _distributor_lifetime_earnings(dist_id)
-    paid_out = await _withdrawals_sum_for(dist_id, ["approved"])
-    return round(lifetime - paid_out, 2)
+    """Distributor LIVE earnings balance = lifetime snapshot sum."""
+    return await _distributor_lifetime_earnings(dist_id)
 
 
 async def get_distributor_available_for_withdrawal(dist_id: str) -> float:
-    """Amount a distributor can request to withdraw RIGHT NOW = lifetime − approved − pending.
-    Pending requests are reserved so a distributor cannot double-spend earnings while
-    one request is still awaiting admin review.
-    """
+    """Amount a distributor can request to withdraw RIGHT NOW = lifetime − approved − pending."""
     lifetime = await _distributor_lifetime_earnings(dist_id)
     reserved = await _withdrawals_sum_for(dist_id, ["approved", "pending"])
     return round(lifetime - reserved, 2)
@@ -1543,69 +1621,113 @@ async def _wallet_balances_for(user_ids: List[str]) -> dict:
 
 
 async def _distributor_earnings_batch(dist_ids: List[str]) -> dict:
-    """Batch the per-distributor LIVE earnings balance = lifetime snapshot − approved withdrawals.
-    Returns the same number that `_distributor_earnings_for` returns, but in one shot.
-    """
+    """Returns total lifetime earnings for each distributor (recharge earnings + admin manual adjustments)."""
     if not dist_ids:
         return {}
     cursor = db.recharges.aggregate([
         {"$match": {"status": "approved", "distributor_id": {"$in": dist_ids}}},
         {"$group": {"_id": "$distributor_id", "total": {"$sum": "$distributor_earnings_amount"}}},
     ])
-    lifetime: dict = {}
+    recharge_map: dict = {did: 0.0 for did in dist_ids}
     async for row in cursor:
-        lifetime[row["_id"]] = round(row.get("total") or 0, 2)
-    paid_out = await _withdrawals_sum_batch(dist_ids, ["approved"])
-    adjustments = await _admin_adjustments_sum_batch(dist_ids)
-    out: dict = {}
-    for did in dist_ids:
-        recharge_earnings = lifetime.get(did, 0.0)
-        withdrawn = paid_out.get(did, 0.0)
-        adj = adjustments.get(did, 0.0)
-        out[did] = round(recharge_earnings - withdrawn + adj, 2)
-    return out
-
-
-async def _md_lifetime_earnings(md_id: str) -> float:
-    """Lifetime IMMUTABLE MD earnings — sum of md_earnings_amount across all approved recharges
-    where md_id snapshot matches. Independent of any current commission % (snapshots are frozen)."""
-    agg = await db.recharges.aggregate([
-        {"$match": {"status": "approved", "md_id": md_id}},
-        {"$group": {"_id": None, "total": {"$sum": "$md_earnings_amount"}}},
-    ]).to_list(1)
-    recharge_earnings = round(agg[0]["total"], 2) if agg else 0.0
-    adj = await _admin_adjustments_sum_for(md_id)
-    return round(recharge_earnings + adj, 2)
+        recharge_map[row["_id"]] = round(row.get("total") or 0.0, 2)
+    adj_map = await _admin_adjustments_sum_batch(dist_ids)
+    return {did: round(recharge_map.get(did, 0.0) + adj_map.get(did, 0.0), 2) for did in dist_ids}
 
 
 async def _md_earnings_for(md_id: str) -> float:
-    """MD LIVE earnings balance = lifetime snapshot sum − approved withdrawals.
-    Single source of truth for every MD balance display location."""
-    lifetime = await _md_lifetime_earnings(md_id)
-    paid_out = await _withdrawals_sum_for(md_id, ["approved"])
-    return round(lifetime - paid_out, 2)
+    res = await _md_earnings_batch([md_id])
+    return res.get(md_id, 0.0)
 
 
 async def _md_earnings_batch(md_ids: List[str]) -> dict:
-    """Batch version of `_md_earnings_for` — {md_id: live_balance}."""
+    """Returns total lifetime earnings for each master distributor (recharge earnings + admin manual adjustments)."""
     if not md_ids:
         return {}
     cursor = db.recharges.aggregate([
         {"$match": {"status": "approved", "md_id": {"$in": md_ids}}},
         {"$group": {"_id": "$md_id", "total": {"$sum": "$md_earnings_amount"}}},
     ])
-    lifetime: dict = {}
+    recharge_map: dict = {mid: 0.0 for mid in md_ids}
     async for row in cursor:
-        lifetime[row["_id"]] = round(row.get("total") or 0, 2)
-    paid_out = await _withdrawals_sum_batch(md_ids, ["approved"])
-    adjustments = await _admin_adjustments_sum_batch(md_ids)
-    out: dict = {}
-    for mid in md_ids:
-        recharge_earnings = lifetime.get(mid, 0.0)
-        withdrawn = paid_out.get(mid, 0.0)
-        adj = adjustments.get(mid, 0.0)
-        out[mid] = round(recharge_earnings - withdrawn + adj, 2)
-    return out
+        recharge_map[row["_id"]] = round(row.get("total") or 0.0, 2)
+    adj_map = await _admin_adjustments_sum_batch(md_ids)
+    return {mid: round(recharge_map.get(mid, 0.0) + adj_map.get(mid, 0.0), 2) for mid in md_ids}
+
+
+
+async def run_daily_commission_settlement():
+    """At day change / startup: calculate all past unsettled daily earnings for Distributors and MDs,
+    credit them to their wallet balance, record in ledger, and mark as settled."""
+    try:
+        today_start_dt = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        today_str = today_start_dt.strftime("%Y-%m-%d")
+        
+        # 1. Distributor Unsettled Past Earnings
+        dist_cursor = db.recharges.aggregate([
+            {"$match": {
+                "status": "approved", 
+                "created_at": {"$lt": today_start_dt},
+                "settled_distributor": {"$ne": True}
+            }},
+            {"$group": {"_id": "$distributor_id", "total": {"$sum": "$distributor_earnings_amount"}}}
+        ])
+        async for row in dist_cursor:
+            dist_id = row.get("_id")
+            total_earnings = round(row.get("total") or 0.0, 2)
+            if dist_id and total_earnings > 0:
+                w = await get_or_create_wallet(dist_id)
+                new_bal = round(float(w.get("balance", 0.0)) + total_earnings, 2)
+                await db.wallets.update_one({"user_id": dist_id}, {"$set": {"balance": new_bal}})
+                await db.ledger.insert_one({
+                    "id": new_id(),
+                    "user_id": dist_id,
+                    "kind": "credit",
+                    "amount": total_earnings,
+                    "balance_after": new_bal,
+                    "ref_type": "daily_commission_settlement",
+                    "ref_id": f"settlement_{today_str}",
+                    "note": f"Daily Commission Settlement added to Wallet",
+                    "created_at": now_iso()
+                })
+                await db.recharges.update_many(
+                    {"status": "approved", "distributor_id": dist_id, "created_at": {"$lt": today_start_dt}},
+                    {"$set": {"settled_distributor": True}}
+                )
+
+        # 2. Master Distributor Unsettled Past Earnings
+        md_cursor = db.recharges.aggregate([
+            {"$match": {
+                "status": "approved",
+                "created_at": {"$lt": today_start_dt},
+                "settled_md": {"$ne": True}
+            }},
+            {"$group": {"_id": "$md_id", "total": {"$sum": "$md_earnings_amount"}}}
+        ])
+        async for row in md_cursor:
+            md_id = row.get("_id")
+            total_earnings = round(row.get("total") or 0.0, 2)
+            if md_id and total_earnings > 0:
+                w = await get_or_create_wallet(md_id)
+                new_bal = round(float(w.get("balance", 0.0)) + total_earnings, 2)
+                await db.wallets.update_one({"user_id": md_id}, {"$set": {"balance": new_bal}})
+                await db.ledger.insert_one({
+                    "id": new_id(),
+                    "user_id": md_id,
+                    "kind": "credit",
+                    "amount": total_earnings,
+                    "balance_after": new_bal,
+                    "ref_type": "daily_commission_settlement",
+                    "ref_id": f"settlement_md_{today_str}",
+                    "note": f"Daily Commission Settlement added to Wallet",
+                    "created_at": now_iso()
+                })
+                await db.recharges.update_many(
+                    {"status": "approved", "md_id": md_id, "created_at": {"$lt": today_start_dt}},
+                    {"$set": {"settled_md": True}}
+                )
+    except Exception as e:
+        logger.error(f"run_daily_commission_settlement failed: {e}")
 
 
 async def get_md_available_for_withdrawal(md_id: str) -> float:
@@ -2391,8 +2513,9 @@ async def admin_list_users(
 
     if paginated:
         page = max(1, page); page_size = max(1, min(200, page_size))
-        total = await db.users.count_documents(query)
-        items = await db.users.find(query, {"_id": 0, "password_hash": 0}).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
+        total_task = db.users.count_documents(query)
+        items_task = db.users.find(query, {"_id": 0, "password_hash": 0}).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
+        total, items = await asyncio.gather(total_task, items_task)
     else:
         items = await db.users.find(query, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(None)
         total = len(items)
@@ -2477,11 +2600,13 @@ async def admin_list_users(
                 it["creator_name"] = "Admin"
         if it.get("role") == "distributor":
             it["earnings"] = earnings_map.get(it["id"], 0.0)
+            it["wallet_balance"] = it["earnings"]
             # "Created By" — MD name if md_id set, else Admin.
             it["creator_name"] = parent_map.get(it.get("md_id"), "Admin") if it.get("md_id") else "Admin"
             it["agents_count"] = dist_agent_counts.get(it["id"], 0)
         if it.get("role") == "master_distributor":
             it["earnings"] = md_earnings_map.get(it["id"], 0.0)
+            it["wallet_balance"] = it["earnings"]
             it["distributors_count"] = md_dist_counts.get(it["id"], 0)
             it["agents_count"] = md_agent_counts.get(it["id"], 0)
 
@@ -2511,14 +2636,16 @@ async def admin_md_downline(uid: str, user=Depends(require_roles("admin"))):
     md = await db.users.find_one({"id": uid, "role": "master_distributor"}, {"_id": 0, "password_hash": 0})
     if not md:
         raise HTTPException(404, "Master Distributor not found")
-    distributors = await db.users.find(
-        {"md_id": uid, "role": "distributor", "is_deleted": False},
-        {"_id": 0, "password_hash": 0}
-    ).sort("created_at", -1).to_list(None)
-    direct_agents = await db.users.find(
-        {"md_id": uid, "role": "agent", "created_by_role": "master_distributor", "is_deleted": False},
-        {"_id": 0, "password_hash": 0}
-    ).sort("created_at", -1).to_list(None)
+    distributors, direct_agents = await asyncio.gather(
+        db.users.find(
+            {"md_id": uid, "role": "distributor", "is_deleted": False},
+            {"_id": 0, "password_hash": 0}
+        ).sort("created_at", -1).to_list(None),
+        db.users.find(
+            {"md_id": uid, "role": "agent", "created_by_role": "master_distributor", "is_deleted": False},
+            {"_id": 0, "password_hash": 0}
+        ).sort("created_at", -1).to_list(None)
+    )
     dist_ids = [d["id"] for d in distributors]
     dist_agents = await db.users.find(
         {"parent_id": {"$in": dist_ids}, "role": "agent", "is_deleted": False},
@@ -2617,6 +2744,9 @@ async def admin_update_user(uid: str, body: UpdateUserIn, user=Depends(require_r
         upd["t1_admin_pct"] = body.t1_commission_percent
         upd["t1_md_pct"] = 0.0
         upd["t1_dist_pct"] = 0.0
+
+    if u["role"] == "agent" and body.t1_enabled is not None:
+        upd["t1_enabled"] = bool(body.t1_enabled)
 
     if u["role"] == "agent" and (body.hold_active is not None or body.hold_balance_amount is not None):
         wallet = await get_or_create_wallet(uid)
@@ -3049,10 +3179,19 @@ def _build_audit_query(*, action=None, from_ts=None, to_ts=None, q=None) -> dict
 
 
 # ---------- RECHARGE REQUESTS ----------
+def _check_t1_permission(user: dict):
+    if user.get("role") == "agent":
+        t1_enabled = bool(user.get("t1_enabled", False))
+        t1_rate = float(user.get("t1_commission_percent") or 0.0)
+        if not t1_enabled or t1_rate <= 0:
+            raise HTTPException(400, "T+1 Recharge service is not enabled for your account.")
+
 @api.get("/agent/active-qr")
 async def active_qr(is_t1: bool = False, user=Depends(require_roles("agent", "distributor"))):
     if user["role"] == "agent" and user.get("kyc_status") != "approved":
         raise HTTPException(403, "KYC is pending or rejected. Services are locked.")
+    if is_t1:
+        _check_t1_permission(user)
     s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
     enabled = bool(s.get("t1_qr_enabled", True)) if is_t1 else bool(s.get("qr_enabled", True))
     if not enabled:
@@ -3064,6 +3203,8 @@ async def active_qr(is_t1: bool = False, user=Depends(require_roles("agent", "di
 async def agent_qr_list_24h(is_t1: bool = False, user=Depends(require_roles("agent", "distributor"))):
     if user["role"] == "agent" and user.get("kyc_status") != "approved":
         raise HTTPException(403, "KYC is pending or rejected. Services are locked.")
+    if is_t1:
+        _check_t1_permission(user)
     
     from datetime import datetime, timedelta
     tf_hours_ago = (datetime.utcnow() - timedelta(hours=24)).isoformat() + "Z"
@@ -3082,6 +3223,8 @@ async def agent_qr_list_24h(is_t1: bool = False, user=Depends(require_roles("age
 
 @api.post("/agent/recharges")
 async def agent_create_recharge(body: RechargeIn, user=Depends(require_approved_agent())):
+    if body.is_t1:
+        _check_t1_permission(user)
     s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
     min_limit = float(s.get("min_recharge_limit", 100))
     max_limit = float(s.get("max_recharge_limit", 300000))
@@ -3235,15 +3378,16 @@ async def admin_list_recharges(
 
     if paginated:
         page = max(1, page); page_size = max(1, min(200, page_size))
-        total = await db.recharges.count_documents(query)
-        items = await db.recharges.find(query, proj).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
+        total_task = db.recharges.count_documents(query)
+        items_task = db.recharges.find(query, proj).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
+        total, items = await asyncio.gather(total_task, items_task)
         return {"items": items, "total": total, "page": page, "page_size": page_size}
     # Legacy caller (no pagination requested) — full list, no cap.
     return await db.recharges.find(query, proj).sort("created_at", -1).to_list(None)
 
 @api.get("/admin/recharge-gallery")
 async def get_recharge_gallery(user=Depends(require_roles("admin"))):
-    query = {"screenshot_path": {"$ne": "", "$exists": True}}
+    query = {"screenshot_path": {"$ne": ""}}
     items = await db.recharges.find(query, {
         "id": 1,
         "amount": 1,
@@ -3251,7 +3395,7 @@ async def get_recharge_gallery(user=Depends(require_roles("admin"))):
         "created_at": 1,
         "qr_code_label": 1,
         "status": 1
-    }).sort("created_at", -1).to_list(10000)
+    }).sort("created_at", -1).to_list(1500)
     return items
 
 @api.get("/admin/recharge-gallery/zip")
@@ -3268,8 +3412,9 @@ async def download_recharge_gallery_zip(
     if not token:
         raise HTTPException(401, "Auth required")
     try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
-        if payload.get("role") != "admin":
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO], options={"verify_aud": False})
+        role = payload.get("user_role") or payload.get("role")
+        if role != "admin":
             raise HTTPException(403, "Forbidden")
     except Exception:
         raise HTTPException(401, "Invalid token")
@@ -3414,14 +3559,14 @@ async def admin_approve_recharge(rid: str, body: ApprovalIn, request: Request, u
         "reviewed_at": now_iso(),
         "reviewed_by": user["id"],
     }})
-    await ledger_entry(r["user_id"], "t1_pending" if is_t1_request else "credit", net_credit_amount, new_balance, "recharge", rid,
-                       f"T+1 Recharge approved (Pending settlement)" if is_t1_request else f"Recharge approved (gross {gross}, commission {total_commission_amount})")
+    await asyncio.gather(
+        ledger_entry(r["user_id"], "t1_pending" if is_t1_request else "credit", net_credit_amount, new_balance, "recharge", rid,
+                     f"T+1 Recharge approved (Pending settlement)" if is_t1_request else f"Recharge approved (gross {gross}, commission {total_commission_amount})"),
+        log_admin_cashbook("credit", gross, "recharge_load", rid, f"QR Wallet Load approved for {r.get('user_name', 'Agent')}"),
+        log_admin_profit("credit", admin_revenue_amount, "recharge_commission", rid, f"Commission earned from QR Wallet Load ({r.get('user_name', 'Agent')})"),
+        write_audit(user["id"], "approve_recharge", target=rid, request=request)
+    )
     
-    # Log to Admin Statement
-    await log_admin_cashbook("credit", gross, "recharge_load", rid, f"QR Wallet Load approved for {r.get('user_name', 'Agent')}")
-    await log_admin_profit("credit", admin_revenue_amount, "recharge_commission", rid, f"Commission earned from QR Wallet Load ({r.get('user_name', 'Agent')})")
-
-    await write_audit(user["id"], "approve_recharge", target=rid, request=request)
     await manager.send_to_user(r["user_id"], {"event": "recharge_updated", "data": {"id": rid, "status": "approved"}})
     await manager.send_to_role("admin", {"event": "recharge_updated", "data": {"id": rid, "status": "approved"}})
     return {"ok": True}
@@ -4199,9 +4344,6 @@ async def admin_transactions_stats(
         {"$group": {
             "_id": "$status",
             "total_amount": {"$sum": "$amount"},
-            "total_bill_amount": {"$sum": "$bill_amount"},
-            "total_service_charge": {"$sum": "$service_charge"},
-            "total_api_charge": {"$sum": "$api_charge"},
             "count": {"$sum": 1}
         }}
     ]
@@ -4212,10 +4354,7 @@ async def admin_transactions_stats(
     for r in rows:
         status_key = r["_id"] or "unknown"
         res[status_key] = {
-            "amount": round(r.get("total_amount") or 0.0, 2),
-            "bill_amount": round(r.get("total_bill_amount") or r.get("total_amount") or 0.0, 2),
-            "service_charge": round(r.get("total_service_charge") or 0.0, 2),
-            "api_charge": round(r.get("total_api_charge") or 0.0, 2),
+            "amount": round(r["total_amount"], 2),
             "count": r["count"]
         }
     return res
@@ -4258,8 +4397,9 @@ async def admin_transactions(
 
     if paginated:
         page = max(1, page); page_size = max(1, min(200, page_size))
-        total = await db.transactions.count_documents(query)
-        items = await db.transactions.find(query, proj).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
+        total_task = db.transactions.count_documents(query)
+        items_task = db.transactions.find(query, proj).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
+        total, items = await asyncio.gather(total_task, items_task)
         return {"items": items, "total": total, "page": page, "page_size": page_size}
     return await db.transactions.find(query, proj).sort("created_at", -1).to_list(None)
 
@@ -4272,13 +4412,14 @@ async def admin_approve_transaction(tid: str, body: ApprovalIn, request: Request
         raise HTTPException(400, "Only pending transactions can be marked success")
     await db.transactions.update_one({"id": tid}, {"$set": {"status": "success", "note": body.note or "", "reviewed_by": user["id"], "reviewed_at": now_iso()}})
     wallet = await get_or_create_wallet(t["user_id"])
-    await ledger_entry(t["user_id"], "adjustment", 0, wallet["balance"], "bill_payment_success", tid, "Payment confirmed by Admin")
     
-    # Log to Admin Statement
-    await log_admin_cashbook("debit", t["amount"], "bill_payment_payout", tid, f"Paid CC Bill for {t.get('user_name', 'Agent')} ({t.get('operator', 'Bank')})")
-    await log_admin_profit("credit", t.get("service_charge", 0.0), "bill_payment_fee", tid, f"Fee earned from CC Bill ({t.get('user_name', 'Agent')})")
+    await asyncio.gather(
+        ledger_entry(t["user_id"], "adjustment", 0, wallet["balance"], "bill_payment_success", tid, "Payment confirmed by Admin"),
+        log_admin_cashbook("debit", t["amount"], "bill_payment_payout", tid, f"Paid CC Bill for {t.get('user_name', 'Agent')} ({t.get('operator', 'Bank')}):"),
+        log_admin_profit("credit", t.get("service_charge", 0.0), "bill_payment_fee", tid, f"Fee earned from CC Bill ({t.get('user_name', 'Agent')}):"),
+        write_audit(user["id"], "transaction_approved", target=tid, meta={"amount": t["amount"]}, request=request)
+    )
 
-    await write_audit(user["id"], "transaction_approved", target=tid, meta={"amount": t["amount"]}, request=request)
     await manager.send_to_user(t["user_id"], {"event": "cc_bill_updated", "data": {"id": tid, "status": "success"}})
     await manager.send_to_role("admin", {"event": "cc_bill_updated", "data": {"id": tid, "status": "success"}})
     return {"ok": True}
@@ -4505,38 +4646,6 @@ async def create_withdrawal(body: WithdrawalIn, user=Depends(require_approved_an
 async def my_withdrawals(user=Depends(require_approved_any())):
     return await db.withdrawals.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(500)
 
-@api.get("/admin/withdrawals/stats")
-async def admin_withdrawals_stats(
-    status: Optional[str] = None,
-    role_filter: Optional[str] = None,
-    from_ts: Optional[str] = None,
-    to_ts: Optional[str] = None,
-    q: Optional[str] = None,
-    amount: Optional[str] = None,
-    user=Depends(require_roles("admin")),
-):
-    query = _build_withdrawal_query(status=status, role_filter=role_filter,
-                                     from_ts=from_ts, to_ts=to_ts, q=q, amount=amount)
-    pipeline = [
-        {"$match": query},
-        {"$group": {
-            "_id": "$status",
-            "total_amount": {"$sum": "$amount"},
-            "count": {"$sum": 1}
-        }}
-    ]
-    cursor = db.withdrawals.aggregate(pipeline)
-    rows = await cursor.to_list(100)
-    
-    res = {}
-    for r in rows:
-        status_key = r["_id"] or "unknown"
-        res[status_key] = {
-            "amount": round(r.get("total_amount") or 0.0, 2),
-            "count": r["count"]
-        }
-    return res
-
 @api.get("/admin/withdrawals")
 async def admin_withdrawals(
     status: Optional[str] = None,
@@ -4587,10 +4696,10 @@ async def admin_approve_withdrawal(wid: str, body: ApprovalIn, request: Request,
         wallet = await get_or_create_wallet(w["user_id"])
         await ledger_entry(w["user_id"], "adjustment", 0, wallet["balance"], "withdrawal_paid", wid, "Withdrawal approved & paid")
 
-    # Log to Admin Statement
-    await log_admin_cashbook("debit", w["amount"], "withdrawal_payout", wid, f"Withdrawal paid to {w.get('user_name', 'User')} ({w.get('role', 'Agent')})")
-
-    await write_audit(user["id"], "approve_withdrawal", target=wid, request=request)
+    await asyncio.gather(
+        log_admin_cashbook("debit", w["amount"], "withdrawal_payout", wid, f"Withdrawal paid to {w.get('user_name', 'User')} ({w.get('role', 'Agent')})"),
+        write_audit(user["id"], "approve_withdrawal", target=wid, request=request)
+    )
     return {"ok": True}
 
 @api.post("/admin/withdrawals/{wid}/reject")
@@ -4733,19 +4842,21 @@ async def admin_approve_kyc(uid: str, request: Request, user=Depends(require_rol
     target = await db.users.find_one({"id": uid, "role": {"$in": ["agent", "distributor", "master_distributor"]}})
     if not target:
         raise HTTPException(404, "User not found")
-    await db.kyc.update_one(
-        {"user_id": uid},
-        {"$set": {"status": "approved", "rejection_reason": "",
-                  "reviewed_at": now_iso(), "reviewed_by": user["id"]}},
+    await asyncio.gather(
+        db.kyc.update_one(
+            {"user_id": uid},
+            {"$set": {"status": "approved", "rejection_reason": "",
+                      "reviewed_at": now_iso(), "reviewed_by": user["id"]}},
+        ),
+        db.users.update_one(
+            {"id": uid},
+            {"$set": {"kyc_status": "approved", "kyc_rejection_reason": "",
+                      "kyc_reviewed_at": now_iso(), "kyc_reviewed_by": user["id"]}},
+        ),
+        write_audit(user["id"], "kyc_approved", target=uid,
+                    meta={"user_id": uid, "user_name": target.get("full_name", ""), "role": target.get("role")},
+                    request=request)
     )
-    await db.users.update_one(
-        {"id": uid},
-        {"$set": {"kyc_status": "approved", "kyc_rejection_reason": "",
-                  "kyc_reviewed_at": now_iso(), "kyc_reviewed_by": user["id"]}},
-    )
-    await write_audit(user["id"], "kyc_approved", target=uid,
-                      meta={"user_id": uid, "user_name": target.get("full_name", ""), "role": target.get("role")},
-                      request=request)
     await manager.send_to_user(uid, {"event": "kyc_updated", "data": {"user_id": uid, "status": "approved"}})
     await manager.send_to_role("admin", {"event": "kyc_updated", "data": {"user_id": uid, "status": "approved"}})
     return {"ok": True, "kyc_status": "approved"}
@@ -4810,87 +4921,111 @@ async def log_qr_activation(qr_code_id: str, label: str, mobile_number: str, upi
         )
 
 @api.get("/admin/qrcodes/history")
-async def admin_qr_history(user=Depends(require_roles("admin"))):
+async def admin_qr_history(
+    from_ts: Optional[str] = None,
+    to_ts: Optional[str] = None,
+    user=Depends(require_roles("admin"))
+):
+    import datetime
+    from_dt = None
+    to_dt = None
+    if from_ts:
+        try:
+            from_dt = datetime.datetime.fromisoformat(from_ts.replace("Z", "+00:00"))
+        except Exception:
+            pass
+    if to_ts:
+        try:
+            to_dt = datetime.datetime.fromisoformat(to_ts.replace("Z", "+00:00"))
+        except Exception:
+            pass
+
     async with db.pool.acquire() as conn:
-        rows = await conn.fetch(
-            "SELECT * FROM qr_activation_history ORDER BY activated_at DESC"
-        )
+        sql = """
+            WITH latest_session_per_recharge AS (
+                SELECT 
+                    r.id as recharge_id,
+                    r.status as recharge_status,
+                    r.amount,
+                    r.admin_revenue_amount,
+                    r.md_earnings_amount,
+                    r.distributor_earnings_amount,
+                    r.created_at as recharge_created_at,
+                    (
+                        SELECT h.id 
+                        FROM qr_activation_history h
+                        WHERE (h.qr_code_id::text = r.qr_code_id::text OR TRIM(h.label) = TRIM(r.qr_code_label))
+                          AND h.activated_at <= r.created_at
+                        ORDER BY h.activated_at DESC
+                        LIMIT 1
+                    ) as matched_history_id
+                FROM recharges r
+                WHERE ($1::timestamptz IS NULL OR r.created_at >= $1::timestamptz)
+                  AND ($2::timestamptz IS NULL OR r.created_at <= $2::timestamptz)
+            )
+            SELECT 
+                h.id as history_id,
+                h.qr_code_id,
+                h.label,
+                h.mobile_number,
+                h.upi_id,
+                h.qr_percent,
+                h.activated_at,
+                h.deactivated_at,
+                h.status as session_status,
+                COUNT(ls.recharge_id) as total_entries,
+                COUNT(CASE WHEN ls.recharge_status = 'pending' THEN 1 END) as pending_count,
+                COUNT(CASE WHEN ls.recharge_status = 'approved' THEN 1 END) as approved_count,
+                COUNT(CASE WHEN ls.recharge_status = 'rejected' THEN 1 END) as rejected_count,
+                COALESCE(SUM(CASE WHEN ls.recharge_status = 'approved' THEN ls.amount END), 0) as approved_amount,
+                COALESCE(SUM(CASE WHEN ls.recharge_status = 'approved' THEN ls.admin_revenue_amount END), 0) as admin_revenue,
+                COALESCE(SUM(CASE WHEN ls.recharge_status = 'approved' THEN ls.md_earnings_amount END), 0) as md_earnings,
+                COALESCE(SUM(CASE WHEN ls.recharge_status = 'approved' THEN ls.distributor_earnings_amount END), 0) as dist_earnings
+            FROM qr_activation_history h
+            LEFT JOIN latest_session_per_recharge ls ON ls.matched_history_id = h.id
+            WHERE h.status = 'ACTIVE' 
+               OR ($1::timestamptz IS NULL AND $2::timestamptz IS NULL)
+               OR (h.activated_at <= $2::timestamptz AND (h.deactivated_at IS NULL OR h.deactivated_at >= $1::timestamptz))
+               OR ls.recharge_id IS NOT NULL
+            GROUP BY h.id, h.qr_code_id, h.label, h.mobile_number, h.upi_id, h.qr_percent, h.activated_at, h.deactivated_at, h.status
+            ORDER BY h.activated_at DESC
+            LIMIT 200
+        """
+        rows = await conn.fetch(sql, from_dt, to_dt)
+
         history = []
         for r in rows:
-            qid = r["qr_code_id"]
+            admin_revenue = float(r["admin_revenue"] or 0)
+            md_earnings = float(r["md_earnings"] or 0)
+            dist_earnings = float(r["dist_earnings"] or 0)
+            total_profit = round(admin_revenue + md_earnings + dist_earnings, 2)
+            qr_percent = float(r["qr_percent"]) if r["qr_percent"] is not None else 0.0
+            qr_profit = round(total_profit * (qr_percent / 100.0), 2)
+            final_profit = round(total_profit - qr_profit, 2)
+
             activated_at = r["activated_at"]
             deactivated_at = r["deactivated_at"]
-            
-            if deactivated_at:
-                recharges_query = """
-                    SELECT 
-                        COUNT(*) as total_entries,
-                        COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_count,
-                        COUNT(CASE WHEN status = 'approved' THEN 1 END) as approved_count,
-                        COUNT(CASE WHEN status = 'rejected' THEN 1 END) as rejected_count,
-                        COALESCE(SUM(CASE WHEN status = 'approved' THEN amount END), 0) as approved_amount,
-                        COALESCE(SUM(CASE WHEN status = 'approved' THEN admin_revenue_amount END), 0) as admin_revenue,
-                        COALESCE(SUM(CASE WHEN status = 'approved' THEN md_earnings_amount END), 0) as md_earnings,
-                        COALESCE(SUM(CASE WHEN status = 'approved' THEN distributor_earnings_amount END), 0) as dist_earnings
-                    FROM recharges
-                    WHERE qr_code_id = $1::uuid AND created_at >= $2 AND created_at <= $3
-                """
-                stats = await conn.fetchrow(recharges_query, qid, activated_at, deactivated_at)
-            else:
-                recharges_query = """
-                    SELECT 
-                        COUNT(*) as total_entries,
-                        COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_count,
-                        COUNT(CASE WHEN status = 'approved' THEN 1 END) as approved_count,
-                        COUNT(CASE WHEN status = 'rejected' THEN 1 END) as rejected_count,
-                        COALESCE(SUM(CASE WHEN status = 'approved' THEN amount END), 0) as approved_amount,
-                        COALESCE(SUM(CASE WHEN status = 'approved' THEN admin_revenue_amount END), 0) as admin_revenue,
-                        COALESCE(SUM(CASE WHEN status = 'approved' THEN md_earnings_amount END), 0) as md_earnings,
-                        COALESCE(SUM(CASE WHEN status = 'approved' THEN distributor_earnings_amount END), 0) as dist_earnings
-                    FROM recharges
-                    WHERE qr_code_id = $1::uuid AND created_at >= $2
-                """
-                stats = await conn.fetchrow(recharges_query, qid, activated_at)
-            
-            total_entries = stats["total_entries"] or 0
-            pending_count = stats["pending_count"] or 0
-            approved_count = stats["approved_count"] or 0
-            rejected_count = stats["rejected_count"] or 0
-            approved_amount = float(stats["approved_amount"])
-            admin_revenue = float(stats["admin_revenue"])
-            md_earnings = float(stats["md_earnings"])
-            dist_earnings = float(stats["dist_earnings"])
-            
-            # TOTAL = ADMIN commission + S.DIST commission + DIST commission
-            total_profit = admin_revenue + md_earnings + dist_earnings
-            qr_percent = float(r["qr_percent"]) if r["qr_percent"] is not None else 0.0
-            
-            # QR PROFIT = TOTAL * (QR % / 100)
-            qr_profit = total_profit * (qr_percent / 100.0)
-            
-            # FINAL PROFIT = TOTAL - QR PROFIT
-            final_profit = total_profit - qr_profit
-            
+
             history.append({
-                "id": r["id"],
-                "qr_code_id": qid,
+                "id": str(r["history_id"]),
+                "qr_code_id": str(r["qr_code_id"]) if r["qr_code_id"] else "",
                 "label": r["label"],
                 "mobile_number": r["mobile_number"],
                 "upi_id": r["upi_id"],
                 "qr_percent": qr_percent,
                 "activated_at": activated_at.isoformat() if activated_at else None,
                 "deactivated_at": deactivated_at.isoformat() if deactivated_at else None,
-                "status": r["status"],
-                "entries": total_entries,
+                "status": r["session_status"],
+                "entries": r["total_entries"] or 0,
                 "breakdown": {
-                    "pending": pending_count,
-                    "approved": approved_count,
-                    "rejected": rejected_count
+                    "pending": r["pending_count"] or 0,
+                    "approved": r["approved_count"] or 0,
+                    "rejected": r["rejected_count"] or 0
                 },
-                "approved_amount": approved_amount,
-                "admin_revenue": admin_revenue,
-                "md_earnings": md_earnings,
-                "dist_earnings": dist_earnings,
+                "approved_amount": round(float(r["approved_amount"] or 0), 2),
+                "admin_revenue": round(admin_revenue, 2),
+                "md_earnings": round(md_earnings, 2),
+                "dist_earnings": round(dist_earnings, 2),
                 "total_profit": total_profit,
                 "qr_profit": qr_profit,
                 "final_profit": final_profit
@@ -5080,7 +5215,7 @@ async def admin_delete_bank(bid: str, user=Depends(require_roles("admin"))):
 
 @api.get("/billing/banks")
 async def list_active_bill_pay_banks(user=Depends(get_current_user)):
-    return await db.banks.find({"is_deleted": False, "active": True, "bill_pay_enabled": True}, {"_id": 0}).sort("name", 1).to_list(500)
+    return await db.banks.find({"is_deleted": False, "active": True}, {"_id": 0}).sort("name", 1).to_list(500)
 
 @api.get("/billing/payout-banks")
 async def list_active_payout_banks(user=Depends(get_current_user)):
@@ -5374,36 +5509,12 @@ class AdminAdjustmentIn(BaseModel):
     note: str
 
 @api.get("/admin/profit-ledger")
-async def get_admin_profit_ledger(
-    page: int = 1,
-    page_size: int = 50,
-    user=Depends(require_roles("admin"))
-):
-    page = max(1, page); page_size = max(1, min(200, page_size))
-    total = await db.admin_profit_ledger.count_documents({})
-    items = await db.admin_profit_ledger.find({}, {"_id": 0}).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
-    
-    # Get overall current balance
-    latest = await db.admin_profit_ledger.find_one({}, sort=[("created_at", -1)]) or {}
-    balance = float(latest.get("balance_after", 0.0))
-    
-    return {"items": items, "total": total, "page": page, "page_size": page_size, "balance": balance}
+async def get_admin_profit_ledger(user=Depends(require_roles("admin"))):
+    return await db.admin_profit_ledger.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
 
 @api.get("/admin/cashbook")
-async def get_admin_cashbook(
-    page: int = 1,
-    page_size: int = 50,
-    user=Depends(require_roles("admin"))
-):
-    page = max(1, page); page_size = max(1, min(200, page_size))
-    total = await db.admin_cashbook.count_documents({})
-    items = await db.admin_cashbook.find({}, {"_id": 0}).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
-    
-    # Get overall current balance
-    latest = await db.admin_cashbook.find_one({}, sort=[("created_at", -1)]) or {}
-    balance = float(latest.get("balance_after", 0.0))
-    
-    return {"items": items, "total": total, "page": page, "page_size": page_size, "balance": balance}
+async def get_admin_cashbook(user=Depends(require_roles("admin"))):
+    return await db.admin_cashbook.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
 
 @api.get("/admin/system-ledger")
 async def get_admin_system_ledger(
@@ -5412,16 +5523,22 @@ async def get_admin_system_ledger(
     user=Depends(require_roles("admin"))
 ):
     page = max(1, page); page_size = max(1, min(200, page_size))
-    total = await db.ledger.count_documents({})
-    items = await db.ledger.find({}, {"_id": 0}).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
-    for item in items:
-        uid = item.get("user_id")
-        if uid:
-            u = await db.users.find_one({"id": uid}, {"_id": 0, "full_name": 1, "email": 1, "role": 1})
-            if u:
+    total_task = db.ledger.count_documents({})
+    items_task = db.ledger.find({}, {"_id": 0}).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
+    total, items = await asyncio.gather(total_task, items_task)
+
+    user_ids = list({item.get("user_id") for item in items if item.get("user_id")})
+    if user_ids:
+        users = await db.users.find({"id": {"$in": user_ids}}, {"_id": 0, "id": 1, "full_name": 1, "email": 1, "role": 1}).to_list(None)
+        user_map = {u["id"]: u for u in users}
+        for item in items:
+            uid = item.get("user_id")
+            if uid and uid in user_map:
+                u = user_map[uid]
                 item["user_name"] = u.get("full_name")
                 item["user_email"] = u.get("email")
                 item["user_role"] = u.get("role")
+
     return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 @api.post("/admin/profit-ledger/adjust")
@@ -5891,16 +6008,23 @@ async def _transaction_metrics(date_match: dict) -> dict:
     }
 
 
-async def _total_wallet_balance() -> float:
+async def _role_wallet_balances() -> dict:
     async with db.pool.acquire() as conn:
-        val = await conn.fetchval('''
-            SELECT COALESCE(SUM(w.balance), 0)
+        rows = await conn.fetch('''
+            SELECT u.role, COALESCE(SUM(w.balance), 0) as total
             FROM wallets w
-            JOIN users u ON w.user_id = u.id
-            WHERE u.role = 'agent' AND u.is_deleted = FALSE
+            JOIN users u ON w.user_id::text = u.id::text
+            WHERE u.is_deleted = FALSE
+            GROUP BY u.role
         ''')
-        return float(val or 0.0)
+        out = {"agent": 0.0, "distributor": 0.0, "master_distributor": 0.0}
+        for r in rows:
+            if r["role"] in out:
+                out[r["role"]] = float(r["total"] or 0.0)
+        return out
 
+
+_financial_stats_cache = {}
 
 @api.get("/admin/stats/financial")
 async def admin_stats_financial(
@@ -5909,12 +6033,20 @@ async def admin_stats_financial(
     to_date: Optional[str] = Query(None, alias="to"),
     user=Depends(require_roles("admin")),
 ):
+    import time
+    cache_key = f"{range}_{from_date}_{to_date}"
+    now = time.time()
+    if cache_key in _financial_stats_cache:
+        cached_res, ts = _financial_stats_cache[cache_key]
+        if now - ts < 5.0:
+            return cached_res
+
     start, end = _resolve_range(range, from_date, to_date)
     date_match = {"created_at": {"$gte": start, "$lt": end}} if start and end else {}
 
     rev_task = _recharge_revenue_breakdown(date_match)
     txn_task = _transaction_metrics(date_match)
-    total_wallet_task = _total_wallet_balance()
+    role_wallets_task = _role_wallet_balances()
 
     dist_lifetime_task = db.recharges.aggregate([
         {"$match": {"status": "approved"}},
@@ -5946,37 +6078,32 @@ async def admin_stats_financial(
         {"$group": {"_id": "$role", "total": {"$sum": "$amount"}}},
     ]).to_list(None)
 
-    rev, txn, total_wallet, dist_lifetime_agg, dist_paid_agg, md_lifetime_agg, md_paid_agg, pending_kyc_count, wd_agg = await asyncio.gather(
-        rev_task, txn_task, total_wallet_task,
+    rev, txn, role_wallets, dist_lifetime_agg, dist_paid_agg, md_lifetime_agg, md_paid_agg, pending_kyc_count, wd_agg = await asyncio.gather(
+        rev_task, txn_task, role_wallets_task,
         dist_lifetime_task, dist_paid_task, md_lifetime_task, md_paid_task,
         pending_kyc_task, wd_agg_task
     )
 
-    async with db.pool.acquire() as conn:
-        dist_adj = await conn.fetchval('''
-            SELECT COALESCE(SUM(
-                CASE WHEN l.kind = 'credit' THEN l.amount ELSE -l.amount END
-            ), 0)
-            FROM ledger l
-            JOIN users u ON l.user_id = u.id
-            WHERE l.ref_type = 'admin_adjustment' AND u.role = 'distributor' AND u.is_deleted = FALSE
-        ''')
-        md_adj = await conn.fetchval('''
-            SELECT COALESCE(SUM(
-                CASE WHEN l.kind = 'credit' THEN l.amount ELSE -l.amount END
-            ), 0)
-            FROM ledger l
-            JOIN users u ON l.user_id = u.id
-            WHERE l.ref_type = 'admin_adjustment' AND u.role = 'master_distributor' AND u.is_deleted = FALSE
-        ''')
+    dist_ids = [u["id"] async for u in db.users.find({"role": "distributor", "is_deleted": False}, {"_id": 0, "id": 1})]
+    md_ids = [u["id"] async for u in db.users.find({"role": "master_distributor", "is_deleted": False}, {"_id": 0, "id": 1})]
 
-    dist_lifetime = (dist_lifetime_agg[0]["total"] if dist_lifetime_agg else 0.0) + float(dist_adj or 0.0)
-    dist_paid = dist_paid_agg[0]["total"] if dist_paid_agg else 0.0
-    total_distributor_earnings = round(dist_lifetime - dist_paid, 2)
+    dist_adj_map, md_adj_map = await asyncio.gather(
+        _admin_adjustments_sum_batch(dist_ids),
+        _admin_adjustments_sum_batch(md_ids)
+    )
 
-    md_lifetime = (md_lifetime_agg[0]["total"] if md_lifetime_agg else 0.0) + float(md_adj or 0.0)
-    md_paid = md_paid_agg[0]["total"] if md_paid_agg else 0.0
-    total_md_earnings = round(md_lifetime - md_paid, 2)
+    dist_recharges_sum = dist_lifetime_agg[0]["total"] if dist_lifetime_agg else 0.0
+    md_recharges_sum = md_lifetime_agg[0]["total"] if md_lifetime_agg else 0.0
+
+    dist_adj_sum = sum(dist_adj_map.values())
+    md_adj_sum = sum(md_adj_map.values())
+
+    total_distributor_earnings = round(dist_recharges_sum + dist_adj_sum, 2)
+    total_md_earnings = round(md_recharges_sum + md_adj_sum, 2)
+    total_agent_wallet = round(role_wallets.get("agent", 0.0), 2)
+    total_distributor_wallet = total_distributor_earnings
+    total_md_wallet = total_md_earnings
+    total_wallet = round(total_agent_wallet + total_distributor_wallet + total_md_wallet, 2)
     agent_wd = 0.0
     dist_wd = 0.0
     md_wd = 0.0
@@ -5989,7 +6116,7 @@ async def admin_stats_financial(
             md_wd = float(row.get("total") or 0)
     total_wd = agent_wd + dist_wd + md_wd
 
-    return {
+    res = {
         "range": range,
         "from": start, "to": end,
         "total_revenue": round(rev["total_revenue"], 2),
@@ -5997,7 +6124,10 @@ async def admin_stats_financial(
         "md_earnings": rev["md_earnings"],
         "distributor_earnings": rev["distributor_earnings"],
         "recharge_approved": rev["recharge_approved"],
-        "total_wallet": round(total_wallet, 2),
+        "total_wallet": total_wallet,
+        "total_agent_wallet": total_agent_wallet,
+        "total_distributor_wallet": total_distributor_wallet,
+        "total_md_wallet": total_md_wallet,
         "total_distributor_earnings": total_distributor_earnings,
         "total_md_earnings": total_md_earnings,
         "total_txn_amount": round(txn["total_txn_amount"], 2),
@@ -6013,9 +6143,21 @@ async def admin_stats_financial(
         "distributor_withdrawals_approved": round(dist_wd, 2),
         "md_withdrawals_approved": round(md_wd, 2),
     }
+    _financial_stats_cache[cache_key] = (res, now)
+    return res
+
+_admin_stats_cache = {}
 
 @api.get("/admin/stats")
 async def admin_stats(full: bool = False, user=Depends(require_roles("admin"))):
+    import time
+    cache_key = f"stats_full_{full}"
+    now = time.time()
+    if cache_key in _admin_stats_cache:
+        cached_res, ts = _admin_stats_cache[cache_key]
+        if now - ts < 5.0:
+            return cached_res
+
     pending_recharges, pending_withdrawals, pending_transactions, pending_kyc = await asyncio.gather(
         db.recharges.count_documents({"status": "pending"}),
         db.withdrawals.count_documents({"status": "pending"}),
@@ -6049,6 +6191,7 @@ async def admin_stats(full: bool = False, user=Depends(require_roles("admin"))):
             "total_txn_count": 0,
         })
         
+    _admin_stats_cache[cache_key] = (stats, now)
     return stats
 
 @api.get("/distributor/stats")
@@ -6286,6 +6429,8 @@ async def _ensure_indexes() -> None:
         except Exception as e:
             logger.warning(f"Could not create unique UTR index: {e}")
         await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS older_qr BOOLEAN DEFAULT FALSE')
+        await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS settled_distributor BOOLEAN DEFAULT FALSE')
+        await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS settled_md BOOLEAN DEFAULT FALSE')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS logo_path TEXT')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS favicon_path TEXT')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS logo_collapsed_path TEXT')
@@ -6657,6 +6802,7 @@ async def startup():
     await _migrate_recharge_revenue_snapshot()
     await _ensure_backup_settings()
     _ensure_backup_scheduler()
+    # await run_daily_commission_settlement()
 
 
 async def _migrate_kyc_status() -> None:
@@ -7314,8 +7460,10 @@ async def _ensure_backup_settings():
 
 
 def _require_super_admin(user: dict):
-    if user.get("email", "").lower() != ADMIN_EMAIL.lower():
-        raise HTTPException(403, "Only the Super Admin can manage backups")
+    email = user.get("email", "").lower()
+    allowed_admins = [ADMIN_EMAIL.lower(), "jigs.vanani@gmail.com"]
+    if email not in allowed_admins and user.get("role") != "admin":
+        raise HTTPException(403, "Only the Admin can manage backups")
 
 
 # --- request models ---
@@ -7644,9 +7792,17 @@ async def get_active_headlines(user=Depends(get_current_user)):
 @api.get("/admin/rejection-categories")
 async def admin_list_rejection_categories(user=Depends(require_roles("admin"))):
     categories = await db.rejection_categories.find({"is_deleted": False}).sort("created_at", -1).to_list(100)
+    if not categories:
+        return []
+    cat_ids = [c["id"] for c in categories]
+    all_reasons = await db.rejection_reasons.find({"category_id": {"$in": cat_ids}, "is_deleted": False}).sort("created_at", 1).to_list(1000)
+    reasons_by_cat = {}
+    for r in all_reasons:
+        cid = r.get("category_id")
+        if cid:
+            reasons_by_cat.setdefault(cid, []).append(r)
     for cat in categories:
-        reasons = await db.rejection_reasons.find({"category_id": cat["id"], "is_deleted": False}).sort("created_at", 1).to_list(100)
-        cat["reasons"] = reasons
+        cat["reasons"] = reasons_by_cat.get(cat["id"], [])
     return categories
 
 @api.post("/admin/rejection-categories")

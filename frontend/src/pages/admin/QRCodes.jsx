@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { api, formatErr, fileUrl, fmtMoney } from "@/lib/api";
+import { rangeWindowIso, todayStr } from "@/lib/filters";
 import { PageHeader, EmptyState } from "@/components/Shared";
 import { toast } from "sonner";
 import { CheckCircle2, Trash2, Eye, RefreshCw, Upload, Tag, Phone, Link, FileText, Search, Calendar, FileSpreadsheet, FileDown } from "lucide-react";
@@ -21,23 +22,107 @@ export default function AdminQRCodes() {
   const [path, setPath] = useState("");
   const [selectedEntryId, setSelectedEntryId] = useState("");
 
-  const [history, setHistory] = useState([]);
+  const [history, setHistory] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("mfp_cache_qr_history_today") || "[]");
+    } catch {
+      return [];
+    }
+  });
   const [historySearch, setHistorySearch] = useState("");
-  const [dateFilter, setDateFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("today");
+  const [customFrom, setCustomFrom] = useState(() => todayStr(-1));
+  const [customTo, setCustomTo] = useState(() => todayStr(0));
+  const [customApplied, setCustomApplied] = useState(false);
   const [historyPage, setHistoryPage] = useState(1);
   const historyPageSize = 10;
+
+  const activeFilterRef = React.useRef(dateFilter);
+  useEffect(() => {
+    activeFilterRef.current = dateFilter;
+  }, [dateFilter]);
 
   useEffect(() => {
     setHistoryPage(1);
   }, [historySearch, dateFilter]);
 
-  const [qrEnabled, setQrEnabled] = useState(true);
-  const [t1QrEnabled, setT1QrEnabled] = useState(true);
-  const [rechargeEnabled, setRechargeEnabled] = useState(true);
-  const [t1RechargeEnabled, setT1RechargeEnabled] = useState(true);
+  const [qrEnabled, setQrEnabled] = useState(() => {
+    try {
+      const v = localStorage.getItem("set_qr_enabled");
+      return v !== null ? JSON.parse(v) : true;
+    } catch (e) { return true; }
+  });
+  const [t1QrEnabled, setT1QrEnabled] = useState(() => {
+    try {
+      const v = localStorage.getItem("set_t1_qr_enabled");
+      return v !== null ? JSON.parse(v) : true;
+    } catch (e) { return true; }
+  });
+  const [rechargeEnabled, setRechargeEnabled] = useState(() => {
+    try {
+      const v = localStorage.getItem("set_recharge_enabled");
+      return v !== null ? JSON.parse(v) : true;
+    } catch (e) { return true; }
+  });
+  const [t1RechargeEnabled, setT1RechargeEnabled] = useState(() => {
+    try {
+      const v = localStorage.getItem("set_t1_recharge_enabled");
+      return v !== null ? JSON.parse(v) : true;
+    } catch (e) { return true; }
+  });
 
   const [uploadIsT1, setUploadIsT1] = useState(false);
   const [activeTab, setActiveTab] = useState("normal");
+
+  const [historyLoading, setHistoryLoading] = useState(() => !localStorage.getItem("mfp_cache_qr_history_today"));
+
+  const fetchHistory = useCallback((filter, cFrom, cTo) => {
+    activeFilterRef.current = filter;
+    const cacheKey = `mfp_cache_qr_history_${filter}`;
+    const cachedData = localStorage.getItem(cacheKey);
+    if (cachedData) {
+      try {
+        setHistory(JSON.parse(cachedData));
+        setHistoryLoading(false);
+      } catch {}
+    } else {
+      setHistoryLoading(true);
+    }
+
+    let key = filter;
+    if (filter === "all") key = "lifetime";
+    if (filter === "this_week") key = "last7";
+    if (filter === "this_month") key = "last30";
+    
+    const { from_ts, to_ts } = rangeWindowIso(key, cFrom || customFrom, cTo || customTo);
+    
+    api.get("/admin/qrcodes/history", { params: { from_ts, to_ts } })
+      .then((r) => {
+        if (activeFilterRef.current !== filter) return;
+        const data = r.data || [];
+        setHistory(data);
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(data));
+        } catch {}
+      })
+      .catch((e) => {
+        if (activeFilterRef.current !== filter) return;
+        toast.error(formatErr(e.response?.data?.detail) || "Failed to load history");
+      })
+      .finally(() => {
+        if (activeFilterRef.current === filter) {
+          setHistoryLoading(false);
+        }
+      });
+  }, [customFrom, customTo]);
+
+  useEffect(() => {
+    if (dateFilter !== "custom") {
+      fetchHistory(dateFilter);
+    } else if (customApplied) {
+      fetchHistory("custom", customFrom, customTo);
+    }
+  }, [dateFilter, fetchHistory, customApplied, customFrom, customTo]);
 
   const reload = () => {
     api.get("/admin/qrcodes?stats=true").then((r) => {
@@ -47,12 +132,22 @@ export default function AdminQRCodes() {
       } catch (e) {}
     });
     api.get("/admin/qr-name-entries").then((r) => setQrEntries(r.data || []));
-    api.get("/admin/qrcodes/history").then((r) => setHistory(r.data || []));
+    fetchHistory(dateFilter);
     api.get(`/admin/settings/recharge-limits?_t=${Date.now()}`).then((r) => {
-      setQrEnabled(r.data.qr_enabled ?? true);
-      setT1QrEnabled(r.data.t1_qr_enabled ?? true);
-      setRechargeEnabled(r.data.recharge_enabled ?? true);
-      setT1RechargeEnabled(r.data.t1_recharge_enabled ?? true);
+      const qe = r.data.qr_enabled ?? true;
+      const t1qe = r.data.t1_qr_enabled ?? true;
+      const re = r.data.recharge_enabled ?? true;
+      const t1re = r.data.t1_recharge_enabled ?? true;
+      setQrEnabled(qe);
+      setT1QrEnabled(t1qe);
+      setRechargeEnabled(re);
+      setT1RechargeEnabled(t1re);
+      try {
+        localStorage.setItem("set_qr_enabled", JSON.stringify(qe));
+        localStorage.setItem("set_t1_qr_enabled", JSON.stringify(t1qe));
+        localStorage.setItem("set_recharge_enabled", JSON.stringify(re));
+        localStorage.setItem("set_t1_recharge_enabled", JSON.stringify(t1re));
+      } catch (e) {}
     });
   };
 
@@ -60,6 +155,7 @@ export default function AdminQRCodes() {
 
   const handleToggleQr = async (val) => {
     setQrEnabled(val);
+    try { localStorage.setItem("set_qr_enabled", JSON.stringify(val)); } catch (e) {}
     try {
       await api.put("/admin/settings/recharge-toggles", {
         qr_enabled: val,
@@ -71,11 +167,13 @@ export default function AdminQRCodes() {
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Failed to update toggle");
       setQrEnabled(!val);
+      try { localStorage.setItem("set_qr_enabled", JSON.stringify(!val)); } catch (err) {}
     }
   };
 
   const handleToggleT1Qr = async (val) => {
     setT1QrEnabled(val);
+    try { localStorage.setItem("set_t1_qr_enabled", JSON.stringify(val)); } catch (e) {}
     try {
       await api.put("/admin/settings/recharge-toggles", {
         qr_enabled: qrEnabled,
@@ -87,11 +185,13 @@ export default function AdminQRCodes() {
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Failed to update toggle");
       setT1QrEnabled(!val);
+      try { localStorage.setItem("set_t1_qr_enabled", JSON.stringify(!val)); } catch (err) {}
     }
   };
 
   const handleToggleRecharge = async (val) => {
     setRechargeEnabled(val);
+    try { localStorage.setItem("set_recharge_enabled", JSON.stringify(val)); } catch (e) {}
     try {
       await api.put("/admin/settings/recharge-toggles", {
         qr_enabled: qrEnabled,
@@ -99,15 +199,17 @@ export default function AdminQRCodes() {
         recharge_enabled: val,
         t1_recharge_enabled: t1RechargeEnabled
       });
-      toast.success(`Agent Recharge request form ${val ? "Enabled" : "Disabled"}`);
+      toast.success(`Agent Recharge request ${val ? "Enabled" : "Disabled"}`);
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Failed to update toggle");
       setRechargeEnabled(!val);
+      try { localStorage.setItem("set_recharge_enabled", JSON.stringify(!val)); } catch (err) {}
     }
   };
 
   const handleToggleT1Recharge = async (val) => {
     setT1RechargeEnabled(val);
+    try { localStorage.setItem("set_t1_recharge_enabled", JSON.stringify(val)); } catch (e) {}
     try {
       await api.put("/admin/settings/recharge-toggles", {
         qr_enabled: qrEnabled,
@@ -115,10 +217,11 @@ export default function AdminQRCodes() {
         recharge_enabled: rechargeEnabled,
         t1_recharge_enabled: val
       });
-      toast.success(`Agent T+1 Recharge request form ${val ? "Enabled" : "Disabled"}`);
+      toast.success(`Agent T+1 Recharge request ${val ? "Enabled" : "Disabled"}`);
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Failed to update toggle");
       setT1RechargeEnabled(!val);
+      try { localStorage.setItem("set_t1_recharge_enabled", JSON.stringify(!val)); } catch (err) {}
     }
   };
 
@@ -219,7 +322,9 @@ export default function AdminQRCodes() {
       item.label?.toLowerCase().includes(searchLower) ||
       item.mobile_number?.includes(searchLower) ||
       item.upi_id?.toLowerCase().includes(searchLower);
-    return matchesSearch && matchesDate(item.activated_at);
+    
+    const hasActivity = item.entries > 0 || item.status === "ACTIVE";
+    return matchesSearch && (dateFilter === "all" || hasActivity);
   });
 
   const paginatedHistory = React.useMemo(() => {
@@ -672,18 +777,22 @@ export default function AdminQRCodes() {
             </div>
 
             {/* Date Preset Filter */}
-            <div className="relative w-full sm:w-40">
+            <div className="relative w-full sm:w-44">
               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400 pointer-events-none" />
               <select
                 className="mfp-input !pl-9 !py-1.5 text-xs bg-white"
                 value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
+                onChange={(e) => {
+                  setDateFilter(e.target.value);
+                  if (e.target.value !== "custom") setCustomApplied(false);
+                }}
               >
-                <option value="all">All Time</option>
                 <option value="today">Today</option>
                 <option value="yesterday">Yesterday</option>
                 <option value="this_week">Last 7 Days</option>
                 <option value="this_month">Last 30 Days</option>
+                <option value="all">All Time</option>
+                <option value="custom">Custom Date</option>
               </select>
             </div>
 
@@ -702,6 +811,46 @@ export default function AdminQRCodes() {
             </button>
           </div>
         </div>
+
+        {/* Custom Date Panel */}
+        {dateFilter === "custom" && (
+          <div className="flex flex-wrap items-end gap-3 p-3.5 mb-4 bg-neutral-50 rounded-2xl border border-black/5 animate-scaleUp">
+            <div>
+              <label className="text-[10px] font-bold text-neutral-500 uppercase block mb-1">From Date</label>
+              <input
+                type="date"
+                max={customTo}
+                className="mfp-input !py-1.5 text-xs bg-white"
+                value={customFrom}
+                onChange={(e) => setCustomFrom(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-neutral-500 uppercase block mb-1">To Date</label>
+              <input
+                type="date"
+                min={customFrom}
+                className="mfp-input !py-1.5 text-xs bg-white"
+                value={customTo}
+                onChange={(e) => setCustomTo(e.target.value)}
+              />
+            </div>
+            <button
+              onClick={() => {
+                setCustomApplied(true);
+                fetchHistory("custom", customFrom, customTo);
+              }}
+              className="py-1.5 px-4 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition-all active:scale-95"
+            >
+              Apply Filter
+            </button>
+            {customApplied && (
+              <span className="text-xs text-neutral-500 font-semibold pb-1.5">
+                Showing {customFrom} → {customTo}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* History Table */}
         <div className="overflow-x-auto -mx-6 px-6">

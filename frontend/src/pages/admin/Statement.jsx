@@ -9,22 +9,19 @@ export default function AdminStatement() {
   const [loading, setLoading] = useState(false);
 
   // System ledger states
-  const [systemItems, setSystemItems] = useState([]);
-  const [systemTotal, setSystemTotal] = useState(0);
+  const [systemItems, setSystemItems] = useState(() => {
+    try {
+      const v = localStorage.getItem("mfp_cache_system_ledger");
+      return v ? JSON.parse(v) : [];
+    } catch { return []; }
+  });
+  const [systemTotal, setSystemTotal] = useState(() => systemItems.length);
   const [systemPage, setSystemPage] = useState(1);
-  const [systemPageSize] = useState(50);
+  const [systemPageSize, setSystemPageSize] = useState(20);
 
-  // Profit states
+  // Profit & Cashbook states
   const [profitItems, setProfitItems] = useState([]);
-  const [profitTotal, setProfitTotal] = useState(0);
-  const [profitPage, setProfitPage] = useState(1);
-  const [profitPageSize] = useState(50);
-
-  // Cashbook states
   const [cashbookItems, setCashbookItems] = useState([]);
-  const [cashbookTotal, setCashbookTotal] = useState(0);
-  const [cashbookPage, setCashbookPage] = useState(1);
-  const [cashbookPageSize] = useState(50);
 
   // Balance states
   const [profitBalance, setProfitBalance] = useState(0);
@@ -38,39 +35,51 @@ export default function AdminStatement() {
   const [submittingAdjust, setSubmittingAdjust] = useState(false);
 
   const fetchSystemLedger = useCallback(() => {
-    setLoading(true);
+    if (systemItems.length === 0) setLoading(true);
     api.get("/admin/system-ledger", { params: { page: systemPage, page_size: systemPageSize } })
       .then((res) => {
-        setSystemItems(res.data.items || []);
+        const fetched = res.data.items || [];
+        setSystemItems(fetched);
         setSystemTotal(res.data.total || 0);
+        if (systemPage === 1) {
+          try { localStorage.setItem("mfp_cache_system_ledger", JSON.stringify(fetched)); } catch (e) {}
+        }
       })
       .catch((e) => toast.error(formatErr(e.response?.data?.detail) || "Failed to load system ledger"))
       .finally(() => setLoading(false));
-  }, [systemPage, systemPageSize]);
+  }, [systemPage, systemPageSize, systemItems.length]);
 
   const fetchProfitLedger = useCallback(() => {
     setLoading(true);
-    api.get("/admin/profit-ledger", { params: { page: profitPage, page_size: profitPageSize } })
+    api.get("/admin/profit-ledger")
       .then((res) => {
-        setProfitItems(res.data.items || []);
-        setProfitTotal(res.data.total || 0);
-        setProfitBalance(res.data.balance || 0);
+        const items = res.data || [];
+        setProfitItems(items);
+        if (items.length > 0) {
+          setProfitBalance(items[0].balance_after || 0);
+        } else {
+          setProfitBalance(0);
+        }
       })
       .catch((e) => toast.error(formatErr(e.response?.data?.detail) || "Failed to load profit ledger"))
       .finally(() => setLoading(false));
-  }, [profitPage, profitPageSize]);
+  }, []);
 
   const fetchCashbook = useCallback(() => {
     setLoading(true);
-    api.get("/admin/cashbook", { params: { page: cashbookPage, page_size: cashbookPageSize } })
+    api.get("/admin/cashbook")
       .then((res) => {
-        setCashbookItems(res.data.items || []);
-        setCashbookTotal(res.data.total || 0);
-        setCashbookBalance(res.data.balance || 0);
+        const items = res.data || [];
+        setCashbookItems(items);
+        if (items.length > 0) {
+          setCashbookBalance(items[0].balance_after || 0);
+        } else {
+          setCashbookBalance(0);
+        }
       })
       .catch((e) => toast.error(formatErr(e.response?.data?.detail) || "Failed to load cashbook"))
       .finally(() => setLoading(false));
-  }, [cashbookPage, cashbookPageSize]);
+  }, []);
 
   const reloadActive = useCallback(() => {
     if (activeTab === "system") fetchSystemLedger();
@@ -404,30 +413,16 @@ export default function AdminStatement() {
               page: systemPage,
               pageSize: systemPageSize,
               onPageChange: (p) => setSystemPage(p),
+              onPageSizeChange: (ps) => {
+                setSystemPageSize(ps);
+                setSystemPage(1);
+              },
             }}
           />
         ) : activeTab === "profit" ? (
-          <DataTable
-            rows={profitItems}
-            columns={getProfitColumns()}
-            pagination={{
-              total: profitTotal,
-              page: profitPage,
-              pageSize: profitPageSize,
-              onPageChange: (p) => setProfitPage(p),
-            }}
-          />
+          <DataTable rows={profitItems} columns={getProfitColumns()} />
         ) : (
-          <DataTable
-            rows={cashbookItems}
-            columns={getCashbookColumns()}
-            pagination={{
-              total: cashbookTotal,
-              page: cashbookPage,
-              pageSize: cashbookPageSize,
-              onPageChange: (p) => setCashbookPage(p),
-            }}
-          />
+          <DataTable rows={cashbookItems} columns={getCashbookColumns()} />
         )}
       </div>
 

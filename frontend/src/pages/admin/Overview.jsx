@@ -136,8 +136,18 @@ export default function AdminOverview() {
   const nav = useNavigate();
   const { user } = useAuth();
   const isSuperAdmin = user && user.email?.toLowerCase() === SUPER_ADMIN_EMAIL;
-  const [stats, setStats] = useState({});
-  const [financial, setFinancial] = useState({});
+  const [stats, setStats] = useState(() => {
+    try {
+      const v = localStorage.getItem("mfp_cache_admin_stats");
+      return v ? JSON.parse(v) : {};
+    } catch { return {}; }
+  });
+  const [financial, setFinancial] = useState(() => {
+    try {
+      const v = localStorage.getItem("mfp_cache_admin_financial");
+      return v ? JSON.parse(v) : {};
+    } catch { return {}; }
+  });
   const [loadingFin, setLoadingFin] = useState(false);
   const [range, setRange] = useState("today");
   const [from, setFrom] = useState(todayStr(-7));
@@ -145,7 +155,12 @@ export default function AdminOverview() {
   const [customApplied, setCustomApplied] = useState(false);
 
   // Static counts (never filtered)
-  useEffect(() => { api.get("/admin/stats?full=true").then((r) => setStats(r.data)); }, []);
+  useEffect(() => {
+    api.get("/admin/stats?full=true").then((r) => {
+      setStats(r.data);
+      try { localStorage.setItem("mfp_cache_admin_stats", JSON.stringify(r.data)); } catch (e) {}
+    });
+  }, []);
 
   const loadFinancial = useCallback(async (r, f, t) => {
     setLoadingFin(true);
@@ -154,6 +169,9 @@ export default function AdminOverview() {
       if (r === "custom") { params.from = f; params.to = t; }
       const { data } = await api.get("/admin/stats/financial", { params });
       setFinancial(data);
+      if (r === "today") {
+        try { localStorage.setItem("mfp_cache_admin_financial", JSON.stringify(data)); } catch (e) {}
+      }
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || e.message);
     } finally {
@@ -184,7 +202,7 @@ export default function AdminOverview() {
   ];
 
   const lifetimeData = [
-    { name: "Wallet Balance", value: financial.total_wallet ?? 0, fill: "url(#walletGrad)" },
+    { name: "Wallet Balance", value: financial.total_agent_wallet ?? financial.total_wallet ?? 0, fill: "url(#walletGrad)" },
     { name: "MD Earnings", value: financial.total_md_earnings ?? 0, fill: "url(#mdGrad)" },
     { name: "Distributor Earnings", value: financial.total_distributor_earnings ?? 0, fill: "url(#distGrad)" },
   ];
@@ -314,7 +332,7 @@ export default function AdminOverview() {
                 <span className="text-[10px] uppercase font-black text-neutral-400 tracking-widest leading-none">Total Funds</span>
                 <span className="text-xl font-black text-neutral-800 tracking-tight mt-1 select-none leading-tight">
                   {fmtMoney(
-                    (financial.total_wallet ?? 0) + 
+                    (financial.total_agent_wallet ?? financial.total_wallet ?? 0) + 
                     (financial.total_md_earnings ?? 0) + 
                     (financial.total_distributor_earnings ?? 0)
                   )}
@@ -382,7 +400,7 @@ export default function AdminOverview() {
                   <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-cyan-50 text-cyan-600 border border-cyan-100/50 rounded-full">
                     Wallet Balance
                   </span>
-                  <p className="text-2xl font-black text-neutral-800 mt-2">{fmtMoney(financial.total_wallet)}</p>
+                  <p className="text-2xl font-black text-neutral-800 mt-2">{fmtMoney(financial.total_agent_wallet ?? financial.total_wallet)}</p>
                   <p className="text-[9px] text-neutral-450 font-medium mt-1">Live system-wide user funds</p>
                 </div>
                 <div className="p-3 rounded-xl bg-cyan-50 text-cyan-600 border border-cyan-100/40 group-hover:scale-110 transition-transform">
@@ -410,7 +428,7 @@ export default function AdminOverview() {
                   <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-fuchsia-50 text-fuchsia-600 border border-fuchsia-100/50 rounded-full">
                     Distributor Earnings
                   </span>
-                  <p className="text-2xl font-black text-neutral-800 mt-2">{fmtMoney(financial.total_distributor_earnings)}</p>
+                  <p className="text-2xl font-black text-neutral-800 mt-2">{fmtMoney(financial.total_distributor_earnings ?? 0)}</p>
                   <p className="text-[9px] text-neutral-450 font-medium mt-1">Accumulated Distributor earnings</p>
                 </div>
                 <div className="p-3 rounded-xl bg-fuchsia-50 text-fuchsia-600 border border-fuchsia-100/40 group-hover:scale-110 transition-transform">

@@ -88,5 +88,7 @@ credentials.json
 .credentials
 .emergent/
 .gitconfig
+backend/cache/
+scratch/
 
 

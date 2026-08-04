@@ -4,7 +4,7 @@ import { DATE_RANGES, todayStr, rangeWindowIso } from "@/lib/filters";
 import { useDebounced } from "@/lib/hooks";
 import { PageHeader, DataTable } from "@/components/Shared";
 import { toast } from "sonner";
-import { RotateCcw, Search, X, Calendar, ChevronDown } from "lucide-react";
+import { RotateCcw, Search, X, Calendar, ChevronDown, Loader2 } from "lucide-react";
 
 function DateRangeDropdown({ range, setRange, from, setFrom, to, setTo, customApplied, setCustomApplied, applyCustom }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -113,7 +113,7 @@ export default function AdminAudit() {
   const [customApplied, setCustomApplied] = useState(false);
 
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(20);
 
   const params = useMemo(() => {
     const { from_ts, to_ts } = range === "custom" && !customApplied
@@ -204,7 +204,7 @@ export default function AdminAudit() {
 
         <div className="flex items-center justify-between gap-4 w-full md:w-auto shrink-0 border-t md:border-t-0 pt-3 md:pt-0 border-black/5">
           <div className="text-xs text-neutral-500 font-semibold" data-testid="audit-results-count">
-            {loading ? "Loading…" : <>Matched <span className="text-[#1B4332] font-extrabold bg-[#E8F5E9] px-2 py-0.5 rounded-md border border-[#C8E6C9]/40">{total.toLocaleString("en-IN")}</span> events</>}
+            {loading ? <span className="inline-flex items-center gap-1.5 text-neutral-400"><Loader2 className="h-3.5 w-3.5 animate-spin text-[#1B4332]" /></span> : <>Matched <span className="text-[#1B4332] font-extrabold bg-[#E8F5E9] px-2 py-0.5 rounded-md border border-[#C8E6C9]/40">{total.toLocaleString("en-IN")}</span> events</>}
           </div>
           <button onClick={clearAll} className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-neutral-600 hover:text-red-600 bg-neutral-100 hover:bg-red-50 rounded-xl transition-all" data-testid="audit-clear-all">
             <RotateCcw className="h-3.5 w-3.5" /> Clear Filters
@@ -215,7 +215,7 @@ export default function AdminAudit() {
       <DataTable
         columns={columns}
         rows={items}
-        empty={loading ? "Loading…" : "No audit events found for selected filters"}
+        empty={loading ? <div className="flex items-center justify-center gap-2 py-6 text-neutral-400 font-medium"><Loader2 className="h-5 w-5 animate-spin text-[#1B4332]" /></div> : "No audit events found for selected filters"}
         pagination={{
           page,
           pageSize,

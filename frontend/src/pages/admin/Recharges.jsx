@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { api, formatErr, fmtDate, fmtMoney, fileUrl } from "@/lib/api";
+import { getSupabase } from "@/lib/supabase";
 import { DATE_RANGES, todayStr, rangeWindowIso } from "@/lib/filters";
 import { useDebounced } from "@/lib/hooks";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
@@ -66,9 +67,14 @@ function RejectModal({ onClose, onConfirm, predefined = [] }) {
 }
 
 export default function AdminRecharges() {
-  const [items, setItems] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [items, setItems] = useState(() => {
+    try {
+      const v = localStorage.getItem("mfp_cache_admin_recharges");
+      return v ? JSON.parse(v) : [];
+    } catch { return []; }
+  });
+  const [total, setTotal] = useState(() => items.length);
+  const [loading, setLoading] = useState(() => items.length === 0);
   const [detail, setDetail] = useState(null);
   const [adminOcrBypass, setAdminOcrBypass] = useState(false);
   const [rejectTargetId, setRejectTargetId] = useState(null);
@@ -96,11 +102,16 @@ export default function AdminRecharges() {
   const debouncedAmt = useDebounced(amtQuery, 350);
 
   // Stats calculation
-  const [stats, setStats] = useState({ approved: 0, approvedCount: 0, pending: 0, pendingCount: 0, rejected: 0, rejectedCount: 0 });
+  const [stats, setStats] = useState(() => {
+    try {
+      const v = localStorage.getItem("mfp_cache_admin_recharges_stats");
+      return v ? JSON.parse(v) : { approved: 0, approvedCount: 0, pending: 0, pendingCount: 0, rejected: 0, rejectedCount: 0 };
+    } catch { return { approved: 0, approvedCount: 0, pending: 0, pendingCount: 0, rejected: 0, rejectedCount: 0 }; }
+  });
 
   // pagination
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(20);
 
   // Build query params (server-side filtering + pagination).
   const params = useMemo(() => {
@@ -119,7 +130,7 @@ export default function AdminRecharges() {
   }, [status, range, from, to, customApplied, debouncedQ, debouncedAmt, debouncedAgent, debouncedQr, page, pageSize]);
 
   const reload = useCallback((silent = false) => {
-    if (!silent) setLoading(true);
+    if (!silent && items.length === 0) setLoading(true);
     // paginated list
     const pagePromise = api.get("/admin/recharges", { params });
 
@@ -132,22 +143,31 @@ export default function AdminRecharges() {
 
     return Promise.all([pagePromise, statsPromise])
       .then(([pageRes, statsRes]) => {
-        setItems(pageRes.data.items || []);
+        const fetchedItems = pageRes.data.items || [];
+        setItems(fetchedItems);
         setTotal(pageRes.data.total || 0);
 
         const sd = statsRes.data || {};
-        setStats({
+        const parsedStats = {
           approved: sd.approved?.amount || 0,
           approvedCount: sd.approved?.count || 0,
           pending: sd.pending?.amount || 0,
           pendingCount: sd.pending?.count || 0,
           rejected: sd.rejected?.amount || 0,
           rejectedCount: sd.rejected?.count || 0
-        });
+        };
+        setStats(parsedStats);
+
+        if (page === 1 && status === "all" && range === "today" && !debouncedQ && !debouncedAgent && !debouncedQr && !debouncedAmt) {
+          try {
+            localStorage.setItem("mfp_cache_admin_recharges", JSON.stringify(fetchedItems));
+            localStorage.setItem("mfp_cache_admin_recharges_stats", JSON.stringify(parsedStats));
+          } catch (e) {}
+        }
       })
       .catch((e) => toast.error(formatErr(e.response?.data?.detail) || "Failed to load recharges"))
       .finally(() => setLoading(false));
-  }, [params]);
+  }, [params, items.length, page, status, range, debouncedQ, debouncedAgent, debouncedQr, debouncedAmt]);
 
   useEffect(() => { reload(); }, [reload]);
 
@@ -175,13 +195,18 @@ export default function AdminRecharges() {
 
   const handleRejectConfirm = async (note) => {
     try {
-      await api.post(`/admin/recharges/${rejectTargetId}/reject`, { note });
+      const supabase = getSupabase();
+      const { error } = await supabase.rpc("reject_recharge_direct", {
+        p_recharge_id: rejectTargetId,
+        p_note: note
+      });
+      if (error) throw error;
       toast.success("Recharge rejected");
       setRejectTargetId(null);
       setDetail(null);
       reload();
     } catch (e) {
-      toast.error(formatErr(e.response?.data?.detail));
+      toast.error(e.message || formatErr(e.response?.data?.detail));
     }
   };
 
@@ -190,8 +215,20 @@ export default function AdminRecharges() {
       setRejectTargetId(id);
       return;
     }
-    try { await api.post(`/admin/recharges/${id}/${type}`, { note: "" }); toast.success(`Recharge ${type}d`); setDetail(null); reload(); }
-    catch (e) { toast.error(formatErr(e.response?.data?.detail)); }
+    try {
+      const supabase = getSupabase();
+      const { error } = await supabase.rpc("approve_recharge_direct", {
+        p_recharge_id: id,
+        p_note: ""
+      });
+      if (error) throw error;
+      toast.success(`Recharge approved`);
+      setDetail(null);
+      reload();
+    }
+    catch (e) {
+      toast.error(e.message || formatErr(e.response?.data?.detail));
+    }
   }, [reload]);
 
   const columns = useMemo(() => [
@@ -209,11 +246,11 @@ export default function AdminRecharges() {
     { key: "credit_amount", label: "Net Credit", render: (r) => r.status === "approved" ? fmtMoney(r.credit_amount) : "—" },
     { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
     { key: "actions", label: "Action", render: (r) => (
-      <div className="flex gap-2">
-        <button className="mfp-btn-ghost p-2" onClick={() => setDetail(r)} data-testid={`view-${r.id}`}><Eye className="h-4 w-4" /></button>
+      <div className="flex items-center gap-2">
+        <button className="p-1.5 border border-neutral-200 text-neutral-600 hover:bg-neutral-100 rounded-lg transition-all inline-flex items-center justify-center bg-white shadow-xs shrink-0" onClick={() => setDetail(r)} title="View Details" data-testid={`view-${r.id}`}><Eye className="h-3.5 w-3.5" /></button>
         {r.status === "pending" && (<>
-          <button className="rounded-lg bg-[#2D6A4F]/10 text-[#2D6A4F] hover:bg-[#2D6A4F]/20 px-3 py-1.5 text-xs font-semibold inline-flex items-center gap-1" onClick={() => act(r.id, "approve")} data-testid={`approve-${r.id}`}><Check className="h-3 w-3" /> Approve</button>
-          <button className="rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 px-3 py-1.5 text-xs font-semibold inline-flex items-center gap-1" onClick={() => act(r.id, "reject")} data-testid={`reject-${r.id}`}><X className="h-3 w-3" /> Reject</button>
+          <button className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/80 font-bold text-xs px-3.5 py-1.5 rounded-lg inline-flex items-center gap-1.5 transition-all shrink-0 shadow-xs" onClick={() => act(r.id, "approve")} data-testid={`approve-${r.id}`}><Check className="h-3.5 w-3.5 stroke-[2.5]" /> Approve</button>
+          <button className="bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/80 font-bold text-xs px-3.5 py-1.5 rounded-lg inline-flex items-center gap-1.5 transition-all shrink-0 shadow-xs" onClick={() => act(r.id, "reject")} data-testid={`reject-${r.id}`}><X className="h-3.5 w-3.5 stroke-[2.5]" /> Reject</button>
         </>)}
       </div>
     ) },
@@ -463,7 +500,7 @@ export default function AdminRecharges() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-black/5">
           <div className="text-sm text-neutral-600" data-testid="recharge-results-count">
-            {loading ? "Loading…" : <>Matched <span className="font-semibold">{total.toLocaleString("en-IN")}</span> requests</>}
+            {loading ? <span className="inline-flex items-center gap-1.5 text-neutral-400"><Loader2 className="h-3.5 w-3.5 animate-spin text-[#1B4332]" /></span> : <>Matched <span className="font-semibold">{total.toLocaleString("en-IN")}</span> requests</>}
           </div>
           <button onClick={clearAll} className="mfp-btn-ghost" data-testid="recharge-clear-all">
             <RotateCcw className="h-3.5 w-3.5" /> Clear All Filters
@@ -474,7 +511,7 @@ export default function AdminRecharges() {
       <DataTable
         columns={columns}
         rows={items}
-        empty={loading ? "Loading…" : "No recharge requests found for selected filters"}
+        empty={loading ? <div className="flex items-center justify-center gap-2 py-6 text-neutral-400 font-medium"><Loader2 className="h-5 w-5 animate-spin text-[#1B4332]" /></div> : "No recharge requests found for selected filters"}
         pagination={{
           page,
           pageSize,

@@ -14,7 +14,7 @@ class DuplicateKeyError(Exception):
 
 # Predefined columns for each SQL table to avoid inserting unsupported columns
 TABLE_COLUMNS = {
-    "users": ["id", "role", "full_name", "email", "password_hash", "phone", "address", "aadhaar_path", "pan_path", "kyc_status", "kyc_rejection_reason", "kyc_reviewed_at", "kyc_reviewed_by", "parent_id", "md_id", "commission_percent", "base_commission", "markup_commission", "total_commission", "admin_pct", "md_pct", "dist_pct", "commission_type", "created_by_role", "created_by_id", "frozen", "is_deleted", "created_at", "created_by", "password_changed_at", "firm_name", "firm_address", "first_login", "welcome_shown", "aadhaar_back_path", "pan_back_path", "selfie_path", "cheque_path", "firm_front_path", "t1_commission_percent", "t1_admin_pct", "t1_md_pct", "t1_dist_pct", "mpin_hash", "tpin_hash", "permissions", "is_tester"],
+    "users": ["id", "role", "full_name", "email", "password_hash", "phone", "address", "aadhaar_path", "pan_path", "kyc_status", "kyc_rejection_reason", "kyc_reviewed_at", "kyc_reviewed_by", "parent_id", "md_id", "commission_percent", "base_commission", "markup_commission", "total_commission", "admin_pct", "md_pct", "dist_pct", "commission_type", "created_by_role", "created_by_id", "frozen", "is_deleted", "created_at", "created_by", "password_changed_at", "firm_name", "firm_address", "first_login", "welcome_shown", "aadhaar_back_path", "pan_back_path", "selfie_path", "cheque_path", "firm_front_path", "t1_commission_percent", "t1_admin_pct", "t1_md_pct", "t1_dist_pct", "t1_enabled", "mpin_hash", "tpin_hash", "permissions", "is_tester"],
     "wallets": ["id", "user_id", "balance", "created_at", "updated_at", "t1_balance", "hold_balance", "hold_active"],
     "ledger": ["id", "user_id", "kind", "amount", "balance_after", "ref_type", "ref_id", "note", "created_at"],
     "recharges": ["id", "user_id", "user_name", "amount", "utr", "card_last4", "qr_code_id", "qr_code_label", "screenshot_path", "status", "commission_percent", "commission_amount", "credit_amount", "note", "created_at", "reviewed_at", "reviewed_by", "agent_id", "distributor_id", "md_id", "gross_amount", "commission_percent_used", "admin_commission_percent", "md_commission_percent", "distributor_markup_percent", "total_commission_amount", "admin_revenue_amount", "md_earnings_amount", "distributor_earnings_amount", "net_credit_amount", "estimated", "older_qr", "is_t1", "ocr_utr", "ocr_amount", "ocr_qr_name", "ocr_match", "ocr_bypass"],
@@ -86,6 +86,10 @@ def parse_db_row(d):
                 d[k] = bytes.fromhex(v[2:])
             except Exception:
                 pass
+        elif isinstance(v, uuid.UUID):
+            d[k] = str(v)
+        elif isinstance(v, Decimal):
+            d[k] = float(v)
     return d
 
 def compile_filter(filter_dict, params):
@@ -451,9 +455,9 @@ class PostgresCollection:
             raise e
 
     async def update_one(self, filter_dict, update_dict, upsert=False):
-        exists = await self.find_one(filter_dict)
-        if not exists:
-            if upsert:
+        if upsert:
+            exists = await self.find_one(filter_dict)
+            if not exists:
                 doc = {}
                 for k, v in filter_dict.items():
                     if not isinstance(v, dict):
@@ -465,8 +469,6 @@ class PostgresCollection:
                     doc[k] = v
                 await self.insert_one(doc)
                 return UpdateResult(1, upserted_id=(doc.get("id") or doc.get("_id")))
-            else:
-                return UpdateResult(0)
         
         params = []
         set_clauses = []
@@ -736,22 +738,18 @@ class PostgresDatabase:
 
     async def init_pool(self, dsn):
         if self.client is None:
-            import httpx
-            limits = httpx.Limits(max_keepalive_connections=20, max_connections=100)
-            self.client = httpx.AsyncClient(
-                base_url=self.url,
-                headers={
-                    "apikey": self.anon_key,
-                    "Authorization": f"Bearer {self.anon_key}",
-                    "Content-Type": "application/json"
-                },
-                limits=limits,
-                timeout=30.0
+            import asyncpg
+            self.client = await asyncpg.create_pool(
+                dsn,
+                min_size=2,
+                max_size=15,
+                command_timeout=30,
+                max_inactive_connection_lifetime=60
             )
 
     async def close(self):
         if self.client:
-            await self.client.aclose()
+            await self.client.close()
 
     def acquire(self):
         # Mock connection pool context manager as a fallback
@@ -822,24 +820,27 @@ class PostgresDatabase:
             query = re.sub(r'\$(\d+)', replace_match, query)
             params = []
             
-        payload = {
-            "query_text": query,
-            "params": [],
-            "secret_token": self.secret_token
-        }
         if self.client is None:
             raise Exception("Database client is not initialized.")
-        res = await self.client.post("/rest/v1/rpc/execute_sql", json=payload)
-        if res.status_code != 200:
-            logger.error(f"Supabase RPC Query Failed: {query}. Error: {res.text}")
-            raise Exception(f"Supabase RPC Error: {res.text}")
             
-        data = res.json()
-        if isinstance(data, dict) and "error" in data:
-            logger.error(f"Supabase RPC SQL Exec Exception: {data['error']} in query: {data.get('query')}")
-            raise Exception(f"SQL execution failed: {data['error']}")
+        async with self.client.acquire() as conn:
+            query_lower = query.lower().lstrip()
+            is_select = query_lower.startswith("select") or query_lower.startswith("with") or query_lower.startswith("show") or "returning" in query_lower
             
-        return data
+            if is_select:
+                rows = await conn.fetch(query)
+                return [parse_db_row(dict(r)) for r in rows]
+            else:
+                status = await conn.execute(query)
+                row_count = 0
+                if status:
+                    parts = status.split()
+                    if parts:
+                        try:
+                            row_count = int(parts[-1])
+                        except ValueError:
+                            pass
+                return {"ok": True, "row_count": row_count}
 
     async def list_collection_names(self):
         return list(TABLE_COLUMNS.keys())

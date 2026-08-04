@@ -31,7 +31,7 @@ export default function DashboardLayout() {
       }
     };
     fetchLimits();
-    const interval = setInterval(fetchLimits, 5000);
+    const interval = setInterval(fetchLimits, 30000);
     return () => clearInterval(interval);
   }, [user, location.pathname]);
 
@@ -141,23 +141,29 @@ export default function DashboardLayout() {
         })
         .catch((e) => console.log("Failed to fetch header wallet:", e.message));
     } else if (user.role === "admin") {
-      api.get("/admin/t1-total")
-        .then((r) => {
-          setT1Total(r.data.total);
-        })
-        .catch((e) => console.log("Failed to fetch admin T+1 total:", e.message));
+      const now = Date.now();
+      if (window._cachedAdminHeaderData && (now - (window._lastAdminFetchTime || 0) < 15000)) {
+        setT1Total(window._cachedAdminHeaderData.t1Total);
+        setBbpsBalance(window._cachedAdminHeaderData.bbpsBalance);
+        setHoldTotal(window._cachedAdminHeaderData.holdTotal);
+        return;
+      }
+      Promise.allSettled([
+        api.get("/admin/t1-total"),
+        api.get("/admin/bbps-balance"),
+        api.get("/admin/hold-total")
+      ]).then(([t1Res, bbpsRes, holdRes]) => {
+        const t1Total = t1Res.status === "fulfilled" ? t1Res.value.data?.total || 0 : 0;
+        const bbpsBalance = bbpsRes.status === "fulfilled" ? bbpsRes.value.data?.data?.balance || 0 : 0;
+        const holdTotal = holdRes.status === "fulfilled" ? holdRes.value.data?.total || 0 : 0;
+        
+        window._cachedAdminHeaderData = { t1Total, bbpsBalance, holdTotal };
+        window._lastAdminFetchTime = Date.now();
 
-      api.get("/admin/bbps-balance")
-        .then((r) => {
-          setBbpsBalance(r.data.data?.balance);
-        })
-        .catch((e) => console.log("Failed to fetch admin BBPS balance:", e.message));
-
-      api.get("/admin/hold-total")
-        .then((r) => {
-          setHoldTotal(r.data.total);
-        })
-        .catch((e) => console.log("Failed to fetch admin hold total:", e.message));
+        setT1Total(t1Total);
+        setBbpsBalance(bbpsBalance);
+        setHoldTotal(holdTotal);
+      });
     }
   }, [user]);
 

@@ -22,7 +22,7 @@ export default function AgentHistory() {
 
   // pagination
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(20);
 
   const fetchHistory = (silent = false) => {
     if (!silent) setLoading(true);

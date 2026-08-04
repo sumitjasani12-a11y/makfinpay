@@ -7,6 +7,8 @@ import FileUpload from "@/components/FileUpload";
 import { toast } from "sonner";
 import { Plus, Eye, X, FileDown, Loader2, Search, RotateCcw, Pencil, Trash2, FileSpreadsheet, Users, UserCheck, IndianRupee, Phone, Mail, Building2, Sparkles, ShieldCheck, ArrowLeft, Percent, Camera } from "lucide-react";
 
+const SUPER_ADMIN_EMAIL = "jigs.vanani@gmail.com";
+
 function UserForm({ role, editingUser, onCreated, onCancel }) {
   const [form, setForm] = useState({ 
     role, 
@@ -20,6 +22,7 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
     selfie_path: editingUser?.selfie_path || "",
     commission_percent: editingUser?.commission_percent || "",
     t1_commission_percent: editingUser?.t1_commission_percent || "",
+    t1_enabled: editingUser?.t1_enabled || false,
     hold_balance_amount: editingUser?.hold_balance || 0,
     hold_active: editingUser?.hold_active || false,
     is_tester: editingUser?.is_tester || false
@@ -62,12 +65,13 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
         selfie_path: editingUser.selfie_path || "",
         commission_percent: editingUser.commission_percent ?? "",
         t1_commission_percent: editingUser.t1_commission_percent ?? "",
+        t1_enabled: editingUser.t1_enabled ?? false,
         hold_balance_amount: editingUser.hold_balance ?? 0,
         hold_active: editingUser.hold_active ?? false,
         is_tester: editingUser.is_tester ?? false
       });
     } else {
-      setForm({ role, full_name: "", email: "", password: "", phone: "", address: "", firm_name: "", firm_address: "", selfie_path: "", commission_percent: "", t1_commission_percent: "", hold_balance_amount: 0, hold_active: false, is_tester: false });
+      setForm({ role, full_name: "", email: "", password: "", phone: "", address: "", firm_name: "", firm_address: "", selfie_path: "", commission_percent: "", t1_commission_percent: "", t1_enabled: false, hold_balance_amount: 0, hold_active: false, is_tester: false });
     }
   }, [editingUser, role]);
 
@@ -86,6 +90,7 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
       } else {
         delete body.t1_commission_percent;
       }
+      body.t1_enabled = Boolean(form.t1_enabled);
       if (!body.selfie_path) {
         delete body.selfie_path;
       }
@@ -294,21 +299,41 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
 
                       {role === "agent" && (
                         <>
-                          <div className="bg-[#F8F7F2] rounded-2xl p-5 border border-black/[0.02]">
-                            <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
-                              T+1 Commission % (Charges)
-                            </label>
-                            <div className="flex items-center mt-1">
-                              <span className="text-base font-black text-[#1B4332] mr-1.5">%</span>
-                              <input 
-                                type="number" 
-                                step="0.01"
-                                min="0"
-                                className="w-full text-base font-black text-neutral-800 bg-transparent border-b border-neutral-100 focus:border-[#1B4332] focus:outline-none py-1" 
-                                value={form.t1_commission_percent}
-                                onChange={(e) => setForm({ ...form, t1_commission_percent: e.target.value })}
-                                placeholder="e.g. 2.0"
-                              />
+                          <div className="bg-[#F8F7F2] rounded-2xl p-5 border border-black/[0.02] space-y-3">
+                            <div className="flex items-center justify-between border-b border-black/5 pb-3">
+                              <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-[#1B4332] block">
+                                  Enable T+1 Service
+                                </label>
+                                <span className="text-[11px] text-neutral-500 font-medium">
+                                  Allow agent to view and request T+1 QR recharge
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setForm(prev => ({ ...prev, t1_enabled: !prev.t1_enabled }))}
+                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${form.t1_enabled ? "bg-[#1B4332]" : "bg-neutral-200"}`}
+                              >
+                                <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${form.t1_enabled ? "translate-x-5" : "translate-x-0"}`} />
+                              </button>
+                            </div>
+
+                            <div>
+                              <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
+                                T+1 Commission % (Charges)
+                              </label>
+                              <div className="flex items-center mt-1">
+                                <span className="text-base font-black text-[#1B4332] mr-1.5">%</span>
+                                <input 
+                                  type="number" 
+                                  step="0.01"
+                                  min="0"
+                                  className="w-full text-base font-black text-neutral-800 bg-transparent border-b border-neutral-100 focus:border-[#1B4332] focus:outline-none py-1" 
+                                  value={form.t1_commission_percent}
+                                  onChange={(e) => setForm({ ...form, t1_commission_percent: e.target.value })}
+                                  placeholder="e.g. 2.0"
+                                />
+                              </div>
                             </div>
                           </div>
 
@@ -710,7 +735,7 @@ function MdDetailModal({ md, onClose }) {
           ))}
         </div>
 
-        {loading ? <EmptyState>Loading…</EmptyState> : (
+        {loading ? <div className="flex items-center justify-center gap-2 py-8 text-neutral-400 font-medium"><Loader2 className="h-5 w-5 animate-spin text-[#1B4332]" /></div> : (
           <>
             {/* Distributors under MD */}
             <div className="bg-white border border-black/5 rounded-3xl p-6 shadow-sm space-y-4">
@@ -906,7 +931,7 @@ function DistributorDetailModal({ distributor, onClose }) {
             <UserCheck className="h-5 w-5 text-[#1B4332]" /> Agents Under {distributor.full_name} ({agents.length})
           </h3>
           {loading ? (
-            <EmptyState>Loading…</EmptyState>
+            <div className="flex items-center justify-center gap-2 py-8 text-neutral-400 font-medium"><Loader2 className="h-5 w-5 animate-spin text-[#1B4332]" /></div>
           ) : agents.length === 0 ? (
             <EmptyState>No agents created by this distributor yet.</EmptyState>
           ) : (
@@ -1066,29 +1091,27 @@ function AdjustBalanceModal({ user, onClose, onUpdated }) {
 }
 
 export function AdminUserList({ role }) {
-  const { user: currentUser } = useAuth();
-  const isSuperAdmin = currentUser?.email?.toLowerCase() === "jigs.vanani@gmail.com";
-  const [adjustingBalanceUser, setAdjustingBalanceUser] = useState(null);
+  const { user } = useAuth();
+  const isSuperAdmin = user && user.email?.toLowerCase() === SUPER_ADMIN_EMAIL;
+  const roleSingular = role === "master_distributor" ? "Master Distributor" : (role === "distributor" ? "Distributor" : "Agent");
+  const roleTitle = role === "master_distributor" ? "Master Distributors" : (role === "distributor" ? "Distributors" : "Agents");
 
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [show, setShow] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [createdCreds, setCreatedCreds] = useState(null);
   const [detail, setDetail] = useState(null);
   const [exporting, setExporting] = useState(false);
   const [exportingCsv, setExportingCsv] = useState(false);
-  const isDistributor = role === "distributor";
-  const isMd = role === "master_distributor";
-  const roleTitle = isMd ? "Master Distributors" : isDistributor ? "Distributors" : "Agents";
-  const roleSingular = isMd ? "master distributor" : role;
+  const [adjustingBalanceUser, setAdjustingBalanceUser] = useState(null);
 
   // filter + pagination
   const [q, setQ] = useState("");
   const debouncedQ = useDebounced(q, 350);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(20);
 
   const params = useMemo(() => {
     const p = { role, paginated: true, page, page_size: pageSize };
@@ -1097,12 +1120,16 @@ export function AdminUserList({ role }) {
   }, [role, debouncedQ, page, pageSize]);
 
   const reload = useCallback(() => {
-    setLoading(true);
+    try { localStorage.removeItem(`mfp_cache_users_${role}`); } catch (e) {}
     return api.get("/admin/users", { params })
-      .then((r) => { setItems(r.data.items || []); setTotal(r.data.total || 0); })
+      .then((r) => {
+        const fetchedItems = r.data.items || [];
+        setItems(fetchedItems);
+        setTotal(r.data.total || 0);
+      })
       .catch((e) => toast.error(formatErr(e.response?.data?.detail) || "Failed to load users"))
       .finally(() => setLoading(false));
-  }, [params]);
+  }, [params, role]);
 
   const handleUserUpdated = useCallback((newBalance, userId) => {
     if (userId && newBalance !== undefined) {
@@ -1272,7 +1299,7 @@ export function AdminUserList({ role }) {
           )}
         </div>
         <div className="text-sm text-neutral-600 shrink-0" data-testid={`${role}-results-count`}>
-          {loading ? "Loading…" : <>Matched <span className="font-semibold">{total.toLocaleString("en-IN")}</span></>}
+          {loading ? <span className="inline-flex items-center gap-1.5 text-neutral-400"><Loader2 className="h-3.5 w-3.5 animate-spin text-[#1B4332]" /></span> : <>Matched <span className="font-semibold">{total.toLocaleString("en-IN")}</span></>}
         </div>
         {q && (
           <button onClick={() => { setQ(""); setPage(1); }} className="mfp-btn-ghost shrink-0" data-testid={`${role}-clear-all`}>
@@ -1307,7 +1334,15 @@ export function AdminUserList({ role }) {
             ] : []),
             ...(role === "agent" ? [
               { key: "commission_percent", label: "Comm %", render: (r) => `${r.commission_percent ?? "—"}%` },
-              { key: "t1_commission_percent", label: "T+1 Comm %", render: (r) => `${r.t1_commission_percent ?? "—"}%` }
+              { 
+                key: "t1_commission_percent", 
+                label: "T+1 Service", 
+                render: (r) => r.t1_enabled && Number(r.t1_commission_percent || 0) > 0 ? (
+                  <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-xs border border-emerald-100">{r.t1_commission_percent}% (ON)</span>
+                ) : (
+                  <span className="text-neutral-400 font-medium text-xs">OFF</span>
+                )
+              }
             ] : [
               { key: "commission_percent", label: "Comm %", render: (r) => `${r.commission_percent ?? "—"}%` }
             ]),
@@ -1362,7 +1397,7 @@ export function AdminUserList({ role }) {
             ) },
           ]}
           rows={items}
-          empty={loading ? "Loading…" : `No ${roleTitle.toLowerCase()} found`}
+          empty={loading ? <div className="flex items-center justify-center gap-2 py-6 text-neutral-400 font-medium"><Loader2 className="h-5 w-5 animate-spin text-[#1B4332]" /></div> : `No ${roleTitle.toLowerCase()} found`}
           pagination={{
             page,
             pageSize,
@@ -1467,12 +1502,11 @@ export function AdminUserList({ role }) {
                       <div className="flex items-center gap-2 flex-wrap">
                         <StatusBadge status={r.frozen ? "rejected" : (!r.kyc_status || r.kyc_status === "approved" ? "approved" : (r.kyc_status === "rejected" ? "rejected" : "pending"))} />
                         <span className="text-[10px] font-bold text-neutral-400 bg-neutral-100 px-2 py-0.5 rounded-md">Comm: {r.commission_percent ?? 0}%</span>
-                        <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">Bal: {fmtMoney(r.wallet_balance)}</span>
                       </div>
 
                       {/* Actions */}
                       <div className="flex items-center gap-2">
-                        {isSuperAdmin && (
+                        {isSuperAdmin && role === "agent" && (
                           <button
                             className="p-1.5 border border-emerald-200 text-emerald-700 hover:bg-[#1B4332] hover:text-white hover:border-[#1B4332] rounded-xl transition-all inline-flex items-center justify-center bg-white shadow-sm hover:shadow-md"
                             onClick={() => setAdjustingBalanceUser(r)}

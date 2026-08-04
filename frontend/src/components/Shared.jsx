@@ -85,10 +85,11 @@ export function PaginationBar({ page, pageSize, total, onPageChange, onPageSizeC
           <select
             className="bg-white border border-black/10 hover:border-black/20 rounded-lg px-2 py-1 text-xs outline-none cursor-pointer min-w-[64px]"
             value={pageSize}
-            onChange={(e) => onPageSizeChange(parseInt(e.target.value, 10))}
+            onChange={(e) => onPageSizeChange && onPageSizeChange(parseInt(e.target.value, 10))}
             data-testid="pagination-page-size"
           >
             <option value={10}>10</option>
+            <option value={20}>20</option>
             <option value={25}>25</option>
             <option value={50}>50</option>
             <option value={100}>100</option>

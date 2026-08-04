@@ -58,21 +58,34 @@ function RejectModal({ onClose, onConfirm, predefined = [] }) {
 }
 
 export default function AdminTransactions() {
-  const [items, setItems] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [items, setItems] = useState(() => {
+    try {
+      const v = localStorage.getItem("mfp_cache_admin_transactions");
+      return v ? JSON.parse(v) : [];
+    } catch { return []; }
+  });
+  const [total, setTotal] = useState(() => items.length);
+  const [loading, setLoading] = useState(() => items.length === 0);
   const [agents, setAgents] = useState([]);
   const [banks, setBanks] = useState([]);
-  const [billPayEnabled, setBillPayEnabled] = useState(true);
+  const [billPayEnabled, setBillPayEnabled] = useState(() => {
+    try {
+      const v = localStorage.getItem("set_bill_pay_enabled");
+      return v !== null ? JSON.parse(v) : true;
+    } catch (e) { return true; }
+  });
 
   const fetchToggles = useCallback(() => {
     api.get("/admin/settings/recharge-limits").then((r) => {
-      setBillPayEnabled(r.data.bill_pay_enabled ?? true);
+      const bpe = r.data.bill_pay_enabled ?? true;
+      setBillPayEnabled(bpe);
+      try { localStorage.setItem("set_bill_pay_enabled", JSON.stringify(bpe)); } catch (e) {}
     });
   }, []);
 
   const handleToggleBillPay = async (val) => {
     setBillPayEnabled(val);
+    try { localStorage.setItem("set_bill_pay_enabled", JSON.stringify(val)); } catch (e) {}
     try {
       const res = await api.get("/admin/settings/recharge-limits");
       await api.put("/admin/settings/recharge-toggles", {
@@ -85,6 +98,7 @@ export default function AdminTransactions() {
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Failed to update toggle");
       setBillPayEnabled(!val);
+      try { localStorage.setItem("set_bill_pay_enabled", JSON.stringify(!val)); } catch (err) {}
     }
   };
 
@@ -104,11 +118,16 @@ export default function AdminTransactions() {
   const debouncedAmt = useDebounced(amtQuery, 350);
 
   // Stats calculation
-  const [stats, setStats] = useState({ success: 0, successCount: 0, pending: 0, pendingCount: 0, reversed: 0, reversedCount: 0 });
+  const [stats, setStats] = useState(() => {
+    try {
+      const v = localStorage.getItem("mfp_cache_admin_transactions_stats");
+      return v ? JSON.parse(v) : { success: 0, successCount: 0, pending: 0, pendingCount: 0, reversed: 0, reversedCount: 0 };
+    } catch { return { success: 0, successCount: 0, pending: 0, pendingCount: 0, reversed: 0, reversedCount: 0 }; }
+  });
 
   // pagination
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(20);
   const [rejectTargetId, setRejectTargetId] = useState(null);
   const [predefinedReasons, setPredefinedReasons] = useState([]);
 
@@ -138,7 +157,7 @@ export default function AdminTransactions() {
   }, [status, range, from, to, customApplied, debouncedQ, debouncedAmt, debouncedAgent, debouncedBank, page, pageSize]);
 
   const reload = useCallback((silent = false) => {
-    if (!silent) setLoading(true);
+    if (!silent && items.length === 0) setLoading(true);
     // paginated list
     const pagePromise = api.get("/admin/transactions", { params });
 
@@ -151,22 +170,31 @@ export default function AdminTransactions() {
 
     return Promise.all([pagePromise, statsPromise])
       .then(([pageRes, statsRes]) => {
-        setItems(pageRes.data.items || []);
+        const fetchedItems = pageRes.data.items || [];
+        setItems(fetchedItems);
         setTotal(pageRes.data.total || 0);
 
         const sd = statsRes.data || {};
-        setStats({
+        const parsedStats = {
           success: sd.success?.amount || 0,
           successCount: sd.success?.count || 0,
           pending: sd.pending?.amount || 0,
           pendingCount: sd.pending?.count || 0,
           reversed: sd.reversed?.amount || sd.failed?.amount || 0,
           reversedCount: sd.reversed?.count || sd.failed?.count || 0
-        });
+        };
+        setStats(parsedStats);
+
+        if (page === 1 && status === "all" && range === "today" && !debouncedQ && !debouncedAgent && !debouncedBank && !debouncedAmt) {
+          try {
+            localStorage.setItem("mfp_cache_admin_transactions", JSON.stringify(fetchedItems));
+            localStorage.setItem("mfp_cache_admin_transactions_stats", JSON.stringify(parsedStats));
+          } catch (e) {}
+        }
       })
       .catch((e) => toast.error(formatErr(e.response?.data?.detail) || "Failed to load transactions"))
       .finally(() => setLoading(false));
-  }, [params]);
+  }, [params, items.length, page, status, range, debouncedQ, debouncedAgent, debouncedBank, debouncedAmt]);
 
   useEffect(() => { reload(); }, [reload]);
 
@@ -232,27 +260,27 @@ export default function AdminTransactions() {
     { key: "actions", label: "Action", render: (r) => {
       if (r.status === "pending") {
         return (
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <button
-              className="rounded-lg bg-[#2D6A4F]/10 text-[#2D6A4F] hover:bg-[#2D6A4F]/20 px-3 py-1.5 text-xs font-semibold inline-flex items-center gap-1"
+              className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/80 font-bold text-xs px-3.5 py-1.5 rounded-lg inline-flex items-center gap-1.5 transition-all shrink-0 shadow-xs"
               onClick={() => approve(r.id)}
               data-testid={`tx-approve-${r.id}`}
-            ><Check className="h-3 w-3" /> Mark Success</button>
+            ><Check className="h-3.5 w-3.5 stroke-[2.5]" /> Approve</button>
             <button
-              className="rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 px-3 py-1.5 text-xs font-semibold inline-flex items-center gap-1"
+              className="bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/80 font-bold text-xs px-3.5 py-1.5 rounded-lg inline-flex items-center gap-1.5 transition-all shrink-0 shadow-xs"
               onClick={() => reverse(r.id)}
               data-testid={`tx-reverse-${r.id}`}
-            ><RotateCcw className="h-3 w-3" /> Reverse</button>
+            ><RotateCcw className="h-3.5 w-3.5 stroke-[2.5]" /> Reverse</button>
           </div>
         );
       }
       if (r.status === "success") {
         return (
           <button
-            className="rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 px-3 py-1.5 text-xs font-semibold inline-flex items-center gap-1"
+            className="bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/80 font-bold text-xs px-3.5 py-1.5 rounded-lg inline-flex items-center gap-1.5 transition-all shrink-0 shadow-xs"
             onClick={() => reverse(r.id)}
             data-testid={`tx-reverse-${r.id}`}
-          ><RotateCcw className="h-3 w-3" /> Reverse</button>
+          ><RotateCcw className="h-3.5 w-3.5 stroke-[2.5]" /> Reverse</button>
         );
       }
       return <span className="text-xs text-neutral-500">—</span>;
@@ -521,7 +549,7 @@ export default function AdminTransactions() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-black/5">
           <div className="text-sm text-neutral-600" data-testid="tx-results-count">
-            {loading ? "Loading…" : <>Matched <span className="font-semibold">{total.toLocaleString("en-IN")}</span> transactions</>}
+            {loading ? <span className="inline-flex items-center gap-1.5 text-neutral-400"><Loader2 className="h-3.5 w-3.5 animate-spin text-[#1B4332]" /></span> : <>Matched <span className="font-semibold">{total.toLocaleString("en-IN")}</span> transactions</>}
           </div>
           <button onClick={clearAll} className="mfp-btn-ghost" data-testid="tx-clear-all">
             <RotateCcw className="h-3.5 w-3.5" /> Clear All Filters
@@ -532,7 +560,7 @@ export default function AdminTransactions() {
       <DataTable
         columns={columns}
         rows={items}
-        empty={loading ? "Loading…" : "No transactions found for selected filters"}
+        empty={loading ? <div className="flex items-center justify-center gap-2 py-6 text-neutral-400 font-medium"><Loader2 className="h-5 w-5 animate-spin text-[#1B4332]" /></div> : "No transactions found for selected filters"}
         pagination={{
           page,
           pageSize,

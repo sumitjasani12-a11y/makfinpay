@@ -9,8 +9,14 @@ import {
 } from "lucide-react";
 
 export default function AdminQRGallery() {
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("mfp_cache_admin_qr_gallery") || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [loading, setLoading] = useState(() => !localStorage.getItem("mfp_cache_admin_qr_gallery"));
   const [activeTab, setActiveTab] = useState("daily"); // "daily" | "archive"
   const [selectedDate, setSelectedDate] = useState(null);
   const [activeFolder, setActiveFolder] = useState(null);
@@ -26,11 +32,15 @@ export default function AdminQRGallery() {
   const [datePage, setDatePage] = useState(1);
   const datePageSize = 10;
 
-  const reload = () => {
-    setLoading(true);
+  const reload = (silent = false) => {
+    if (!silent && (!items || items.length === 0)) setLoading(true);
     api.get("/admin/recharge-gallery")
       .then((r) => {
-        setItems(r.data || []);
+        const data = r.data || [];
+        setItems(data);
+        try {
+          localStorage.setItem("mfp_cache_admin_qr_gallery", JSON.stringify(data.slice(0, 500)));
+        } catch {}
       })
       .catch((e) => {
         toast.error(formatErr(e.response?.data?.detail) || "Failed to fetch gallery proofs");
@@ -41,7 +51,7 @@ export default function AdminQRGallery() {
   };
 
   useEffect(() => {
-    reload();
+    reload(items.length > 0);
   }, []);
 
   const formatDate = (isoString) => {

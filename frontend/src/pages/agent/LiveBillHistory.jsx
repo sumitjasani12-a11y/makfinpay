@@ -32,7 +32,7 @@ export default function LiveBillHistory() {
 
   // pagination
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(20);
 
   const fetchHistory = () => {
     setLoading(true);

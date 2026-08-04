@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { api, fileUrl } from "./api";
 import { initWebSocket, closeWebSocket } from "./ws";
+import { toast } from "sonner";
 
 const AuthCtx = createContext(null);
 
@@ -120,6 +121,32 @@ export function AuthProvider({ children }) {
     setUser(null);
     closeWebSocket();
   }, []);
+
+  // 10-Minute Inactivity Auto-Logout for Non-Admin Panels (Agent, Distributor, MD)
+  useEffect(() => {
+    if (!user || user.role === "admin") return;
+
+    let timer = null;
+    const INACTIVITY_LIMIT = 10 * 60 * 1000; // 10 minutes in ms
+
+    const resetTimer = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        toast.warning("૧૦ મિનિટથી કોઈ એક્ટિવિટી ન હોવાથી સેશન ઓટો લૉગઆઉટ થઈ ગયું છે.");
+        logout();
+      }, INACTIVITY_LIMIT);
+    };
+
+    resetTimer();
+
+    const events = ["mousemove", "keydown", "click", "scroll", "touchstart"];
+    events.forEach((evt) => window.addEventListener(evt, resetTimer));
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      events.forEach((evt) => window.removeEventListener(evt, resetTimer));
+    };
+  }, [user, logout]);
 
   const value = useMemo(
     () => ({ user, loading, login, logout, setUser, completeLogin, reloadMe, branding, fetchBranding }),

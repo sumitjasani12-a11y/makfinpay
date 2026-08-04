@@ -11,7 +11,15 @@ import { useWebSocketListener } from "@/lib/ws";
 
 export default function AgentRecharge() {
   const { user } = useAuth();
+  const isT1Allowed = Boolean(user?.t1_enabled) && Number(user?.t1_commission_percent || 0) > 0;
   const [isT1, setIsT1] = useState(false);
+
+  useEffect(() => {
+    if (!isT1Allowed && isT1) {
+      setIsT1(false);
+    }
+  }, [isT1Allowed, isT1]);
+
   const commPct = Number(isT1 ? (user?.t1_commission_percent || 0) : (user?.commission_percent || 0));
   const [qr, setQr] = useState(null);
   const [amount, setAmount] = useState("");
@@ -151,7 +159,7 @@ export default function AgentRecharge() {
   const [rechargeEnabled, setRechargeEnabled] = useState(() => cachedConfig?.recharge_enabled ?? true);
   const [t1RechargeEnabled, setT1RechargeEnabled] = useState(() => cachedConfig?.t1_recharge_enabled ?? true);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(20);
 
   const reload = () => api.get("/agent/recharges").then((r) => setItems(r.data || []));
 
@@ -209,7 +217,7 @@ export default function AgentRecharge() {
   useEffect(() => {
     reload();
     fetchConfig();
-    const interval = setInterval(fetchConfig, 4000); // Polling every 4 seconds for instant real-time sync!
+    const interval = setInterval(fetchConfig, 30000);
     return () => clearInterval(interval);
   }, [fetchConfig]);
 
@@ -444,34 +452,36 @@ export default function AgentRecharge() {
       <PageHeader title="Recharge Wallet" subtitle="Pay via UPI, then submit UTR + screenshot for admin verification." />
       
       <div className="max-w-[1400px] mx-auto px-4 mb-8">
-        <div className="flex justify-center mb-6">
-          <div className="bg-neutral-100/80 p-1.5 rounded-2xl border border-neutral-200/50 flex gap-1 shadow-inner">
-            <button
-              type="button"
-              onClick={() => setIsT1(false)}
-              className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
-                !isT1 
-                  ? "bg-white text-neutral-800 shadow-sm border border-neutral-200/20" 
-                  : "text-neutral-500 hover:text-neutral-700"
-              }`}
-            >
-              <Sparkles className="h-4 w-4 text-[#00966B]" />
-              Standard (Instant Settlement)
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsT1(true)}
-              className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
-                isT1 
-                  ? "bg-white text-neutral-800 shadow-sm border border-neutral-200/20" 
-                  : "text-neutral-500 hover:text-neutral-700"
-              }`}
-            >
-              <Clock className="h-4 w-4 text-blue-600" />
-              T+1 (Next Day Settlement)
-            </button>
+        {isT1Allowed && (
+          <div className="flex justify-center mb-6">
+            <div className="bg-neutral-100/80 p-1.5 rounded-2xl border border-neutral-200/50 flex gap-1 shadow-inner">
+              <button
+                type="button"
+                onClick={() => setIsT1(false)}
+                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                  !isT1 
+                    ? "bg-white text-neutral-800 shadow-sm border border-neutral-200/20" 
+                    : "text-neutral-500 hover:text-neutral-700"
+                }`}
+              >
+                <Sparkles className="h-4 w-4 text-[#00966B]" />
+                Standard (Instant Settlement)
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsT1(true)}
+                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                  isT1 
+                    ? "bg-white text-neutral-800 shadow-sm border border-neutral-200/20" 
+                    : "text-neutral-500 hover:text-neutral-700"
+                }`}
+              >
+                <Clock className="h-4 w-4 text-blue-600" />
+                T+1 (Next Day Settlement)
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {!isCurrentTabRechargeEnabled ? (
           <div className="bg-white border border-black/5 rounded-3xl p-10 lg:p-16 shadow-lg shadow-indigo-500/5 flex flex-col items-center justify-center text-center space-y-5 max-w-[800px] mx-auto">

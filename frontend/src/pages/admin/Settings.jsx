@@ -14,7 +14,12 @@ export default function AdminSettings() {
   const [maxLimit, setMaxLimit] = useState("");
   const [liveBillMaxLimit, setLiveBillMaxLimit] = useState("");
   const [apiCharge, setApiCharge] = useState("");
-  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [maintenanceMode, setMaintenanceMode] = useState(() => {
+    try {
+      const v = localStorage.getItem("set_maintenance_mode");
+      return v !== null ? JSON.parse(v) : false;
+    } catch (e) { return false; }
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -32,7 +37,9 @@ export default function AdminSettings() {
       setMaxLimit(String(data.max_recharge_limit ?? 300000));
       setLiveBillMaxLimit(String(data.live_bill_max_limit ?? 100000));
       setApiCharge(String(data.live_bill_api_charge ?? 0));
-      setMaintenanceMode(!!data.maintenance_mode);
+      const mm = !!data.maintenance_mode;
+      setMaintenanceMode(mm);
+      try { localStorage.setItem("set_maintenance_mode", JSON.stringify(mm)); } catch (e) {}
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Failed to load settings");
     } finally {

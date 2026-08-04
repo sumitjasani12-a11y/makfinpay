@@ -46,12 +46,17 @@ export function initWebSocket(token) {
     }
   };
 
+let retryCount = 0;
+const MAX_RETRIES = 3;
+
   ws.onclose = (e) => {
     console.log("WebSocket connection closed:", e.reason);
     window.isWsConnected = false;
     window.dispatchEvent(new CustomEvent("ws:status_disconnected"));
-    if (ws !== null && currentToken) {
-      reconnectTimer = setTimeout(() => initWebSocket(currentToken), 3000);
+    if (ws !== null && currentToken && retryCount < MAX_RETRIES) {
+      retryCount++;
+      const delay = Math.min(10000 * retryCount, 30000);
+      reconnectTimer = setTimeout(() => initWebSocket(currentToken), delay);
     }
   };
 

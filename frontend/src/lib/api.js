@@ -28,13 +28,15 @@ api.interceptors.response.use(
   }
 );
 
-export function formatErr(detail) {
-  if (detail == null) return "Something went wrong. Please try again.";
+export function formatErr(detail, fallback = null) {
+  if (detail == null) return fallback;
   if (typeof detail === "string") return detail;
-  if (Array.isArray(detail))
-    return detail.map((e) => (e && typeof e.msg === "string" ? e.msg : JSON.stringify(e))).filter(Boolean).join(" ");
+  if (Array.isArray(detail)) {
+    const msg = detail.map((e) => (e && typeof e.msg === "string" ? e.msg : JSON.stringify(e))).filter(Boolean).join(" ");
+    return msg || fallback;
+  }
   if (detail && typeof detail.msg === "string") return detail.msg;
-  return String(detail);
+  return String(detail) || fallback;
 }
 
 export function fmtMoney(n) {

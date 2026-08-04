@@ -7,11 +7,26 @@ import {
 } from "lucide-react";
 
 export default function AdminReasons() {
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [categories, setCategories] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("mfp_cache_rejection_categories") || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [loading, setLoading] = useState(() => !localStorage.getItem("mfp_cache_rejection_categories"));
   
   // Collapse/Expand state for each category ID
-  const [expandedCats, setExpandedCats] = useState({});
+  const [expandedCats, setExpandedCats] = useState(() => {
+    try {
+      const cached = JSON.parse(localStorage.getItem("mfp_cache_rejection_categories") || "[]");
+      const initial = {};
+      cached.forEach(cat => { initial[cat.id] = true; });
+      return initial;
+    } catch {
+      return {};
+    }
+  });
 
   // Modals state
   const [catModal, setCatModal] = useState(null); // { mode: 'create' } or { mode: 'edit', category }
@@ -25,14 +40,17 @@ export default function AdminReasons() {
 
   const [reasonText, setReasonText] = useState("");
 
-  const reload = () => {
-    setLoading(true);
+  const reload = (silent = false) => {
+    if (!silent && (!categories || categories.length === 0)) setLoading(true);
     api.get("/admin/rejection-categories")
       .then((r) => {
-        setCategories(r.data || []);
-        // By default, expand all categories on initial load
+        const data = r.data || [];
+        setCategories(data);
+        try {
+          localStorage.setItem("mfp_cache_rejection_categories", JSON.stringify(data));
+        } catch {}
         const initialExpanded = {};
-        (r.data || []).forEach(cat => {
+        data.forEach(cat => {
           initialExpanded[cat.id] = true;
         });
         setExpandedCats(prev => ({ ...initialExpanded, ...prev }));
@@ -42,7 +60,7 @@ export default function AdminReasons() {
   };
 
   useEffect(() => {
-    reload();
+    reload(categories.length > 0);
   }, []);
 
   const toggleExpand = (id) => {

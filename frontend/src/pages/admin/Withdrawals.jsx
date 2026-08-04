@@ -4,7 +4,7 @@ import { DATE_RANGES, todayStr, rangeWindowIso } from "@/lib/filters";
 import { useDebounced } from "@/lib/hooks";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import { toast } from "sonner";
-import { RotateCcw, Search, X } from "lucide-react";
+import { RotateCcw, Search, X, Loader2 } from "lucide-react";
 
 const ROLES = [
   { key: "all", label: "All Roles" },
@@ -14,19 +14,32 @@ const ROLES = [
 ];
 
 export default function AdminWithdrawals() {
-  const [items, setItems] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [withdrawalEnabled, setWithdrawalEnabled] = useState(true);
+  const [items, setItems] = useState(() => {
+    try {
+      const v = localStorage.getItem("mfp_cache_admin_withdrawals");
+      return v ? JSON.parse(v) : [];
+    } catch { return []; }
+  });
+  const [total, setTotal] = useState(() => items.length);
+  const [loading, setLoading] = useState(() => items.length === 0);
+  const [withdrawalEnabled, setWithdrawalEnabled] = useState(() => {
+    try {
+      const v = localStorage.getItem("set_withdrawal_enabled");
+      return v !== null ? JSON.parse(v) : true;
+    } catch (e) { return true; }
+  });
 
   const fetchToggles = useCallback(() => {
     api.get("/admin/settings/recharge-limits").then((r) => {
-      setWithdrawalEnabled(r.data.withdrawal_enabled ?? true);
+      const we = r.data.withdrawal_enabled ?? true;
+      setWithdrawalEnabled(we);
+      try { localStorage.setItem("set_withdrawal_enabled", JSON.stringify(we)); } catch (e) {}
     });
   }, []);
 
   const handleToggleWithdrawal = async (val) => {
     setWithdrawalEnabled(val);
+    try { localStorage.setItem("set_withdrawal_enabled", JSON.stringify(val)); } catch (e) {}
     try {
       const res = await api.get("/admin/settings/recharge-limits");
       await api.put("/admin/settings/recharge-toggles", {
@@ -38,6 +51,7 @@ export default function AdminWithdrawals() {
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Failed to update toggle");
       setWithdrawalEnabled(!val);
+      try { localStorage.setItem("set_withdrawal_enabled", JSON.stringify(!val)); } catch (err) {}
     }
   };
 
@@ -53,10 +67,15 @@ export default function AdminWithdrawals() {
   const debouncedAmt = useDebounced(amtQuery, 350);
 
   // Stats calculation
-  const [stats, setStats] = useState({ approved: 0, approvedCount: 0, pending: 0, pendingCount: 0, rejected: 0, rejectedCount: 0 });
+  const [stats, setStats] = useState(() => {
+    try {
+      const v = localStorage.getItem("mfp_cache_admin_withdrawals_stats");
+      return v ? JSON.parse(v) : { approved: 0, approvedCount: 0, pending: 0, pendingCount: 0, rejected: 0, rejectedCount: 0 };
+    } catch { return { approved: 0, approvedCount: 0, pending: 0, pendingCount: 0, rejected: 0, rejectedCount: 0 }; }
+  });
 
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(20);
 
   const params = useMemo(() => {
     const { from_ts, to_ts } = range === "custom" && !customApplied
@@ -73,39 +92,54 @@ export default function AdminWithdrawals() {
   }, [status, roleFilter, range, from, to, customApplied, debouncedQ, debouncedAmt, page, pageSize]);
 
   const reload = useCallback(() => {
-    setLoading(true);
+    if (items.length === 0) setLoading(true);
     // paginated list
     const pagePromise = api.get("/admin/withdrawals", { params });
 
-    // fetch optimized stats
+    // unpaginated list for correct totals
     const statsParams = { ...params };
     delete statsParams.paginated;
     delete statsParams.page;
     delete statsParams.page_size;
-    const statsPromise = api.get("/admin/withdrawals/stats", { params: statsParams });
+    const statsPromise = api.get("/admin/withdrawals", { params: statsParams });
 
     return Promise.all([pagePromise, statsPromise])
       .then(([pageRes, statsRes]) => {
-        setItems(pageRes.data.items || []);
+        const fetchedItems = pageRes.data.items || [];
+        setItems(fetchedItems);
         setTotal(pageRes.data.total || 0);
 
-        const sd = statsRes.data || {};
-        const approvedVal = sd.approved || {};
-        const pendingVal = sd.pending || {};
-        const rejectedVal = sd.rejected || {};
+        let approved = 0, approvedCount = 0;
+        let pending = 0, pendingCount = 0;
+        let rejected = 0, rejectedCount = 0;
 
-        setStats({
-          approved: approvedVal.amount || 0,
-          approvedCount: approvedVal.count || 0,
-          pending: pendingVal.amount || 0,
-          pendingCount: pendingVal.count || 0,
-          rejected: rejectedVal.amount || 0,
-          rejectedCount: rejectedVal.count || 0
+        const allMatched = statsRes.data || [];
+        allMatched.forEach((item) => {
+          const amt = item.amount || 0;
+          if (item.status === "approved") {
+            approved += amt;
+            approvedCount++;
+          } else if (item.status === "pending") {
+            pending += amt;
+            pendingCount++;
+          } else if (item.status === "rejected") {
+            rejected += amt;
+            rejectedCount++;
+          }
         });
+        const parsedStats = { approved, approvedCount, pending, pendingCount, rejected, rejectedCount };
+        setStats(parsedStats);
+
+        if (page === 1 && status === "all" && roleFilter === "all" && range === "lifetime" && !debouncedQ && !debouncedAmt) {
+          try {
+            localStorage.setItem("mfp_cache_admin_withdrawals", JSON.stringify(fetchedItems));
+            localStorage.setItem("mfp_cache_admin_withdrawals_stats", JSON.stringify(parsedStats));
+          } catch (e) {}
+        }
       })
       .catch((e) => toast.error(formatErr(e.response?.data?.detail) || "Failed to load withdrawals"))
       .finally(() => setLoading(false));
-  }, [params]);
+  }, [params, items.length, page, status, roleFilter, range, debouncedQ, debouncedAmt]);
 
   useEffect(() => { reload(); fetchToggles(); }, [reload, fetchToggles]);
   useEffect(() => { setPage(1); }, [status, roleFilter, range, from, to, customApplied, debouncedQ, debouncedAmt, pageSize]);
@@ -138,9 +172,9 @@ export default function AdminWithdrawals() {
     { key: "phone_number", label: "Phone", render: (r) => r.bank?.phone_number || "—" },
     { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
     { key: "actions", label: "Action", render: (r) => r.status === "pending" ? (
-      <div className="flex gap-2">
-        <button className="rounded-lg bg-[#2D6A4F]/10 text-[#2D6A4F] hover:bg-[#2D6A4F]/20 px-3 py-1.5 text-xs font-semibold" onClick={() => act(r.id, "approve")} data-testid={`w-approve-${r.id}`}>Approve</button>
-        <button className="rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 px-3 py-1.5 text-xs font-semibold" onClick={() => act(r.id, "reject")} data-testid={`w-reject-${r.id}`}>Reject</button>
+      <div className="flex items-center gap-2">
+        <button className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/80 font-bold text-xs px-3.5 py-1.5 rounded-lg inline-flex items-center gap-1.5 transition-all shrink-0 shadow-xs" onClick={() => act(r.id, "approve")} data-testid={`w-approve-${r.id}`}>Approve</button>
+        <button className="bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/80 font-bold text-xs px-3.5 py-1.5 rounded-lg inline-flex items-center gap-1.5 transition-all shrink-0 shadow-xs" onClick={() => act(r.id, "reject")} data-testid={`w-reject-${r.id}`}>Reject</button>
       </div>
     ) : <span className="text-xs text-neutral-500">—</span> },
   ], [act]);
@@ -303,7 +337,7 @@ export default function AdminWithdrawals() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-black/5">
           <div className="text-sm text-neutral-600" data-testid="withdrawal-results-count">
-            {loading ? "Loading…" : <>Matched <span className="font-semibold">{total.toLocaleString("en-IN")}</span> requests</>}
+            {loading ? <span className="inline-flex items-center gap-1.5 text-neutral-400"><Loader2 className="h-3.5 w-3.5 animate-spin text-[#1B4332]" /></span> : <>Matched <span className="font-semibold">{total.toLocaleString("en-IN")}</span> requests</>}
           </div>
           <button onClick={clearAll} className="mfp-btn-ghost" data-testid="withdrawal-clear-all">
             <RotateCcw className="h-3.5 w-3.5" /> Clear All Filters
@@ -314,7 +348,7 @@ export default function AdminWithdrawals() {
       <DataTable
         columns={columns}
         rows={items}
-        empty={loading ? "Loading…" : "No withdrawal requests found for selected filters"}
+        empty={loading ? <div className="flex items-center justify-center gap-2 py-6 text-neutral-400 font-medium"><Loader2 className="h-5 w-5 animate-spin text-[#1B4332]" /></div> : "No withdrawal requests found for selected filters"}
         pagination={{
           page,
           pageSize,
