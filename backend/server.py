@@ -3086,7 +3086,7 @@ _bbps_cache = {"data": None, "timestamp": 0.0}
 async def admin_bbps_balance(user=Depends(require_roles("admin"))):
     import time
     now = time.time()
-    if _bbps_cache["data"] is None or (now - _bbps_cache["timestamp"]) > 60.0:
+    if _bbps_cache["data"] is None or (now - _bbps_cache["timestamp"]) > 30.0:
         try:
             res = await call_irise_api("GET", "balance")
             _bbps_cache["data"] = res
@@ -3094,8 +3094,21 @@ async def admin_bbps_balance(user=Depends(require_roles("admin"))):
         except Exception as e:
             logger.error(f"Failed to fetch BBPS balance from external API: {e}")
             if _bbps_cache["data"] is None:
-                return {"status": "success", "data": {"balance": 0.0}}
-    return _bbps_cache["data"]
+                return {"status": "success", "data": {"balance": 0.0}, "balance": 0.0}
+    
+    raw = _bbps_cache["data"] or {}
+    val = 0.0
+    if isinstance(raw, dict):
+        if "data" in raw and isinstance(raw["data"], dict):
+            val = raw["data"].get("balance", raw["data"].get("wallet_balance", 0.0))
+        elif "balance" in raw:
+            val = raw.get("balance", 0.0)
+    try:
+        val = float(val)
+    except (ValueError, TypeError):
+        val = 0.0
+
+    return {"status": "success", "data": {"balance": val}, "balance": val}
 
 @api.get("/wallet/ledger")
 async def my_ledger(user=Depends(get_current_user)):
@@ -3809,13 +3822,13 @@ async def agent_transactions(user=Depends(require_roles("agent"))):
     return await db.transactions.find({"user_id": user["id"], "type": "credit_card"}, {"_id": 0}).sort("created_at", -1).to_list(500)
 
 # ---------- LIVE BILL PAYMENTS (Irise API Integration) ----------
-IRISE_BASE_URL = os.getenv("IRISE_BASE_URL", "https://irise.co.in/api/v2/")
-IRISE_PUBLIC_KEY = os.getenv("IRISE_PUBLIC_KEY", "")
-IRISE_SECRET_KEY = os.getenv("IRISE_SECRET_KEY", "")
-
 async def call_irise_api(method: str, endpoint: str, params: dict = None, json_data: dict = None):
-    # Fallback to mock data for local testing/walkthrough if credentials are missing
-    if not IRISE_PUBLIC_KEY or not IRISE_SECRET_KEY:
+    base_url = os.getenv("IRISE_BASE_URL", "https://www.usepay.in/api/v1/b2b")
+    public_key = os.getenv("IRISE_PUBLIC_KEY", "")
+    secret_key = os.getenv("IRISE_SECRET_KEY", "")
+
+    # Fallback to mock data ONLY if credentials are missing
+    if not public_key or not secret_key:
         ep = endpoint.strip("/")
         if ep == "categories":
             return {
@@ -3992,10 +4005,10 @@ async def call_irise_api(method: str, endpoint: str, params: dict = None, json_d
     headers = {
         "Accept": "application/json",
         "Content-Type": "application/json",
-        "x-api-key": IRISE_PUBLIC_KEY,
-        "x-secret-key": IRISE_SECRET_KEY
+        "x-api-key": public_key,
+        "x-secret-key": secret_key
     }
-    url = f"{IRISE_BASE_URL.rstrip('/')}/{endpoint.lstrip('/')}"
+    url = f"{base_url.rstrip('/')}/{endpoint.lstrip('/')}"
     print(f"\n[USEPAY API REQUEST] Method: {method} | Endpoint: {endpoint} | URL: {url}")
     if params:
         print(f"[USEPAY API REQUEST PARAMS]: {params}")

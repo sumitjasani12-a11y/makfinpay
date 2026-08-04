@@ -592,13 +592,18 @@ export default function LiveBillPay() {
       };
 
       const res = await api.post("/agent/live-billpay/fetch", payload);
-      if (res.data?.status === "success" && res.data?.data?.billerResponse) {
-        setFetchedBill(res.data.data);
-        setFetchRequestId(res.data.data.requestId || "");
-        setPayAmount(res.data.data.billerResponse.amount || "");
+      const resData = res.data;
+      const bData = resData?.data;
+      const bResp = bData?.billerResponse || bData?.billFetchResponse?.billerResponse || bData;
+
+      if (resData?.status === "success" && (bResp?.responseCode === "000" || bResp?.customerName || bData?.billerResponse?.customerName || bResp?.amount || bData?.amount)) {
+        setFetchedBill(bData || resData);
+        setFetchRequestId(bData?.requestId || bResp?.requestId || "");
+        setPayAmount(bResp?.amount || bResp?.billAmount || bData?.amount || "");
         toast.success("Bill details fetched successfully!");
       } else {
-        toast.error(res.data?.message || "Failed to fetch bill. Please verify details.");
+        const errMsg = bResp?.errorInfo?.error?.errorMessage || resData?.message || resData?.detail || "Failed to fetch bill. Please verify your consumer details.";
+        toast.error(errMsg);
       }
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Error fetching bill details");
