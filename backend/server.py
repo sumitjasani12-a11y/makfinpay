@@ -1655,6 +1655,25 @@ async def _md_earnings_batch(md_ids: List[str]) -> dict:
     return {mid: round(recharge_map.get(mid, 0.0) + adj_map.get(mid, 0.0), 2) for mid in md_ids}
 
 
+async def _md_today_earnings(md_id: str) -> float:
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    cursor = db.recharges.aggregate([
+        {"$match": {"status": "approved", "md_id": md_id, "created_at": {"$gte": today_start}}},
+        {"$group": {"_id": None, "total": {"$sum": "$md_earnings_amount"}}}
+    ])
+    res = await cursor.to_list(1)
+    return round(float(res[0]["total"]), 2) if (res and res[0].get("total") is not None) else 0.0
+
+async def _distributor_today_earnings(distributor_id: str) -> float:
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    cursor = db.recharges.aggregate([
+        {"$match": {"status": "approved", "distributor_id": distributor_id, "created_at": {"$gte": today_start}}},
+        {"$group": {"_id": None, "total": {"$sum": "$distributor_earnings_amount"}}}
+    ])
+    res = await cursor.to_list(1)
+    return round(float(res[0]["total"]), 2) if (res and res[0].get("total") is not None) else 0.0
+
+
 
 async def run_daily_commission_settlement():
     """At day change / startup: calculate all past unsettled daily earnings for Distributors and MDs,
@@ -2942,6 +2961,7 @@ async def md_stats(user=Depends(require_approved_md())):
     pending_recharges = await db.recharges.count_documents({"user_id": {"$in": agent_ids}, "status": "pending"}) if agent_ids else 0
     approved_recharges = await db.recharges.count_documents({"md_id": md_id, "status": "approved"})
     earnings = await _md_earnings_for(md_id)
+    today_earnings = await _md_today_earnings(md_id)
     available_for_withdrawal = await get_md_available_for_withdrawal(md_id)
     return {
         "distributors": distributors_count,
@@ -2949,6 +2969,7 @@ async def md_stats(user=Depends(require_approved_md())):
         "pending_recharges": pending_recharges,
         "approved_recharges": approved_recharges,
         "earnings": earnings,
+        "today_earnings": today_earnings,
         "available_for_withdrawal": available_for_withdrawal,
     }
 
@@ -6207,12 +6228,14 @@ async def distributor_stats(user=Depends(require_approved_distributor())):
     pending_recharges = await db.recharges.count_documents({"user_id": {"$in": agent_ids}, "status": "pending"})
     # IMMUTABLE earnings: read snapshot column straight off approved recharge docs
     earnings = await _distributor_earnings_for(user["id"])
+    today_earnings = await _distributor_today_earnings(user["id"])
     available_for_withdrawal = await get_distributor_available_for_withdrawal(user["id"])
     approved_recharges = await db.recharges.count_documents({"distributor_id": user["id"], "status": "approved"})
     return {
         "agents": agents,
         "pending_recharges": pending_recharges,
         "earnings": earnings,
+        "today_earnings": today_earnings,
         "available_for_withdrawal": available_for_withdrawal,
         "approved_recharges": approved_recharges,
     }

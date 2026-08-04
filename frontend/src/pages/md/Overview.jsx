@@ -93,20 +93,20 @@ export default function MdOverview() {
               </div>
             </div>
 
-            {/* Full-width Card 5: Total Earnings */}
-            <div className="bg-gradient-to-br from-[#0A3641] to-[#0D6EFD] text-white border border-blue-500/20 rounded-[24px] p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex items-center justify-between min-h-[96px]" data-testid="kpi-md-earnings">
+            {/* Full-width Card 5: Today's Earnings */}
+            <div className="bg-gradient-to-br from-[#0A3641] to-[#0D6EFD] text-white border border-blue-500/20 rounded-[24px] p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex items-center justify-between min-h-[96px]" data-testid="kpi-md-today-earnings">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-white/10 text-blue-300 border border-white/10 rounded-2xl shrink-0">
                   <Coins className="h-6 w-6" />
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-blue-100/80">Total Earnings</span>
-                  <div className="text-2xl font-black text-white mt-0.5">{fmtMoney(s.earnings ?? 0)}</div>
+                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-blue-100/80">Today's Earnings</span>
+                  <div className="text-2xl font-black text-white mt-0.5">{fmtMoney(s.today_earnings ?? 0)}</div>
                 </div>
               </div>
               <div className="text-right">
                 <p className="text-[9.5px] text-blue-200/80 font-semibold">Live dynamic earnings</p>
-                <p className="text-[8px] text-blue-100/60 font-bold uppercase tracking-wider mt-0.5">All time</p>
+                <p className="text-[8px] text-blue-100/60 font-bold uppercase tracking-wider mt-0.5">Today</p>
               </div>
             </div>
           </div>
