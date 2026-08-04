@@ -165,7 +165,10 @@ export default function DashboardLayout() {
         api.get("/admin/hold-total")
       ]).then(([t1Res, bbpsRes, holdRes]) => {
         const t1Total = t1Res.status === "fulfilled" ? t1Res.value.data?.total || 0 : 0;
-        const bbpsBalance = bbpsRes.status === "fulfilled" ? bbpsRes.value.data?.data?.balance || 0 : 0;
+        const rawBbps = bbpsRes.status === "fulfilled" ? bbpsRes.value.data : null;
+        const bbpsBalance = rawBbps
+          ? (typeof rawBbps.balance === "number" ? rawBbps.balance : (rawBbps.data?.balance || 0))
+          : 0;
         const holdTotal = holdRes.status === "fulfilled" ? holdRes.value.data?.total || 0 : 0;
         
         window._cachedAdminHeaderData = { t1Total, bbpsBalance, holdTotal };
