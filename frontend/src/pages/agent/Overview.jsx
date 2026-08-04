@@ -3,6 +3,7 @@ import { api, fmtMoney, fileUrl } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { PageHeader } from "@/components/Shared";
 import KycPasswordGate from "@/components/KycPasswordGate";
+import { useWebSocketListener } from "@/lib/ws";
 import { Wallet, QrCode, CreditCard, Clock, ChevronLeft, ChevronRight } from "lucide-react";
 
 export default function AgentOverview() {
