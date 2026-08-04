@@ -592,13 +592,15 @@ export default function LiveBillPay() {
       };
 
       const res = await api.post("/agent/live-billpay/fetch", payload);
-      if (res.data?.status === "success" && res.data?.data?.billerResponse) {
-        setFetchedBill(res.data.data);
-        setFetchRequestId(res.data.data.requestId || "");
-        setPayAmount(res.data.data.billerResponse.amount || "");
+      if (res.data?.status === "success" && (res.data?.data?.billerResponse || res.data?.data || res.data?.billerResponse)) {
+        const billData = res.data.data || res.data;
+        const bResp = billData.billerResponse || billData;
+        setFetchedBill(billData);
+        setFetchRequestId(billData.requestId || bResp.requestId || "");
+        setPayAmount(bResp.amount || billData.amount || "");
         toast.success("Bill details fetched successfully!");
       } else {
-        toast.error(res.data?.message || "Failed to fetch bill. Please verify details.");
+        toast.error(res.data?.message || res.data?.detail || "Failed to fetch bill. Please verify details.");
       }
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Error fetching bill details");
