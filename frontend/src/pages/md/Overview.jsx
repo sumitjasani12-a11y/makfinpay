@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { api, fmtMoney } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { PageHeader } from "@/components/Shared";
 import KycPasswordGate from "@/components/KycPasswordGate";
+import { useWebSocketListener } from "@/lib/ws";
 import { Users, UserCog, Clock, ShieldCheck, Coins } from "lucide-react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 
@@ -10,13 +11,23 @@ export default function MdOverview() {
   const { user } = useAuth();
   const [s, setS] = useState({});
 
-  useEffect(() => {
+  const fetchStats = useCallback(() => {
     if (user && user.kyc_status === "approved" && !user.first_login) {
       api.get("/master-distributor/stats")
         .then((r) => setS(r.data))
         .catch((e) => console.log("Stats ignored:", e.message));
     }
   }, [user]);
+
+  useEffect(() => {
+    fetchStats();
+    const interval = setInterval(fetchStats, 10000);
+    return () => clearInterval(interval);
+  }, [fetchStats]);
+
+  useWebSocketListener("recharge_created", fetchStats);
+  useWebSocketListener("recharge_updated", fetchStats);
+  useWebSocketListener("wallet_updated", fetchStats);
 
   const chartData = [
     { name: "Distributors", value: s.distributors ?? 0, color: "#4f46e5" },

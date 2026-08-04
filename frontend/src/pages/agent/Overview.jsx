@@ -18,7 +18,7 @@ export default function AgentOverview() {
   const [headlines, setHeadlines] = useState([]);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
-  useEffect(() => {
+  const fetchAgentStats = useCallback(() => {
     if (user && user.kyc_status === "approved" && !user.first_login) {
       api.get("/agent/dashboard-stats")
         .then((r) => {
@@ -26,11 +26,23 @@ export default function AgentOverview() {
           try { localStorage.setItem("mfp_cache_agent_stats", JSON.stringify(r.data)); } catch (e) {}
         })
         .catch((e) => console.log("Stats error ignored:", e.message));
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchAgentStats();
+    if (user && user.kyc_status === "approved" && !user.first_login) {
       api.get("/headlines/active")
         .then((r) => setHeadlines(r.data || []))
         .catch((e) => console.log("Failed to fetch active headlines:", e.message));
     }
-  }, [user]);
+    const interval = setInterval(fetchAgentStats, 10000);
+    return () => clearInterval(interval);
+  }, [user, fetchAgentStats]);
+
+  useWebSocketListener("recharge_created", fetchAgentStats);
+  useWebSocketListener("recharge_updated", fetchAgentStats);
+  useWebSocketListener("wallet_updated", fetchAgentStats);
 
   const imageMessages = React.useMemo(() => {
     return headlines.filter(h => h.type === "image").map(h => h.message);

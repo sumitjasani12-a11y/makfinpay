@@ -3014,14 +3014,22 @@ async def md_list_downline_recharges(
 @api.get("/master-distributor/stats")
 async def md_stats(user=Depends(require_approved_md())):
     md_id = user["id"]
-    distributors_count = await db.users.count_documents({"md_id": md_id, "role": "distributor", "is_deleted": False})
-    agents_count = await db.users.count_documents({"md_id": md_id, "role": "agent", "is_deleted": False})
     agent_ids = [u["id"] async for u in db.users.find({"md_id": md_id, "role": "agent"}, {"_id": 0, "id": 1})]
-    pending_recharges = await db.recharges.count_documents({"user_id": {"$in": agent_ids}, "status": "pending"}) if agent_ids else 0
-    approved_recharges = await db.recharges.count_documents({"md_id": md_id, "status": "approved"})
-    earnings = await _md_earnings_for(md_id)
-    today_earnings = await _md_today_earnings(md_id)
-    available_for_withdrawal = await get_md_available_for_withdrawal(md_id)
+
+    async def _zero(): return 0
+    pr_task = db.recharges.count_documents({"user_id": {"$in": agent_ids}, "status": "pending"}) if agent_ids else _zero()
+
+    d_task = db.users.count_documents({"md_id": md_id, "role": "distributor", "is_deleted": False})
+    a_task = db.users.count_documents({"md_id": md_id, "role": "agent", "is_deleted": False})
+    ar_task = db.recharges.count_documents({"md_id": md_id, "status": "approved"})
+    earn_task = _md_earnings_for(md_id)
+    today_task = _md_today_earnings(md_id)
+    avail_task = get_md_available_for_withdrawal(md_id)
+
+    distributors_count, agents_count, pending_recharges, approved_recharges, earnings, today_earnings, available_for_withdrawal = await asyncio.gather(
+        d_task, a_task, pr_task, ar_task, earn_task, today_task, avail_task
+    )
+
     return {
         "distributors": distributors_count,
         "agents": agents_count,
@@ -3096,30 +3104,27 @@ async def my_ledger(user=Depends(get_current_user)):
 
 @api.get("/agent/dashboard-stats")
 async def get_agent_dashboard_stats(user=Depends(require_roles("agent"))):
-    wallet = await get_or_create_wallet(user["id"])
-    balance = wallet.get("balance", 0.0)
-    
-    # Sum approved recharges
-    qr_cursor = db.recharges.aggregate([
+    wallet_task = get_or_create_wallet(user["id"])
+    qr_task = db.recharges.aggregate([
         {"$match": {"user_id": user["id"], "status": "approved"}},
         {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
-    ])
-    qr_list = await qr_cursor.to_list(1)
-    qr_sum = qr_list[0]["total"] if qr_list else 0.0
-    
-    # Sum success bill payments
-    bill_cursor = db.transactions.aggregate([
+    ]).to_list(1)
+    bill_task = db.transactions.aggregate([
         {"$match": {"user_id": user["id"], "status": "success"}},
         {"$group": {"_id": None, "total": {"$sum": "$bill_amount"}}}
-    ])
-    bill_list = await bill_cursor.to_list(1)
+    ]).to_list(1)
+    pr_task = db.recharges.count_documents({"user_id": user["id"], "status": "pending"})
+    pb_task = db.transactions.count_documents({"user_id": user["id"], "status": "pending"})
+    pw_task = db.withdrawals.count_documents({"user_id": user["id"], "status": "pending"})
+
+    wallet, qr_list, bill_list, pending_recharges, pending_bills, pending_withdrawals = await asyncio.gather(
+        wallet_task, qr_task, bill_task, pr_task, pb_task, pw_task
+    )
+
+    balance = wallet.get("balance", 0.0)
+    qr_sum = qr_list[0]["total"] if qr_list else 0.0
     bill_sum = bill_list[0]["total"] if bill_list else 0.0
-    
-    # Count pending
-    pending_recharges = await db.recharges.count_documents({"user_id": user["id"], "status": "pending"})
-    pending_bills = await db.transactions.count_documents({"user_id": user["id"], "status": "pending"})
-    pending_withdrawals = await db.withdrawals.count_documents({"user_id": user["id"], "status": "pending"})
-    
+
     return {
         "wallet_balance": balance,
         "qr_payment": qr_sum,
@@ -6344,14 +6349,21 @@ async def admin_stats(full: bool = False, user=Depends(require_roles("admin"))):
 
 @api.get("/distributor/stats")
 async def distributor_stats(user=Depends(require_approved_distributor())):
-    agents = await db.users.count_documents({"parent_id": user["id"], "is_deleted": False})
     agent_ids = [u["id"] async for u in db.users.find({"parent_id": user["id"]}, {"_id": 0, "id": 1})]
-    pending_recharges = await db.recharges.count_documents({"user_id": {"$in": agent_ids}, "status": "pending"})
-    # IMMUTABLE earnings: read snapshot column straight off approved recharge docs
-    earnings = await _distributor_earnings_for(user["id"])
-    today_earnings = await _distributor_today_earnings(user["id"])
-    available_for_withdrawal = await get_distributor_available_for_withdrawal(user["id"])
-    approved_recharges = await db.recharges.count_documents({"distributor_id": user["id"], "status": "approved"})
+
+    async def _zero(): return 0
+    pr_task = db.recharges.count_documents({"user_id": {"$in": agent_ids}, "status": "pending"}) if agent_ids else _zero()
+
+    a_task = db.users.count_documents({"parent_id": user["id"], "is_deleted": False})
+    earn_task = _distributor_earnings_for(user["id"])
+    today_task = _distributor_today_earnings(user["id"])
+    avail_task = get_distributor_available_for_withdrawal(user["id"])
+    ar_task = db.recharges.count_documents({"distributor_id": user["id"], "status": "approved"})
+
+    agents, pending_recharges, earnings, today_earnings, available_for_withdrawal, approved_recharges = await asyncio.gather(
+        a_task, pr_task, earn_task, today_task, avail_task, ar_task
+    )
+
     return {
         "agents": agents,
         "pending_recharges": pending_recharges,

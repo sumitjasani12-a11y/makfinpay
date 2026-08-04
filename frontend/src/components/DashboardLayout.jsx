@@ -192,10 +192,15 @@ export default function DashboardLayout() {
       .catch((e) => console.log("Failed to fetch pending counts:", e.message));
   }, [user]);
 
-  // Fetch wallet balance and pending counts on mount
+  // Fetch wallet balance and pending counts on mount & every 10 seconds for instant updates
   useEffect(() => {
     fetchWallet();
     fetchPendingCounts();
+    const interval = setInterval(() => {
+      fetchWallet();
+      fetchPendingCounts();
+    }, 10000);
+    return () => clearInterval(interval);
   }, [fetchWallet, fetchPendingCounts]);
 
   // Register WebSocket listeners to update balance & stats counts in real-time
