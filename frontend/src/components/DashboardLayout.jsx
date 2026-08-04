@@ -152,13 +152,6 @@ export default function DashboardLayout() {
           .catch((e) => console.log("Failed to fetch Distributor header earnings:", e.message));
       }
     } else if (user.role === "admin") {
-      const now = Date.now();
-      if (window._cachedAdminHeaderData && (now - (window._lastAdminFetchTime || 0) < 15000)) {
-        setT1Total(window._cachedAdminHeaderData.t1Total);
-        setBbpsBalance(window._cachedAdminHeaderData.bbpsBalance);
-        setHoldTotal(window._cachedAdminHeaderData.holdTotal);
-        return;
-      }
       Promise.allSettled([
         api.get("/admin/t1-total"),
         api.get("/admin/bbps-balance"),
@@ -170,9 +163,6 @@ export default function DashboardLayout() {
           ? (typeof rawBbps.balance === "number" ? rawBbps.balance : (rawBbps.data?.balance || 0))
           : 0;
         const holdTotal = holdRes.status === "fulfilled" ? holdRes.value.data?.total || 0 : 0;
-        
-        window._cachedAdminHeaderData = { t1Total, bbpsBalance, holdTotal };
-        window._lastAdminFetchTime = Date.now();
 
         setT1Total(t1Total);
         setBbpsBalance(bbpsBalance);

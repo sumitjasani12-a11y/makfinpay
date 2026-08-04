@@ -3086,29 +3086,26 @@ _bbps_cache = {"data": None, "timestamp": 0.0}
 async def admin_bbps_balance(user=Depends(require_roles("admin"))):
     import time
     now = time.time()
-    if _bbps_cache["data"] is None or (now - _bbps_cache["timestamp"]) > 30.0:
+    if _bbps_cache["data"] is None or (now - _bbps_cache["timestamp"]) > 10.0 or _bbps_cache.get("is_zero", False):
         try:
             res = await call_irise_api("GET", "balance")
-            _bbps_cache["data"] = res
+            raw = res or {}
+            val = 0.0
+            if isinstance(raw, dict):
+                if "data" in raw and isinstance(raw["data"], dict):
+                    val = raw["data"].get("balance", raw["data"].get("wallet_balance", 0.0))
+                elif "balance" in raw:
+                    val = raw.get("balance", 0.0)
+            val = float(val or 0.0)
+            _bbps_cache["data"] = {"status": "success", "data": {"balance": val}, "balance": val}
             _bbps_cache["timestamp"] = now
+            _bbps_cache["is_zero"] = (val == 0.0)
         except Exception as e:
             logger.error(f"Failed to fetch BBPS balance from external API: {e}")
             if _bbps_cache["data"] is None:
-                return {"status": "success", "data": {"balance": 0.0}, "balance": 0.0}
-    
-    raw = _bbps_cache["data"] or {}
-    val = 0.0
-    if isinstance(raw, dict):
-        if "data" in raw and isinstance(raw["data"], dict):
-            val = raw["data"].get("balance", raw["data"].get("wallet_balance", 0.0))
-        elif "balance" in raw:
-            val = raw.get("balance", 0.0)
-    try:
-        val = float(val)
-    except (ValueError, TypeError):
-        val = 0.0
+                return {"status": "error", "data": {"balance": 0.0}, "balance": 0.0}
 
-    return {"status": "success", "data": {"balance": val}, "balance": val}
+    return _bbps_cache["data"]
 
 @api.get("/wallet/ledger")
 async def my_ledger(user=Depends(get_current_user)):
