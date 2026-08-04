@@ -2969,6 +2969,12 @@ async def md_freeze(uid: str, request: Request, user=Depends(require_approved_md
 async def my_wallet(user=Depends(get_current_user)):
     if user["role"] == "admin":
         return {"balance": 0, "t1_balance": 0, "hold_balance": 0, "hold_active": False}
+    if user["role"] == "master_distributor":
+        earnings = await _md_earnings_for(user["id"])
+        return {"balance": earnings, "t1_balance": 0, "hold_balance": 0, "hold_active": False}
+    if user["role"] == "distributor":
+        earnings = await _distributor_earnings_for(user["id"])
+        return {"balance": earnings, "t1_balance": 0, "hold_balance": 0, "hold_active": False}
     w = await get_or_create_wallet(user["id"])
     return w
 

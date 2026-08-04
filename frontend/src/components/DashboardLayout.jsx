@@ -288,12 +288,6 @@ export default function DashboardLayout() {
                 Wallet: {fmtMoney(balance)}
               </span>
             )}
-            {(user.role === "master_distributor" || user.role === "distributor") && earningsBalance !== null && (
-              <span className="font-extrabold text-neutral-800 bg-[#E0F7FA] text-[#00838F] px-3.5 py-1 rounded-full text-xs flex items-center gap-1.5 border border-[#B2EBF2] shadow-sm transition-all" data-testid="header-earnings-balance">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#00838F] animate-pulse" />
-                Earnings: {fmtMoney(earningsBalance)}
-              </span>
-            )}
             {user.role === "agent" && t1Balance !== null && (
               <span className="font-extrabold text-neutral-800 bg-[#E3F2FD] text-[#1E88E5] px-3.5 py-1 rounded-full text-xs flex items-center gap-1.5 border border-[#BBDEFB] shadow-sm transition-all" data-testid="header-t1-balance">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#1E88E5] animate-pulse" />
