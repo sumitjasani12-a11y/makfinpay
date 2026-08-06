@@ -269,25 +269,31 @@ def get_object(path: str):
         return RAM_FILE_CACHE[path]
 
     # Local backup folder check
-    backup_file_path = os.path.join("..", "storage_backup", path.replace("/", os.sep))
-    if os.path.exists(backup_file_path):
-        try:
-            with open(backup_file_path, "rb") as f:
-                content = f.read()
-            ext = path.rsplit(".", 1)[-1].lower() if "." in path else "bin"
-            ct_map = {
-                "png": "image/png",
-                "jpg": "image/jpeg",
-                "jpeg": "image/jpeg",
-                "jfif": "image/jpeg",
-                "webp": "image/webp",
-                "pdf": "application/pdf"
-            }
-            res = (content, ct_map.get(ext, "image/jpeg"))
-            RAM_FILE_CACHE[path] = res
-            return res
-        except Exception:
-            pass
+    backup_file_paths = [
+        os.path.join("/storage_backup", path.replace("/", os.sep)),
+        os.path.join("storage_backup", path.replace("/", os.sep)),
+        os.path.join("..", "storage_backup", path.replace("/", os.sep)),
+        os.path.join("cache", path.replace("/", os.sep))
+    ]
+    for backup_file_path in backup_file_paths:
+        if os.path.exists(backup_file_path):
+            try:
+                with open(backup_file_path, "rb") as f:
+                    content = f.read()
+                ext = path.rsplit(".", 1)[-1].lower() if "." in path else "bin"
+                ct_map = {
+                    "png": "image/png",
+                    "jpg": "image/jpeg",
+                    "jpeg": "image/jpeg",
+                    "jfif": "image/jpeg",
+                    "webp": "image/webp",
+                    "pdf": "application/pdf"
+                }
+                res = (content, ct_map.get(ext, "image/jpeg"))
+                RAM_FILE_CACHE[path] = res
+                return res
+            except Exception:
+                pass
 
     # Local cache check
     local_cache_path = os.path.join("cache", path)

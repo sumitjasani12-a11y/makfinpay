@@ -9,6 +9,9 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    volumes:
+      - ./storage_backup:/storage_backup
+      - ./storage_backup:/app/storage_backup
     ports:
       - "8000:8000"
     networks:
