@@ -8,6 +8,7 @@ import ZoomableImage from "@/components/ZoomableImage";
 import { toast } from "sonner";
 import { Loader2, Coins, KeyRound, CreditCard, QrCode, Info, Sparkles, CheckCircle2, History, Check, ShieldAlert, FileDown, FileSpreadsheet, Clock, X, Eye, AlertTriangle } from "lucide-react";
 import { useWebSocketListener } from "@/lib/ws";
+import { getSupabase } from "@/lib/supabase";
 
 export default function AgentRecharge() {
   const { user } = useAuth();
@@ -195,6 +196,35 @@ export default function AgentRecharge() {
   useEffect(() => {
     fetchActiveQr();
   }, [fetchActiveQr]);
+
+  useEffect(() => {
+    let channel = null;
+    try {
+      const supabase = getSupabase();
+      if (supabase) {
+        channel = supabase
+          .channel("public:settings:agent_recharge")
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "settings" },
+            () => {
+              fetchConfig();
+              fetchActiveQr();
+            }
+          )
+          .subscribe();
+      }
+    } catch (e) {}
+
+    return () => {
+      if (channel) {
+        try {
+          const supabase = getSupabase();
+          if (supabase) supabase.removeChannel(channel);
+        } catch (e) {}
+      }
+    };
+  }, [fetchConfig, fetchActiveQr]);
 
   useEffect(() => {
     if (olderQr) {

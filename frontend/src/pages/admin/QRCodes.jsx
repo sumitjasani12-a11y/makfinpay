@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { api, formatErr, fileUrl, fmtMoney } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { rangeWindowIso, todayStr } from "@/lib/filters";
+import { getSupabase } from "@/lib/supabase";
 import { PageHeader, EmptyState } from "@/components/Shared";
 import { toast } from "sonner";
 import { CheckCircle2, Trash2, Eye, RefreshCw, Upload, Tag, Phone, Link, FileText, Search, Calendar, FileSpreadsheet, FileDown, Pencil, Check, X } from "lucide-react";
@@ -78,6 +79,38 @@ export default function AdminQRCodes() {
 
   const [uploadIsT1, setUploadIsT1] = useState(false);
   const [activeTab, setActiveTab] = useState("normal");
+
+  useEffect(() => {
+    let channel = null;
+    try {
+      const supabase = getSupabase();
+      if (supabase) {
+        channel = supabase
+          .channel("public:settings:qrcodes")
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "settings" },
+            (payload) => {
+              const data = payload.new || {};
+              if (data.qr_enabled !== undefined) setQrEnabled(!!data.qr_enabled);
+              if (data.t1_qr_enabled !== undefined) setT1QrEnabled(!!data.t1_qr_enabled);
+              if (data.recharge_enabled !== undefined) setRechargeEnabled(!!data.recharge_enabled);
+              if (data.t1_recharge_enabled !== undefined) setT1RechargeEnabled(!!data.t1_recharge_enabled);
+            }
+          )
+          .subscribe();
+      }
+    } catch (e) {}
+
+    return () => {
+      if (channel) {
+        try {
+          const supabase = getSupabase();
+          if (supabase) supabase.removeChannel(channel);
+        } catch (e) {}
+      }
+    };
+  }, []);
 
   const [historyLoading, setHistoryLoading] = useState(() => !localStorage.getItem("mfp_cache_qr_history_today"));
 
@@ -425,85 +458,109 @@ export default function AdminQRCodes() {
         title="QR Code Management"
         subtitle="Manage active UPI QR codes for payment gateway."
         actions={
-          <div className="flex flex-wrap items-center gap-6 bg-white px-5 py-2.5 rounded-2xl border border-black/5 shadow-sm">
-            <div className="flex items-center gap-2.5">
-              <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest">NORMAL:</span>
-              <span className={`text-[10px] font-extrabold uppercase tracking-wider ${qrEnabled ? "text-emerald-600" : "text-neutral-400"}`}>
-                {qrEnabled ? "ON" : "HIDDEN"}
-              </span>
-              <button
-                onClick={() => handleToggleQr(!qrEnabled)}
-                className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  qrEnabled ? "bg-[#2D6A4F]" : "bg-neutral-200"
-                }`}
-                type="button"
-              >
-                <span
-                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                    qrEnabled ? "translate-x-5" : "translate-x-0"
+          <div className="flex flex-wrap items-center gap-4">
+            {/* GROUP 1: NORMAL MODE TOGGLES */}
+            <div className="flex items-center gap-4 bg-emerald-50/80 border border-emerald-200/60 px-4 py-2 rounded-2xl shadow-sm">
+              <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">NORMAL (SAME DAY)</span>
+              <div className="h-4 w-px bg-emerald-200" />
+              
+              {/* Normal QR Hide/Show */}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-neutral-600">QR:</span>
+                <button
+                  onClick={() => handleToggleQr(!qrEnabled)}
+                  className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    qrEnabled ? "bg-[#2D6A4F]" : "bg-neutral-300"
                   }`}
-                />
-              </button>
+                  type="button"
+                  title="Normal QR Visibility"
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      qrEnabled ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+                <span className={`text-[10px] font-extrabold uppercase ${qrEnabled ? "text-emerald-700" : "text-neutral-400"}`}>
+                  {qrEnabled ? "SHOW" : "HIDE"}
+                </span>
+              </div>
+
+              <div className="h-4 w-px bg-emerald-200" />
+
+              {/* Normal Recharge Enable/Disable */}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-neutral-600">RECHARGE:</span>
+                <button
+                  onClick={() => handleToggleRecharge(!rechargeEnabled)}
+                  className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    rechargeEnabled ? "bg-[#2D6A4F]" : "bg-neutral-300"
+                  }`}
+                  type="button"
+                  title="Normal Recharge Requests"
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      rechargeEnabled ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+                <span className={`text-[10px] font-extrabold uppercase ${rechargeEnabled ? "text-emerald-700" : "text-neutral-400"}`}>
+                  {rechargeEnabled ? "ON" : "OFF"}
+                </span>
+              </div>
             </div>
 
-            <div className="h-4 w-px bg-black/10" />
-
-            <div className="flex items-center gap-2.5">
-              <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest">T+1:</span>
-              <span className={`text-[10px] font-extrabold uppercase tracking-wider ${t1QrEnabled ? "text-emerald-600" : "text-neutral-400"}`}>
-                {t1QrEnabled ? "ON" : "HIDDEN"}
-              </span>
-              <button
-                onClick={() => handleToggleT1Qr(!t1QrEnabled)}
-                className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  t1QrEnabled ? "bg-[#2D6A4F]" : "bg-neutral-200"
-                }`}
-                type="button"
-              >
-                <span
-                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                    t1QrEnabled ? "translate-x-5" : "translate-x-0"
+            {/* GROUP 2: T+1 MODE TOGGLES */}
+            <div className="flex items-center gap-4 bg-indigo-50/80 border border-indigo-200/60 px-4 py-2 rounded-2xl shadow-sm">
+              <span className="text-[10px] font-black text-indigo-800 uppercase tracking-wider">T+1 (NEXT DAY)</span>
+              <div className="h-4 w-px bg-indigo-200" />
+              
+              {/* T+1 QR Hide/Show */}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-neutral-600">QR:</span>
+                <button
+                  onClick={() => handleToggleT1Qr(!t1QrEnabled)}
+                  className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    t1QrEnabled ? "bg-indigo-600" : "bg-neutral-300"
                   }`}
-                />
-              </button>
-            </div>
+                  type="button"
+                  title="T+1 QR Visibility"
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      t1QrEnabled ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+                <span className={`text-[10px] font-extrabold uppercase ${t1QrEnabled ? "text-indigo-700" : "text-neutral-400"}`}>
+                  {t1QrEnabled ? "SHOW" : "HIDE"}
+                </span>
+              </div>
 
-            <div className="h-4 w-px bg-black/10" />
+              <div className="h-4 w-px bg-indigo-200" />
 
-            <div className="flex items-center gap-2.5">
-              <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest">Normal Recharge</span>
-              <button
-                onClick={() => handleToggleRecharge(!rechargeEnabled)}
-                className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  rechargeEnabled ? "bg-[#2D6A4F]" : "bg-neutral-200"
-                }`}
-                type="button"
-              >
-                <span
-                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                    rechargeEnabled ? "translate-x-5" : "translate-x-0"
+              {/* T+1 Recharge Enable/Disable */}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-neutral-600">RECHARGE:</span>
+                <button
+                  onClick={() => handleToggleT1Recharge(!t1RechargeEnabled)}
+                  className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    t1RechargeEnabled ? "bg-indigo-600" : "bg-neutral-300"
                   }`}
-                />
-              </button>
-            </div>
-
-            <div className="h-4 w-px bg-black/10" />
-
-            <div className="flex items-center gap-2.5">
-              <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest">T+1 Recharge</span>
-              <button
-                onClick={() => handleToggleT1Recharge(!t1RechargeEnabled)}
-                className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  t1RechargeEnabled ? "bg-[#2D6A4F]" : "bg-neutral-200"
-                }`}
-                type="button"
-              >
-                <span
-                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                    t1RechargeEnabled ? "translate-x-5" : "translate-x-0"
-                  }`}
-                />
-              </button>
+                  type="button"
+                  title="T+1 Recharge Requests"
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      t1RechargeEnabled ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+                <span className={`text-[10px] font-extrabold uppercase ${t1RechargeEnabled ? "text-indigo-700" : "text-neutral-400"}`}>
+                  {t1RechargeEnabled ? "ON" : "OFF"}
+                </span>
+              </div>
             </div>
           </div>
         }
