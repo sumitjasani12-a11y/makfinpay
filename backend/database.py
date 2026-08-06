@@ -751,6 +751,8 @@ class PostgresDatabase:
         if uri:
             candidates.append(uri)
         
+        candidates.append(f"postgresql://postgres.{subdomain}:Jigscse%40123@aws-1-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require")
+        candidates.append(f"postgresql://postgres.{subdomain}:Jigscse%40123@aws-1-ap-south-1.pooler.supabase.com:6543/postgres?sslmode=require")
         candidates.append(f"postgresql://postgres:Jigscse%40123@db.{subdomain}.supabase.co:5432/postgres?sslmode=require")
 
         regions = [
@@ -758,6 +760,8 @@ class PostgresDatabase:
             "eu-west-1", "us-west-1", "ca-central-1", "ap-northeast-1", "sa-east-1"
         ]
         for r in regions:
+            candidates.append(f"postgresql://postgres.{subdomain}:Jigscse%40123@aws-1-{r}.pooler.supabase.com:5432/postgres?sslmode=require")
+            candidates.append(f"postgresql://postgres.{subdomain}:Jigscse%40123@aws-1-{r}.pooler.supabase.com:6543/postgres?sslmode=require")
             candidates.append(f"postgresql://postgres.{subdomain}:Jigscse%40123@aws-0-{r}.pooler.supabase.com:6543/postgres?sslmode=require")
             candidates.append(f"postgresql://postgres.{subdomain}:Jigscse%40123@aws-0-{r}.pooler.supabase.com:5432/postgres?sslmode=require")
 
