@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import {
   Users, Shield, ShieldAlert, KeyRound, Edit, Trash2, CheckSquare, Square,
-  CheckCircle2, AlertTriangle, ToggleLeft, ToggleRight, X, PlusCircle, Save
+  CheckCircle2, AlertTriangle, ToggleLeft, ToggleRight, X, PlusCircle, Save, Eye, EyeOff
 } from "lucide-react";
 
 const PERMISSIONS_LIST = [
@@ -48,6 +48,7 @@ export default function AdminManagement() {
   const [password, setPassword] = useState("");
   const [selectedPermissions, setSelectedPermissions] = useState([]);
   const [frozen, setFrozen] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const fetchAdmins = async () => {
@@ -352,15 +353,25 @@ export default function AdminManagement() {
                   <label className="mfp-label">
                     {editingAdmin ? "Change Password (Optional)" : "Password"}
                   </label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder={editingAdmin ? "Leave blank to keep unchanged" : "Enter account password"}
-                    className="mfp-input"
-                    required={!editingAdmin}
-                    autoComplete="new-password"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder={editingAdmin ? "Leave blank to keep unchanged" : "Enter account password"}
+                      className="mfp-input pr-10"
+                      required={!editingAdmin}
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((s) => !s)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-neutral-600"
+                      tabIndex="-1"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
                 <div className="flex flex-col justify-end pb-1">
                   <div className="flex items-center gap-3">

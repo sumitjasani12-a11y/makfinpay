@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { formatErr } from "@/lib/api";
 import { toast } from "sonner";
-import { ArrowLeft, Lock, Mail, LogIn, AlertCircle } from "lucide-react";
+import { ArrowLeft, Lock, Mail, LogIn, AlertCircle, Eye, EyeOff } from "lucide-react";
 import Logo from "@/components/Logo";
 
 export default function Login() {
@@ -11,6 +11,7 @@ export default function Login() {
   const nav = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [kycMessage, setKycMessage] = useState("");
 
@@ -194,15 +195,24 @@ export default function Login() {
                     <Lock className="h-4 w-4 text-neutral-500" />
                   </span>
                   <input
-                    type="text"
+                    type={showPassword ? "text" : "password"}
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    style={{ WebkitTextSecurity: "disc" }}
-                    className="w-full bg-white/[0.03] hover:bg-white/[0.05] focus:bg-white/[0.05] border border-white/[0.08] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 rounded-xl px-4 py-3.5 pl-11 text-sm text-white placeholder-white/20 transition-all outline-none"
+                    className="w-full bg-white/[0.03] hover:bg-white/[0.05] focus:bg-white/[0.05] border border-white/[0.08] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 rounded-xl px-4 py-3.5 pl-11 pr-11 text-sm text-white placeholder-white/20 transition-all outline-none"
                     placeholder="••••••••"
                     data-testid="login-password-input"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((s) => !s)}
+                    className="absolute inset-y-0 right-0 flex items-center pr-4 text-neutral-400 hover:text-white transition-colors"
+                    tabIndex="-1"
+                    data-testid="login-password-toggle"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
               </div>
 
