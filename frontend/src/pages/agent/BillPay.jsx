@@ -172,7 +172,7 @@ export default function AgentBillPay() {
         `"${fmtDate(item.created_at)}"`
       ].join(","));
     });
-    
+
     const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -284,12 +284,6 @@ export default function AgentBillPay() {
     return () => clearInterval(interval);
   }, []);
 
-  useWebSocketListener("settings_updated", (data) => {
-    if (data && data.bill_pay_enabled !== undefined) {
-      setBillPayEnabled(data.bill_pay_enabled);
-    }
-  });
-
   const billAmt = Number(f.amount) || 0;
 
   const maxLimit = useMemo(() => {
@@ -339,7 +333,7 @@ export default function AgentBillPay() {
   return (
     <div>
       <PageHeader title="Credit Card Bill Payment" subtitle="A small service charge is added on top of every bill payment." />
-      
+
       {!billPayEnabled ? (
         <div className="bg-white border border-black/5 rounded-3xl p-10 lg:p-16 shadow-lg shadow-indigo-500/5 flex flex-col items-center justify-center text-center space-y-5 max-w-[800px] mx-auto animate-fadeIn">
           <div className="bg-rose-50 text-rose-600 p-5 rounded-full border border-rose-200/50 animate-pulse">
@@ -348,7 +342,7 @@ export default function AgentBillPay() {
           <div className="space-y-2">
             <h3 className="text-xl font-bold text-neutral-800">Bill Payment Service Paused</h3>
             <p className="text-sm text-neutral-500 max-w-md leading-relaxed mx-auto">
-              Credit Card Bill Payment service is temporarily disabled by the administrator. 
+              Credit Card Bill Payment service is temporarily disabled by the administrator.
               Please check back later or contact support if you have any queries.
             </p>
           </div>

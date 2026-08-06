@@ -77,81 +77,10 @@ function RoleHome() {
   return <Navigate to="/agent" replace />;
 }
 
-function GlobalRealtimeListener() {
-  const { user } = useAuth();
-
-  React.useEffect(() => {
-    const handleSettingsUpdated = (e) => {
-      const data = e.detail || {};
-      if (data.maintenance_mode !== undefined) {
-        if (data.maintenance_mode) {
-          if (user && user.role !== "admin") {
-            if (window.location.pathname !== "/maintenance") {
-              window.location.href = "/maintenance";
-            }
-          }
-        } else {
-          if (window.location.pathname === "/maintenance") {
-            window.location.href = user ? "/app" : "/login";
-          }
-        }
-      }
-    };
-
-    window.addEventListener("ws:settings_updated", handleSettingsUpdated);
-
-    // Direct Supabase Realtime channel subscription
-    let channel = null;
-    try {
-      const supabase = getSupabase();
-      if (supabase) {
-        channel = supabase
-          .channel("public:settings:realtime")
-          .on(
-            "postgres_changes",
-            { event: "*", schema: "public", table: "settings" },
-            (payload) => {
-              const newRec = payload.new || {};
-              if (newRec.maintenance_mode !== undefined) {
-                if (newRec.maintenance_mode) {
-                  if (user && user.role !== "admin") {
-                    if (window.location.pathname !== "/maintenance") {
-                      window.location.href = "/maintenance";
-                    }
-                  }
-                } else {
-                  if (window.location.pathname === "/maintenance") {
-                    window.location.href = user ? "/app" : "/login";
-                  }
-                }
-              }
-            }
-          )
-          .subscribe();
-      }
-    } catch (err) {
-      console.warn("Supabase realtime subscription error:", err);
-    }
-
-    return () => {
-      window.removeEventListener("ws:settings_updated", handleSettingsUpdated);
-      if (channel) {
-        try {
-          const supabase = getSupabase();
-          if (supabase) supabase.removeChannel(channel);
-        } catch (e) {}
-      }
-    };
-  }, [user]);
-
-  return null;
-}
-
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <GlobalRealtimeListener />
         <PageTitle />
         <Toaster position="top-right" richColors />
         <Routes>

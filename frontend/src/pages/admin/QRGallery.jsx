@@ -481,6 +481,17 @@ export default function AdminQRGallery() {
                         >
                           <div className="w-full aspect-[3/4] bg-neutral-50 rounded-2xl overflow-hidden border border-black/5 flex items-center justify-center relative group">
                             <GalleryItemImage src={fileUrl(item.screenshot_path)} item={item} />
+                            <div className="absolute top-2 right-2 z-10">
+                              <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shadow-md backdrop-blur-md ${
+                                item.status === "approved"
+                                  ? "bg-emerald-600/90 text-white"
+                                  : item.status === "rejected"
+                                  ? "bg-rose-600/90 text-white"
+                                  : "bg-amber-500/90 text-white"
+                              }`}>
+                                {item.status || "APPROVED"}
+                              </span>
+                            </div>
                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all rounded-2xl">
                               <Eye className="text-white h-5 w-5" />
                             </div>
@@ -488,6 +499,9 @@ export default function AdminQRGallery() {
                           <div className="text-center w-full">
                             <div className="text-xs font-black text-neutral-800">
                               {fmtMoney(item.amount)}
+                            </div>
+                            <div className="text-[10px] text-neutral-500 font-bold truncate mt-0.5">
+                              UTR: {item.utr || "—"}
                             </div>
                             <div className="text-[9px] text-neutral-400 font-semibold mt-0.5">
                               {formatTime(item.created_at)}
@@ -626,6 +640,17 @@ export default function AdminQRGallery() {
                             alt="payment proof"
                             className="h-full w-full object-cover"
                           />
+                          <div className="absolute top-2 right-2 z-10">
+                            <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shadow-md backdrop-blur-md ${
+                              item.status === "approved"
+                                ? "bg-emerald-600/90 text-white"
+                                : item.status === "rejected"
+                                ? "bg-rose-600/90 text-white"
+                                : "bg-amber-500/90 text-white"
+                            }`}>
+                              {item.status || "APPROVED"}
+                            </span>
+                          </div>
                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all rounded-2xl">
                             <Eye className="text-white h-5 w-5" />
                           </div>
@@ -633,6 +658,9 @@ export default function AdminQRGallery() {
                         <div className="text-center w-full">
                           <div className="text-xs font-black text-neutral-800">
                             {fmtMoney(item.amount)}
+                          </div>
+                          <div className="text-[10px] text-neutral-500 font-bold truncate mt-0.5">
+                            UTR: {item.utr || "—"}
                           </div>
                           <div className="text-[9px] text-neutral-400 font-semibold mt-0.5">
                             {formatDateTime(item.created_at)}

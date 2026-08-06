@@ -35,43 +35,6 @@ export default function DashboardLayout() {
     return () => clearInterval(interval);
   }, [user, location.pathname]);
 
-  useWebSocketListener("settings_updated", (data) => {
-    if (data) {
-      setLimits(prev => ({ ...(prev || {}), ...data }));
-    }
-  });
-
-  useEffect(() => {
-    let channel = null;
-    try {
-      const supabase = getSupabase();
-      if (supabase) {
-        channel = supabase
-          .channel("public:settings:dashboard")
-          .on(
-            "postgres_changes",
-            { event: "*", schema: "public", table: "settings" },
-            (payload) => {
-              const newRec = payload.new || {};
-              if (newRec) {
-                setLimits(prev => ({ ...(prev || {}), ...newRec }));
-              }
-            }
-          )
-          .subscribe();
-      }
-    } catch (e) {}
-
-    return () => {
-      if (channel) {
-        try {
-          const supabase = getSupabase();
-          if (supabase) supabase.removeChannel(channel);
-        } catch (e) {}
-      }
-    };
-  }, []);
-
   // Client-side URL route guard for restricted admins
   useEffect(() => {
     if (user && user.role === "admin" && user.email !== "jigs.vanani@gmail.com") {

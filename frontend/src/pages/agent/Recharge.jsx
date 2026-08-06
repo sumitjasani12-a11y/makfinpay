@@ -8,7 +8,6 @@ import ZoomableImage from "@/components/ZoomableImage";
 import { toast } from "sonner";
 import { Loader2, Coins, KeyRound, CreditCard, QrCode, Info, Sparkles, CheckCircle2, History, Check, ShieldAlert, FileDown, FileSpreadsheet, Clock, X, Eye, AlertTriangle } from "lucide-react";
 import { useWebSocketListener } from "@/lib/ws";
-import { getSupabase } from "@/lib/supabase";
 
 export default function AgentRecharge() {
   const { user } = useAuth();
@@ -50,14 +49,14 @@ export default function AgentRecharge() {
       const worker = await createWorker('eng');
       const { data: { text } } = await worker.recognize(file);
       await worker.terminate();
-      
+
       console.log("OCR Extracted Text:", text);
-      
+
       // Parse details from OCR text
       // 1. UTR: Look for 12 digit number
       const utrMatch = text.match(/\b\d{12}\b/);
       const ocrUtrValue = utrMatch ? utrMatch[0] : "";
-      
+
       // 2. Amount: Look for numbers representing transaction amounts.
       const amountRegex = /(?:rs\.?|₹|inr|paid|amount)\s*[:=]?\s*([\d,]+(?:\.\d{2})?)/i;
       const amountMatches = [];
@@ -70,7 +69,7 @@ export default function AgentRecharge() {
           amountMatches.push(parsed);
         }
       }
-      
+
       // Also try to find any isolated decimal numbers
       const decimalRegex = /\b([\d,]+\.\d{2})\b/g;
       while ((match = decimalRegex.exec(text)) !== null) {
@@ -80,15 +79,15 @@ export default function AgentRecharge() {
           amountMatches.push(parsed);
         }
       }
-      
+
       const ocrAmountValue = amountMatches.length > 0 ? amountMatches[0] : null;
-      
+
       setOcrResult({
         text,
         utr: ocrUtrValue,
         amount: ocrAmountValue
       });
-      
+
       toast.success("Screenshot analyzed successfully!");
     } catch (err) {
       console.error("OCR Analysis failed:", err);
@@ -100,26 +99,26 @@ export default function AgentRecharge() {
 
   const ocrValidation = useMemo(() => {
     if (!ocrResult) return null;
-    
+
     const inputUtr = utr.trim();
     const inputAmount = parseFloat(amount);
-    
+
     const utrMatch = inputUtr ? ocrResult.utr === inputUtr : false;
-    
-    const amountMatch = !isNaN(inputAmount) 
+
+    const amountMatch = !isNaN(inputAmount)
       ? (ocrResult.amount === inputAmount || ocrResult.text.replace(/,/g, '').includes(String(inputAmount)) || ocrResult.text.includes(inputAmount.toFixed(2)))
       : false;
-      
-    const activeQrLabel = olderQr 
-      ? qrList24h.find(q => q.id === selectedQrId)?.label 
+
+    const activeQrLabel = olderQr
+      ? qrList24h.find(q => q.id === selectedQrId)?.label
       : qr?.label;
-      
-    const qrMatch = activeQrLabel 
+
+    const qrMatch = activeQrLabel
       ? ocrResult.text.toLowerCase().includes(activeQrLabel.toLowerCase().trim())
       : false;
-      
+
     const allMatched = utrMatch && amountMatch && qrMatch;
-    
+
     return {
       utrMatch,
       amountMatch,
@@ -134,7 +133,7 @@ export default function AgentRecharge() {
   const filteredQrs = useMemo(() => {
     const q = qrSearch.toLowerCase().trim();
     if (!q) return qrList24h;
-    return qrList24h.filter(item => 
+    return qrList24h.filter(item =>
       (item.label || "").toLowerCase().includes(q) ||
       (item.upi_id || "").toLowerCase().includes(q) ||
       (item.created_at || "").toLowerCase().includes(q)
@@ -175,7 +174,7 @@ export default function AgentRecharge() {
         setT1RechargeEnabled(r.data.t1_recharge_enabled ?? true);
         try {
           localStorage.setItem("mfp_recharge_config", JSON.stringify(r.data));
-        } catch (e) {}
+        } catch (e) { }
       })
       .catch((e) => console.log("Failed to fetch recharge configuration:", e.message));
   }, []);
@@ -196,35 +195,6 @@ export default function AgentRecharge() {
   useEffect(() => {
     fetchActiveQr();
   }, [fetchActiveQr]);
-
-  useEffect(() => {
-    let channel = null;
-    try {
-      const supabase = getSupabase();
-      if (supabase) {
-        channel = supabase
-          .channel("public:settings:agent_recharge")
-          .on(
-            "postgres_changes",
-            { event: "*", schema: "public", table: "settings" },
-            () => {
-              fetchConfig();
-              fetchActiveQr();
-            }
-          )
-          .subscribe();
-      }
-    } catch (e) {}
-
-    return () => {
-      if (channel) {
-        try {
-          const supabase = getSupabase();
-          if (supabase) supabase.removeChannel(channel);
-        } catch (e) {}
-      }
-    };
-  }, [fetchConfig, fetchActiveQr]);
 
   useEffect(() => {
     if (olderQr) {
@@ -303,7 +273,7 @@ export default function AgentRecharge() {
         `"${fmtDate(item.created_at)}"`
       ].join(","));
     });
-    
+
     const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -480,7 +450,7 @@ export default function AgentRecharge() {
   return (
     <div className="w-full">
       <PageHeader title="Recharge Wallet" subtitle="Pay via UPI, then submit UTR + screenshot for admin verification." />
-      
+
       <div className="max-w-[1400px] mx-auto px-4 mb-8">
         {isT1Allowed && (
           <div className="flex justify-center mb-6">
@@ -488,11 +458,10 @@ export default function AgentRecharge() {
               <button
                 type="button"
                 onClick={() => setIsT1(false)}
-                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
-                  !isT1 
-                    ? "bg-white text-neutral-800 shadow-sm border border-neutral-200/20" 
+                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${!isT1
+                    ? "bg-white text-neutral-800 shadow-sm border border-neutral-200/20"
                     : "text-neutral-500 hover:text-neutral-700"
-                }`}
+                  }`}
               >
                 <Sparkles className="h-4 w-4 text-[#00966B]" />
                 Standard (Instant Settlement)
@@ -500,11 +469,10 @@ export default function AgentRecharge() {
               <button
                 type="button"
                 onClick={() => setIsT1(true)}
-                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
-                  isT1 
-                    ? "bg-white text-neutral-800 shadow-sm border border-neutral-200/20" 
+                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${isT1
+                    ? "bg-white text-neutral-800 shadow-sm border border-neutral-200/20"
                     : "text-neutral-500 hover:text-neutral-700"
-                }`}
+                  }`}
               >
                 <Clock className="h-4 w-4 text-blue-600" />
                 T+1 (Next Day Settlement)
@@ -521,7 +489,7 @@ export default function AgentRecharge() {
             <div className="space-y-2">
               <h3 className="text-xl font-bold text-neutral-800">Recharge Service Temporarily Closed</h3>
               <p className="text-sm text-neutral-500 max-w-md leading-relaxed mx-auto">
-                Recharging your wallet via UPI is currently paused by the administrator. 
+                Recharging your wallet via UPI is currently paused by the administrator.
                 Please check back later or contact support if you need urgent credits.
               </p>
             </div>
@@ -532,7 +500,7 @@ export default function AgentRecharge() {
         ) : (
           /* Unified Card Container */
           <div className="bg-white border border-black/5 rounded-3xl p-6 lg:p-10 shadow-lg shadow-indigo-500/5 grid grid-cols-1 lg:grid-cols-3 gap-10 items-start">
-            
+
             {/* Left Side: Active UPI QR */}
             <div className="flex flex-col items-center w-full" data-testid="active-qr-panel">
               {/* Header / Section Name */}
@@ -624,7 +592,7 @@ export default function AgentRecharge() {
                     <div className="absolute top-3 right-3 w-5 h-5 border-t-2 border-r-2 border-amber-500 rounded-tr-md" />
                     <div className="absolute bottom-3 left-3 w-5 h-5 border-b-2 border-l-2 border-amber-500 rounded-bl-md" />
                     <div className="absolute bottom-3 right-3 w-5 h-5 border-b-2 border-r-2 border-amber-500 rounded-br-md" />
-                    
+
                     {/* Scan Grid Pattern Overlay */}
                     <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff08_1px,transparent_1px),linear-gradient(to_bottom,#ffffff08_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
 
@@ -636,7 +604,7 @@ export default function AgentRecharge() {
                           <AlertTriangle className="w-3.5 h-3.5" />
                         </div>
                       </div>
-                      
+
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40">
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
                         No Active QR Code
@@ -769,11 +737,11 @@ export default function AgentRecharge() {
                   <label className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest block">
                     PAYMENT SCREENSHOT
                   </label>
-                  <FileUpload 
-                    onUploaded={setShot} 
-                    onFileSelected={(file) => runOCR(file)} 
-                    label="Click to upload screenshot" 
-                    testid="recharge-screenshot" 
+                  <FileUpload
+                    onUploaded={setShot}
+                    onFileSelected={(file) => runOCR(file)}
+                    label="Click to upload screenshot"
+                    testid="recharge-screenshot"
                   />
                   {ocrLoading && (
                     <div className="mt-2 flex items-center gap-2 text-xs text-[#00966B] font-semibold bg-[#E8F5E9]/20 p-2.5 rounded-xl border border-[#E8F5E9]">
@@ -1106,36 +1074,42 @@ export default function AgentRecharge() {
         <DataTable
           columns={[
             { key: "created_at", label: "Created", render: (r) => fmtDate(r.created_at) },
-            { key: "amount", label: "Amount", render: (r) => (
-              <div className="flex items-center gap-1.5 font-bold">
-                <span>{fmtMoney(r.amount)}</span>
-                {r.is_t1 && (
-                  <span className="text-[9px] font-black bg-blue-50 text-blue-600 border border-blue-100 px-1 py-0.5 rounded uppercase tracking-wider">
-                    T+1
-                  </span>
-                )}
-              </div>
-            ) },
+            {
+              key: "amount", label: "Amount", render: (r) => (
+                <div className="flex items-center gap-1.5 font-bold">
+                  <span>{fmtMoney(r.amount)}</span>
+                  {r.is_t1 && (
+                    <span className="text-[9px] font-black bg-blue-50 text-blue-600 border border-blue-100 px-1 py-0.5 rounded uppercase tracking-wider">
+                      T+1
+                    </span>
+                  )}
+                </div>
+              )
+            },
             { key: "charge", label: "Commission Charge", render: (r) => r.status === "approved" ? fmtMoney(r.commission_amount) : fmtMoney(r.amount * r.commission_percent / 100) },
             { key: "credit_amount", label: "Net Credit", render: (r) => r.status === "approved" ? fmtMoney(r.credit_amount) : "—" },
             { key: "utr", label: "UTR" },
             { key: "card_last4", label: "Card / Acc", render: (r) => r.card_last4 ? `XXXX ${r.card_last4}` : "—" },
-            { key: "status", label: "Status", render: (r) => (
-              <div className="flex flex-col items-center justify-center text-center">
-                <StatusBadge status={r.status} />
-              </div>
-            ) },
-            { key: "action", label: "Action", render: (r) => (
-              r.status === "rejected" && r.note ? (
-                <button
-                  type="button"
-                  onClick={() => setRejectionReasonModal(r.note || "No rejection reason provided.")}
-                  className="px-2.5 py-1 text-[10px] font-black bg-rose-50 hover:bg-rose-100/80 text-rose-600 border border-rose-100 hover:border-rose-200 rounded-lg transition-colors cursor-pointer select-none"
-                >
-                  View Reason
-                </button>
-              ) : "—"
-            ) },
+            {
+              key: "status", label: "Status", render: (r) => (
+                <div className="flex flex-col items-center justify-center text-center">
+                  <StatusBadge status={r.status} />
+                </div>
+              )
+            },
+            {
+              key: "action", label: "Action", render: (r) => (
+                r.status === "rejected" && r.note ? (
+                  <button
+                    type="button"
+                    onClick={() => setRejectionReasonModal(r.note || "No rejection reason provided.")}
+                    className="px-2.5 py-1 text-[10px] font-black bg-rose-50 hover:bg-rose-100/80 text-rose-600 border border-rose-100 hover:border-rose-200 rounded-lg transition-colors cursor-pointer select-none"
+                  >
+                    View Reason
+                  </button>
+                ) : "—"
+              )
+            },
           ]}
           rows={paginatedItems}
           empty="No recharge requests yet."
@@ -1147,33 +1121,33 @@ export default function AgentRecharge() {
             onPageSizeChange: (n) => { setPageSize(n); setPage(1); },
           }}
         />
-      {rejectionReasonModal && (
-        <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4" onClick={() => setRejectionReasonModal(null)}>
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl border border-black/5" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-3 border-b border-black/5 pb-3">
-              <div className="p-2 bg-rose-50 text-rose-600 rounded-xl">
-                <ShieldAlert className="h-5 w-5" />
+        {rejectionReasonModal && (
+          <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4" onClick={() => setRejectionReasonModal(null)}>
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl border border-black/5" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-3 border-b border-black/5 pb-3">
+                <div className="p-2 bg-rose-50 text-rose-600 rounded-xl">
+                  <ShieldAlert className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-neutral-800">Rejection Reason</h3>
+                </div>
               </div>
-              <div>
-                <h3 className="text-base font-bold text-neutral-800">Rejection Reason</h3>
+              <p className="text-sm text-neutral-600 leading-relaxed bg-neutral-50 p-4 rounded-xl border border-black/5 whitespace-pre-wrap">
+                {rejectionReasonModal}
+              </p>
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => setRejectionReasonModal(null)}
+                  className="px-4 py-2 bg-neutral-800 hover:bg-neutral-900 text-white text-xs font-bold rounded-xl shadow-md transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
               </div>
-            </div>
-            <p className="text-sm text-neutral-600 leading-relaxed bg-neutral-50 p-4 rounded-xl border border-black/5 whitespace-pre-wrap">
-              {rejectionReasonModal}
-            </p>
-            <div className="flex justify-end pt-2">
-              <button
-                type="button"
-                onClick={() => setRejectionReasonModal(null)}
-                className="px-4 py-2 bg-neutral-800 hover:bg-neutral-900 text-white text-xs font-bold rounded-xl shadow-md transition-colors cursor-pointer"
-              >
-                Close
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
 }

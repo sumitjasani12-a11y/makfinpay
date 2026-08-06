@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useState } from "react";
 import { api, formatErr, fileUrl, fmtMoney } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { rangeWindowIso, todayStr } from "@/lib/filters";
-import { getSupabase } from "@/lib/supabase";
 import { PageHeader, EmptyState } from "@/components/Shared";
 import { toast } from "sonner";
 import { CheckCircle2, Trash2, Eye, RefreshCw, Upload, Tag, Phone, Link, FileText, Search, Calendar, FileSpreadsheet, FileDown, Pencil, Check, X } from "lucide-react";
@@ -21,7 +20,7 @@ export default function AdminQRCodes() {
     }
   });
   const [qrEntries, setQrEntries] = useState([]);
-  
+
   const [label, setLabel] = useState("");
   const [upi, setUpi] = useState("");
   const [mobile, setMobile] = useState("");
@@ -80,38 +79,6 @@ export default function AdminQRCodes() {
   const [uploadIsT1, setUploadIsT1] = useState(false);
   const [activeTab, setActiveTab] = useState("normal");
 
-  useEffect(() => {
-    let channel = null;
-    try {
-      const supabase = getSupabase();
-      if (supabase) {
-        channel = supabase
-          .channel("public:settings:qrcodes")
-          .on(
-            "postgres_changes",
-            { event: "*", schema: "public", table: "settings" },
-            (payload) => {
-              const data = payload.new || {};
-              if (data.qr_enabled !== undefined) setQrEnabled(!!data.qr_enabled);
-              if (data.t1_qr_enabled !== undefined) setT1QrEnabled(!!data.t1_qr_enabled);
-              if (data.recharge_enabled !== undefined) setRechargeEnabled(!!data.recharge_enabled);
-              if (data.t1_recharge_enabled !== undefined) setT1RechargeEnabled(!!data.t1_recharge_enabled);
-            }
-          )
-          .subscribe();
-      }
-    } catch (e) {}
-
-    return () => {
-      if (channel) {
-        try {
-          const supabase = getSupabase();
-          if (supabase) supabase.removeChannel(channel);
-        } catch (e) {}
-      }
-    };
-  }, []);
-
   const [historyLoading, setHistoryLoading] = useState(() => !localStorage.getItem("mfp_cache_qr_history_today"));
 
   const fetchHistory = useCallback((filter, cFrom, cTo) => {
@@ -122,7 +89,7 @@ export default function AdminQRCodes() {
       try {
         setHistory(JSON.parse(cachedData));
         setHistoryLoading(false);
-      } catch {}
+      } catch { }
     } else {
       setHistoryLoading(true);
     }
@@ -131,9 +98,9 @@ export default function AdminQRCodes() {
     if (filter === "all") key = "lifetime";
     if (filter === "this_week") key = "last7";
     if (filter === "this_month") key = "last30";
-    
+
     const { from_ts, to_ts } = rangeWindowIso(key, cFrom || customFrom, cTo || customTo);
-    
+
     api.get("/admin/qrcodes/history", { params: { from_ts, to_ts } })
       .then((r) => {
         if (activeFilterRef.current !== filter) return;
@@ -141,7 +108,7 @@ export default function AdminQRCodes() {
         setHistory(data);
         try {
           localStorage.setItem(cacheKey, JSON.stringify(data));
-        } catch {}
+        } catch { }
       })
       .catch((e) => {
         if (activeFilterRef.current !== filter) return;
@@ -188,7 +155,7 @@ export default function AdminQRCodes() {
       setItems(r.data || []);
       try {
         localStorage.setItem("admin_active_qr", JSON.stringify(r.data || []));
-      } catch (e) {}
+      } catch (e) { }
     });
     api.get("/admin/qr-name-entries").then((r) => setQrEntries(r.data || []));
     fetchHistory(dateFilter);
@@ -206,7 +173,7 @@ export default function AdminQRCodes() {
         localStorage.setItem("set_t1_qr_enabled", JSON.stringify(t1qe));
         localStorage.setItem("set_recharge_enabled", JSON.stringify(re));
         localStorage.setItem("set_t1_recharge_enabled", JSON.stringify(t1re));
-      } catch (e) {}
+      } catch (e) { }
     });
   };
 
@@ -214,7 +181,7 @@ export default function AdminQRCodes() {
 
   const handleToggleQr = async (val) => {
     setQrEnabled(val);
-    try { localStorage.setItem("set_qr_enabled", JSON.stringify(val)); } catch (e) {}
+    try { localStorage.setItem("set_qr_enabled", JSON.stringify(val)); } catch (e) { }
     try {
       await api.put("/admin/settings/recharge-toggles", {
         qr_enabled: val,
@@ -226,13 +193,13 @@ export default function AdminQRCodes() {
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Failed to update toggle");
       setQrEnabled(!val);
-      try { localStorage.setItem("set_qr_enabled", JSON.stringify(!val)); } catch (err) {}
+      try { localStorage.setItem("set_qr_enabled", JSON.stringify(!val)); } catch (err) { }
     }
   };
 
   const handleToggleT1Qr = async (val) => {
     setT1QrEnabled(val);
-    try { localStorage.setItem("set_t1_qr_enabled", JSON.stringify(val)); } catch (e) {}
+    try { localStorage.setItem("set_t1_qr_enabled", JSON.stringify(val)); } catch (e) { }
     try {
       await api.put("/admin/settings/recharge-toggles", {
         qr_enabled: qrEnabled,
@@ -244,13 +211,13 @@ export default function AdminQRCodes() {
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Failed to update toggle");
       setT1QrEnabled(!val);
-      try { localStorage.setItem("set_t1_qr_enabled", JSON.stringify(!val)); } catch (err) {}
+      try { localStorage.setItem("set_t1_qr_enabled", JSON.stringify(!val)); } catch (err) { }
     }
   };
 
   const handleToggleRecharge = async (val) => {
     setRechargeEnabled(val);
-    try { localStorage.setItem("set_recharge_enabled", JSON.stringify(val)); } catch (e) {}
+    try { localStorage.setItem("set_recharge_enabled", JSON.stringify(val)); } catch (e) { }
     try {
       await api.put("/admin/settings/recharge-toggles", {
         qr_enabled: qrEnabled,
@@ -262,13 +229,13 @@ export default function AdminQRCodes() {
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Failed to update toggle");
       setRechargeEnabled(!val);
-      try { localStorage.setItem("set_recharge_enabled", JSON.stringify(!val)); } catch (err) {}
+      try { localStorage.setItem("set_recharge_enabled", JSON.stringify(!val)); } catch (err) { }
     }
   };
 
   const handleToggleT1Recharge = async (val) => {
     setT1RechargeEnabled(val);
-    try { localStorage.setItem("set_t1_recharge_enabled", JSON.stringify(val)); } catch (e) {}
+    try { localStorage.setItem("set_t1_recharge_enabled", JSON.stringify(val)); } catch (e) { }
     try {
       await api.put("/admin/settings/recharge-toggles", {
         qr_enabled: qrEnabled,
@@ -280,7 +247,7 @@ export default function AdminQRCodes() {
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Failed to update toggle");
       setT1RechargeEnabled(!val);
-      try { localStorage.setItem("set_t1_recharge_enabled", JSON.stringify(!val)); } catch (err) {}
+      try { localStorage.setItem("set_t1_recharge_enabled", JSON.stringify(!val)); } catch (err) { }
     }
   };
 
@@ -305,9 +272,9 @@ export default function AdminQRCodes() {
   const create = async () => {
     if (!label || !path) return toast.error("Please select a QR Name Entry first");
     try {
-      await api.post("/admin/qrcodes", { 
-        label, 
-        image_path: path, 
+      await api.post("/admin/qrcodes", {
+        label,
+        image_path: path,
         upi_id: upi,
         mobile_number: mobile,
         is_t1: uploadIsT1
@@ -350,10 +317,10 @@ export default function AdminQRCodes() {
     if (!isoStr) return false;
     const date = new Date(isoStr);
     const today = new Date();
-    
+
     const dDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
     const dToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    
+
     if (dateFilter === "today") {
       return dDate.getTime() === dToday.getTime();
     }
@@ -377,11 +344,11 @@ export default function AdminQRCodes() {
 
   const filteredHistory = history.filter(item => {
     const searchLower = historySearch.toLowerCase();
-    const matchesSearch = !historySearch || 
+    const matchesSearch = !historySearch ||
       item.label?.toLowerCase().includes(searchLower) ||
       item.mobile_number?.includes(searchLower) ||
       item.upi_id?.toLowerCase().includes(searchLower);
-    
+
     const hasActivity = item.entries > 0 || item.status === "ACTIVE";
     return matchesSearch && (dateFilter === "all" || hasActivity);
   });
@@ -458,114 +425,82 @@ export default function AdminQRCodes() {
         title="QR Code Management"
         subtitle="Manage active UPI QR codes for payment gateway."
         actions={
-          <div className="flex flex-wrap items-center gap-4">
-            {/* GROUP 1: NORMAL MODE TOGGLES */}
-            <div className="flex items-center gap-4 bg-emerald-50/80 border border-emerald-200/60 px-4 py-2 rounded-2xl shadow-sm">
-              <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">NORMAL (SAME DAY)</span>
-              <div className="h-4 w-px bg-emerald-200" />
-              
-              {/* Normal QR Hide/Show */}
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold text-neutral-600">QR:</span>
-                <button
-                  onClick={() => handleToggleQr(!qrEnabled)}
-                  className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                    qrEnabled ? "bg-[#2D6A4F]" : "bg-neutral-300"
+          <div className="flex flex-wrap items-center gap-6 bg-white px-5 py-2.5 rounded-2xl border border-black/5 shadow-sm">
+            <div className="flex items-center gap-2.5">
+              <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest">NORMAL:</span>
+              <span className={`text-[10px] font-extrabold uppercase tracking-wider ${qrEnabled ? "text-emerald-600" : "text-neutral-400"}`}>
+                {qrEnabled ? "ON" : "HIDDEN"}
+              </span>
+              <button
+                onClick={() => handleToggleQr(!qrEnabled)}
+                className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${qrEnabled ? "bg-[#2D6A4F]" : "bg-neutral-200"
                   }`}
-                  type="button"
-                  title="Normal QR Visibility"
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                      qrEnabled ? "translate-x-5" : "translate-x-0"
+                type="button"
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${qrEnabled ? "translate-x-5" : "translate-x-0"
                     }`}
-                  />
-                </button>
-                <span className={`text-[10px] font-extrabold uppercase ${qrEnabled ? "text-emerald-700" : "text-neutral-400"}`}>
-                  {qrEnabled ? "SHOW" : "HIDE"}
-                </span>
-              </div>
-
-              <div className="h-4 w-px bg-emerald-200" />
-
-              {/* Normal Recharge Enable/Disable */}
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold text-neutral-600">RECHARGE:</span>
-                <button
-                  onClick={() => handleToggleRecharge(!rechargeEnabled)}
-                  className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                    rechargeEnabled ? "bg-[#2D6A4F]" : "bg-neutral-300"
-                  }`}
-                  type="button"
-                  title="Normal Recharge Requests"
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                      rechargeEnabled ? "translate-x-5" : "translate-x-0"
-                    }`}
-                  />
-                </button>
-                <span className={`text-[10px] font-extrabold uppercase ${rechargeEnabled ? "text-emerald-700" : "text-neutral-400"}`}>
-                  {rechargeEnabled ? "ON" : "OFF"}
-                </span>
-              </div>
+                />
+              </button>
             </div>
 
-            {/* GROUP 2: T+1 MODE TOGGLES */}
-            <div className="flex items-center gap-4 bg-indigo-50/80 border border-indigo-200/60 px-4 py-2 rounded-2xl shadow-sm">
-              <span className="text-[10px] font-black text-indigo-800 uppercase tracking-wider">T+1 (NEXT DAY)</span>
-              <div className="h-4 w-px bg-indigo-200" />
-              
-              {/* T+1 QR Hide/Show */}
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold text-neutral-600">QR:</span>
-                <button
-                  onClick={() => handleToggleT1Qr(!t1QrEnabled)}
-                  className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                    t1QrEnabled ? "bg-indigo-600" : "bg-neutral-300"
-                  }`}
-                  type="button"
-                  title="T+1 QR Visibility"
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                      t1QrEnabled ? "translate-x-5" : "translate-x-0"
-                    }`}
-                  />
-                </button>
-                <span className={`text-[10px] font-extrabold uppercase ${t1QrEnabled ? "text-indigo-700" : "text-neutral-400"}`}>
-                  {t1QrEnabled ? "SHOW" : "HIDE"}
-                </span>
-              </div>
+            <div className="h-4 w-px bg-black/10" />
 
-              <div className="h-4 w-px bg-indigo-200" />
-
-              {/* T+1 Recharge Enable/Disable */}
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold text-neutral-600">RECHARGE:</span>
-                <button
-                  onClick={() => handleToggleT1Recharge(!t1RechargeEnabled)}
-                  className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                    t1RechargeEnabled ? "bg-indigo-600" : "bg-neutral-300"
+            <div className="flex items-center gap-2.5">
+              <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest">T+1:</span>
+              <span className={`text-[10px] font-extrabold uppercase tracking-wider ${t1QrEnabled ? "text-emerald-600" : "text-neutral-400"}`}>
+                {t1QrEnabled ? "ON" : "HIDDEN"}
+              </span>
+              <button
+                onClick={() => handleToggleT1Qr(!t1QrEnabled)}
+                className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${t1QrEnabled ? "bg-[#2D6A4F]" : "bg-neutral-200"
                   }`}
-                  type="button"
-                  title="T+1 Recharge Requests"
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                      t1RechargeEnabled ? "translate-x-5" : "translate-x-0"
+                type="button"
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${t1QrEnabled ? "translate-x-5" : "translate-x-0"
                     }`}
-                  />
-                </button>
-                <span className={`text-[10px] font-extrabold uppercase ${t1RechargeEnabled ? "text-indigo-700" : "text-neutral-400"}`}>
-                  {t1RechargeEnabled ? "ON" : "OFF"}
-                </span>
-              </div>
+                />
+              </button>
+            </div>
+
+            <div className="h-4 w-px bg-black/10" />
+
+            <div className="flex items-center gap-2.5">
+              <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest">Normal Recharge</span>
+              <button
+                onClick={() => handleToggleRecharge(!rechargeEnabled)}
+                className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${rechargeEnabled ? "bg-[#2D6A4F]" : "bg-neutral-200"
+                  }`}
+                type="button"
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${rechargeEnabled ? "translate-x-5" : "translate-x-0"
+                    }`}
+                />
+              </button>
+            </div>
+
+            <div className="h-4 w-px bg-black/10" />
+
+            <div className="flex items-center gap-2.5">
+              <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest">T+1 Recharge</span>
+              <button
+                onClick={() => handleToggleT1Recharge(!t1RechargeEnabled)}
+                className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${t1RechargeEnabled ? "bg-[#2D6A4F]" : "bg-neutral-200"
+                  }`}
+                type="button"
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${t1RechargeEnabled ? "translate-x-5" : "translate-x-0"
+                    }`}
+                />
+              </button>
             </div>
           </div>
         }
       />
-      
+
       <div className="flex flex-col lg:flex-row gap-6 mb-8">
         {/* Left Card: Select QR Name Entry */}
         <div className="mfp-card p-8 flex flex-col justify-center items-center w-full lg:w-[40%]">
@@ -643,11 +578,10 @@ export default function AdminQRCodes() {
                     setPath("");
                     setSelectedEntryId("");
                   }}
-                  className={`flex-1 py-1.5 px-3 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${
-                    !uploadIsT1
+                  className={`flex-1 py-1.5 px-3 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${!uploadIsT1
                       ? "bg-white text-[#1B4332] shadow-sm border border-neutral-200/20"
                       : "text-neutral-500 hover:text-neutral-700"
-                  }`}
+                    }`}
                 >
                   Normal (Same Day)
                 </button>
@@ -661,11 +595,10 @@ export default function AdminQRCodes() {
                     setPath("");
                     setSelectedEntryId("");
                   }}
-                  className={`flex-1 py-1.5 px-3 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${
-                    uploadIsT1
+                  className={`flex-1 py-1.5 px-3 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${uploadIsT1
                       ? "bg-white text-[#1B4332] shadow-sm border border-neutral-200/20"
                       : "text-neutral-500 hover:text-neutral-700"
-                  }`}
+                    }`}
                 >
                   T+1 (Next Day)
                 </button>
@@ -677,9 +610,9 @@ export default function AdminQRCodes() {
                 </div>
               )}
 
-              <button 
-                className="w-full py-2.5 px-4 flex items-center justify-center gap-2 text-white text-xs font-bold rounded-xl transition-all shadow-md bg-gradient-to-r from-[#9A91FB] to-[#8075f9] hover:from-[#867bf9] hover:to-[#6f63f7] transform hover:-translate-y-0.5 active:translate-y-0" 
-                onClick={create} 
+              <button
+                className="w-full py-2.5 px-4 flex items-center justify-center gap-2 text-white text-xs font-bold rounded-xl transition-all shadow-md bg-gradient-to-r from-[#9A91FB] to-[#8075f9] hover:from-[#867bf9] hover:to-[#6f63f7] transform hover:-translate-y-0.5 active:translate-y-0"
+                onClick={create}
                 data-testid="qr-create"
               >
                 <CheckCircle2 className="h-3.5 w-3.5" /> Update Now
@@ -706,22 +639,20 @@ export default function AdminQRCodes() {
                 <button
                   type="button"
                   onClick={() => setActiveTab("normal")}
-                  className={`px-3 py-1 rounded-lg text-xs font-black transition-all ${
-                    activeTab === "normal"
+                  className={`px-3 py-1 rounded-lg text-xs font-black transition-all ${activeTab === "normal"
                       ? "bg-white text-neutral-800 shadow-sm"
                       : "text-neutral-500 hover:text-neutral-700"
-                  }`}
+                    }`}
                 >
                   Normal
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveTab("t1")}
-                  className={`px-3 py-1 rounded-lg text-xs font-black transition-all ${
-                    activeTab === "t1"
+                  className={`px-3 py-1 rounded-lg text-xs font-black transition-all ${activeTab === "t1"
                       ? "bg-white text-neutral-800 shadow-sm"
                       : "text-neutral-500 hover:text-neutral-700"
-                  }`}
+                    }`}
                 >
                   T+1
                 </button>
@@ -731,19 +662,18 @@ export default function AdminQRCodes() {
               {(() => {
                 const isTabEnabled = activeTab === "t1" ? t1QrEnabled : qrEnabled;
                 return (
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                    isTabEnabled 
-                      ? "bg-emerald-50 text-emerald-600 border border-emerald-100" 
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${isTabEnabled
+                      ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
                       : "bg-rose-50 text-rose-600 border border-rose-100"
-                  } uppercase tracking-wider`}>
+                    } uppercase tracking-wider`}>
                     {isTabEnabled ? "Currently Visible" : "Currently Hidden"}
                   </span>
                 );
               })()}
-              
-              <button 
-                type="button" 
-                onClick={reload} 
+
+              <button
+                type="button"
+                onClick={reload}
                 className="p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 rounded-lg transition-all"
                 title="Refresh Stats"
               >
@@ -757,10 +687,10 @@ export default function AdminQRCodes() {
               {/* QR Image Container (Col span 2) */}
               <div className="md:col-span-2 flex flex-col">
                 <div className="p-3 border border-black/5 bg-[#F4F3ED] rounded-3xl w-full h-full flex items-center justify-center shadow-sm min-h-[240px]">
-                  <img 
-                    src={fileUrl(activeQr.image_path)} 
-                    alt="active qr" 
-                    className="mx-auto rounded-xl max-h-72 object-contain" 
+                  <img
+                    src={fileUrl(activeQr.image_path)}
+                    alt="active qr"
+                    className="mx-auto rounded-xl max-h-72 object-contain"
                   />
                 </div>
               </div>
@@ -983,11 +913,10 @@ export default function AdminQRCodes() {
 
                     {/* Status */}
                     <td className="py-3 px-4 text-center">
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${
-                        item.status === 'ACTIVE' 
-                          ? 'bg-emerald-50 text-emerald-700' 
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${item.status === 'ACTIVE'
+                          ? 'bg-emerald-50 text-emerald-700'
                           : 'bg-neutral-100 text-neutral-500'
-                      }`}>
+                        }`}>
                         {item.status}
                       </span>
                     </td>
