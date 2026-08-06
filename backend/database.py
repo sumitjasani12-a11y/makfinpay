@@ -764,14 +764,44 @@ class PostgresDatabase:
             import asyncpg
             min_size = int(os.environ.get("DB_POOL_MIN_SIZE", "1"))
             max_size = int(os.environ.get("DB_POOL_MAX_SIZE", "5"))
-            self.client = await asyncpg.create_pool(
-                dsn,
-                min_size=min_size,
-                max_size=max_size,
-                command_timeout=30,
-                max_inactive_connection_lifetime=30,
-                statement_cache_size=0
-            )
+            
+            clean_dsn = dsn
+            ssl_val = None
+            if "sslmode=require" in dsn or "supabase.co" in dsn or "supabase.com" in dsn:
+                ssl_val = "require"
+                if "?" in dsn:
+                    clean_dsn = dsn.split("?")[0]
+
+            logger.info(f"Connecting to database: {clean_dsn}")
+            try:
+                self.client = await asyncpg.create_pool(
+                    clean_dsn,
+                    ssl=ssl_val,
+                    min_size=min_size,
+                    max_size=max_size,
+                    command_timeout=30,
+                    max_inactive_connection_lifetime=30,
+                    statement_cache_size=0
+                )
+                logger.info("Database pool initialized successfully.")
+            except Exception as e:
+                logger.error(f"Failed to create asyncpg pool with ssl={ssl_val}: {e}")
+                if ssl_val:
+                    try:
+                        self.client = await asyncpg.create_pool(
+                            clean_dsn,
+                            min_size=min_size,
+                            max_size=max_size,
+                            command_timeout=30,
+                            max_inactive_connection_lifetime=30,
+                            statement_cache_size=0
+                        )
+                        logger.info("Database pool initialized successfully without SSL kwarg.")
+                    except Exception as e2:
+                        logger.error(f"Fallback asyncpg pool creation failed: {e2}")
+                        raise e2
+                else:
+                    raise e
 
     async def close(self):
         if self.client:
