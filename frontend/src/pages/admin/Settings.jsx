@@ -4,7 +4,7 @@ import FileUpload from "@/components/FileUpload";
 import { api, formatErr, fileUrl } from "@/lib/api";
 import { useAuth, updateFaviconInDOM } from "@/lib/auth";
 import { toast } from "sonner";
-import { Save, ShieldAlert } from "lucide-react";
+import { Save, ShieldAlert, Volume2 } from "lucide-react";
 
 export default function AdminSettings() {
   const { branding, fetchBranding } = useAuth();
@@ -30,6 +30,13 @@ export default function AdminSettings() {
   const [watermarkPath, setWatermarkPath] = useState("");
   const [savingBranding, setSavingBranding] = useState(false);
 
+  // audio notification settings
+  const [qrApprovedAudio, setQrApprovedAudio] = useState("");
+  const [qrRejectedAudio, setQrRejectedAudio] = useState("");
+  const [ccBillApprovedAudio, setCcBillApprovedAudio] = useState("");
+  const [ccBillRejectedAudio, setCcBillRejectedAudio] = useState("");
+  const [savingAudio, setSavingAudio] = useState(false);
+
   const fetchSettings = async () => {
     try {
       const { data } = await api.get("/admin/settings/recharge-limits");
@@ -37,6 +44,10 @@ export default function AdminSettings() {
       setMaxLimit(String(data.max_recharge_limit ?? 300000));
       setLiveBillMaxLimit(String(data.live_bill_max_limit ?? 100000));
       setApiCharge(String(data.live_bill_api_charge ?? 0));
+      setQrApprovedAudio(data.qr_approved_audio || "");
+      setQrRejectedAudio(data.qr_rejected_audio || "");
+      setCcBillApprovedAudio(data.cc_bill_approved_audio || "");
+      setCcBillRejectedAudio(data.cc_bill_rejected_audio || "");
       const mm = !!data.maintenance_mode;
       setMaintenanceMode(mm);
       try { localStorage.setItem("set_maintenance_mode", JSON.stringify(mm)); } catch (e) {}
@@ -59,6 +70,24 @@ export default function AdminSettings() {
       setWatermarkPath(branding.watermark_path || "");
     }
   }, [branding]);
+
+  const handleSaveAudio = async (e) => {
+    e.preventDefault();
+    setSavingAudio(true);
+    try {
+      await api.put("/admin/settings/recharge-toggles", {
+        qr_approved_audio: qrApprovedAudio,
+        qr_rejected_audio: qrRejectedAudio,
+        cc_bill_approved_audio: ccBillApprovedAudio,
+        cc_bill_rejected_audio: ccBillRejectedAudio,
+      });
+      toast.success("Audio Notification Settings saved successfully");
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail) || "Failed to save audio settings");
+    } finally {
+      setSavingAudio(false);
+    }
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -318,6 +347,109 @@ export default function AdminSettings() {
                 </div>
               </div>
             </div>
+
+            <form onSubmit={handleSaveAudio} className="w-full">
+              <div className="mfp-card p-6 space-y-6">
+                <div>
+                  <h3 className="text-base font-semibold text-neutral-800 border-b border-black/5 pb-2.5 mb-4 flex items-center gap-2">
+                    <Volume2 className="h-4 w-4 text-emerald-600" /> Audio Notification Settings
+                  </h3>
+                  <p className="text-xs text-neutral-500 mb-6 leading-relaxed">
+                    Upload custom audio files (.mp3 / .wav) for QR Recharge and Credit Card / Live Bill Request Approvals and Rejections. When an Admin processes a request, the corresponding sound will play automatically in the Agent's panel.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="space-y-2">
+                    <label className="mfp-label font-bold text-neutral-600 block">
+                      🟢 QR Request Approved Audio
+                    </label>
+                    {qrApprovedAudio ? (
+                      <div className="p-2 bg-emerald-50/50 rounded-xl border border-emerald-200">
+                        <audio controls src={fileUrl(qrApprovedAudio)} className="w-full h-8" />
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-neutral-400 italic">No audio set</div>
+                    )}
+                    <FileUpload
+                      label="Upload QR Approved Sound"
+                      onUploaded={setQrApprovedAudio}
+                      accept="audio/*"
+                      testid="upload-qr-approved-audio"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="mfp-label font-bold text-neutral-600 block">
+                      🔴 QR Request Rejected Audio
+                    </label>
+                    {qrRejectedAudio ? (
+                      <div className="p-2 bg-rose-50/50 rounded-xl border border-rose-200">
+                        <audio controls src={fileUrl(qrRejectedAudio)} className="w-full h-8" />
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-neutral-400 italic">No audio set</div>
+                    )}
+                    <FileUpload
+                      label="Upload QR Rejected Sound"
+                      onUploaded={setQrRejectedAudio}
+                      accept="audio/*"
+                      testid="upload-qr-rejected-audio"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="mfp-label font-bold text-neutral-600 block">
+                      🟢 CC Bill Approved Audio
+                    </label>
+                    {ccBillApprovedAudio ? (
+                      <div className="p-2 bg-emerald-50/50 rounded-xl border border-emerald-200">
+                        <audio controls src={fileUrl(ccBillApprovedAudio)} className="w-full h-8" />
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-neutral-400 italic">No audio set</div>
+                    )}
+                    <FileUpload
+                      label="Upload CC Bill Approved Sound"
+                      onUploaded={setCcBillApprovedAudio}
+                      accept="audio/*"
+                      testid="upload-cc-approved-audio"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="mfp-label font-bold text-neutral-600 block">
+                      🔴 CC Bill Rejected Audio
+                    </label>
+                    {ccBillRejectedAudio ? (
+                      <div className="p-2 bg-rose-50/50 rounded-xl border border-rose-200">
+                        <audio controls src={fileUrl(ccBillRejectedAudio)} className="w-full h-8" />
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-neutral-400 italic">No audio set</div>
+                    )}
+                    <FileUpload
+                      label="Upload CC Bill Rejected Sound"
+                      onUploaded={setCcBillRejectedAudio}
+                      accept="audio/*"
+                      testid="upload-cc-rejected-audio"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-black/5 flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={savingAudio}
+                    className="mfp-btn-primary inline-flex items-center gap-2"
+                    data-testid="audio-save-btn"
+                  >
+                    <Save className="h-4 w-4" />
+                    {savingAudio ? "Saving Audio Settings…" : "Save Audio Settings"}
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
 
           <form onSubmit={handleSaveBranding} className="w-full">

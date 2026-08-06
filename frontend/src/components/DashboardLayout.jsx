@@ -203,9 +203,17 @@ export default function DashboardLayout() {
 
   // Register WebSocket listeners to update balance & stats counts in real-time
   useWebSocketListener("recharge_created", fetchPendingCounts);
-  useWebSocketListener("recharge_updated", () => {
+  useWebSocketListener("recharge_updated", (data) => {
     fetchWallet();
     fetchPendingCounts();
+    if (data && data.audio_url && user?.role === "agent") {
+      try {
+        const sound = new Audio(fileUrl(data.audio_url));
+        sound.play().catch((e) => console.log("Audio playback deferred by browser policy:", e));
+      } catch (e) {
+        console.error("Audio playback error:", e);
+      }
+    }
   });
   useWebSocketListener("kyc_submitted", fetchPendingCounts);
   useWebSocketListener("kyc_updated", () => {
@@ -216,9 +224,17 @@ export default function DashboardLayout() {
     fetchWallet();
     fetchPendingCounts();
   });
-  useWebSocketListener("cc_bill_updated", () => {
+  useWebSocketListener("cc_bill_updated", (data) => {
     fetchWallet();
     fetchPendingCounts();
+    if (data && data.audio_url && user?.role === "agent") {
+      try {
+        const sound = new Audio(fileUrl(data.audio_url));
+        sound.play().catch((e) => console.log("Audio playback deferred by browser policy:", e));
+      } catch (e) {
+        console.error("Audio playback error:", e);
+      }
+    }
   });
 
   // Register custom window event listener for immediate updates from current page actions

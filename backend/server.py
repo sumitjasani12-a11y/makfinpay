@@ -640,6 +640,10 @@ class RechargeTogglesIn(BaseModel):
     live_bill_enabled: Optional[bool] = None
     live_bill_api_charge: Optional[float] = None
     maintenance_mode: Optional[bool] = None
+    qr_approved_audio: Optional[str] = None
+    qr_rejected_audio: Optional[str] = None
+    cc_bill_approved_audio: Optional[str] = None
+    cc_bill_rejected_audio: Optional[str] = None
 
 class HeadlineIn(BaseModel):
     message: str
@@ -3916,7 +3920,9 @@ async def admin_approve_recharge(rid: str, body: ApprovalIn, request: Request, u
         write_audit(user["id"], "approve_recharge", target=rid, request=request)
     )
     
-    await manager.send_to_user(r["user_id"], {"event": "recharge_updated", "data": {"id": rid, "status": "approved"}})
+    s_set = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    approved_audio = s_set.get("qr_approved_audio", "")
+    await manager.send_to_user(r["user_id"], {"event": "recharge_updated", "data": {"id": rid, "status": "approved", "audio_url": approved_audio}})
     await manager.send_to_role("admin", {"event": "recharge_updated", "data": {"id": rid, "status": "approved"}})
     return {"ok": True}
 
@@ -3940,7 +3946,9 @@ async def admin_reject_recharge(rid: str, body: ApprovalIn, request: Request, us
         "reviewed_by_name": user.get("full_name") or user.get("email") or "Admin"
     }})
     await write_audit(user["id"], "reject_recharge", target=rid, request=request)
-    await manager.send_to_user(r["user_id"], {"event": "recharge_updated", "data": {"id": rid, "status": "rejected"}})
+    s_set = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    rejected_audio = s_set.get("qr_rejected_audio", "")
+    await manager.send_to_user(r["user_id"], {"event": "recharge_updated", "data": {"id": rid, "status": "rejected", "audio_url": rejected_audio}})
     await manager.send_to_role("admin", {"event": "recharge_updated", "data": {"id": rid, "status": "rejected"}})
     return {"ok": True}
 
@@ -4807,7 +4815,9 @@ async def admin_approve_transaction(tid: str, body: ApprovalIn, request: Request
         write_audit(user["id"], "transaction_approved", target=tid, meta={"amount": t["amount"]}, request=request)
     )
 
-    await manager.send_to_user(t["user_id"], {"event": "cc_bill_updated", "data": {"id": tid, "status": "success"}})
+    s_set = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    approved_audio = s_set.get("cc_bill_approved_audio", "")
+    await manager.send_to_user(t["user_id"], {"event": "cc_bill_updated", "data": {"id": tid, "status": "success", "audio_url": approved_audio}})
     await manager.send_to_role("admin", {"event": "cc_bill_updated", "data": {"id": tid, "status": "success"}})
     return {"ok": True}
 
@@ -4834,7 +4844,9 @@ async def admin_reject_transaction(tid: str, body: ApprovalIn, request: Request,
         await log_admin_profit("debit", t.get("service_charge", 0.0), "bill_payment_reversal", tid, f"Reversal of CC Bill fee ({t.get('user_name', 'Agent')})")
 
     await write_audit(user["id"], "transaction_reversed", target=tid, meta={"amount": t["amount"]}, request=request)
-    await manager.send_to_user(t["user_id"], {"event": "cc_bill_updated", "data": {"id": tid, "status": "reversed"}})
+    s_set = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    rejected_audio = s_set.get("cc_bill_rejected_audio", "")
+    await manager.send_to_user(t["user_id"], {"event": "cc_bill_updated", "data": {"id": tid, "status": "reversed", "audio_url": rejected_audio}})
     await manager.send_to_role("admin", {"event": "cc_bill_updated", "data": {"id": tid, "status": "reversed"}})
     return {"ok": True}
 
@@ -4867,7 +4879,8 @@ async def admin_approve_live_bill(tid: str, body: ApprovalIn, request: Request, 
     await log_admin_profit("credit", profit, "live_bill_fee", tid, f"Profit margin from Live Bill ({t.get('user_name', 'Agent')})")
 
     await write_audit(user["id"], "live_bill_approved", target=tid, meta={"amount": t["amount"]}, request=request)
-    await manager.send_to_user(t["user_id"], {"event": "cc_bill_updated", "data": {"id": tid, "status": "success"}})
+    approved_audio = s.get("cc_bill_approved_audio", "")
+    await manager.send_to_user(t["user_id"], {"event": "cc_bill_updated", "data": {"id": tid, "status": "success", "audio_url": approved_audio}})
     await manager.send_to_role("admin", {"event": "cc_bill_updated", "data": {"id": tid, "status": "success"}})
     return {"ok": True}
 
@@ -4893,15 +4906,16 @@ async def admin_reject_live_bill(tid: str, body: ApprovalIn, request: Request, u
     await ledger_entry(t["user_id"], "refund", t["amount"], new_balance, "live_bill_refund", tid, f"Refund: Manually reversed/refunded by Super Admin for {t.get('customer_phone', 'Biller')}")
     
     # Log to Admin Statement (if previously success, reverse entries)
+    s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
     if t["status"] == "success":
-        s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
         api_charge = float(s.get("live_bill_api_charge", 0.0))
         await log_admin_cashbook("credit", t["bill_amount"], "bbps_refund", tid, f"Reversal of Live Bill payout ({t.get('user_name', 'Agent')})")
         profit = round(t["service_charge"] - api_charge, 2)
         await log_admin_profit("debit", profit, "live_bill_reversal", tid, f"Reversal of Live Bill profit margin ({t.get('user_name', 'Agent')})")
 
     await write_audit(user["id"], "live_bill_reversed", target=tid, meta={"amount": t["amount"]}, request=request)
-    await manager.send_to_user(t["user_id"], {"event": "cc_bill_updated", "data": {"id": tid, "status": "reversed"}})
+    rejected_audio = s.get("cc_bill_rejected_audio", "")
+    await manager.send_to_user(t["user_id"], {"event": "cc_bill_updated", "data": {"id": tid, "status": "reversed", "audio_url": rejected_audio}})
     await manager.send_to_role("admin", {"event": "cc_bill_updated", "data": {"id": tid, "status": "reversed"}})
     return {"ok": True}
 
@@ -5899,7 +5913,11 @@ async def get_admin_recharge_limits(response: Response, user=Depends(require_rol
         "bill_pay_enabled": bool(s.get("bill_pay_enabled", True)),
         "live_bill_enabled": bool(s.get("live_bill_enabled", True)),
         "live_bill_api_charge": float(s.get("live_bill_api_charge", 0.0)),
-        "maintenance_mode": bool(s.get("maintenance_mode", False))
+        "maintenance_mode": bool(s.get("maintenance_mode", False)),
+        "qr_approved_audio": s.get("qr_approved_audio", ""),
+        "qr_rejected_audio": s.get("qr_rejected_audio", ""),
+        "cc_bill_approved_audio": s.get("cc_bill_approved_audio", ""),
+        "cc_bill_rejected_audio": s.get("cc_bill_rejected_audio", "")
     }
 
 @api.put("/admin/settings/recharge-limits")
@@ -5947,6 +5965,15 @@ async def update_admin_recharge_toggles(body: RechargeTogglesIn, request: Reques
         "maintenance_mode": maintenance_mode_val,
         "updated_at": now_iso()
     }
+    if body.qr_approved_audio is not None:
+        doc["qr_approved_audio"] = body.qr_approved_audio
+    if body.qr_rejected_audio is not None:
+        doc["qr_rejected_audio"] = body.qr_rejected_audio
+    if body.cc_bill_approved_audio is not None:
+        doc["cc_bill_approved_audio"] = body.cc_bill_approved_audio
+    if body.cc_bill_rejected_audio is not None:
+        doc["cc_bill_rejected_audio"] = body.cc_bill_rejected_audio
+
     await db.settings.update_one({"id": "commission"}, {"$set": doc})
     await write_audit(user["id"], "recharge_toggles_changed", target="settings", meta=doc, request=request)
     await manager.broadcast({"event": "settings_updated", "data": doc})
