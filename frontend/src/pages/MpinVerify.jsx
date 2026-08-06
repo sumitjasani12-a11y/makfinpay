@@ -10,7 +10,7 @@ export default function MpinVerify() {
   const { completeLogin } = useAuth();
   const location = useLocation();
   const nav = useNavigate();
-  
+
   const preAuthToken = location.state?.pre_auth_token;
   const [digits, setDigits] = useState(Array(6).fill(""));
   const [loading, setLoading] = useState(false);
@@ -25,7 +25,7 @@ export default function MpinVerify() {
 
   const handleChange = (index, value) => {
     if (isNaN(value)) return;
-    
+
     const newDigits = [...digits];
     // Keep only the last character entered
     newDigits[index] = value.substring(value.length - 1);
@@ -71,11 +71,11 @@ export default function MpinVerify() {
       if (res.data?.status === "success") {
         toast.success(`Access granted! Welcome.`);
         completeLogin(res.data.token, res.data.user);
-        
+
         const path = res.data.user.role === "admin" ? "/admin"
-                   : res.data.user.role === "master_distributor" ? "/md"
-                   : res.data.user.role === "distributor" ? "/distributor"
-                   : "/agent";
+          : res.data.user.role === "master_distributor" ? "/md"
+            : res.data.user.role === "distributor" ? "/distributor"
+              : "/agent";
         nav(path);
       } else {
         toast.error("Failed to verify MPIN. Please try again.");

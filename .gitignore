@@ -90,7 +90,5 @@ credentials.json
 .gitconfig
 backend/cache/
 scratch/
-storage_backup/
-ss2_safety_backup.json
 
 

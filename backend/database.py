@@ -734,29 +734,15 @@ class AsyncIOMotorClient:
 
 class PostgresDatabase:
     def __init__(self):
-        self.url = (os.environ.get("REACT_APP_SUPABASE_URL") or os.environ.get("SUPABASE_URL") or "https://zpynrddggarkltuueqdk.supabase.co").rstrip("/")
-        self.service_key = (os.environ.get("REACT_APP_SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpweW5yZGRnZ2Fya2x0dXVlcWRrIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NTY3MTM3NiwiZXhwIjoyMTAxMjQ3Mzc2fQ._y2imQXpDPLkm9805uTbZE9jQEml6xUkCD7JKbvNh2g").strip()
+        self.url = os.environ.get("SUPABASE_URL", "")
         self.anon_key = os.environ.get("SUPABASE_ANON_KEY", "")
         self.secret_token = "Jigscse@3521_makfinpay_secret"
         self.client = None
         self.pool = self
-        self.use_rest_fallback = False
-        self._httpx_client = None
 
     async def init_pool(self, dsn):
-        import asyncpg
-        import httpx
-        self._httpx_client = httpx.AsyncClient(
-            base_url=f"{self.url}/rest/v1",
-            headers={
-                "apikey": self.service_key,
-                "Authorization": f"Bearer {self.service_key}",
-                "Content-Type": "application/json",
-                "Prefer": "return=representation"
-            },
-            timeout=15.0
-        )
-        try:
+        if self.client is None:
+            import asyncpg
             min_size = int(os.environ.get("DB_POOL_MIN_SIZE", "1"))
             max_size = int(os.environ.get("DB_POOL_MAX_SIZE", "5"))
             self.client = await asyncpg.create_pool(
@@ -765,19 +751,12 @@ class PostgresDatabase:
                 max_size=max_size,
                 command_timeout=30,
                 max_inactive_connection_lifetime=30,
-                statement_cache_size=0,
-                timeout=5.0
+                statement_cache_size=0
             )
-            logger.info("Successfully connected to Supabase PostgreSQL via asyncpg pool.")
-        except Exception as e:
-            logger.warning(f"Asyncpg DB pool connection failed ({e}), enabling High-Availability Supabase REST Adapter Fallback!")
-            self.use_rest_fallback = True
 
     async def close(self):
         if self.client:
             await self.client.close()
-        if self._httpx_client:
-            await self._httpx_client.aclose()
 
     def acquire(self):
         # Mock connection pool context manager as a fallback
@@ -848,45 +827,9 @@ class PostgresDatabase:
             query = re.sub(r'\$(\d+)', replace_match, query)
             params = []
             
-        if self.use_rest_fallback or self.client is None:
-            # Fallback execution via Supabase REST API (HTTPS / IPv4 friendly)
-            import httpx
-            query_lower = query.lower().lstrip()
-            is_select = query_lower.startswith("select") or query_lower.startswith("with") or query_lower.startswith("show") or "returning" in query_lower
+        if self.client is None:
+            raise Exception("Database client is not initialized.")
             
-            # Simple SQL parser for REST fallback
-            target_table = None
-            for tbl in TABLE_COLUMNS.keys():
-                if f"from {tbl}" in query_lower or f"from \"{tbl}\"" in query_lower or f"into {tbl}" in query_lower or f"into \"{tbl}\"" in query_lower or f"update {tbl}" in query_lower or f"update \"{tbl}\"" in query_lower:
-                    target_table = tbl
-                    break
-            
-            if not target_table:
-                # Default regex search if table not found in predefined list
-                import re
-                m = re.search(r'(?:from|into|update)\s+["\']?([a-zA-Z0-9_\.]+)["\']?', query_lower)
-                if m:
-                    target_table = m.group(1).replace('"', '')
-
-            if not target_table:
-                target_table = "users"
-
-            try:
-                if is_select:
-                    # Query REST API endpoint
-                    res = await self._httpx_client.get(f"/{target_table}")
-                    if res.status_code == 200:
-                        rows = res.json()
-                        return [parse_db_row(dict(r)) for r in rows] if isinstance(rows, list) else []
-                    return []
-                else:
-                    return {"ok": True, "row_count": 1}
-            except Exception as e:
-                logger.error(f"REST Fallback query execution failed: {e}")
-                if is_select:
-                    return []
-                return {"ok": True, "row_count": 0}
-
         retries = 3
         for attempt in range(retries):
             try:
