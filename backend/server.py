@@ -5431,6 +5431,58 @@ async def admin_qr_history(
                 "qr_profit": qr_profit,
                 "final_profit": final_profit
             })
+
+        unmatched_sql = """
+            SELECT 
+                COUNT(r.id) as total_entries,
+                COUNT(CASE WHEN r.status = 'pending' THEN 1 END) as pending_count,
+                COUNT(CASE WHEN r.status = 'approved' THEN 1 END) as approved_count,
+                COUNT(CASE WHEN r.status = 'rejected' THEN 1 END) as rejected_count,
+                COALESCE(SUM(CASE WHEN r.status = 'approved' THEN r.amount END), 0) as approved_amount,
+                COALESCE(SUM(CASE WHEN r.status = 'approved' THEN r.admin_revenue_amount END), 0) as admin_revenue,
+                COALESCE(SUM(CASE WHEN r.status = 'approved' THEN r.md_earnings_amount END), 0) as md_earnings,
+                COALESCE(SUM(CASE WHEN r.status = 'approved' THEN r.distributor_earnings_amount END), 0) as dist_earnings
+            FROM recharges r
+            LEFT JOIN qr_activation_history h
+              ON (h.qr_code_id::text = r.qr_code_id::text OR TRIM(h.label) = TRIM(r.qr_code_label))
+             AND (h.is_t1 = r.is_t1 OR (h.is_t1 IS NULL AND r.is_t1 = False))
+             AND h.activated_at <= r.created_at
+            WHERE h.id IS NULL
+              AND ($1::timestamptz IS NULL OR r.created_at >= $1::timestamptz)
+              AND ($2::timestamptz IS NULL OR r.created_at <= $2::timestamptz)
+        """
+        unmatched_row = await conn.fetchrow(unmatched_sql, from_dt, to_dt)
+        if unmatched_row and (unmatched_row["total_entries"] or 0) > 0:
+            admin_revenue = float(unmatched_row["admin_revenue"] or 0)
+            md_earnings = float(unmatched_row["md_earnings"] or 0)
+            dist_earnings = float(unmatched_row["dist_earnings"] or 0)
+            total_profit = round(admin_revenue + md_earnings + dist_earnings, 2)
+            approved_amount = round(float(unmatched_row["approved_amount"] or 0), 2)
+            history.append({
+                "id": "unmatched_legacy",
+                "qr_code_id": "",
+                "label": "Other / Direct Recharges",
+                "mobile_number": "-",
+                "upi_id": "-",
+                "qr_percent": 0.0,
+                "activated_at": None,
+                "deactivated_at": None,
+                "status": "OTHER",
+                "is_t1": False,
+                "entries": unmatched_row["total_entries"] or 0,
+                "breakdown": {
+                    "pending": unmatched_row["pending_count"] or 0,
+                    "approved": unmatched_row["approved_count"] or 0,
+                    "rejected": unmatched_row["rejected_count"] or 0
+                },
+                "approved_amount": approved_amount,
+                "admin_revenue": round(admin_revenue, 2),
+                "md_earnings": round(md_earnings, 2),
+                "dist_earnings": round(dist_earnings, 2),
+                "total_profit": total_profit,
+                "qr_profit": 0.0,
+                "final_profit": total_profit
+            })
         return history
 
 @api.put("/admin/qrcodes/history/{hid}/percent")
