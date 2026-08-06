@@ -1059,14 +1059,19 @@ async def serve_file(path: str, auth: Optional[str] = Query(None), authorization
         token = auth
     is_branding = False
     s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
-    branding_paths = [s.get("logo_path"), s.get("favicon_path"), s.get("logo_collapsed_path"), s.get("watermark_path")]
+    audio_paths = [
+        s.get("qr_approved_audio"), s.get("qr_rejected_audio"),
+        s.get("cc_bill_approved_audio"), s.get("cc_bill_rejected_audio"),
+        s.get("qr_request_received_audio"), s.get("cc_bill_request_received_audio")
+    ]
+    branding_paths = [s.get("logo_path"), s.get("favicon_path"), s.get("logo_collapsed_path"), s.get("watermark_path")] + [p for p in audio_paths if p]
     if path and path in branding_paths:
         is_branding = True
 
     ext = path.rsplit(".", 1)[-1].lower() if "." in path else ""
-    is_image_file = ext in ["jpg", "jpeg", "png", "webp", "jfif", "gif"]
+    is_public_media = ext in ["jpg", "jpeg", "png", "webp", "jfif", "gif", "mp3", "wav", "ogg", "m4a", "aac"]
 
-    if not is_branding and not is_image_file:
+    if not is_branding and not is_public_media:
         if not token:
             raise HTTPException(401, "Auth required")
         try:

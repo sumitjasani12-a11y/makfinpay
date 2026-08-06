@@ -80,10 +80,12 @@ export function fmtDate(s) {
 }
 
 export function fileUrl(path) {
-  if (!path) return "";
-  if (path.startsWith("data:") || path.startsWith("http://") || path.startsWith("https://")) {
-    return path;
+  if (!path || typeof path !== "string") return "";
+  const strPath = String(path).trim();
+  if (!strPath) return "";
+  if (strPath.startsWith("data:") || strPath.startsWith("http://") || strPath.startsWith("https://")) {
+    return strPath;
   }
   const t = localStorage.getItem("mfp_token");
-  return `${API}/files/${path}?auth=${encodeURIComponent(t || "")}`;
+  return `${API}/files/${strPath}?auth=${encodeURIComponent(t || "")}`;
 }

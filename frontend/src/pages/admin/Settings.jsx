@@ -75,14 +75,15 @@ export default function AdminSettings() {
     }
   }, [branding]);
 
-  const handleAudioUploaded = async (field, path) => {
+  const handleAudioUploaded = async (field, rawPath) => {
+    const path = typeof rawPath === "string" ? rawPath : (rawPath?.path || rawPath?.url || "");
     const updatedState = {
-      qr_approved_audio: field === "qr_approved_audio" ? path : qrApprovedAudio,
-      qr_rejected_audio: field === "qr_rejected_audio" ? path : qrRejectedAudio,
-      cc_bill_approved_audio: field === "cc_bill_approved_audio" ? path : ccBillApprovedAudio,
-      cc_bill_rejected_audio: field === "cc_bill_rejected_audio" ? path : ccBillRejectedAudio,
-      qr_request_received_audio: field === "qr_request_received_audio" ? path : qrRequestReceivedAudio,
-      cc_bill_request_received_audio: field === "cc_bill_request_received_audio" ? path : ccBillRequestReceivedAudio,
+      qr_approved_audio: field === "qr_approved_audio" ? path : (typeof qrApprovedAudio === "string" ? qrApprovedAudio : ""),
+      qr_rejected_audio: field === "qr_rejected_audio" ? path : (typeof qrRejectedAudio === "string" ? qrRejectedAudio : ""),
+      cc_bill_approved_audio: field === "cc_bill_approved_audio" ? path : (typeof ccBillApprovedAudio === "string" ? ccBillApprovedAudio : ""),
+      cc_bill_rejected_audio: field === "cc_bill_rejected_audio" ? path : (typeof ccBillRejectedAudio === "string" ? ccBillRejectedAudio : ""),
+      qr_request_received_audio: field === "qr_request_received_audio" ? path : (typeof qrRequestReceivedAudio === "string" ? qrRequestReceivedAudio : ""),
+      cc_bill_request_received_audio: field === "cc_bill_request_received_audio" ? path : (typeof ccBillRequestReceivedAudio === "string" ? ccBillRequestReceivedAudio : ""),
     };
 
     if (field === "qr_approved_audio") setQrApprovedAudio(path);
