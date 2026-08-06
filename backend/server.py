@@ -266,22 +266,28 @@ def get_object_thumbnail(path: str):
 RAM_FILE_CACHE = {}
 
 def get_object(path: str):
+    clean_path = path.lstrip("/")
+    if clean_path in RAM_FILE_CACHE:
+        return RAM_FILE_CACHE[clean_path]
     if path in RAM_FILE_CACHE:
         return RAM_FILE_CACHE[path]
 
+    local_cache_path = os.path.join("cache", clean_path.replace("/", os.sep))
+
     # Local backup folder check
     backup_file_paths = [
-        os.path.join("/storage_backup", path.replace("/", os.sep)),
-        os.path.join("storage_backup", path.replace("/", os.sep)),
-        os.path.join("..", "storage_backup", path.replace("/", os.sep)),
-        os.path.join("cache", path.replace("/", os.sep))
+        os.path.join("/storage_backup", clean_path.replace("/", os.sep)),
+        os.path.join("/app", "storage_backup", clean_path.replace("/", os.sep)),
+        os.path.join("storage_backup", clean_path.replace("/", os.sep)),
+        os.path.join("..", "storage_backup", clean_path.replace("/", os.sep)),
+        local_cache_path
     ]
     for backup_file_path in backup_file_paths:
         if os.path.exists(backup_file_path):
             try:
                 with open(backup_file_path, "rb") as f:
                     content = f.read()
-                ext = path.rsplit(".", 1)[-1].lower() if "." in path else "bin"
+                ext = clean_path.rsplit(".", 1)[-1].lower() if "." in clean_path else "bin"
                 ct_map = {
                     "png": "image/png",
                     "jpg": "image/jpeg",
@@ -291,43 +297,22 @@ def get_object(path: str):
                     "pdf": "application/pdf"
                 }
                 res = (content, ct_map.get(ext, "image/jpeg"))
-                RAM_FILE_CACHE[path] = res
+                RAM_FILE_CACHE[clean_path] = res
                 return res
             except Exception:
                 pass
 
-    # Local cache check
-    local_cache_path = os.path.join("cache", path)
-    if os.path.exists(local_cache_path):
-        try:
-            with open(local_cache_path, "rb") as f:
-                content = f.read()
-            ext = path.rsplit(".", 1)[-1].lower() if "." in path else "bin"
-            ct_map = {
-                "png": "image/png",
-                "jpg": "image/jpeg",
-                "jpeg": "image/jpeg",
-                "jfif": "image/jpeg",
-                "webp": "image/webp",
-                "pdf": "application/pdf"
-            }
-            res = (content, ct_map.get(ext, "application/octet-stream"))
-            RAM_FILE_CACHE[path] = res
-            return res
-        except Exception as e:
-            logger.error(f"Failed to read from local file cache: {e}")
-            
-    supabase_url = os.environ.get("SUPABASE_URL") or os.environ.get("REACT_APP_SUPABASE_URL")
-    supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("REACT_APP_SUPABASE_SERVICE_ROLE_KEY")
+    supabase_url = (os.environ.get("SUPABASE_URL") or os.environ.get("REACT_APP_SUPABASE_URL") or "https://zpynrddggarkltuueqdk.supabase.co").strip().rstrip("/")
+    supabase_key = (os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("REACT_APP_SUPABASE_SERVICE_ROLE_KEY") or "").strip()
     supabase_bucket = os.environ.get("SUPABASE_STORAGE_BUCKET", "uploads")
 
     if supabase_url and supabase_key:
-        parts = path.split("/", 1)
+        parts = clean_path.split("/", 1)
         first_segment = parts[0] if parts else ""
-        rest_segment = parts[1] if len(parts) > 1 else path
+        rest_segment = parts[1] if len(parts) > 1 else clean_path
         
         buckets_to_try = list(dict.fromkeys([supabase_bucket, "uploads", "makfinpay", first_segment]).keys())
-        paths_to_try = list(dict.fromkeys([path, rest_segment]).keys())
+        paths_to_try = list(dict.fromkeys([clean_path, rest_segment]).keys())
         
         urls_to_try = []
         for b in buckets_to_try:
@@ -347,29 +332,31 @@ def get_object(path: str):
         for url in urls_to_try:
             try:
                 r = requests.get(url, headers=headers, timeout=10)
-                if r.status_code == 200:
+                if r.status_code == 200 and len(r.content) > 0:
                     try:
                         os.makedirs(os.path.dirname(local_cache_path), exist_ok=True)
                         with open(local_cache_path, "wb") as f:
                             f.write(r.content)
                     except Exception as e:
                         logger.error(f"Failed to write to local file cache: {e}")
-                    res = (r.content, r.headers.get("Content-Type", "application/octet-stream"))
-                    RAM_FILE_CACHE[path] = res
+                    res = (r.content, r.headers.get("Content-Type", "image/jpeg"))
+                    RAM_FILE_CACHE[clean_path] = res
                     return res
+                else:
+                    logger.debug(f"Fetch {url} returned status {r.status_code}")
             except Exception as e:
                 logger.warning(f"Failed fetching {url}: {e}")
 
     k = init_storage()
     if k:
         try:
-            r = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": k}, timeout=30)
+            r = requests.get(f"{STORAGE_URL}/objects/{clean_path}", headers={"X-Storage-Key": k}, timeout=30)
             if r.status_code == 200:
                 return r.content, r.headers.get("Content-Type", "application/octet-stream")
         except Exception as e:
             logger.error(f"Fallback storage fetch failed: {e}")
 
-    raise HTTPException(404, "File not found")
+    raise HTTPException(404, f"File not found: {clean_path}")
 
 # ---------- HELPERS ----------
 def hash_password(pw: str) -> str:
