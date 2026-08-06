@@ -37,21 +37,36 @@ export default function AdminSettings() {
   const [ccBillRejectedAudio, setCcBillRejectedAudio] = useState("");
   const [qrRequestReceivedAudio, setQrRequestReceivedAudio] = useState("");
   const [ccBillRequestReceivedAudio, setCcBillRequestReceivedAudio] = useState("");
+
+  const [qrApprovedAudioEnabled, setQrApprovedAudioEnabled] = useState(true);
+  const [qrRejectedAudioEnabled, setQrRejectedAudioEnabled] = useState(true);
+  const [ccBillApprovedAudioEnabled, setCcBillApprovedAudioEnabled] = useState(true);
+  const [ccBillRejectedAudioEnabled, setCcBillRejectedAudioEnabled] = useState(true);
+  const [qrRequestReceivedAudioEnabled, setQrRequestReceivedAudioEnabled] = useState(true);
+  const [ccBillRequestReceivedAudioEnabled, setCcBillRequestReceivedAudioEnabled] = useState(true);
+
   const [savingAudio, setSavingAudio] = useState(false);
 
   const fetchSettings = async () => {
     try {
-      const { data } = await api.get("/admin/settings/recharge-limits");
+      const { data } = await api.get(`/admin/settings/recharge-limits?_t=${Date.now()}`);
       setMinLimit(String(data.min_recharge_limit ?? 100));
       setMaxLimit(String(data.max_recharge_limit ?? 300000));
       setLiveBillMaxLimit(String(data.live_bill_max_limit ?? 100000));
       setApiCharge(String(data.live_bill_api_charge ?? 0));
-      setQrApprovedAudio(data.qr_approved_audio || "");
-      setQrRejectedAudio(data.qr_rejected_audio || "");
-      setCcBillApprovedAudio(data.cc_bill_approved_audio || "");
-      setCcBillRejectedAudio(data.cc_bill_rejected_audio || "");
-      setQrRequestReceivedAudio(data.qr_request_received_audio || "");
-      setCcBillRequestReceivedAudio(data.cc_bill_request_received_audio || "");
+      setQrApprovedAudio(typeof data.qr_approved_audio === "string" ? data.qr_approved_audio : "");
+      setQrRejectedAudio(typeof data.qr_rejected_audio === "string" ? data.qr_rejected_audio : "");
+      setCcBillApprovedAudio(typeof data.cc_bill_approved_audio === "string" ? data.cc_bill_approved_audio : "");
+      setCcBillRejectedAudio(typeof data.cc_bill_rejected_audio === "string" ? data.cc_bill_rejected_audio : "");
+      setQrRequestReceivedAudio(typeof data.qr_request_received_audio === "string" ? data.qr_request_received_audio : "");
+      setCcBillRequestReceivedAudio(typeof data.cc_bill_request_received_audio === "string" ? data.cc_bill_request_received_audio : "");
+      setQrApprovedAudioEnabled(data.qr_approved_audio_enabled ?? true);
+      setQrRejectedAudioEnabled(data.qr_rejected_audio_enabled ?? true);
+      setCcBillApprovedAudioEnabled(data.cc_bill_approved_audio_enabled ?? true);
+      setCcBillRejectedAudioEnabled(data.cc_bill_rejected_audio_enabled ?? true);
+      setQrRequestReceivedAudioEnabled(data.qr_request_received_audio_enabled ?? true);
+      setCcBillRequestReceivedAudioEnabled(data.cc_bill_request_received_audio_enabled ?? true);
+
       const mm = !!data.maintenance_mode;
       setMaintenanceMode(mm);
       try { localStorage.setItem("set_maintenance_mode", JSON.stringify(mm)); } catch (e) {}
@@ -101,6 +116,29 @@ export default function AdminSettings() {
     }
   };
 
+  const handleAudioToggle = async (field, val) => {
+    if (field === "qr_approved_audio_enabled") setQrApprovedAudioEnabled(val);
+    if (field === "qr_rejected_audio_enabled") setQrRejectedAudioEnabled(val);
+    if (field === "cc_bill_approved_audio_enabled") setCcBillApprovedAudioEnabled(val);
+    if (field === "cc_bill_rejected_audio_enabled") setCcBillRejectedAudioEnabled(val);
+    if (field === "qr_request_received_audio_enabled") setQrRequestReceivedAudioEnabled(val);
+    if (field === "cc_bill_request_received_audio_enabled") setCcBillRequestReceivedAudioEnabled(val);
+
+    try {
+      await api.put("/admin/settings/recharge-toggles", {
+        qr_approved_audio_enabled: field === "qr_approved_audio_enabled" ? val : qrApprovedAudioEnabled,
+        qr_rejected_audio_enabled: field === "qr_rejected_audio_enabled" ? val : qrRejectedAudioEnabled,
+        cc_bill_approved_audio_enabled: field === "cc_bill_approved_audio_enabled" ? val : ccBillApprovedAudioEnabled,
+        cc_bill_rejected_audio_enabled: field === "cc_bill_rejected_audio_enabled" ? val : ccBillRejectedAudioEnabled,
+        qr_request_received_audio_enabled: field === "qr_request_received_audio_enabled" ? val : qrRequestReceivedAudioEnabled,
+        cc_bill_request_received_audio_enabled: field === "cc_bill_request_received_audio_enabled" ? val : ccBillRequestReceivedAudioEnabled,
+      });
+      toast.success(val ? "Audio sound enabled 🟢" : "Audio sound disabled (Muted) 🔴");
+    } catch (e) {
+      toast.error("Failed to update audio toggle");
+    }
+  };
+
   const handleSaveAudio = async (e) => {
     if (e) e.preventDefault();
     setSavingAudio(true);
@@ -112,6 +150,12 @@ export default function AdminSettings() {
         cc_bill_rejected_audio: ccBillRejectedAudio,
         qr_request_received_audio: qrRequestReceivedAudio,
         cc_bill_request_received_audio: ccBillRequestReceivedAudio,
+        qr_approved_audio_enabled: qrApprovedAudioEnabled,
+        qr_rejected_audio_enabled: qrRejectedAudioEnabled,
+        cc_bill_approved_audio_enabled: ccBillApprovedAudioEnabled,
+        cc_bill_rejected_audio_enabled: ccBillRejectedAudioEnabled,
+        qr_request_received_audio_enabled: qrRequestReceivedAudioEnabled,
+        cc_bill_request_received_audio_enabled: ccBillRequestReceivedAudioEnabled,
       });
       toast.success("Audio Notification Settings saved successfully");
     } catch (e) {
@@ -392,20 +436,35 @@ export default function AdminSettings() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div className="space-y-2">
+                  <div className="space-y-2 p-4 bg-neutral-50/50 rounded-2xl border border-black/5">
                     <div className="flex items-center justify-between">
-                      <label className="mfp-label font-bold text-neutral-600 block">
+                      <label className="mfp-label font-bold text-neutral-700 block mb-0">
                         🟢 QR Request Approved Audio
                       </label>
-                      {qrApprovedAudio && (
+                      <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => handleAudioUploaded("qr_approved_audio", "")}
-                          className="text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                          onClick={() => handleAudioToggle("qr_approved_audio_enabled", !qrApprovedAudioEnabled)}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            qrApprovedAudioEnabled ? "bg-emerald-600" : "bg-neutral-300"
+                          }`}
                         >
-                          <X className="h-3 w-3" /> Remove
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                              qrApprovedAudioEnabled ? "translate-x-4" : "translate-x-0"
+                            }`}
+                          />
                         </button>
-                      )}
+                        {qrApprovedAudio && (
+                          <button
+                            type="button"
+                            onClick={() => handleAudioUploaded("qr_approved_audio", "")}
+                            className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <X className="h-3 w-3" /> Remove
+                          </button>
+                        )}
+                      </div>
                     </div>
                     {qrApprovedAudio ? (
                       <div className="p-2 bg-emerald-50/50 rounded-xl border border-emerald-200">
@@ -422,20 +481,35 @@ export default function AdminSettings() {
                     />
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2 p-4 bg-neutral-50/50 rounded-2xl border border-black/5">
                     <div className="flex items-center justify-between">
-                      <label className="mfp-label font-bold text-neutral-600 block">
+                      <label className="mfp-label font-bold text-neutral-700 block mb-0">
                         🔴 QR Request Rejected Audio
                       </label>
-                      {qrRejectedAudio && (
+                      <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => handleAudioUploaded("qr_rejected_audio", "")}
-                          className="text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                          onClick={() => handleAudioToggle("qr_rejected_audio_enabled", !qrRejectedAudioEnabled)}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            qrRejectedAudioEnabled ? "bg-emerald-600" : "bg-neutral-300"
+                          }`}
                         >
-                          <X className="h-3 w-3" /> Remove
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                              qrRejectedAudioEnabled ? "translate-x-4" : "translate-x-0"
+                            }`}
+                          />
                         </button>
-                      )}
+                        {qrRejectedAudio && (
+                          <button
+                            type="button"
+                            onClick={() => handleAudioUploaded("qr_rejected_audio", "")}
+                            className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <X className="h-3 w-3" /> Remove
+                          </button>
+                        )}
+                      </div>
                     </div>
                     {qrRejectedAudio ? (
                       <div className="p-2 bg-rose-50/50 rounded-xl border border-rose-200">
@@ -452,20 +526,35 @@ export default function AdminSettings() {
                     />
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2 p-4 bg-neutral-50/50 rounded-2xl border border-black/5">
                     <div className="flex items-center justify-between">
-                      <label className="mfp-label font-bold text-neutral-600 block">
+                      <label className="mfp-label font-bold text-neutral-700 block mb-0">
                         🟢 CC Bill Approved Audio
                       </label>
-                      {ccBillApprovedAudio && (
+                      <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => handleAudioUploaded("cc_bill_approved_audio", "")}
-                          className="text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                          onClick={() => handleAudioToggle("cc_bill_approved_audio_enabled", !ccBillApprovedAudioEnabled)}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            ccBillApprovedAudioEnabled ? "bg-emerald-600" : "bg-neutral-300"
+                          }`}
                         >
-                          <X className="h-3 w-3" /> Remove
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                              ccBillApprovedAudioEnabled ? "translate-x-4" : "translate-x-0"
+                            }`}
+                          />
                         </button>
-                      )}
+                        {ccBillApprovedAudio && (
+                          <button
+                            type="button"
+                            onClick={() => handleAudioUploaded("cc_bill_approved_audio", "")}
+                            className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <X className="h-3 w-3" /> Remove
+                          </button>
+                        )}
+                      </div>
                     </div>
                     {ccBillApprovedAudio ? (
                       <div className="p-2 bg-emerald-50/50 rounded-xl border border-emerald-200">
@@ -482,20 +571,35 @@ export default function AdminSettings() {
                     />
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2 p-4 bg-neutral-50/50 rounded-2xl border border-black/5">
                     <div className="flex items-center justify-between">
-                      <label className="mfp-label font-bold text-neutral-600 block">
+                      <label className="mfp-label font-bold text-neutral-700 block mb-0">
                         🔴 CC Bill Rejected Audio
                       </label>
-                      {ccBillRejectedAudio && (
+                      <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => handleAudioUploaded("cc_bill_rejected_audio", "")}
-                          className="text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                          onClick={() => handleAudioToggle("cc_bill_rejected_audio_enabled", !ccBillRejectedAudioEnabled)}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            ccBillRejectedAudioEnabled ? "bg-emerald-600" : "bg-neutral-300"
+                          }`}
                         >
-                          <X className="h-3 w-3" /> Remove
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                              ccBillRejectedAudioEnabled ? "translate-x-4" : "translate-x-0"
+                            }`}
+                          />
                         </button>
-                      )}
+                        {ccBillRejectedAudio && (
+                          <button
+                            type="button"
+                            onClick={() => handleAudioUploaded("cc_bill_rejected_audio", "")}
+                            className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <X className="h-3 w-3" /> Remove
+                          </button>
+                        )}
+                      </div>
                     </div>
                     {ccBillRejectedAudio ? (
                       <div className="p-2 bg-rose-50/50 rounded-xl border border-rose-200">
@@ -512,20 +616,35 @@ export default function AdminSettings() {
                     />
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2 p-4 bg-neutral-50/50 rounded-2xl border border-black/5">
                     <div className="flex items-center justify-between">
-                      <label className="mfp-label font-bold text-neutral-600 block">
+                      <label className="mfp-label font-bold text-neutral-700 block mb-0">
                         🔔 Incoming QR Request Sound (Admin)
                       </label>
-                      {qrRequestReceivedAudio && (
+                      <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => handleAudioUploaded("qr_request_received_audio", "")}
-                          className="text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                          onClick={() => handleAudioToggle("qr_request_received_audio_enabled", !qrRequestReceivedAudioEnabled)}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            qrRequestReceivedAudioEnabled ? "bg-emerald-600" : "bg-neutral-300"
+                          }`}
                         >
-                          <X className="h-3 w-3" /> Remove
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                              qrRequestReceivedAudioEnabled ? "translate-x-4" : "translate-x-0"
+                            }`}
+                          />
                         </button>
-                      )}
+                        {qrRequestReceivedAudio && (
+                          <button
+                            type="button"
+                            onClick={() => handleAudioUploaded("qr_request_received_audio", "")}
+                            className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <X className="h-3 w-3" /> Remove
+                          </button>
+                        )}
+                      </div>
                     </div>
                     {qrRequestReceivedAudio ? (
                       <div className="p-2 bg-amber-50/50 rounded-xl border border-amber-200">
@@ -542,20 +661,35 @@ export default function AdminSettings() {
                     />
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2 p-4 bg-neutral-50/50 rounded-2xl border border-black/5">
                     <div className="flex items-center justify-between">
-                      <label className="mfp-label font-bold text-neutral-600 block">
+                      <label className="mfp-label font-bold text-neutral-700 block mb-0">
                         🔔 Incoming CC Bill Request Sound (Admin)
                       </label>
-                      {ccBillRequestReceivedAudio && (
+                      <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => handleAudioUploaded("cc_bill_request_received_audio", "")}
-                          className="text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                          onClick={() => handleAudioToggle("cc_bill_request_received_audio_enabled", !ccBillRequestReceivedAudioEnabled)}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            ccBillRequestReceivedAudioEnabled ? "bg-emerald-600" : "bg-neutral-300"
+                          }`}
                         >
-                          <X className="h-3 w-3" /> Remove
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                              ccBillRequestReceivedAudioEnabled ? "translate-x-4" : "translate-x-0"
+                            }`}
+                          />
                         </button>
-                      )}
+                        {ccBillRequestReceivedAudio && (
+                          <button
+                            type="button"
+                            onClick={() => handleAudioUploaded("cc_bill_request_received_audio", "")}
+                            className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <X className="h-3 w-3" /> Remove
+                          </button>
+                        )}
+                      </div>
                     </div>
                     {ccBillRequestReceivedAudio ? (
                       <div className="p-2 bg-amber-50/50 rounded-xl border border-amber-200">
