@@ -2,12 +2,12 @@ import React from "react";
 
 /**
  * Exact Official Bharat Connect (BBPS) Double 'B' Emblem
- * Clean, uncropped SVG with proper padding around all boundaries.
+ * Matches user uploaded image with exact vector geometry and zero cropping.
  */
-export default function BbpsIcon({ className = "h-6 w-6", color = "#3469C7", ...props }) {
+export default function BbpsIcon({ className = "h-5 w-auto", color = "#3469C7", ...props }) {
   return (
     <svg
-      viewBox="-15 -10 130 135"
+      viewBox="-15 -15 230 260"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={`${className} shrink-0 inline-block align-middle overflow-visible`}
@@ -15,28 +15,28 @@ export default function BbpsIcon({ className = "h-6 w-6", color = "#3469C7", ...
     >
       {/* Top B Segment */}
       <path
-        d="M 0 14 C 0 6.27 6.27 0 14 0 H 52 C 77.4 0 98 20.6 98 46 C 98 51.5 93.5 56 88 56 H 14 C 6.27 56 0 49.73 0 42 V 14 Z"
+        d="M 0 35 C 0 15.67 15.67 0 35 0 H 105 C 157.47 0 200 42.53 200 95 C 200 106.05 191.05 115 180 115 H 35 C 15.67 115 0 99.33 0 80 V 35 Z"
         fill={color}
       />
       {/* Top Arrow Cutout */}
       <path
-        d="M -5 37 H 40 L 70 7"
+        d="M -10 75 H 85 L 145 15"
         stroke="#FFFFFF"
-        strokeWidth="15"
+        strokeWidth="30"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
 
       {/* Bottom B Segment */}
       <path
-        d="M 0 59 H 88 C 93.5 59 98 63.5 98 69 C 98 94.4 77.4 115 52 115 H 14 C 6.27 115 0 108.7 0 101 V 59 Z"
+        d="M 0 125 H 180 C 191.05 125 200 133.95 200 145 C 200 197.47 157.47 240 105 240 H 35 C 15.67 240 0 224.33 0 205 V 125 Z"
         fill={color}
       />
       {/* Bottom Arrow Cutout */}
       <path
-        d="M 105 78 H 60 L 30 108"
+        d="M 210 165 H 125 L 65 225"
         stroke="#FFFFFF"
-        strokeWidth="15"
+        strokeWidth="30"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
