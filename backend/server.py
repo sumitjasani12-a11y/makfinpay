@@ -4170,35 +4170,6 @@ async def call_irise_api(method: str, endpoint: str, params: dict = None, json_d
     base_url = os.environ.get("IRISE_BASE_URL", "https://www.usepay.in/api/v1/b2b")
     public_key = os.environ.get("IRISE_PUBLIC_KEY", "").strip()
     secret_key = os.environ.get("IRISE_SECRET_KEY", "").strip()
-    
-    if os.environ.get("USE_MOCK_IRISE", "false").lower() == "true":
-        await asyncio.sleep(0.5)
-        if endpoint == "billers":
-            return {"status": "success", "data": [{"biller_id": "SBI001", "biller_name": "SBI Card", "category": "Credit Card"}]}
-        elif endpoint == "fetch-bill":
-            return {
-                "status": "success",
-                "data": {
-                    "customerName": "Valued Customer",
-                    "billAmount": "1000.00",
-                    "dueDate": "2026-08-31",
-                    "billDate": "2026-08-01",
-                    "fetchRequestId": f"REQ{uuid.uuid4().hex[:6].upper()}"
-                }
-            }
-        elif endpoint == "pay-bill":
-            return {
-                "status": "success",
-                "payment_status": "success",
-                "data": {
-                    "responseCode": "000",
-                    "billPayResponse": {
-                        "txnReferenceId": f"BBPS{uuid.uuid4().hex[:8].upper()}",
-                        "txnStatus": "SUCCESS"
-                    }
-                }
-            }
-        return {"status": "failed", "message": "Mock API endpoint not found"}
 
     headers = {
         "Accept": "application/json",
