@@ -327,6 +327,17 @@ export default function AdminKyc() {
           ) },
           { key: "phone", label: "Phone", render: (r) => r.user?.phone || "—" },
           { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status || "pending"} /> },
+          {
+            key: "processed_by",
+            label: "Processed By",
+            render: (r) => (r.status !== "pending" && r.status !== "not_submitted") ? (
+              <span className="text-[11px] font-bold text-neutral-700 bg-neutral-100 border border-black/5 px-2 py-0.5 rounded-md inline-block max-w-[120px] truncate" title={r.reviewed_by_name || "Admin"}>
+                {r.reviewed_by_name || "Admin"}
+              </span>
+            ) : (
+              <span className="text-neutral-400 font-medium">—</span>
+            )
+          },
           { key: "actions", label: "Action", render: (r) => (
             <button
               onClick={() => setSelected(r)}

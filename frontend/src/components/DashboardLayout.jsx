@@ -37,11 +37,15 @@ export default function DashboardLayout() {
 
   // Client-side URL route guard for restricted admins
   useEffect(() => {
-    if (user && user.role === "admin" && user.email !== "jigs.vanani@gmail.com") {
+    if (user && user.role === "admin" && user.email?.toLowerCase() !== "jigs.vanani@gmail.com") {
       const currentPath = location.pathname;
       if (currentPath.startsWith("/admin")) {
         const sub = currentPath === "/admin" || currentPath === "/admin/" ? "dashboard" : currentPath.replace("/admin/", "");
         const baseKey = sub.split("/")[0];
+        if (baseKey === "admins") {
+          nav("/admin");
+          return;
+        }
         const allowed = user.permissions;
         if (allowed !== null && allowed !== undefined) {
           if (!allowed.includes(baseKey)) {
@@ -53,14 +57,16 @@ export default function DashboardLayout() {
   }, [user, location.pathname, nav]);
 
   let items = NAV[user.role] || [];
-  if (user.role === "admin" && user.email !== "jigs.vanani@gmail.com") {
+  if (user.role === "admin" && user.email?.toLowerCase() !== "jigs.vanani@gmail.com") {
     const allowed = user.permissions;
-    if (allowed !== null && allowed !== undefined) {
-      items = items.filter(it => {
+    items = items.filter(it => {
+      if (it.to === "/admin/admins") return false;
+      if (allowed !== null && allowed !== undefined) {
         const key = it.to === "/admin" ? "dashboard" : it.to.replace("/admin/", "");
         return allowed.includes(key);
-      });
-    }
+      }
+      return true;
+    });
   } else if (!isExcludedRole && (user.first_login || user.kyc_status !== "approved")) {
     items = items.filter(it => it.to === roleBaseRoute);
   } else if (user.role === "agent" && limits) {

@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { api, fmtMoney, fmtDate } from "@/lib/api";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
-import { Search, X, Receipt, Clock, RotateCcw, ShieldCheck, History } from "lucide-react";
+import BharatConnectLogo from "@/components/BharatConnectLogo";
+import { Search, X, Receipt, Clock, RotateCcw, ShieldCheck, History, HelpCircle } from "lucide-react";
 
 const STATUS_TABS = [
   { key: "all", label: "All Status" },
@@ -119,6 +120,7 @@ export default function LiveBillHistory() {
       <PageHeader
         title="Live Bill History"
         subtitle="Dedicated overview of all your utility, gas, electricity, and other live bill payments."
+        actions={<BharatConnectLogo iconClassName="h-9 w-9" />}
       />
 
       {/* Metrics statistics cards */}
@@ -306,6 +308,31 @@ export default function LiveBillHistory() {
               key: "status",
               label: "Status",
               render: (r) => <StatusBadge status={r.status} />
+            },
+            { 
+              key: "reason", 
+              label: "Reason", 
+              render: (r, { isExpanded, toggleExpand }) => {
+                const isRejected = r.status === "reversed" || r.status === "rejected" || r.status === "failed";
+                const note = r.note || r.rejection_reason || r.reason;
+                if (isRejected && note) {
+                  return (
+                    <button
+                      type="button"
+                      onClick={toggleExpand}
+                      className={`px-2 py-1 text-xs font-bold rounded-lg border transition-all inline-flex items-center gap-1 cursor-pointer ${
+                        isExpanded
+                          ? "bg-rose-600 text-white border-rose-600 shadow-xs"
+                          : "bg-rose-50 text-rose-700 border-rose-200/80 hover:bg-rose-100/80 hover:border-rose-300"
+                      }`}
+                    >
+                      <HelpCircle className="h-3.5 w-3.5" />
+                      {isExpanded ? "Hide Reason" : "View Reason"}
+                    </button>
+                  );
+                }
+                return <span className="text-neutral-400 font-medium">—</span>;
+              } 
             }
           ]}
           rows={paginatedItems}

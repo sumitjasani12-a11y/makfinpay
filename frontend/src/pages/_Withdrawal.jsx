@@ -4,7 +4,7 @@ import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import { useAuth } from "@/lib/auth";
 import BankDetailsCard from "@/components/BankDetailsCard";
 import { toast } from "sonner";
-import { Loader2, AlertCircle, Landmark, ShieldCheck } from "lucide-react";
+import { Loader2, AlertCircle, Landmark, ShieldCheck, HelpCircle } from "lucide-react";
 
 export default function Withdrawal() {
   const { user } = useAuth();
@@ -189,6 +189,31 @@ export default function Withdrawal() {
           columns={[
             { key: "amount", label: "Amount", render: (r) => fmtMoney(r.amount) },
             { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
+            { 
+              key: "reason", 
+              label: "Reason", 
+              render: (r, { isExpanded, toggleExpand }) => {
+                const isRejected = r.status === "rejected" || r.status === "failed";
+                const note = r.note || r.rejection_reason || r.reason;
+                if (isRejected && note) {
+                  return (
+                    <button
+                      type="button"
+                      onClick={toggleExpand}
+                      className={`px-2 py-1 text-xs font-bold rounded-lg border transition-all inline-flex items-center gap-1 cursor-pointer ${
+                        isExpanded
+                          ? "bg-rose-600 text-white border-rose-600 shadow-xs"
+                          : "bg-rose-50 text-rose-700 border-rose-200/80 hover:bg-rose-100/80 hover:border-rose-300"
+                      }`}
+                    >
+                      <HelpCircle className="h-3.5 w-3.5" />
+                      {isExpanded ? "Hide Reason" : "View Reason"}
+                    </button>
+                  );
+                }
+                return <span className="text-neutral-400 font-medium">—</span>;
+              } 
+            },
             { key: "created_at", label: "Requested", render: (r) => fmtDate(r.created_at) },
             { key: "reviewed_at", label: "Reviewed", render: (r) => fmtDate(r.reviewed_at) },
           ]}

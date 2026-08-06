@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { PageHeader } from "@/components/Shared";
 import FileUpload from "@/components/FileUpload";
 import { api, formatErr, fileUrl } from "@/lib/api";
-import { useAuth } from "@/lib/auth";
+import { useAuth, updateFaviconInDOM } from "@/lib/auth";
 import { toast } from "sonner";
 import { Save, ShieldAlert } from "lucide-react";
 
@@ -125,6 +125,9 @@ export default function AdminSettings() {
         watermark_path: watermarkPath
       });
       fetchBranding();
+      if (faviconPath) {
+        updateFaviconInDOM(faviconPath);
+      }
       toast.success("Branding saved successfully");
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Failed to save branding preferences");

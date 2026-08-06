@@ -30,8 +30,7 @@ const PERMISSIONS_LIST = [
   { key: "audit", label: "Audit Logs" },
   { key: "change-password", label: "Change Password" },
   { key: "settings", label: "Settings" },
-  { key: "policies", label: "Rules & Policies" },
-  { key: "admins", label: "Admin Management" }
+  { key: "policies", label: "Rules & Policies" }
 ];
 
 export default function AdminManagement() {
@@ -174,6 +173,18 @@ export default function AdminManagement() {
       toast.error(formatErr(err.response?.data?.detail) || "Failed to delete admin");
     }
   };
+
+  if (!isSuperAdmin) {
+    return (
+      <div className="mfp-card p-12 text-center space-y-3">
+        <ShieldAlert className="h-12 w-12 mx-auto text-rose-500" />
+        <div className="text-lg font-bold text-neutral-800">Access Denied</div>
+        <p className="text-sm text-neutral-500 font-normal">
+          Only the Super Admin (jigs.vanani@gmail.com) can access Administrator Management.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

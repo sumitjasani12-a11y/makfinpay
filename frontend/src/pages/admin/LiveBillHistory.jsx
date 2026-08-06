@@ -5,7 +5,7 @@ import { useDebounced } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import { toast } from "sonner";
-import { Check, RotateCcw, Search, X, FileDown, FileSpreadsheet, Loader2, Eye, RefreshCw } from "lucide-react";
+import { Check, RotateCcw, Search, X, FileDown, FileSpreadsheet, Loader2, Eye, RefreshCw, HelpCircle } from "lucide-react";
 
 const getShortTxnId = (id) => {
   if (!id) return "—";
@@ -266,6 +266,33 @@ export default function AdminLiveBillHistory() {
       );
     } },
     { key: "status", label: "Status", render: (r) => <div className="flex justify-center"><StatusBadge status={r.status} /></div> },
+    { 
+      key: "reason", 
+      label: "Reason", 
+      render: (r, { isExpanded, toggleExpand }) => {
+        const isRejected = r.status === "reversed" || r.status === "rejected" || r.status === "failed";
+        const note = r.note || r.rejection_reason || r.reason;
+        if (isRejected && note) {
+          return (
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={toggleExpand}
+                className={`px-2 py-1 text-xs font-bold rounded-lg border transition-all inline-flex items-center gap-1 cursor-pointer ${
+                  isExpanded
+                    ? "bg-rose-600 text-white border-rose-600 shadow-xs"
+                    : "bg-rose-50 text-rose-700 border-rose-200/80 hover:bg-rose-100/80 hover:border-rose-300"
+                }`}
+              >
+                <HelpCircle className="h-3.5 w-3.5" />
+                {isExpanded ? "Hide Reason" : "View Reason"}
+              </button>
+            </div>
+          );
+        }
+        return <span className="text-neutral-400 font-medium">—</span>;
+      } 
+    },
     { 
       key: "view", 
       label: "View", 

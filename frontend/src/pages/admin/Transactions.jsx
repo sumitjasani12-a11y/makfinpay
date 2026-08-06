@@ -4,7 +4,7 @@ import { DATE_RANGES, todayStr, rangeWindowIso } from "@/lib/filters";
 import { useDebounced } from "@/lib/hooks";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import { toast } from "sonner";
-import { Check, RotateCcw, Search, X, FileDown, FileSpreadsheet, Loader2, Eye } from "lucide-react";
+import { Check, RotateCcw, Search, X, FileDown, FileSpreadsheet, Loader2, Eye, HelpCircle } from "lucide-react";
 import { useWebSocketListener } from "@/lib/ws";
 
 function RejectModal({ onClose, onConfirm, predefined = [] }) {
@@ -285,6 +285,44 @@ export default function AdminTransactions() {
       <span className="font-semibold text-xs text-center block mx-auto">{fmtMoney(r.service_charge ?? 0)}</span>
     ) },
     { key: "status", label: "Status", render: (r) => <div className="flex justify-center"><StatusBadge status={r.status} /></div> },
+    { 
+      key: "reason", 
+      label: "Reason", 
+      render: (r, { isExpanded, toggleExpand }) => {
+        const isRejected = r.status === "reversed" || r.status === "rejected" || r.status === "failed";
+        const note = r.note || r.rejection_reason || r.reason;
+        if (isRejected && note) {
+          return (
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={toggleExpand}
+                className={`px-2 py-1 text-xs font-bold rounded-lg border transition-all inline-flex items-center gap-1 cursor-pointer ${
+                  isExpanded
+                    ? "bg-rose-600 text-white border-rose-600 shadow-xs"
+                    : "bg-rose-50 text-rose-700 border-rose-200/80 hover:bg-rose-100/80 hover:border-rose-300"
+                }`}
+              >
+                <HelpCircle className="h-3.5 w-3.5" />
+                {isExpanded ? "Hide Reason" : "View Reason"}
+              </button>
+            </div>
+          );
+        }
+        return <span className="text-neutral-400 font-medium">—</span>;
+      } 
+    },
+    {
+      key: "processed_by",
+      label: "Processed By",
+      render: (r) => r.status !== "pending" ? (
+        <span className="text-[11px] font-bold text-neutral-700 bg-neutral-100 border border-black/5 px-2 py-0.5 rounded-md inline-block max-w-[120px] truncate" title={r.reviewed_by_name || "Admin"}>
+          {r.reviewed_by_name || "Admin"}
+        </span>
+      ) : (
+        <span className="text-neutral-400 font-medium">—</span>
+      )
+    },
     { 
       key: "view", 
       label: "View", 

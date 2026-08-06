@@ -4,7 +4,7 @@ import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import { rangeWindowIso, todayStr } from "@/lib/filters";
 import { useDebounced } from "@/lib/hooks";
 import { useWebSocketListener } from "@/lib/ws";
-import { Search, RotateCcw, ChevronLeft, ChevronRight, Calendar, CheckCircle2, Clock, XCircle, Coins } from "lucide-react";
+import { Search, RotateCcw, ChevronLeft, ChevronRight, Calendar, CheckCircle2, Clock, XCircle, Coins, HelpCircle } from "lucide-react";
 
 const DATE_OPTIONS = [
   { key: "today", label: "Today" },
@@ -115,6 +115,26 @@ export default function DistRecharges() {
     { key: "commission_percent", label: "Comm %", render: (r) => `${r.commission_percent ?? 0}%` },
     { key: "distributor_earnings_amount", label: "My Earnings", render: (r) => r.status === "approved" ? fmtMoney(r.distributor_earnings_amount ?? 0) : "—" },
     { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
+    { 
+      key: "reason", 
+      label: "Reason", 
+      render: (r, { isExpanded, toggleExpand }) => (
+        r.status === "rejected" && (r.note || r.rejection_reason || r.reason) ? (
+          <button
+            type="button"
+            onClick={toggleExpand}
+            className={`px-2.5 py-1 text-xs font-bold rounded-lg border transition-all inline-flex items-center gap-1.5 cursor-pointer ${
+              isExpanded
+                ? "bg-rose-600 text-white border-rose-600 shadow-xs"
+                : "bg-rose-50 text-rose-700 border-rose-200/80 hover:bg-rose-100/80 hover:border-rose-300"
+            }`}
+          >
+            <HelpCircle className="h-3.5 w-3.5" />
+            {isExpanded ? "Hide Reason" : "View Reason"}
+          </button>
+        ) : <span className="text-neutral-400 font-medium">—</span>
+      )
+    },
     { key: "created_at", label: "Created", render: (r) => fmtDate(r.created_at) },
   ];
 

@@ -6,7 +6,7 @@ import FileUpload from "@/components/FileUpload";
 import ZoomableImage from "@/components/ZoomableImage";
 
 import { toast } from "sonner";
-import { Loader2, Coins, KeyRound, CreditCard, QrCode, Info, Sparkles, CheckCircle2, History, Check, ShieldAlert, FileDown, FileSpreadsheet, Clock, X, Eye, AlertTriangle } from "lucide-react";
+import { Loader2, Coins, KeyRound, CreditCard, QrCode, Info, Sparkles, CheckCircle2, History, Check, ShieldAlert, FileDown, FileSpreadsheet, Clock, X, Eye, AlertTriangle, HelpCircle } from "lucide-react";
 import { useWebSocketListener } from "@/lib/ws";
 
 export default function AgentRecharge() {
@@ -1098,16 +1098,21 @@ export default function AgentRecharge() {
               )
             },
             {
-              key: "action", label: "Action", render: (r) => (
-                r.status === "rejected" && r.note ? (
+              key: "reason", label: "Reason", render: (r, { isExpanded, toggleExpand }) => (
+                r.status === "rejected" && (r.note || r.rejection_reason || r.reason) ? (
                   <button
                     type="button"
-                    onClick={() => setRejectionReasonModal(r.note || "No rejection reason provided.")}
-                    className="px-2.5 py-1 text-[10px] font-black bg-rose-50 hover:bg-rose-100/80 text-rose-600 border border-rose-100 hover:border-rose-200 rounded-lg transition-colors cursor-pointer select-none"
+                    onClick={toggleExpand}
+                    className={`px-2.5 py-1 text-xs font-bold rounded-lg border transition-all inline-flex items-center gap-1.5 cursor-pointer ${
+                      isExpanded
+                        ? "bg-rose-600 text-white border-rose-600 shadow-xs"
+                        : "bg-rose-50 text-rose-700 border-rose-200/80 hover:bg-rose-100/80 hover:border-rose-300"
+                    }`}
                   >
-                    View Reason
+                    <HelpCircle className="h-3.5 w-3.5" />
+                    {isExpanded ? "Hide Reason" : "View Reason"}
                   </button>
-                ) : "—"
+                ) : <span className="text-neutral-400 font-medium">—</span>
               )
             },
           ]}

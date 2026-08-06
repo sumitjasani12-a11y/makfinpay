@@ -6,7 +6,7 @@ import { useDebounced } from "@/lib/hooks";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import ZoomableImage from "@/components/ZoomableImage";
 import { toast } from "sonner";
-import { Eye, Check, X, Search, RotateCcw, FileDown, FileSpreadsheet, Loader2, ShieldAlert, CheckCircle2, Pencil } from "lucide-react";
+import { Eye, Check, X, Search, RotateCcw, FileDown, FileSpreadsheet, Loader2, ShieldAlert, CheckCircle2, Pencil, HelpCircle } from "lucide-react";
 import { useWebSocketListener } from "@/lib/ws";
 
 const STATUSES = [
@@ -151,6 +151,7 @@ export default function AdminRecharges() {
   }, []);
 
   const { user } = useAuth();
+  const isSuperAdmin = user?.email?.toLowerCase() === "jigs.vanani@gmail.com";
   const [qrEntries, setQrEntries] = useState([]);
   const [editingQrRid, setEditingQrRid] = useState(null);
   const [selectedQrLabel, setSelectedQrLabel] = useState("");
@@ -353,7 +354,7 @@ export default function AdminRecharges() {
             <span className="max-w-[110px] truncate block font-semibold text-xs text-neutral-800 text-center" title={r.qr_code_label}>
               {r.qr_code_label || "N/A"}
             </span>
-            {user?.role === "admin" && (
+            {isSuperAdmin && (
               <button
                 onClick={() => {
                   if (editingQrRid === r.id) {
@@ -389,6 +390,44 @@ export default function AdminRecharges() {
     { key: "distributor_earnings_amount", label: "Dist", render: (r) => r.status === "approved" ? fmtMoney(r.distributor_earnings_amount) : "—" },
     { key: "credit_amount", label: "Net Credit", render: (r) => r.status === "approved" ? fmtMoney(r.credit_amount) : "—" },
     { key: "status", label: "Status", render: (r) => <div className="flex justify-center"><StatusBadge status={r.status} /></div> },
+    { 
+      key: "reason", 
+      label: "Reason", 
+      render: (r, { isExpanded, toggleExpand }) => {
+        const isRejected = r.status === "rejected" || r.status === "failed";
+        const note = r.note || r.rejection_reason || r.reason;
+        if (isRejected && note) {
+          return (
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={toggleExpand}
+                className={`px-2 py-1 text-xs font-bold rounded-lg border transition-all inline-flex items-center gap-1 cursor-pointer ${
+                  isExpanded
+                    ? "bg-rose-600 text-white border-rose-600 shadow-xs"
+                    : "bg-rose-50 text-rose-700 border-rose-200/80 hover:bg-rose-100/80 hover:border-rose-300"
+                }`}
+              >
+                <HelpCircle className="h-3.5 w-3.5" />
+                {isExpanded ? "Hide Reason" : "View Reason"}
+              </button>
+            </div>
+          );
+        }
+        return <span className="text-neutral-400 font-medium">—</span>;
+      } 
+    },
+    {
+      key: "processed_by",
+      label: "Processed By",
+      render: (r) => r.status !== "pending" ? (
+        <span className="text-[11px] font-bold text-neutral-700 bg-neutral-100 border border-black/5 px-2 py-0.5 rounded-md inline-block max-w-[120px] truncate" title={r.reviewed_by_name || "Admin"}>
+          {r.reviewed_by_name || "Admin"}
+        </span>
+      ) : (
+        <span className="text-neutral-400 font-medium">—</span>
+      )
+    },
     { 
       key: "view", 
       label: "View", 

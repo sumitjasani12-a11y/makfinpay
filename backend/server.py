@@ -1231,11 +1231,18 @@ class UpdateAdminIn(BaseModel):
 
 # ---------- ADMIN MANAGEMENT ----------
 
+def is_super_admin(user: dict) -> bool:
+    if not user or not isinstance(user, dict):
+        return False
+    return user.get("email", "").lower() == "jigs.vanani@gmail.com"
+
 def check_admin_permission(user: dict, permission_key: str) -> bool:
     if user.get("role") != "admin":
         return False
-    if user.get("email", "").lower() == "jigs.vanani@gmail.com":
+    if is_super_admin(user):
         return True
+    if permission_key == "admins":
+        return False
     
     permissions = user.get("permissions")
     # By default, if permissions are None/uninitialized, grant full access
@@ -1246,8 +1253,8 @@ def check_admin_permission(user: dict, permission_key: str) -> bool:
 
 @api.get("/admin/admins")
 async def list_admins(user=Depends(require_roles("admin"))):
-    if not check_admin_permission(user, "admins"):
-        raise HTTPException(403, "Access denied: You do not have permission to manage administrators.")
+    if not is_super_admin(user):
+        raise HTTPException(403, "Access denied: Only Super Admin (jigs.vanani@gmail.com) can manage administrators.")
         
     SUPER_EMAIL = "jigs.vanani@gmail.com"
     creds = await db.admin_credentials.find({"email": {"$ne": SUPER_EMAIL}}).to_list(100)
@@ -1275,9 +1282,9 @@ async def list_admins(user=Depends(require_roles("admin"))):
 
 @api.post("/admin/admins")
 async def create_admin(body: CreateAdminIn, user=Depends(require_roles("admin"))):
-    if not check_admin_permission(user, "admins"):
-        raise HTTPException(403, "Access denied: You do not have permission to manage administrators.")
-        
+    if not is_super_admin(user):
+        raise HTTPException(403, "Access denied: Only Super Admin (jigs.vanani@gmail.com) can manage administrators.")
+
     email = body.email.lower().strip()
     SUPER_EMAIL = "jigs.vanani@gmail.com"
     if email == SUPER_EMAIL:
@@ -1330,8 +1337,8 @@ async def create_admin(body: CreateAdminIn, user=Depends(require_roles("admin"))
 
 @api.put("/admin/admins/{admin_id}")
 async def update_admin(admin_id: str, body: UpdateAdminIn, user=Depends(require_roles("admin"))):
-    if not check_admin_permission(user, "admins"):
-        raise HTTPException(403, "Access denied: You do not have permission to manage administrators.")
+    if not is_super_admin(user):
+        raise HTTPException(403, "Access denied: Only Super Admin (jigs.vanani@gmail.com) can manage administrators.")
         
     SUPER_EMAIL = "jigs.vanani@gmail.com"
     cred = await db.admin_credentials.find_one({"id": admin_id})
@@ -3507,6 +3514,23 @@ async def admin_recharges_stats(
         }
     return res
 
+async def _enrich_reviewed_by_names(items: list) -> list:
+    if not items or not isinstance(items, list):
+        return items
+    rb_ids = list({str(it.get("reviewed_by")) for it in items if it.get("reviewed_by") and not it.get("reviewed_by_name")})
+    if not rb_ids:
+        return items
+    try:
+        users = await db.users.find({"id": {"$in": rb_ids}}, {"_id": 0, "id": 1, "full_name": 1, "email": 1}).to_list(len(rb_ids))
+        user_map = {str(u["id"]): (u.get("full_name") or u.get("email")) for u in users}
+        for it in items:
+            rb = str(it.get("reviewed_by")) if it.get("reviewed_by") else None
+            if rb and not it.get("reviewed_by_name"):
+                it["reviewed_by_name"] = user_map.get(rb, "Admin")
+    except Exception as e:
+        logger.warning(f"Error enriching reviewed_by_names: {e}")
+    return items
+
 @api.get("/admin/recharges")
 async def admin_list_recharges(
     status: Optional[str] = None,
@@ -3538,9 +3562,11 @@ async def admin_list_recharges(
         total_task = db.recharges.count_documents(query)
         items_task = db.recharges.find(query, proj).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
         total, items = await asyncio.gather(total_task, items_task)
+        items = await _enrich_reviewed_by_names(items)
         return {"items": items, "total": total, "page": page, "page_size": page_size}
     # Legacy caller (no pagination requested) — full list, no cap.
-    return await db.recharges.find(query, proj).sort("created_at", -1).to_list(None)
+    items = await db.recharges.find(query, proj).sort("created_at", -1).to_list(None)
+    return await _enrich_reviewed_by_names(items)
 
 @api.get("/admin/recharges/export/pdf")
 async def export_recharges_pdf(
@@ -3853,6 +3879,7 @@ async def admin_approve_recharge(rid: str, body: ApprovalIn, request: Request, u
         "note": body.note or "",
         "reviewed_at": now_iso(),
         "reviewed_by": user["id"],
+        "reviewed_by_name": user.get("full_name") or user.get("email") or "Admin",
     }})
     await asyncio.gather(
         ledger_entry(r["user_id"], "t1_pending" if is_t1_request else "credit", net_credit_amount, new_balance, "recharge", rid,
@@ -3879,7 +3906,12 @@ async def admin_reject_recharge(rid: str, body: ApprovalIn, request: Request, us
     if not r:
         raise HTTPException(404, "Not found")
         
-    await db.recharges.update_one({"id": rid}, {"$set": {"note": body.note or "", "reviewed_at": now_iso(), "reviewed_by": user["id"]}})
+    await db.recharges.update_one({"id": rid}, {"$set": {
+        "note": body.note or "", 
+        "reviewed_at": now_iso(), 
+        "reviewed_by": user["id"],
+        "reviewed_by_name": user.get("full_name") or user.get("email") or "Admin"
+    }})
     await write_audit(user["id"], "reject_recharge", target=rid, request=request)
     await manager.send_to_user(r["user_id"], {"event": "recharge_updated", "data": {"id": rid, "status": "rejected"}})
     await manager.send_to_role("admin", {"event": "recharge_updated", "data": {"id": rid, "status": "rejected"}})
@@ -4338,7 +4370,6 @@ async def get_live_billpay_operators(category_id: str, user=Depends(require_appr
                     disabled_banks = await db.banks.find({
                         "$or": [
                             {"bill_pay_enabled": False},
-                            {"active": False},
                             {"is_deleted": True}
                         ]
                     }, {"_id": 0, "name": 1}).to_list(500)
@@ -4358,7 +4389,6 @@ async def get_live_billpay_operators(category_id: str, user=Depends(require_appr
         disabled_banks = await db.banks.find({
             "$or": [
                 {"bill_pay_enabled": False},
-                {"active": False},
                 {"is_deleted": True}
             ]
         }, {"_id": 0, "name": 1}).to_list(500)
@@ -4719,8 +4749,10 @@ async def admin_transactions(
         total_task = db.transactions.count_documents(query)
         items_task = db.transactions.find(query, proj).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
         total, items = await asyncio.gather(total_task, items_task)
+        items = await _enrich_reviewed_by_names(items)
         return {"items": items, "total": total, "page": page, "page_size": page_size}
-    return await db.transactions.find(query, proj).sort("created_at", -1).to_list(None)
+    items = await db.transactions.find(query, proj).sort("created_at", -1).to_list(None)
+    return await _enrich_reviewed_by_names(items)
 
 @api.post("/admin/transactions/{tid}/approve")
 async def admin_approve_transaction(tid: str, body: ApprovalIn, request: Request, user=Depends(require_roles("admin"))):
@@ -4729,7 +4761,13 @@ async def admin_approve_transaction(tid: str, body: ApprovalIn, request: Request
         raise HTTPException(404, "Not found")
     if t["status"] != "pending":
         raise HTTPException(400, "Only pending transactions can be marked success")
-    await db.transactions.update_one({"id": tid}, {"$set": {"status": "success", "note": body.note or "", "reviewed_by": user["id"], "reviewed_at": now_iso()}})
+    await db.transactions.update_one({"id": tid}, {"$set": {
+        "status": "success", 
+        "note": body.note or "", 
+        "reviewed_by": user["id"], 
+        "reviewed_by_name": user.get("full_name") or user.get("email") or "Admin",
+        "reviewed_at": now_iso()
+    }})
     wallet = await get_or_create_wallet(t["user_id"])
     
     await asyncio.gather(
@@ -4751,7 +4789,13 @@ async def admin_reject_transaction(tid: str, body: ApprovalIn, request: Request,
     if t["status"] not in ("pending", "success"):
         raise HTTPException(400, "Only pending or success transactions can be reversed")
     new_balance = await adjust_balance(t["user_id"], t["amount"])
-    await db.transactions.update_one({"id": tid}, {"$set": {"status": "reversed", "note": body.note or "", "reviewed_by": user["id"], "reviewed_at": now_iso()}})
+    await db.transactions.update_one({"id": tid}, {"$set": {
+        "status": "reversed", 
+        "note": body.note or "", 
+        "reviewed_by": user["id"], 
+        "reviewed_by_name": user.get("full_name") or user.get("email") or "Admin",
+        "reviewed_at": now_iso()
+    }})
     await ledger_entry(t["user_id"], "refund", t["amount"], new_balance, "bill_payment_reversal", tid, "Payment reversed by Admin")
     
     # Log to Admin Statement (if CC bill was already approved/success, reverse entries)
@@ -4984,8 +5028,10 @@ async def admin_withdrawals(
         page = max(1, page); page_size = max(1, min(200, page_size))
         total = await db.withdrawals.count_documents(query)
         items = await db.withdrawals.find(query, {"_id": 0}).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
+        items = await _enrich_reviewed_by_names(items)
         return {"items": items, "total": total, "page": page, "page_size": page_size}
-    return await db.withdrawals.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
+    items = await db.withdrawals.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
+    return await _enrich_reviewed_by_names(items)
 
 @api.post("/admin/withdrawals/{wid}/approve")
 async def admin_approve_withdrawal(wid: str, body: ApprovalIn, request: Request, user=Depends(require_roles("admin"))):
@@ -5002,16 +5048,16 @@ async def admin_approve_withdrawal(wid: str, body: ApprovalIn, request: Request,
         live_balance = round(lifetime - already_paid, 2)
         if w["amount"] > live_balance:
             raise HTTPException(400, f"Cannot approve — distributor's live earnings balance is ₹{live_balance:.2f}")
-        await db.withdrawals.update_one({"id": wid}, {"$set": {"status": "approved", "note": body.note or "", "reviewed_at": now_iso(), "reviewed_by": user["id"]}})
+        await db.withdrawals.update_one({"id": wid}, {"$set": {"status": "approved", "note": body.note or "", "reviewed_at": now_iso(), "reviewed_by": user["id"], "reviewed_by_name": user.get("full_name") or user.get("email") or "Admin"}})
     elif role == "master_distributor":
         lifetime = await _md_earnings_for(w["user_id"])
         already_paid = await _withdrawals_sum_for(w["user_id"], ["approved"])
         live_balance = round(lifetime - already_paid, 2)
         if w["amount"] > live_balance:
             raise HTTPException(400, f"Cannot approve — master distributor's live earnings balance is ₹{live_balance:.2f}")
-        await db.withdrawals.update_one({"id": wid}, {"$set": {"status": "approved", "note": body.note or "", "reviewed_at": now_iso(), "reviewed_by": user["id"]}})
+        await db.withdrawals.update_one({"id": wid}, {"$set": {"status": "approved", "note": body.note or "", "reviewed_at": now_iso(), "reviewed_by": user["id"], "reviewed_by_name": user.get("full_name") or user.get("email") or "Admin"}})
     else:
-        await db.withdrawals.update_one({"id": wid}, {"$set": {"status": "approved", "note": body.note or "", "reviewed_at": now_iso(), "reviewed_by": user["id"]}})
+        await db.withdrawals.update_one({"id": wid}, {"$set": {"status": "approved", "note": body.note or "", "reviewed_at": now_iso(), "reviewed_by": user["id"], "reviewed_by_name": user.get("full_name") or user.get("email") or "Admin"}})
         wallet = await get_or_create_wallet(w["user_id"])
         await ledger_entry(w["user_id"], "adjustment", 0, wallet["balance"], "withdrawal_paid", wid, "Withdrawal approved & paid")
 
@@ -5032,10 +5078,10 @@ async def admin_reject_withdrawal(wid: str, body: ApprovalIn, request: Request, 
     role = w.get("role")
     if role in ("distributor", "master_distributor"):
         # No wallet was debited — just flip status, pending reservation released.
-        await db.withdrawals.update_one({"id": wid}, {"$set": {"status": "rejected", "note": body.note or "", "reviewed_at": now_iso(), "reviewed_by": user["id"]}})
+        await db.withdrawals.update_one({"id": wid}, {"$set": {"status": "rejected", "note": body.note or "", "reviewed_at": now_iso(), "reviewed_by": user["id"], "reviewed_by_name": user.get("full_name") or user.get("email") or "Admin"}})
     else:
         new_balance = await adjust_balance(w["user_id"], w["amount"])
-        await db.withdrawals.update_one({"id": wid}, {"$set": {"status": "rejected", "note": body.note or "", "reviewed_at": now_iso(), "reviewed_by": user["id"]}})
+        await db.withdrawals.update_one({"id": wid}, {"$set": {"status": "rejected", "note": body.note or "", "reviewed_at": now_iso(), "reviewed_by": user["id"], "reviewed_by_name": user.get("full_name") or user.get("email") or "Admin"}})
         await ledger_entry(w["user_id"], "refund", w["amount"], new_balance, "withdrawal_refund", wid, "Withdrawal rejected - refunded")
 
     await write_audit(user["id"], "reject_withdrawal", target=wid, request=request)
@@ -5153,7 +5199,7 @@ async def admin_kyc(user=Depends(require_roles("admin"))):
                 "created_at": r["created_at"].isoformat() if r["created_at"] else None,
             }
         })
-    return enriched
+    return await _enrich_reviewed_by_names(enriched)
 
 
 @api.post("/admin/kyc/{uid}/approve")
@@ -5165,12 +5211,12 @@ async def admin_approve_kyc(uid: str, request: Request, user=Depends(require_rol
         db.kyc.update_one(
             {"user_id": uid},
             {"$set": {"status": "approved", "rejection_reason": "",
-                      "reviewed_at": now_iso(), "reviewed_by": user["id"]}},
+                      "reviewed_at": now_iso(), "reviewed_by": user["id"], "reviewed_by_name": user.get("full_name") or user.get("email") or "Admin"}},
         ),
         db.users.update_one(
             {"id": uid},
             {"$set": {"kyc_status": "approved", "kyc_rejection_reason": "",
-                      "kyc_reviewed_at": now_iso(), "kyc_reviewed_by": user["id"]}},
+                      "kyc_reviewed_at": now_iso(), "kyc_reviewed_by": user["id"], "kyc_reviewed_by_name": user.get("full_name") or user.get("email") or "Admin"}},
         ),
         write_audit(user["id"], "kyc_approved", target=uid,
                     meta={"user_id": uid, "user_name": target.get("full_name", ""), "role": target.get("role")},
@@ -5190,12 +5236,12 @@ async def admin_reject_kyc(uid: str, body: ApprovalIn, request: Request, user=De
     await db.kyc.update_one(
         {"user_id": uid},
         {"$set": {"status": "rejected", "rejection_reason": reason,
-                  "reviewed_at": now_iso(), "reviewed_by": user["id"]}},
+                  "reviewed_at": now_iso(), "reviewed_by": user["id"], "reviewed_by_name": user.get("full_name") or user.get("email") or "Admin"}},
     )
     await db.users.update_one(
         {"id": uid},
         {"$set": {"kyc_status": "rejected", "kyc_rejection_reason": reason,
-                  "kyc_reviewed_at": now_iso(), "kyc_reviewed_by": user["id"]}},
+                  "kyc_reviewed_at": now_iso(), "kyc_reviewed_by": user["id"], "kyc_reviewed_by_name": user.get("full_name") or user.get("email") or "Admin"}},
     )
     await write_audit(user["id"], "kyc_rejected", target=uid,
                       meta={"agent_id": uid, "agent_name": target.get("full_name", ""), "reason": reason},

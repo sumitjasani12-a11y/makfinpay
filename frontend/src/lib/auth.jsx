@@ -5,6 +5,31 @@ import { toast } from "sonner";
 
 const AuthCtx = createContext(null);
 
+export function updateFaviconInDOM(faviconPath) {
+  if (!faviconPath) return;
+  const baseUrl = fileUrl(faviconPath);
+  if (!baseUrl) return;
+
+  const timestamp = Date.now();
+  const href = baseUrl.includes("?") 
+    ? `${baseUrl}&v=${timestamp}` 
+    : `${baseUrl}?v=${timestamp}`;
+
+  const iconLinks = document.querySelectorAll("link[rel*='icon']");
+  if (iconLinks.length > 0) {
+    iconLinks.forEach((link) => {
+      link.href = href;
+    });
+  } else {
+    ["icon", "shortcut icon", "apple-touch-icon"].forEach((rel) => {
+      const link = document.createElement("link");
+      link.rel = rel;
+      link.href = href;
+      document.getElementsByTagName("head")[0].appendChild(link);
+    });
+  }
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     try {
@@ -39,13 +64,7 @@ export function AuthProvider({ children }) {
           console.error(e);
         }
         if (val.favicon_path) {
-          let link = document.querySelector("link[rel~='icon']");
-          if (!link) {
-            link = document.createElement("link");
-            link.rel = "icon";
-            document.getElementsByTagName("head")[0].appendChild(link);
-          }
-          link.href = fileUrl(val.favicon_path);
+          updateFaviconInDOM(val.favicon_path);
         }
       })
       .catch((e) => console.log("Failed to fetch branding settings:", e));
@@ -53,13 +72,7 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (branding?.favicon_path) {
-      let link = document.querySelector("link[rel~='icon']");
-      if (!link) {
-        link = document.createElement("link");
-        link.rel = "icon";
-        document.getElementsByTagName("head")[0].appendChild(link);
-      }
-      link.href = fileUrl(branding.favicon_path);
+      updateFaviconInDOM(branding.favicon_path);
     }
   }, [branding?.favicon_path]);
 

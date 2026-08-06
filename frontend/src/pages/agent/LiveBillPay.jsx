@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { api, formatErr, fmtMoney, fmtDate } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
+import BharatConnectLogo from "@/components/BharatConnectLogo";
 import { toast } from "sonner";
 import { 
   Loader2, CreditCard, History, Send, Receipt,
@@ -725,6 +726,7 @@ export default function LiveBillPay() {
       <PageHeader 
         title="Bill Payments" 
         subtitle="Fetch and pay electricity, gas, water bills instantly in real time." 
+        actions={<BharatConnectLogo iconClassName="h-10 w-10" />}
       />
 
       <div className="w-full max-w-none px-4 lg:px-8 mb-8">

@@ -1512,7 +1512,7 @@ export function AdminUserList({ role }) {
 
                       {/* Actions */}
                       <div className="flex items-center gap-2">
-                        {isSuperAdmin && role === "agent" && (
+                        {isSuperAdmin && (
                           <button
                             className="p-1.5 border border-emerald-200 text-emerald-700 hover:bg-[#1B4332] hover:text-white hover:border-[#1B4332] rounded-xl transition-all inline-flex items-center justify-center bg-white shadow-sm hover:shadow-md"
                             onClick={() => setAdjustingBalanceUser(r)}

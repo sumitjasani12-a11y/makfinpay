@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useState } from "react";
+import { AlertCircle, HelpCircle, ChevronDown, ChevronUp } from "lucide-react";
 
 export function StatusBadge({ status }) {
   const map = {
@@ -39,7 +40,13 @@ export function EmptyState({ children }) {
   return <div className="text-center text-neutral-500 py-12 text-sm">{children}</div>;
 }
 
-export function DataTable({ columns, rows, empty = "No data", pagination, className = "" }) {
+export function DataTable({ columns, rows, empty = "No data", pagination, className = "", renderExpandedRow }) {
+  const [expandedRows, setExpandedRows] = useState({});
+
+  const toggleExpand = (id) => {
+    setExpandedRows((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
   return (
     <div className="mfp-card overflow-hidden">
       <div className="overflow-x-auto">
@@ -50,11 +57,52 @@ export function DataTable({ columns, rows, empty = "No data", pagination, classN
           <tbody>
             {rows.length === 0 ? (
               <tr><td colSpan={columns.length}><EmptyState>{empty}</EmptyState></td></tr>
-            ) : rows.map((r, i) => (
-              <tr key={r.id || i}>
-                {columns.map((c) => <td key={c.key}>{c.render ? c.render(r) : r[c.key] ?? "—"}</td>)}
-              </tr>
-            ))}
+            ) : rows.map((r, i) => {
+              const rowId = r.id || i;
+              const isExpanded = !!expandedRows[rowId];
+              return (
+                <React.Fragment key={rowId}>
+                  <tr className={isExpanded ? "bg-rose-50/40 border-b border-rose-100" : ""}>
+                    {columns.map((c) => (
+                      <td key={c.key}>
+                        {c.render ? c.render(r, { isExpanded, toggleExpand: () => toggleExpand(rowId) }) : r[c.key] ?? "—"}
+                      </td>
+                    ))}
+                  </tr>
+                  {isExpanded && (
+                    <tr key={`${rowId}-expanded`} className="bg-rose-50/60 border-b border-rose-200/80 animate-fade-in">
+                      <td colSpan={columns.length} className="p-4">
+                        {renderExpandedRow ? renderExpandedRow(r, () => toggleExpand(rowId)) : (
+                          <div className="bg-gradient-to-r from-rose-50 via-red-50/50 to-amber-50/30 p-4 rounded-xl border border-rose-200 shadow-sm flex items-start justify-between gap-4">
+                            <div className="flex items-start gap-3">
+                              <div className="p-2 rounded-lg bg-rose-100 text-rose-600 shrink-0 mt-0.5">
+                                <AlertCircle className="h-4 w-4" />
+                              </div>
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[11px] font-extrabold text-rose-800 uppercase tracking-wider bg-rose-100/80 px-2 py-0.5 rounded-md">
+                                    Rejection Reason / Admin Note
+                                  </span>
+                                </div>
+                                <p className="text-xs font-semibold text-neutral-800 leading-relaxed whitespace-pre-wrap pt-0.5">
+                                  {r.note || r.rejection_reason || r.reason || "No rejection reason provided."}
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => toggleExpand(rowId)}
+                              className="text-xs font-bold text-rose-600 hover:text-rose-800 bg-white/80 hover:bg-white px-2.5 py-1 rounded-lg border border-rose-200/60 shadow-xs shrink-0 transition-all"
+                            >
+                              Close
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>

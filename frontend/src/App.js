@@ -47,6 +47,7 @@ import MdWithdrawal from "@/pages/md/Withdrawal";
 import AgentOverview from "@/pages/agent/Overview";
 import AgentRecharge from "@/pages/agent/Recharge";
 import AgentBillPay from "@/pages/agent/BillPay";
+import AgentCcBillHistory from "@/pages/agent/CcBillHistory";
 import AgentLiveBillPay from "@/pages/agent/LiveBillPay";
 import AgentLiveBillHistory from "@/pages/agent/LiveBillHistory";
 import AgentLedger from "@/pages/agent/Ledger";
@@ -145,6 +146,7 @@ export default function App() {
             <Route index element={<AgentOverview />} />
             <Route path="recharge" element={<AgentRecharge />} />
             <Route path="billpay" element={<AgentBillPay />} />
+            <Route path="cc-bill-history" element={<AgentCcBillHistory />} />
             <Route path="live-billpay" element={<AgentLiveBillPay />} />
             <Route path="live-billpay/history" element={<AgentLiveBillHistory />} />
             <Route path="ledger" element={<AgentLedger />} />
