@@ -4158,6 +4158,48 @@ async def call_irise_api(method: str, endpoint: str, params: dict = None, json_d
             }
         return {"status": "failed", "message": "Mock API endpoint not found"}
 
+_irise_client: Optional[httpx.AsyncClient] = None
+
+def get_irise_client() -> httpx.AsyncClient:
+    global _irise_client
+    if _irise_client is None or _irise_client.is_closed:
+        _irise_client = httpx.AsyncClient(timeout=30.0, limits=httpx.Limits(max_keepalive_connections=50, max_connections=100))
+    return _irise_client
+
+async def call_irise_api(method: str, endpoint: str, params: dict = None, json_data: dict = None):
+    base_url = os.environ.get("IRISE_BASE_URL", "https://www.usepay.in/api/v1/b2b")
+    public_key = os.environ.get("IRISE_PUBLIC_KEY", "pk_live_etwxtbnjb9mytap9xlq7qo")
+    secret_key = os.environ.get("IRISE_SECRET_KEY", "sk_live_ob69oiy8jsd6kxzb244ddr")
+    
+    if os.environ.get("USE_MOCK_IRISE", "false").lower() == "true":
+        await asyncio.sleep(0.5)
+        if endpoint == "billers":
+            return {"status": "success", "data": [{"biller_id": "SBI001", "biller_name": "SBI Card", "category": "Credit Card"}]}
+        elif endpoint == "fetch-bill":
+            return {
+                "status": "success",
+                "data": {
+                    "customerName": "Jigneshbhai Vanani",
+                    "billAmount": "99996.22",
+                    "dueDate": "2026-08-13",
+                    "billDate": "2026-07-24",
+                    "fetchRequestId": f"REQ{uuid.uuid4().hex[:6].upper()}"
+                }
+            }
+        elif endpoint == "pay-bill":
+            return {
+                "status": "success",
+                "payment_status": "success",
+                "data": {
+                    "responseCode": "000",
+                    "billPayResponse": {
+                        "txnReferenceId": f"BBPS{uuid.uuid4().hex[:8].upper()}",
+                        "txnStatus": "SUCCESS"
+                    }
+                }
+            }
+        return {"status": "failed", "message": "Mock API endpoint not found"}
+
     headers = {
         "Accept": "application/json",
         "Content-Type": "application/json",
@@ -4165,41 +4207,24 @@ async def call_irise_api(method: str, endpoint: str, params: dict = None, json_d
         "x-secret-key": secret_key
     }
     url = f"{base_url.rstrip('/')}/{endpoint.lstrip('/')}"
-    print(f"\n[USEPAY API REQUEST] Method: {method} | Endpoint: {endpoint} | URL: {url}")
-    if params:
-        print(f"[USEPAY API REQUEST PARAMS]: {params}")
-    if json_data:
-        import json as _json
-        print(f"[USEPAY API REQUEST BODY]: {_json.dumps(json_data, indent=2)}")
-        
-    async with httpx.AsyncClient(timeout=30) as client:
+    client = get_irise_client()
+    try:
+        if method.upper() == "GET":
+            r = await client.get(url, headers=headers, params=params)
+        else:
+            r = await client.post(url, headers=headers, json=json_data)
+            
+        r.raise_for_status()
+        return r.json()
+    except httpx.HTTPStatusError as e:
         try:
-            if method.upper() == "GET":
-                r = await client.get(url, headers=headers, params=params)
-            else:
-                r = await client.post(url, headers=headers, json=json_data)
-                
-            print(f"[USEPAY API RESPONSE] Status Code: {r.status_code}")
-            try:
-                res_json = r.json()
-                import json as _json
-                print(f"[USEPAY API RESPONSE BODY]: {_json.dumps(res_json, indent=2)}")
-            except Exception:
-                print(f"[USEPAY API RESPONSE TEXT]: {r.text}")
-                
-            r.raise_for_status()
-            return r.json()
-        except httpx.HTTPStatusError as e:
-            try:
-                err_data = r.json()
-                detail = err_data.get("message") or err_data.get("detail") or str(e)
-            except Exception:
-                detail = r.text or str(e)
-            print(f"[USEPAY API ERROR]: {detail}")
-            raise HTTPException(status_code=r.status_code, detail=f"Irise API Error: {detail}")
-        except Exception as e:
-            print(f"[USEPAY API ERROR]: {str(e)}")
-            raise HTTPException(status_code=502, detail=f"Failed to connect to Irise API: {str(e)}")
+            err_data = r.json()
+            detail = err_data.get("message") or err_data.get("detail") or str(e)
+        except Exception:
+            detail = r.text or str(e)
+        raise HTTPException(status_code=r.status_code, detail=f"Irise API Error: {detail}")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to connect to Irise API: {str(e)}")
 
 async def sync_billers_from_usepay():
     page = 1
