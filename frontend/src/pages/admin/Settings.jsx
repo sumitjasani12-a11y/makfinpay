@@ -75,8 +75,33 @@ export default function AdminSettings() {
     }
   }, [branding]);
 
+  const handleAudioUploaded = async (field, path) => {
+    const updatedState = {
+      qr_approved_audio: field === "qr_approved_audio" ? path : qrApprovedAudio,
+      qr_rejected_audio: field === "qr_rejected_audio" ? path : qrRejectedAudio,
+      cc_bill_approved_audio: field === "cc_bill_approved_audio" ? path : ccBillApprovedAudio,
+      cc_bill_rejected_audio: field === "cc_bill_rejected_audio" ? path : ccBillRejectedAudio,
+      qr_request_received_audio: field === "qr_request_received_audio" ? path : qrRequestReceivedAudio,
+      cc_bill_request_received_audio: field === "cc_bill_request_received_audio" ? path : ccBillRequestReceivedAudio,
+    };
+
+    if (field === "qr_approved_audio") setQrApprovedAudio(path);
+    if (field === "qr_rejected_audio") setQrRejectedAudio(path);
+    if (field === "cc_bill_approved_audio") setCcBillApprovedAudio(path);
+    if (field === "cc_bill_rejected_audio") setCcBillRejectedAudio(path);
+    if (field === "qr_request_received_audio") setQrRequestReceivedAudio(path);
+    if (field === "cc_bill_request_received_audio") setCcBillRequestReceivedAudio(path);
+
+    try {
+      await api.put("/admin/settings/recharge-toggles", updatedState);
+      toast.success(path ? "Audio notification saved successfully ✓" : "Audio sound removed ✓");
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail) || "Failed to save audio setting");
+    }
+  };
+
   const handleSaveAudio = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setSavingAudio(true);
     try {
       await api.put("/admin/settings/recharge-toggles", {
@@ -367,9 +392,20 @@ export default function AdminSettings() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="space-y-2">
-                    <label className="mfp-label font-bold text-neutral-600 block">
-                      🟢 QR Request Approved Audio
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="mfp-label font-bold text-neutral-600 block">
+                        🟢 QR Request Approved Audio
+                      </label>
+                      {qrApprovedAudio && (
+                        <button
+                          type="button"
+                          onClick={() => handleAudioUploaded("qr_approved_audio", "")}
+                          className="text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          <X className="h-3 w-3" /> Remove
+                        </button>
+                      )}
+                    </div>
                     {qrApprovedAudio ? (
                       <div className="p-2 bg-emerald-50/50 rounded-xl border border-emerald-200">
                         <audio controls src={fileUrl(qrApprovedAudio)} className="w-full h-8" />
@@ -379,16 +415,27 @@ export default function AdminSettings() {
                     )}
                     <FileUpload
                       label="Upload QR Approved Sound"
-                      onUploaded={setQrApprovedAudio}
+                      onUploaded={(path) => handleAudioUploaded("qr_approved_audio", path)}
                       accept="audio/*"
                       testid="upload-qr-approved-audio"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <label className="mfp-label font-bold text-neutral-600 block">
-                      🔴 QR Request Rejected Audio
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="mfp-label font-bold text-neutral-600 block">
+                        🔴 QR Request Rejected Audio
+                      </label>
+                      {qrRejectedAudio && (
+                        <button
+                          type="button"
+                          onClick={() => handleAudioUploaded("qr_rejected_audio", "")}
+                          className="text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          <X className="h-3 w-3" /> Remove
+                        </button>
+                      )}
+                    </div>
                     {qrRejectedAudio ? (
                       <div className="p-2 bg-rose-50/50 rounded-xl border border-rose-200">
                         <audio controls src={fileUrl(qrRejectedAudio)} className="w-full h-8" />
@@ -398,16 +445,27 @@ export default function AdminSettings() {
                     )}
                     <FileUpload
                       label="Upload QR Rejected Sound"
-                      onUploaded={setQrRejectedAudio}
+                      onUploaded={(path) => handleAudioUploaded("qr_rejected_audio", path)}
                       accept="audio/*"
                       testid="upload-qr-rejected-audio"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <label className="mfp-label font-bold text-neutral-600 block">
-                      🟢 CC Bill Approved Audio
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="mfp-label font-bold text-neutral-600 block">
+                        🟢 CC Bill Approved Audio
+                      </label>
+                      {ccBillApprovedAudio && (
+                        <button
+                          type="button"
+                          onClick={() => handleAudioUploaded("cc_bill_approved_audio", "")}
+                          className="text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          <X className="h-3 w-3" /> Remove
+                        </button>
+                      )}
+                    </div>
                     {ccBillApprovedAudio ? (
                       <div className="p-2 bg-emerald-50/50 rounded-xl border border-emerald-200">
                         <audio controls src={fileUrl(ccBillApprovedAudio)} className="w-full h-8" />
@@ -417,16 +475,27 @@ export default function AdminSettings() {
                     )}
                     <FileUpload
                       label="Upload CC Bill Approved Sound"
-                      onUploaded={setCcBillApprovedAudio}
+                      onUploaded={(path) => handleAudioUploaded("cc_bill_approved_audio", path)}
                       accept="audio/*"
                       testid="upload-cc-approved-audio"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <label className="mfp-label font-bold text-neutral-600 block">
-                      🔴 CC Bill Rejected Audio
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="mfp-label font-bold text-neutral-600 block">
+                        🔴 CC Bill Rejected Audio
+                      </label>
+                      {ccBillRejectedAudio && (
+                        <button
+                          type="button"
+                          onClick={() => handleAudioUploaded("cc_bill_rejected_audio", "")}
+                          className="text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          <X className="h-3 w-3" /> Remove
+                        </button>
+                      )}
+                    </div>
                     {ccBillRejectedAudio ? (
                       <div className="p-2 bg-rose-50/50 rounded-xl border border-rose-200">
                         <audio controls src={fileUrl(ccBillRejectedAudio)} className="w-full h-8" />
@@ -436,16 +505,27 @@ export default function AdminSettings() {
                     )}
                     <FileUpload
                       label="Upload CC Bill Rejected Sound"
-                      onUploaded={setCcBillRejectedAudio}
+                      onUploaded={(path) => handleAudioUploaded("cc_bill_rejected_audio", path)}
                       accept="audio/*"
                       testid="upload-cc-rejected-audio"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <label className="mfp-label font-bold text-neutral-600 block">
-                      🔔 Incoming QR Request Sound (Admin)
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="mfp-label font-bold text-neutral-600 block">
+                        🔔 Incoming QR Request Sound (Admin)
+                      </label>
+                      {qrRequestReceivedAudio && (
+                        <button
+                          type="button"
+                          onClick={() => handleAudioUploaded("qr_request_received_audio", "")}
+                          className="text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          <X className="h-3 w-3" /> Remove
+                        </button>
+                      )}
+                    </div>
                     {qrRequestReceivedAudio ? (
                       <div className="p-2 bg-amber-50/50 rounded-xl border border-amber-200">
                         <audio controls src={fileUrl(qrRequestReceivedAudio)} className="w-full h-8" />
@@ -455,16 +535,27 @@ export default function AdminSettings() {
                     )}
                     <FileUpload
                       label="Upload Incoming QR Request Sound"
-                      onUploaded={setQrRequestReceivedAudio}
+                      onUploaded={(path) => handleAudioUploaded("qr_request_received_audio", path)}
                       accept="audio/*"
                       testid="upload-qr-incoming-audio"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <label className="mfp-label font-bold text-neutral-600 block">
-                      🔔 Incoming CC Bill Request Sound (Admin)
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="mfp-label font-bold text-neutral-600 block">
+                        🔔 Incoming CC Bill Request Sound (Admin)
+                      </label>
+                      {ccBillRequestReceivedAudio && (
+                        <button
+                          type="button"
+                          onClick={() => handleAudioUploaded("cc_bill_request_received_audio", "")}
+                          className="text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          <X className="h-3 w-3" /> Remove
+                        </button>
+                      )}
+                    </div>
                     {ccBillRequestReceivedAudio ? (
                       <div className="p-2 bg-amber-50/50 rounded-xl border border-amber-200">
                         <audio controls src={fileUrl(ccBillRequestReceivedAudio)} className="w-full h-8" />
@@ -474,7 +565,7 @@ export default function AdminSettings() {
                     )}
                     <FileUpload
                       label="Upload Incoming CC Bill Sound"
-                      onUploaded={setCcBillRequestReceivedAudio}
+                      onUploaded={(path) => handleAudioUploaded("cc_bill_request_received_audio", path)}
                       accept="audio/*"
                       testid="upload-cc-incoming-audio"
                     />
