@@ -4168,8 +4168,8 @@ def get_irise_client() -> httpx.AsyncClient:
 
 async def call_irise_api(method: str, endpoint: str, params: dict = None, json_data: dict = None):
     base_url = os.environ.get("IRISE_BASE_URL", "https://www.usepay.in/api/v1/b2b")
-    public_key = os.environ.get("IRISE_PUBLIC_KEY", "pk_live_etwxtbnjb9mytap9xlq7qo")
-    secret_key = os.environ.get("IRISE_SECRET_KEY", "sk_live_ob69oiy8jsd6kxzb244ddr")
+    public_key = os.environ.get("IRISE_PUBLIC_KEY", "").strip()
+    secret_key = os.environ.get("IRISE_SECRET_KEY", "").strip()
     
     if os.environ.get("USE_MOCK_IRISE", "false").lower() == "true":
         await asyncio.sleep(0.5)
@@ -4179,10 +4179,10 @@ async def call_irise_api(method: str, endpoint: str, params: dict = None, json_d
             return {
                 "status": "success",
                 "data": {
-                    "customerName": "Jigneshbhai Vanani",
-                    "billAmount": "99996.22",
-                    "dueDate": "2026-08-13",
-                    "billDate": "2026-07-24",
+                    "customerName": "Valued Customer",
+                    "billAmount": "1000.00",
+                    "dueDate": "2026-08-31",
+                    "billDate": "2026-08-01",
                     "fetchRequestId": f"REQ{uuid.uuid4().hex[:6].upper()}"
                 }
             }
