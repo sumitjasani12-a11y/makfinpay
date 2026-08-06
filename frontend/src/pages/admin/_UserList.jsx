@@ -342,71 +342,73 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
                               </div>
                             </div>
                           </div>
-
-                          <div className="bg-[#F8F7F2] rounded-2xl p-5 border border-black/[0.02] space-y-4">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <label className="text-[10px] font-black uppercase tracking-wider text-[#C81D11] block">
-                                  Hold Wallet Balance
-                                </label>
-                                <span className="text-[11px] text-neutral-500 font-medium">
-                                  Move agent balance from main wallet to hold wallet
-                                </span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => setForm(prev => ({ ...prev, hold_active: !prev.hold_active }))}
-                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${form.hold_active ? "bg-[#C81D11]" : "bg-neutral-200"}`}
-                              >
-                                <span
-                                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${form.hold_active ? "translate-x-5" : "translate-x-0"}`}
-                                />
-                              </button>
-                            </div>
-
-                            {form.hold_active && (
-                              <div className="pt-2 border-t border-neutral-200/50">
-                                <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
-                                  Hold Amount (₹)
-                                </label>
-                                <div className="flex items-center mt-1">
-                                  <span className="text-base font-black text-[#C81D11] mr-1.5">₹</span>
-                                  <input 
-                                    type="number" 
-                                    step="0.01"
-                                    min="0"
-                                    className="w-full text-base font-black text-neutral-800 bg-transparent border-b border-neutral-100 focus:border-[#C81D11] focus:outline-none py-1" 
-                                    value={form.hold_balance_amount}
-                                    onChange={(e) => setForm({ ...form, hold_balance_amount: e.target.value })}
-                                    placeholder="Enter hold amount"
-                                  />
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="bg-[#F8F7F2] rounded-2xl p-5 border border-black/[0.02] space-y-4">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <label className="text-[10px] font-black uppercase tracking-wider text-[#1B4332] block">
-                                  Tester User
-                                </label>
-                                <span className="text-[11px] text-neutral-500 font-medium">
-                                  Enable service bypass for testing when global toggles are OFF
-                                </span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => setForm(prev => ({ ...prev, is_tester: !prev.is_tester }))}
-                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${form.is_tester ? "bg-[#1B4332]" : "bg-neutral-200"}`}
-                              >
-                                <span
-                                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${form.is_tester ? "translate-x-5" : "translate-x-0"}`}
-                                />
-                              </button>
-                            </div>
-                          </div>
                         </>
+                      )}
+
+                      <div className="bg-[#F8F7F2] rounded-2xl p-5 border border-black/[0.02] space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <label className="text-[10px] font-black uppercase tracking-wider text-[#C81D11] block">
+                              Hold Wallet / Earnings Balance
+                            </label>
+                            <span className="text-[11px] text-neutral-500 font-medium">
+                              Move user balance/earnings to hold wallet to restrict withdrawals
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setForm(prev => ({ ...prev, hold_active: !prev.hold_active }))}
+                            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${form.hold_active ? "bg-[#C81D11]" : "bg-neutral-200"}`}
+                          >
+                            <span
+                              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${form.hold_active ? "translate-x-5" : "translate-x-0"}`}
+                            />
+                          </button>
+                        </div>
+
+                        {form.hold_active && (
+                          <div className="pt-2 border-t border-neutral-200/50">
+                            <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
+                              Hold Amount (₹)
+                            </label>
+                            <div className="flex items-center mt-1">
+                              <span className="text-base font-black text-[#C81D11] mr-1.5">₹</span>
+                              <input 
+                                type="number" 
+                                step="0.01"
+                                min="0"
+                                className="w-full text-base font-black text-neutral-800 bg-transparent border-b border-neutral-100 focus:border-[#C81D11] focus:outline-none py-1" 
+                                value={form.hold_balance_amount}
+                                onChange={(e) => setForm({ ...form, hold_balance_amount: e.target.value })}
+                                placeholder="Enter hold amount"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {role === "agent" && (
+                        <div className="bg-[#F8F7F2] rounded-2xl p-5 border border-black/[0.02] space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <label className="text-[10px] font-black uppercase tracking-wider text-[#1B4332] block">
+                                Tester User
+                              </label>
+                              <span className="text-[11px] text-neutral-500 font-medium">
+                                Enable service bypass for testing when global toggles are OFF
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setForm(prev => ({ ...prev, is_tester: !prev.is_tester }))}
+                              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${form.is_tester ? "bg-[#1B4332]" : "bg-neutral-200"}`}
+                            >
+                              <span
+                                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${form.is_tester ? "translate-x-5" : "translate-x-0"}`}
+                              />
+                            </button>
+                          </div>
+                        </div>
                       )}
                     </div>
                   ) : (

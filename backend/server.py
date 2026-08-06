@@ -1657,10 +1657,12 @@ async def _distributor_earnings_for(dist_id: str, dist_base_pct: float = 0.0) ->
 
 
 async def get_distributor_available_for_withdrawal(dist_id: str) -> float:
-    """Amount a distributor can request to withdraw RIGHT NOW = lifetime − approved − pending."""
+    """Amount a distributor can request to withdraw RIGHT NOW = lifetime − approved − pending − hold_balance."""
     lifetime = await _distributor_lifetime_earnings(dist_id)
     reserved = await _withdrawals_sum_for(dist_id, ["approved", "pending"])
-    return round(lifetime - reserved, 2)
+    w = await db.wallets.find_one({"user_id": dist_id}, {"_id": 0, "hold_balance": 1}) or {}
+    hold = float(w.get("hold_balance") or 0.0)
+    return max(0.0, round(lifetime - reserved - hold, 2))
 
 
 async def _wallet_balances_for(user_ids: List[str]) -> dict:
@@ -1806,12 +1808,14 @@ async def run_daily_commission_settlement():
 
 
 async def get_md_available_for_withdrawal(md_id: str) -> float:
-    """Amount an MD can request to withdraw RIGHT NOW = lifetime − approved − pending.
+    """Amount an MD can request to withdraw RIGHT NOW = lifetime − approved − pending − hold_balance.
     Pending requests are reserved so an MD cannot double-spend earnings while one request
     is still awaiting admin review."""
     lifetime = await _md_earnings_for(md_id)
     reserved = await _withdrawals_sum_for(md_id, ["approved", "pending"])
-    return round(lifetime - reserved, 2)
+    w = await db.wallets.find_one({"user_id": md_id}, {"_id": 0, "hold_balance": 1}) or {}
+    hold = float(w.get("hold_balance") or 0.0)
+    return max(0.0, round(lifetime - reserved - hold, 2))
 
 
 @api.get("/admin/exports/{role}.pdf")
@@ -2823,7 +2827,7 @@ async def admin_update_user(uid: str, body: UpdateUserIn, user=Depends(require_r
     if u["role"] == "agent" and body.t1_enabled is not None:
         upd["t1_enabled"] = bool(body.t1_enabled)
 
-    if u["role"] == "agent" and (body.hold_active is not None or body.hold_balance_amount is not None):
+    if body.hold_active is not None or body.hold_balance_amount is not None:
         wallet = await get_or_create_wallet(uid)
         current_hold = float(wallet.get("hold_balance") or 0.0)
         current_balance = float(wallet.get("balance") or 0.0)
