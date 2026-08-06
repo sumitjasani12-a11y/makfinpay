@@ -6,6 +6,75 @@ import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import { toast } from "sonner";
 import { Check, Eye, RotateCcw, Search, X, Loader2, HelpCircle } from "lucide-react";
 
+function RejectModal({ onClose, onConfirm, predefined = [] }) {
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const confirm = async () => {
+    if (!reason.trim()) return toast.error("Please provide a rejection reason");
+    setBusy(true);
+    try { await onConfirm(reason.trim()); } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl max-w-md w-full border border-black/5 shadow-2xl animate-scaleUp" onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-black/5 flex items-center justify-between">
+          <div className="text-base font-semibold">Reject Withdrawal Request</div>
+          <button onClick={onClose} className="mfp-btn-ghost p-2"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          {predefined.length > 0 ? (
+            <div>
+              <label className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider block mb-1">
+                Select Rejection Reason
+              </label>
+              <select
+                className="w-full bg-[#F8F9FA] border border-black/5 rounded-xl px-3 py-2.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-[#4F46E5] transition-all"
+                onChange={(e) => setReason(e.target.value)}
+                value={reason}
+              >
+                <option value="">-- Choose Preconfigured Reason --</option>
+                {predefined.map((r, idx) => (
+                  <option key={idx} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="text-xs text-rose-500 font-bold bg-rose-50 p-3.5 rounded-xl border border-rose-100">
+              No rejection reasons configured. Please add reasons for Pay Withdrawal Page in Reason Entry menu first.
+            </div>
+          )}
+
+          <div>
+            <label className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider block mb-1">
+              Custom Reason / Notes
+            </label>
+            <textarea
+              className="w-full bg-[#F8F9FA] border border-black/5 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-[#4F46E5] transition-all"
+              rows={3}
+              placeholder="Provide reason for rejection..."
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <button onClick={onClose} className="flex-1 mfp-btn-secondary text-xs font-bold py-2.5">Cancel</button>
+            <button
+              onClick={confirm}
+              disabled={busy || !reason.trim()}
+              className="flex-1 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold py-2.5 transition-all disabled:opacity-50"
+            >
+              {busy ? "Rejecting..." : "Confirm Rejection"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const ROLES = [
   { key: "all", label: "All Roles" },
   { key: "agent", label: "Agents" },
@@ -23,12 +92,20 @@ export default function AdminWithdrawals() {
   const [total, setTotal] = useState(() => items.length);
   const [loading, setLoading] = useState(() => items.length === 0);
   const [detail, setDetail] = useState(null);
+  const [rejectTargetId, setRejectTargetId] = useState(null);
+  const [predefinedReasons, setPredefinedReasons] = useState([]);
   const [withdrawalEnabled, setWithdrawalEnabled] = useState(() => {
     try {
       const v = localStorage.getItem("set_withdrawal_enabled");
       return v !== null ? JSON.parse(v) : true;
     } catch (e) { return true; }
   });
+
+  useEffect(() => {
+    api.get("/rejection-reasons/active?target=withdrawal")
+      .then((res) => setPredefinedReasons(res.data || []))
+      .catch(() => {});
+  }, []);
 
   const fetchToggles = useCallback(() => {
     api.get("/admin/settings/recharge-limits").then((r) => {
@@ -157,9 +234,25 @@ export default function AdminWithdrawals() {
   };
 
   const act = useCallback(async (id, type) => {
+    if (type === "reject") {
+      setRejectTargetId(id);
+      return;
+    }
     try { await api.post(`/admin/withdrawals/${id}/${type}`, { note: "" }); toast.success(`Withdrawal ${type}d`); reload(); }
     catch (e) { toast.error(formatErr(e.response?.data?.detail)); }
   }, [reload]);
+
+  const handleRejectConfirm = async (note) => {
+    if (!rejectTargetId) return;
+    try {
+      await api.post(`/admin/withdrawals/${rejectTargetId}/reject`, { note });
+      toast.success("Withdrawal rejected");
+      setRejectTargetId(null);
+      reload();
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail));
+    }
+  };
 
   const columns = useMemo(() => [
     { 
@@ -484,6 +577,13 @@ export default function AdminWithdrawals() {
             </div>
           </div>
         </div>
+      )}
+      {rejectTargetId && (
+        <RejectModal
+          onClose={() => setRejectTargetId(null)}
+          onConfirm={handleRejectConfirm}
+          predefined={predefinedReasons}
+        />
       )}
     </div>
   );

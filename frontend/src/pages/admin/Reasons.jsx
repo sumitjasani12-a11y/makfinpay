@@ -37,6 +37,7 @@ export default function AdminReasons() {
   const [showBill, setShowBill] = useState(false);
   const [showQr, setShowQr] = useState(false);
   const [showKyc, setShowKyc] = useState(false);
+  const [showWithdrawal, setShowWithdrawal] = useState(false);
 
   const [reasonText, setReasonText] = useState("");
 
@@ -73,6 +74,7 @@ export default function AdminReasons() {
     setShowBill(false);
     setShowQr(false);
     setShowKyc(false);
+    setShowWithdrawal(false);
     setCatModal({ mode: "create" });
   };
 
@@ -81,6 +83,7 @@ export default function AdminReasons() {
     setShowBill(cat.show_bill || false);
     setShowQr(cat.show_qr || false);
     setShowKyc(cat.show_kyc || false);
+    setShowWithdrawal(cat.show_withdrawal || false);
     setCatModal({ mode: "edit", category: cat });
   };
 
@@ -93,7 +96,8 @@ export default function AdminReasons() {
         name: catName,
         show_bill: showBill,
         show_qr: showQr,
-        show_kyc: showKyc
+        show_kyc: showKyc,
+        show_withdrawal: showWithdrawal
       };
 
       if (catModal.mode === "create") {
@@ -242,6 +246,11 @@ export default function AdminReasons() {
                           {cat.show_qr && (
                             <span className="text-[8px] font-black bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded border border-emerald-100 uppercase tracking-widest">
                               QR
+                            </span>
+                          )}
+                          {cat.show_withdrawal && (
+                            <span className="text-[8px] font-black bg-rose-50 text-rose-600 px-2 py-0.5 rounded border border-rose-100 uppercase tracking-widest">
+                              Withdrawal
                             </span>
                           )}
                         </div>
@@ -395,6 +404,7 @@ export default function AdminReasons() {
                   ["Bill Payment Page", showBill, setShowBill],
                   ["QR Payment Page", showQr, setShowQr],
                   ["KYC / Verification Page", showKyc, setShowKyc],
+                  ["Pay Withdrawal Page", showWithdrawal, setShowWithdrawal],
                 ].map(([label, val, setVal]) => (
                   <div
                     key={label}

@@ -687,6 +687,7 @@ class RejectionCategoryIn(BaseModel):
     show_bill: bool
     show_qr: bool
     show_kyc: bool
+    show_withdrawal: Optional[bool] = False
 
 class RejectionReasonIn(BaseModel):
     category_id: str
@@ -8259,6 +8260,7 @@ async def admin_create_rejection_category(body: RejectionCategoryIn, user=Depend
         "show_bill": body.show_bill,
         "show_qr": body.show_qr,
         "show_kyc": body.show_kyc,
+        "show_withdrawal": getattr(body, "show_withdrawal", False) or False,
         "is_deleted": False,
         "created_at": now_iso()
     }
@@ -8272,7 +8274,8 @@ async def admin_update_rejection_category(cid: str, body: RejectionCategoryIn, u
         "name": body.name.strip(),
         "show_bill": body.show_bill,
         "show_qr": body.show_qr,
-        "show_kyc": body.show_kyc
+        "show_kyc": body.show_kyc,
+        "show_withdrawal": getattr(body, "show_withdrawal", False) or False
     }})
     return {"ok": True}
 
@@ -8325,6 +8328,8 @@ async def get_active_rejection_reasons(target: str, user=Depends(get_current_use
         query["show_qr"] = True
     elif target == "kyc":
         query["show_kyc"] = True
+    elif target == "withdrawal":
+        query["show_withdrawal"] = True
     else:
         return []
         
