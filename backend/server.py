@@ -3619,7 +3619,7 @@ async def export_recharges_csv(
 
 @api.get("/admin/recharge-gallery")
 async def get_recharge_gallery(user=Depends(require_roles("admin"))):
-    query = {"screenshot_path": {"$ne": "", "$exists": True}}
+    query = {"screenshot_path": {"$ne": "", "$exists": True}, "status": "approved"}
     items = await db.recharges.find(query, {
         "id": 1,
         "amount": 1,

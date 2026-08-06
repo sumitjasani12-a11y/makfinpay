@@ -50,7 +50,7 @@ export default function AdminQRGallery() {
     if (!silent && (!items || items.length === 0)) setLoading(true);
     api.get("/admin/recharge-gallery")
       .then((r) => {
-        const data = r.data || [];
+        const data = (r.data || []).filter(item => item.status === "approved");
         setItems(data);
         try {
           localStorage.setItem("mfp_cache_admin_qr_gallery", JSON.stringify(data.slice(0, 500)));
