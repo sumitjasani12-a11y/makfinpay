@@ -47,6 +47,12 @@ client = db
 app = FastAPI(title="MAK FIN PAY API")
 api = APIRouter(prefix="/api")
 
+@app.get("/health")
+@api.get("/health")
+async def health_check():
+    return {"status": "ok", "app": "MAK FIN PAY API"}
+
+
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
