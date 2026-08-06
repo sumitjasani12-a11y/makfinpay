@@ -4542,10 +4542,10 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
     
     try:
         res = await call_irise_api("POST", "pay-bill", json_data=payload)
-        status = res.get("payment_status") or res.get("status")
-        usepay_txn_id = res.get("transaction_id")
+        raw_status = str(res.get("payment_status") or res.get("status") or "").strip().lower()
+        usepay_txn_id = res.get("transaction_id") or res.get("txnid") or res.get("operator_id")
         
-        if status == "success":
+        if raw_status in ("success", "successful", "00", "ok"):
             await db.transactions.update_one({"id": tid}, {"$set": {
                 "status": "success", 
                 "reviewed_at": now_iso(), 
@@ -4558,29 +4558,30 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
             profit = round(service_charge - api_charge, 2)
             await log_admin_profit("credit", profit, "live_bill_fee", tid, f"Profit margin from Live Bill ({user['full_name']})")
             return {"status": "success", "transaction_id": tid}
-        elif status == "pending":
+        elif raw_status in ("awaited", "pending", "process", "processing", "in_process", "accepted", "queued"):
             await db.transactions.update_one({"id": tid}, {"$set": {
                 "status": "pending", 
                 "reviewed_at": now_iso(), 
                 "reviewed_by": None,
                 "operator_txn_id": usepay_txn_id
             }})
-            return {"status": "pending", "transaction_id": tid}
+            return {"status": "pending", "transaction_id": tid, "message": "Bill payment is awaited/pending with operator."}
         else:
             new_balance_refund = await adjust_balance(user["id"], total_amount)
+            err_msg = res.get("message") or res.get("msg") or res.get("response_reason") or "Rejected by operator"
             await db.transactions.update_one({"id": tid}, {"$set": {
                 "status": "reversed", 
                 "reviewed_at": now_iso(), 
                 "reviewed_by": None, 
                 "operator_txn_id": usepay_txn_id,
                 "api_charge": 0.0,
-                "note": f"Payment failed: {res.get('message', 'Rejected by operator')}"
+                "note": f"Payment failed: {err_msg}"
             }})
             await ledger_entry(
                 user["id"], "refund", total_amount, new_balance_refund, "live_bill_refund", tid,
-                f"Refund: Failed Live Bill Pay for {body.mobile}"
+                f"Refund: Failed Live Bill Pay for {body.mobile} ({err_msg})"
             )
-            return {"status": "failed", "message": res.get("message", "Payment failed by operator")}
+            return {"status": "failed", "message": err_msg}
     except HTTPException as e:
         if e.status_code < 500:
             new_balance_refund = await adjust_balance(user["id"], total_amount)
@@ -4923,10 +4924,10 @@ async def admin_check_live_bill_status(tid: str, request: Request, user=Depends(
         raise HTTPException(400, f"Provider status check returned error: {res.get('message', 'Unknown error')}")
         
     data = res.get("data") or {}
-    current_status = data.get("current_status") or "pending"
+    current_status = str(data.get("current_status") or data.get("status") or data.get("payment_status") or "pending").strip().lower()
     
     if t["status"] == "pending":
-        if current_status == "success":
+        if current_status in ("success", "successful", "00", "ok"):
             s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
             api_charge = float(s.get("live_bill_api_charge", 0.0))
             
@@ -4946,7 +4947,7 @@ async def admin_check_live_bill_status(tid: str, request: Request, user=Depends(
             await manager.send_to_role("admin", {"event": "cc_bill_updated", "data": {"id": tid, "status": "success"}})
             return {"ok": True, "status": "success", "message": "Transaction marked as SUCCESS based on Usepay API."}
             
-        elif current_status in ("failed", "reversed"):
+        elif current_status in ("failed", "failure", "reversed", "reject", "rejected", "error"):
             new_balance = await adjust_balance(t["user_id"], t["amount"])
             await db.transactions.update_one({"id": tid}, {"$set": {
                 "status": "reversed",
@@ -4962,7 +4963,7 @@ async def admin_check_live_bill_status(tid: str, request: Request, user=Depends(
             return {"ok": True, "status": "reversed", "message": "Transaction marked as FAILED & REFUNDED based on Usepay API."}
             
         else:
-            return {"ok": True, "status": "pending", "message": "Transaction is still PENDING at Usepay."}
+            return {"ok": True, "status": "pending", "message": f"Transaction status at Usepay is: {current_status.upper()} (Awaited/Pending)."}
     else:
         return {"ok": True, "status": t["status"], "message": f"Transaction is already in status: {t['status']}"}
 
