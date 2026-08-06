@@ -181,6 +181,7 @@ def put_object(path: str, data: bytes, content_type: str):
         ]
 
         headers = {
+            "apikey": supabase_key,
             "Authorization": f"Bearer {supabase_key}",
             "Content-Type": content_type,
             "x-upsert": "true"
@@ -340,6 +341,7 @@ def get_object(path: str):
                 urls_to_try.append(f"{supabase_url}/storage/v1/object/{b}/{p}")
 
         headers = {
+            "apikey": supabase_key,
             "Authorization": f"Bearer {supabase_key}"
         }
         for url in urls_to_try:
