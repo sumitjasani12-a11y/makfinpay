@@ -3,10 +3,6 @@ import { getSupabase } from "./supabase";
 import { getCachedData, setCachedData, clearCache } from "./cache";
 
 const getBackendUrl = () => {
-  const rawBackend = process.env.REACT_APP_BACKEND_URL;
-  if (rawBackend && rawBackend !== "undefined" && rawBackend !== "null" && rawBackend !== "") {
-    return rawBackend.endsWith("/api") ? rawBackend : `${rawBackend.replace(/\/$/, "")}/api`;
-  }
   if (typeof window !== "undefined" && window.location && window.location.hostname) {
     const h = window.location.hostname;
     if (h !== "localhost" && h !== "127.0.0.1") {
@@ -14,6 +10,10 @@ const getBackendUrl = () => {
       const port = window.location.port ? `:${window.location.port}` : "";
       return `${proto}//${h}${port}/api`;
     }
+  }
+  const rawBackend = process.env.REACT_APP_BACKEND_URL;
+  if (rawBackend && rawBackend !== "undefined" && rawBackend !== "null" && rawBackend !== "") {
+    return rawBackend.endsWith("/api") ? rawBackend : `${rawBackend.replace(/\/$/, "")}/api`;
   }
   return "http://localhost:8000/api";
 };
