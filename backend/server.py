@@ -4604,6 +4604,8 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
         await db.transactions.update_one({"id": tid}, {"$set": {"note": f"API Connection error: {str(e)}"}})
         return {"status": "pending", "transaction_id": tid, "message": f"Connection check pending: {str(e)}"}
 
+@app.post("/usepay/webhook")
+@app.post("/api/usepay/webhook")
 @api.post("/usepay/webhook")
 async def usepay_webhook(request: Request):
     # Read raw body safely
