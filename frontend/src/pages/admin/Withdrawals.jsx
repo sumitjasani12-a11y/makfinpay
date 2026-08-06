@@ -137,7 +137,7 @@ export default function AdminWithdrawals() {
   const debouncedQ = useDebounced(q, 350);
   const [status, setStatus] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
-  const [range, setRange] = useState("lifetime");
+  const [range, setRange] = useState("today");
   const [from, setFrom] = useState(todayStr(-7));
   const [to, setTo] = useState(todayStr());
   const [customApplied, setCustomApplied] = useState(false);
@@ -223,7 +223,7 @@ export default function AdminWithdrawals() {
   useEffect(() => { setPage(1); }, [status, roleFilter, range, from, to, customApplied, debouncedQ, debouncedAmt, pageSize]);
 
   const clearAll = () => {
-    setQ(""); setStatus("all"); setRoleFilter("all"); setRange("lifetime"); setAmtQuery("");
+    setQ(""); setStatus("all"); setRoleFilter("all"); setRange("today"); setAmtQuery("");
     setFrom(todayStr(-7)); setTo(todayStr()); setCustomApplied(false); setPage(1);
   };
 

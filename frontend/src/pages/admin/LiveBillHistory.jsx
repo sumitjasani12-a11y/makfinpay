@@ -30,7 +30,7 @@ export default function AdminLiveBillHistory() {
   const [q, setQ] = useState("");
   const debouncedQ = useDebounced(q, 350);
   const [status, setStatus] = useState("all");
-  const [range, setRange] = useState("lifetime");
+  const [range, setRange] = useState("today");
   const [from, setFrom] = useState(todayStr(-7));
   const [to, setTo] = useState(todayStr());
   const [customApplied, setCustomApplied] = useState(false);
