@@ -6,6 +6,7 @@ export const DATE_RANGES = [
   { key: "yesterday", label: "Yesterday" },
   { key: "last7", label: "Last 7 Days" },
   { key: "last30", label: "Last 30 Days" },
+  { key: "this_month", label: "This Month" },
   { key: "lifetime", label: "Lifetime" },
   { key: "custom", label: "Custom" },
 ];

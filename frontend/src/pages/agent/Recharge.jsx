@@ -5,8 +5,9 @@ import { PageHeader, DataTable, StatusBadge, EmptyState } from "@/components/Sha
 import FileUpload from "@/components/FileUpload";
 import ZoomableImage from "@/components/ZoomableImage";
 
+import { DATE_RANGES, rangeWindow } from "@/lib/filters";
 import { toast } from "sonner";
-import { Loader2, Coins, KeyRound, CreditCard, QrCode, Info, Sparkles, CheckCircle2, History, Check, ShieldAlert, FileDown, FileSpreadsheet, Clock, X, Eye, AlertTriangle, HelpCircle } from "lucide-react";
+import { Loader2, Coins, KeyRound, CreditCard, QrCode, Info, Sparkles, CheckCircle2, History, Check, ShieldAlert, FileDown, FileSpreadsheet, Clock, X, Eye, AlertTriangle, HelpCircle, Search } from "lucide-react";
 import { useWebSocketListener } from "@/lib/ws";
 
 export default function AgentRecharge() {
@@ -161,6 +162,14 @@ export default function AgentRecharge() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
+  // History Filter States (Default range to Today)
+  const [historyRange, setHistoryRange] = useState("today");
+  const [historyFromDate, setHistoryFromDate] = useState("");
+  const [historyToDate, setHistoryToDate] = useState("");
+  const [historyQ, setHistoryQ] = useState("");
+  const [historyStatus, setHistoryStatus] = useState("all");
+  const [historyAmtQuery, setHistoryAmtQuery] = useState("");
+
   const reload = () => api.get("/agent/recharges").then((r) => setItems(r.data || []));
 
   const fetchConfig = useCallback(() => {
@@ -221,6 +230,41 @@ export default function AgentRecharge() {
     return () => clearInterval(interval);
   }, [fetchConfig]);
 
+  const filteredItems = useMemo(() => {
+    const [startMs, endMs] = rangeWindow(historyRange, historyFromDate, historyToDate);
+
+    return items.filter((item) => {
+      // 1. Date Range Filter
+      if (startMs != null && endMs != null) {
+        const itemTime = item.created_at ? new Date(item.created_at).getTime() : 0;
+        if (itemTime < startMs || itemTime >= endMs) return false;
+      }
+
+      // 2. Status Filter
+      if (historyStatus !== "all" && item.status !== historyStatus) {
+        return false;
+      }
+
+      // 3. Search Text Filter (UTR, Card, QR Label)
+      const term = historyQ.toLowerCase().trim();
+      if (term) {
+        const matchesSearch =
+          (item.utr || "").toLowerCase().includes(term) ||
+          (item.card_last4 || "").toLowerCase().includes(term) ||
+          (item.qr_code_label || "").toLowerCase().includes(term);
+        if (!matchesSearch) return false;
+      }
+
+      // 4. Search Amount Filter
+      if (historyAmtQuery.trim()) {
+        const itemAmt = item.amount ?? 0;
+        if (!String(itemAmt).includes(historyAmtQuery.trim())) return false;
+      }
+
+      return true;
+    });
+  }, [items, historyRange, historyFromDate, historyToDate, historyStatus, historyQ, historyAmtQuery]);
+
   const stats = useMemo(() => {
     let approvedAmt = 0;
     let approvedCount = 0;
@@ -230,7 +274,7 @@ export default function AgentRecharge() {
     let pendingCount = 0;
     let commissionAmt = 0;
 
-    items.forEach((item) => {
+    filteredItems.forEach((item) => {
       if (item.status === "approved") {
         approvedAmt += item.amount || 0;
         approvedCount++;
@@ -253,13 +297,13 @@ export default function AgentRecharge() {
       pendingCount,
       commissionAmt
     };
-  }, [items]);
+  }, [filteredItems]);
 
   const exportExcel = () => {
     const csvRows = [
       ["Amount", "Commission Charge", "Net Credit", "UTR", "Card / Acc Last 4", "Status", "Rejection Reason", "Created At"]
     ];
-    items.forEach((item) => {
+    filteredItems.forEach((item) => {
       const commCharge = item.status === "approved" ? item.commission_amount : (item.amount * item.commission_percent / 100);
       const netCredit = item.status === "approved" ? item.credit_amount : 0;
       csvRows.push([
@@ -289,7 +333,7 @@ export default function AgentRecharge() {
     const printWindow = window.open("", "_blank");
     if (!printWindow) return toast.error("Pop-up blocker is preventing the PDF export. Please allow pop-ups.");
 
-    const rowsHtml = items.map(item => {
+    const rowsHtml = filteredItems.map(item => {
       const commCharge = item.status === "approved" ? item.commission_amount : (item.amount * item.commission_percent / 100);
       const netCredit = item.status === "approved" ? item.credit_amount : 0;
       return `
@@ -1071,6 +1115,131 @@ export default function AgentRecharge() {
           </div>
         </div>
 
+        {/* Filter Bar */}
+        <div className="p-4 bg-neutral-50/70 border border-black/5 rounded-2xl mb-5 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+            {/* Search Input */}
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <Search className="h-3.5 w-3.5 text-neutral-400" />
+              </span>
+              <input
+                type="text"
+                value={historyQ}
+                onChange={(e) => { setHistoryQ(e.target.value); setPage(1); }}
+                placeholder="Search UTR, Card, QR..."
+                className="mfp-input !pl-9 text-xs bg-white h-[38px]"
+              />
+              {historyQ && (
+                <button
+                  type="button"
+                  onClick={() => { setHistoryQ(""); setPage(1); }}
+                  className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-neutral-400 hover:text-neutral-600"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Date Range Dropdown */}
+            <div>
+              <select
+                value={historyRange}
+                onChange={(e) => { setHistoryRange(e.target.value); setPage(1); }}
+                className="mfp-input text-xs font-semibold bg-white h-[38px] cursor-pointer"
+              >
+                {DATE_RANGES.map((r) => (
+                  <option key={r.key} value={r.key}>{r.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Custom Range: From Date */}
+            {historyRange === "custom" && (
+              <div>
+                <input
+                  type="date"
+                  value={historyFromDate}
+                  onChange={(e) => { setHistoryFromDate(e.target.value); setPage(1); }}
+                  className="mfp-input text-xs bg-white h-[38px] cursor-pointer"
+                  placeholder="From Date"
+                />
+              </div>
+            )}
+
+            {/* Custom Range: To Date */}
+            {historyRange === "custom" && (
+              <div>
+                <input
+                  type="date"
+                  value={historyToDate}
+                  onChange={(e) => { setHistoryToDate(e.target.value); setPage(1); }}
+                  className="mfp-input text-xs bg-white h-[38px] cursor-pointer"
+                  placeholder="To Date"
+                />
+              </div>
+            )}
+
+            {/* Status Dropdown */}
+            <div>
+              <select
+                value={historyStatus}
+                onChange={(e) => { setHistoryStatus(e.target.value); setPage(1); }}
+                className="mfp-input text-xs font-semibold bg-white h-[38px] cursor-pointer"
+              >
+                <option value="all">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+              </select>
+            </div>
+
+            {/* Search Amount Input */}
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <Search className="h-3.5 w-3.5 text-neutral-400" />
+              </span>
+              <input
+                type="text"
+                value={historyAmtQuery}
+                onChange={(e) => { setHistoryAmtQuery(e.target.value.replace(/[^\d.]/g, "")); setPage(1); }}
+                placeholder="Search Amount ₹"
+                className="mfp-input !pl-9 text-xs bg-white h-[38px]"
+              />
+              {historyAmtQuery && (
+                <button
+                  type="button"
+                  onClick={() => { setHistoryAmtQuery(""); setPage(1); }}
+                  className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-neutral-400 hover:text-neutral-600"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Clear All Filters Button */}
+            {(historyQ || historyStatus !== "all" || historyAmtQuery || historyRange !== "today" || historyFromDate || historyToDate) && (
+              <div className="flex items-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHistoryQ("");
+                    setHistoryStatus("all");
+                    setHistoryAmtQuery("");
+                    setHistoryRange("today");
+                    setHistoryFromDate("");
+                    setHistoryToDate("");
+                    setPage(1);
+                  }}
+                  className="py-2 px-3 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl border border-rose-200/80 transition-all inline-flex items-center gap-1.5 cursor-pointer h-[38px] w-full justify-center"
+                >
+                  <X className="h-3.5 w-3.5" /> Clear Filters
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
         <DataTable
           columns={[
             { key: "created_at", label: "Created", render: (r) => fmtDate(r.created_at) },
@@ -1117,11 +1286,11 @@ export default function AgentRecharge() {
             },
           ]}
           rows={paginatedItems}
-          empty="No recharge requests yet."
+          empty="No recharge requests found for selected filters."
           pagination={{
             page,
             pageSize,
-            total: items.length,
+            total: filteredItems.length,
             onPageChange: setPage,
             onPageSizeChange: (n) => { setPageSize(n); setPage(1); },
           }}
