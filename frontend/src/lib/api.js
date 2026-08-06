@@ -8,7 +8,7 @@ const getBackendUrl = () => {
     const h = window.location.hostname;
     if (h !== "localhost" && h !== "127.0.0.1") {
       const proto = window.location.protocol || "http:";
-      return `${proto}//${h}:8000/api`;
+      return `${proto}//${h}/api`;
     }
   }
   return (rawBackend && rawBackend !== "undefined" && rawBackend !== "null")
