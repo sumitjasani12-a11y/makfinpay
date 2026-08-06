@@ -740,6 +740,25 @@ class PostgresDatabase:
         self.client = None
         self.pool = self
 
+    async def auto_init(self):
+        if self.client is not None:
+            return
+        uri = os.environ.get("SUPABASE_POSTGRES_URI") or os.environ.get("DATABASE_URL")
+        if not uri:
+            supabase_url = (os.environ.get("REACT_APP_SUPABASE_URL") or os.environ.get("SUPABASE_URL") or "https://zpynrddggarkltuueqdk.supabase.co").strip().rstrip("/")
+            subdomain = supabase_url.replace("https://", "").replace("http://", "").replace(".supabase.co", "").strip()
+            uri = f"postgresql://postgres:Jigscse%40123@db.{subdomain}.supabase.co:5432/postgres?sslmode=require"
+        try:
+            await self.init_pool(uri)
+        except Exception as e:
+            logger.error(f"Auto init database connection failed for {uri}: {e}")
+            if ".supabase.co" in uri:
+                try:
+                    pooler_uri = f"postgresql://postgres.zpynrddggarkltuueqdk:Jigscse%40123@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?sslmode=require"
+                    await self.init_pool(pooler_uri)
+                except Exception as e2:
+                    logger.error(f"Pooler fallback connection failed: {e2}")
+
     async def init_pool(self, dsn):
         if self.client is None:
             import asyncpg
@@ -827,6 +846,9 @@ class PostgresDatabase:
             query = re.sub(r'\$(\d+)', replace_match, query)
             params = []
             
+        if self.client is None:
+            await self.auto_init()
+
         if self.client is None:
             raise Exception("Database client is not initialized.")
             
