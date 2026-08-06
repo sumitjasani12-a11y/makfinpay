@@ -7173,20 +7173,22 @@ async def _migrate_commission_schema() -> None:
 
 @app.on_event("startup")
 async def startup():
-    supabase_url = (os.environ.get("REACT_APP_SUPABASE_URL") or os.environ.get("SUPABASE_URL") or "https://zpynrddggarkltuueqdk.supabase.co").strip().rstrip("/")
-    subdomain = supabase_url.replace("https://", "").replace("http://", "").replace(".supabase.co", "").strip()
-    supabase_db_url = f"postgresql://postgres:Jigscse%40123@db.{subdomain}.supabase.co:5432/postgres?sslmode=require"
-    await db.init_pool(supabase_db_url)
-    init_storage()
-    await _ensure_indexes()
-    await _seed_admin_user()
-    await _ensure_commission_settings()
-    await _migrate_commission_schema()
-    await _migrate_kyc_status()
-    await _migrate_recharge_revenue_snapshot()
-    await _ensure_backup_settings()
-    _ensure_backup_scheduler()
-    # await run_daily_commission_settlement()
+    try:
+        supabase_url = (os.environ.get("REACT_APP_SUPABASE_URL") or os.environ.get("SUPABASE_URL") or "https://zpynrddggarkltuueqdk.supabase.co").strip().rstrip("/")
+        subdomain = supabase_url.replace("https://", "").replace("http://", "").replace(".supabase.co", "").strip()
+        supabase_db_url = os.environ.get("SUPABASE_POSTGRES_URI") or os.environ.get("DATABASE_URL") or f"postgresql://postgres:Jigscse%40123@db.{subdomain}.supabase.co:5432/postgres?sslmode=require"
+        await db.init_pool(supabase_db_url)
+        init_storage()
+        await _ensure_indexes()
+        await _seed_admin_user()
+        await _ensure_commission_settings()
+        await _migrate_commission_schema()
+        await _migrate_kyc_status()
+        await _migrate_recharge_revenue_snapshot()
+        await _ensure_backup_settings()
+        _ensure_backup_scheduler()
+    except Exception as e:
+        logger.error(f"Startup error occurred: {e}")
 
 
 async def _migrate_kyc_status() -> None:
