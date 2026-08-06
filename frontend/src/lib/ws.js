@@ -18,9 +18,13 @@ export function initWebSocket(token) {
   }
 
   const proto = window.location.protocol === "https:" ? "wss" : "ws";
-  let host = `${window.location.hostname}:8000`;
-  if (process.env.REACT_APP_BACKEND_URL && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
-    host = process.env.REACT_APP_BACKEND_URL.replace(/^https?:\/\//, "");
+  let host = window.location.host;
+  if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+    if (process.env.REACT_APP_BACKEND_URL) {
+      host = process.env.REACT_APP_BACKEND_URL.replace(/^https?:\/\//, "").replace(/\/api\/?$/, "");
+    } else {
+      host = `${window.location.hostname}:8000`;
+    }
   }
 
   const wsUrl = `${proto}://${host}/api/ws?token=${token}`;

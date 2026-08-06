@@ -4,16 +4,18 @@ import { getCachedData, setCachedData, clearCache } from "./cache";
 
 const getBackendUrl = () => {
   const rawBackend = process.env.REACT_APP_BACKEND_URL;
+  if (rawBackend && rawBackend !== "undefined" && rawBackend !== "null" && rawBackend !== "") {
+    return rawBackend.endsWith("/api") ? rawBackend : `${rawBackend.replace(/\/$/, "")}/api`;
+  }
   if (typeof window !== "undefined" && window.location && window.location.hostname) {
     const h = window.location.hostname;
     if (h !== "localhost" && h !== "127.0.0.1") {
       const proto = window.location.protocol || "http:";
-      return `${proto}//${h}:8000/api`;
+      const port = window.location.port ? `:${window.location.port}` : "";
+      return `${proto}//${h}${port}/api`;
     }
   }
-  return (rawBackend && rawBackend !== "undefined" && rawBackend !== "null")
-    ? (rawBackend.endsWith("/api") ? rawBackend : `${rawBackend.replace(/\/$/, "")}/api`)
-    : "http://localhost:8000/api";
+  return "http://localhost:8000/api";
 };
 
 export const API = getBackendUrl();
