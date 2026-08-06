@@ -163,8 +163,8 @@ def put_object(path: str, data: bytes, content_type: str):
     except Exception as e:
         logger.error(f"Failed to cache uploaded file locally: {e}")
 
-    supabase_url = os.environ.get("SUPABASE_URL")
-    supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    supabase_url = os.environ.get("SUPABASE_URL") or os.environ.get("REACT_APP_SUPABASE_URL")
+    supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("REACT_APP_SUPABASE_SERVICE_ROLE_KEY")
     supabase_bucket = os.environ.get("SUPABASE_STORAGE_BUCKET", "uploads")
     
     if supabase_url and supabase_key:
@@ -310,8 +310,8 @@ def get_object(path: str):
         except Exception as e:
             logger.error(f"Failed to read from local file cache: {e}")
             
-    supabase_url = os.environ.get("SUPABASE_URL")
-    supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    supabase_url = os.environ.get("SUPABASE_URL") or os.environ.get("REACT_APP_SUPABASE_URL")
+    supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("REACT_APP_SUPABASE_SERVICE_ROLE_KEY")
     supabase_bucket = os.environ.get("SUPABASE_STORAGE_BUCKET", "uploads")
 
     if supabase_url and supabase_key:
