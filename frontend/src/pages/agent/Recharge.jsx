@@ -1146,7 +1146,7 @@ export default function AgentRecharge() {
               <select
                 value={historyRange}
                 onChange={(e) => { setHistoryRange(e.target.value); setPage(1); }}
-                className="mfp-input text-xs font-semibold bg-white h-[38px] cursor-pointer"
+                className="mfp-input text-xs font-semibold bg-white min-h-[38px] !py-1.5 !px-3 cursor-pointer leading-normal"
               >
                 {DATE_RANGES.map((r) => (
                   <option key={r.key} value={r.key}>{r.label}</option>
@@ -1161,7 +1161,7 @@ export default function AgentRecharge() {
                   type="date"
                   value={historyFromDate}
                   onChange={(e) => { setHistoryFromDate(e.target.value); setPage(1); }}
-                  className="mfp-input text-xs bg-white h-[38px] cursor-pointer"
+                  className="mfp-input text-xs bg-white min-h-[38px] !py-1.5 !px-3 cursor-pointer"
                   placeholder="From Date"
                 />
               </div>
@@ -1174,7 +1174,7 @@ export default function AgentRecharge() {
                   type="date"
                   value={historyToDate}
                   onChange={(e) => { setHistoryToDate(e.target.value); setPage(1); }}
-                  className="mfp-input text-xs bg-white h-[38px] cursor-pointer"
+                  className="mfp-input text-xs bg-white min-h-[38px] !py-1.5 !px-3 cursor-pointer"
                   placeholder="To Date"
                 />
               </div>
@@ -1185,7 +1185,7 @@ export default function AgentRecharge() {
               <select
                 value={historyStatus}
                 onChange={(e) => { setHistoryStatus(e.target.value); setPage(1); }}
-                className="mfp-input text-xs font-semibold bg-white h-[38px] cursor-pointer"
+                className="mfp-input text-xs font-semibold bg-white min-h-[38px] !py-1.5 !px-3 cursor-pointer leading-normal"
               >
                 <option value="all">All Status</option>
                 <option value="pending">Pending</option>
