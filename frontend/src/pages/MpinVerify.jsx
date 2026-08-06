@@ -72,7 +72,8 @@ export default function MpinVerify() {
         toast.success(`Access granted! Welcome.`);
         completeLogin(res.data.token, res.data.user);
         
-        const path = res.data.user.role === "master_distributor" ? "/md"
+        const path = res.data.user.role === "admin" ? "/admin"
+                   : res.data.user.role === "master_distributor" ? "/md"
                    : res.data.user.role === "distributor" ? "/distributor"
                    : "/agent";
         nav(path);
