@@ -3514,19 +3514,41 @@ async def admin_recharges_stats(
         }
     return res
 
+def get_admin_display_name(u: dict) -> str:
+    if not u or not isinstance(u, dict):
+        return "Admin"
+    name = (u.get("full_name") or "").strip()
+    email = (u.get("email") or "").strip().lower()
+    
+    if email == "jigs.vanani@gmail.com":
+        if not name or name.lower() in ["super admin", "admin"]:
+            return "Jignesh Vanani"
+        return name
+
+    if name and name.lower() not in ["super admin", "admin"]:
+        return name
+        
+    if email:
+        username = email.split("@")[0].replace(".", " ").replace("_", " ").title()
+        return username
+        
+    return "Admin"
+
 async def _enrich_reviewed_by_names(items: list) -> list:
     if not items or not isinstance(items, list):
         return items
-    rb_ids = list({str(it.get("reviewed_by")) for it in items if it.get("reviewed_by") and not it.get("reviewed_by_name")})
+    rb_ids = list({str(it.get("reviewed_by")) for it in items if it.get("reviewed_by")})
     if not rb_ids:
         return items
     try:
         users = await db.users.find({"id": {"$in": rb_ids}}, {"_id": 0, "id": 1, "full_name": 1, "email": 1}).to_list(len(rb_ids))
-        user_map = {str(u["id"]): (u.get("full_name") or u.get("email")) for u in users}
+        user_map = {str(u["id"]): get_admin_display_name(u) for u in users}
         for it in items:
             rb = str(it.get("reviewed_by")) if it.get("reviewed_by") else None
-            if rb and not it.get("reviewed_by_name"):
-                it["reviewed_by_name"] = user_map.get(rb, "Admin")
+            curr = str(it.get("reviewed_by_name") or "").strip()
+            if rb:
+                if not curr or curr.lower() in ["super admin", "admin"]:
+                    it["reviewed_by_name"] = user_map.get(rb) or "Admin"
     except Exception as e:
         logger.warning(f"Error enriching reviewed_by_names: {e}")
     return items
