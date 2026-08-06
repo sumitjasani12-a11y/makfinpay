@@ -744,20 +744,31 @@ class PostgresDatabase:
         if self.client is not None:
             return
         uri = os.environ.get("SUPABASE_POSTGRES_URI") or os.environ.get("DATABASE_URL")
-        if not uri:
-            supabase_url = (os.environ.get("REACT_APP_SUPABASE_URL") or os.environ.get("SUPABASE_URL") or "https://zpynrddggarkltuueqdk.supabase.co").strip().rstrip("/")
-            subdomain = supabase_url.replace("https://", "").replace("http://", "").replace(".supabase.co", "").strip()
-            uri = f"postgresql://postgres:Jigscse%40123@db.{subdomain}.supabase.co:5432/postgres?sslmode=require"
-        try:
-            await self.init_pool(uri)
-        except Exception as e:
-            logger.error(f"Auto init database connection failed for {uri}: {e}")
-            if ".supabase.co" in uri:
-                try:
-                    pooler_uri = f"postgresql://postgres.zpynrddggarkltuueqdk:Jigscse%40123@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?sslmode=require"
-                    await self.init_pool(pooler_uri)
-                except Exception as e2:
-                    logger.error(f"Pooler fallback connection failed: {e2}")
+        supabase_url = (os.environ.get("REACT_APP_SUPABASE_URL") or os.environ.get("SUPABASE_URL") or "https://zpynrddggarkltuueqdk.supabase.co").strip().rstrip("/")
+        subdomain = supabase_url.replace("https://", "").replace("http://", "").replace(".supabase.co", "").strip()
+
+        candidates = []
+        if uri:
+            candidates.append(uri)
+        
+        candidates.append(f"postgresql://postgres:Jigscse%40123@db.{subdomain}.supabase.co:5432/postgres?sslmode=require")
+
+        regions = [
+            "ap-south-1", "eu-central-1", "us-east-1", "ap-southeast-1", 
+            "eu-west-1", "us-west-1", "ca-central-1", "ap-northeast-1", "sa-east-1"
+        ]
+        for r in regions:
+            candidates.append(f"postgresql://postgres.{subdomain}:Jigscse%40123@aws-0-{r}.pooler.supabase.com:6543/postgres?sslmode=require")
+            candidates.append(f"postgresql://postgres.{subdomain}:Jigscse%40123@aws-0-{r}.pooler.supabase.com:5432/postgres?sslmode=require")
+
+        for dsn in candidates:
+            try:
+                await self.init_pool(dsn)
+                if self.client is not None:
+                    logger.info(f"Successfully connected to database with DSN: {dsn}")
+                    return
+            except Exception as e:
+                logger.warning(f"Database connection attempt failed for DSN: {e}")
 
     async def init_pool(self, dsn):
         if self.client is None:
