@@ -7,9 +7,9 @@ import BbpsIcon from "./BbpsIcon";
  */
 export default function BharatConnectLogo({ className = "", iconClassName = "h-8 w-8" }) {
   return (
-    <div className={`inline-flex items-center gap-2.5 select-none shrink-0 ${className}`}>
+    <div className={`inline-flex items-center gap-2.5 select-none shrink-0 overflow-visible ${className}`}>
       {/* Blue Double B Icon Emblem */}
-      <div className="shrink-0">
+      <div className="shrink-0 flex items-center justify-center">
         <BbpsIcon className={iconClassName} color="#3469C7" />
       </div>
 

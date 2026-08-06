@@ -2,15 +2,15 @@ import React from "react";
 
 /**
  * Exact Official Bharat Connect (BBPS) Double 'B' Emblem
- * Matches Image 2 uploaded by user.
+ * Clean, uncropped SVG with proper padding around all boundaries.
  */
-export default function BbpsIcon({ className = "h-5 w-5", color = "#3469C7", ...props }) {
+export default function BbpsIcon({ className = "h-6 w-6", color = "#3469C7", ...props }) {
   return (
     <svg
-      viewBox="0 0 100 115"
+      viewBox="-15 -10 130 135"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className={`${className} shrink-0 inline-block align-middle`}
+      className={`${className} shrink-0 inline-block align-middle overflow-visible`}
       {...props}
     >
       {/* Top B Segment */}
@@ -22,7 +22,7 @@ export default function BbpsIcon({ className = "h-5 w-5", color = "#3469C7", ...
       <path
         d="M -5 37 H 40 L 70 7"
         stroke="#FFFFFF"
-        strokeWidth="16"
+        strokeWidth="15"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -36,7 +36,7 @@ export default function BbpsIcon({ className = "h-5 w-5", color = "#3469C7", ...
       <path
         d="M 105 78 H 60 L 30 108"
         stroke="#FFFFFF"
-        strokeWidth="16"
+        strokeWidth="15"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
