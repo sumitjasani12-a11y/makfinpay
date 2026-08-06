@@ -4,7 +4,7 @@ import FileUpload from "@/components/FileUpload";
 import { api, formatErr, fileUrl } from "@/lib/api";
 import { useAuth, updateFaviconInDOM } from "@/lib/auth";
 import { toast } from "sonner";
-import { Save, ShieldAlert, Volume2 } from "lucide-react";
+import { Save, ShieldAlert, Volume2, X } from "lucide-react";
 
 export default function AdminSettings() {
   const { branding, fetchBranding } = useAuth();
