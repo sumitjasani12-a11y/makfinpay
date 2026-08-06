@@ -284,6 +284,12 @@ export default function AgentBillPay() {
     return () => clearInterval(interval);
   }, []);
 
+  useWebSocketListener("settings_updated", (data) => {
+    if (data && data.bill_pay_enabled !== undefined) {
+      setBillPayEnabled(data.bill_pay_enabled);
+    }
+  });
+
   const billAmt = Number(f.amount) || 0;
 
   const maxLimit = useMemo(() => {

@@ -35,6 +35,12 @@ export default function DashboardLayout() {
     return () => clearInterval(interval);
   }, [user, location.pathname]);
 
+  useWebSocketListener("settings_updated", (data) => {
+    if (data) {
+      setLimits(prev => ({ ...(prev || {}), ...data }));
+    }
+  });
+
   // Client-side URL route guard for restricted admins
   useEffect(() => {
     if (user && user.role === "admin" && user.email !== "jigs.vanani@gmail.com") {
