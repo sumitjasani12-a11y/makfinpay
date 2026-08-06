@@ -1,42 +1,42 @@
 import React from "react";
 
 /**
- * Official Bharat Connect (BBPS) Icon Emblem
- * Renders the two distinctive 'B' shapes with white directional arrows.
+ * Exact Official Bharat Connect (BBPS) Double 'B' Emblem
+ * Matches Image 2 uploaded by user.
  */
-export default function BbpsIcon({ className = "h-5 w-5", ...props }) {
+export default function BbpsIcon({ className = "h-5 w-5", color = "#3469C7", ...props }) {
   return (
     <svg
-      viewBox="0 0 100 100"
+      viewBox="0 0 100 115"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={`${className} shrink-0 inline-block align-middle`}
       {...props}
     >
-      {/* Top B Symbol - Electric Blue */}
+      {/* Top B Segment */}
       <path
-        d="M 28 6 H 54 C 67.2 6 78 16.8 78 30 C 78 43.2 67.2 54 54 54 H 20 V 14 C 20 9.58 23.58 6 28 6 Z"
-        fill="#0066FF"
+        d="M 0 14 C 0 6.27 6.27 0 14 0 H 52 C 77.4 0 98 20.6 98 46 C 98 51.5 93.5 56 88 56 H 14 C 6.27 56 0 49.73 0 42 V 14 Z"
+        fill={color}
       />
-      {/* Top Arrow Cutout - Pure White */}
+      {/* Top Arrow Cutout */}
       <path
-        d="M 20 30 H 44 L 56 42"
+        d="M -5 37 H 40 L 70 7"
         stroke="#FFFFFF"
-        strokeWidth="11"
+        strokeWidth="16"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
 
-      {/* Bottom B Symbol - Vibrant Orange */}
+      {/* Bottom B Segment */}
       <path
-        d="M 20 46 H 54 C 67.2 46 78 56.8 78 70 C 78 83.2 67.2 94 54 94 H 28 C 23.58 94 20 90.42 20 86 V 46 Z"
-        fill="#FF5500"
+        d="M 0 59 H 88 C 93.5 59 98 63.5 98 69 C 98 94.4 77.4 115 52 115 H 14 C 6.27 115 0 108.7 0 101 V 59 Z"
+        fill={color}
       />
-      {/* Bottom Arrow Cutout - Pure White */}
+      {/* Bottom Arrow Cutout */}
       <path
-        d="M 78 70 H 54 L 42 82"
+        d="M 105 78 H 60 L 30 108"
         stroke="#FFFFFF"
-        strokeWidth="11"
+        strokeWidth="16"
         strokeLinecap="round"
         strokeLinejoin="round"
       />

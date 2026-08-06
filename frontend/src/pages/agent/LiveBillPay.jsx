@@ -795,12 +795,9 @@ export default function LiveBillPay() {
                 <ChevronLeft className="h-4 w-4" /> Back to Services
               </button>
 
-              <div className="flex items-center gap-3">
-                <BharatConnectLogo iconClassName="h-7 w-7" />
-                <span className="text-[10px] font-extrabold uppercase tracking-wider bg-[#E8F5E9] text-[#00966B] border border-[#C8E6C9] px-2.5 py-1 rounded-md">
-                  Step 2 of 3: Select Provider
-                </span>
-              </div>
+              <span className="text-[10px] font-extrabold uppercase tracking-wider bg-[#E8F5E9] text-[#00966B] border border-[#C8E6C9] px-2.5 py-1 rounded-md">
+                Step 2 of 3: Select Provider
+              </span>
             </div>
 
             {/* Title & Search bar */}
@@ -885,12 +882,9 @@ export default function LiveBillPay() {
                 <ChevronLeft className="h-4 w-4" /> Back to Operators
               </button>
 
-              <div className="flex items-center gap-3">
-                <BharatConnectLogo iconClassName="h-7 w-7" />
-                <span className="text-[10px] font-extrabold uppercase tracking-wider bg-[#E3F2FD] text-[#1E88E5] border border-[#BBDEFB] px-2.5 py-1 rounded-md">
-                  {fetchedBill ? "Step 3 of 3: Settle Bill" : "Step 3 of 3: Enter Details"}
-                </span>
-              </div>
+              <span className="text-[10px] font-extrabold uppercase tracking-wider bg-[#E3F2FD] text-[#1E88E5] border border-[#BBDEFB] px-2.5 py-1 rounded-md">
+                {fetchedBill ? "Step 3 of 3: Settle Bill" : "Step 3 of 3: Enter Details"}
+              </span>
             </div>
 
             <div className="grid lg:grid-cols-2 gap-10 items-start">
