@@ -35,6 +35,8 @@ export default function AdminSettings() {
   const [qrRejectedAudio, setQrRejectedAudio] = useState("");
   const [ccBillApprovedAudio, setCcBillApprovedAudio] = useState("");
   const [ccBillRejectedAudio, setCcBillRejectedAudio] = useState("");
+  const [qrRequestReceivedAudio, setQrRequestReceivedAudio] = useState("");
+  const [ccBillRequestReceivedAudio, setCcBillRequestReceivedAudio] = useState("");
   const [savingAudio, setSavingAudio] = useState(false);
 
   const fetchSettings = async () => {
@@ -48,6 +50,8 @@ export default function AdminSettings() {
       setQrRejectedAudio(data.qr_rejected_audio || "");
       setCcBillApprovedAudio(data.cc_bill_approved_audio || "");
       setCcBillRejectedAudio(data.cc_bill_rejected_audio || "");
+      setQrRequestReceivedAudio(data.qr_request_received_audio || "");
+      setCcBillRequestReceivedAudio(data.cc_bill_request_received_audio || "");
       const mm = !!data.maintenance_mode;
       setMaintenanceMode(mm);
       try { localStorage.setItem("set_maintenance_mode", JSON.stringify(mm)); } catch (e) {}
@@ -80,6 +84,8 @@ export default function AdminSettings() {
         qr_rejected_audio: qrRejectedAudio,
         cc_bill_approved_audio: ccBillApprovedAudio,
         cc_bill_rejected_audio: ccBillRejectedAudio,
+        qr_request_received_audio: qrRequestReceivedAudio,
+        cc_bill_request_received_audio: ccBillRequestReceivedAudio,
       });
       toast.success("Audio Notification Settings saved successfully");
     } catch (e) {
@@ -433,6 +439,44 @@ export default function AdminSettings() {
                       onUploaded={setCcBillRejectedAudio}
                       accept="audio/*"
                       testid="upload-cc-rejected-audio"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="mfp-label font-bold text-neutral-600 block">
+                      🔔 Incoming QR Request Sound (Admin)
+                    </label>
+                    {qrRequestReceivedAudio ? (
+                      <div className="p-2 bg-amber-50/50 rounded-xl border border-amber-200">
+                        <audio controls src={fileUrl(qrRequestReceivedAudio)} className="w-full h-8" />
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-neutral-400 italic">No audio set (Default Chime will play)</div>
+                    )}
+                    <FileUpload
+                      label="Upload Incoming QR Request Sound"
+                      onUploaded={setQrRequestReceivedAudio}
+                      accept="audio/*"
+                      testid="upload-qr-incoming-audio"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="mfp-label font-bold text-neutral-600 block">
+                      🔔 Incoming CC Bill Request Sound (Admin)
+                    </label>
+                    {ccBillRequestReceivedAudio ? (
+                      <div className="p-2 bg-amber-50/50 rounded-xl border border-amber-200">
+                        <audio controls src={fileUrl(ccBillRequestReceivedAudio)} className="w-full h-8" />
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-neutral-400 italic">No audio set (Default Chime will play)</div>
+                    )}
+                    <FileUpload
+                      label="Upload Incoming CC Bill Sound"
+                      onUploaded={setCcBillRequestReceivedAudio}
+                      accept="audio/*"
+                      testid="upload-cc-incoming-audio"
                     />
                   </div>
                 </div>

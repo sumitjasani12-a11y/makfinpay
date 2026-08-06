@@ -276,7 +276,12 @@ export default function DashboardLayout() {
   }, [fetchWallet, fetchPendingCounts]);
 
   // Register WebSocket listeners to update balance & stats counts in real-time
-  useWebSocketListener("recharge_created", fetchPendingCounts);
+  useWebSocketListener("recharge_created", (data) => {
+    fetchPendingCounts();
+    if (user?.role === "admin") {
+      playNotificationSound(data?.audio_url, true);
+    }
+  });
   useWebSocketListener("recharge_updated", (data) => {
     fetchWallet();
     fetchPendingCounts();
@@ -290,9 +295,12 @@ export default function DashboardLayout() {
     fetchWallet();
     fetchPendingCounts();
   });
-  useWebSocketListener("cc_bill_created", () => {
+  useWebSocketListener("cc_bill_created", (data) => {
     fetchWallet();
     fetchPendingCounts();
+    if (user?.role === "admin") {
+      playNotificationSound(data?.audio_url, true);
+    }
   });
   useWebSocketListener("cc_bill_updated", (data) => {
     fetchWallet();

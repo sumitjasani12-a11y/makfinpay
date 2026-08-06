@@ -644,6 +644,8 @@ class RechargeTogglesIn(BaseModel):
     qr_rejected_audio: Optional[str] = None
     cc_bill_approved_audio: Optional[str] = None
     cc_bill_rejected_audio: Optional[str] = None
+    qr_request_received_audio: Optional[str] = None
+    cc_bill_request_received_audio: Optional[str] = None
 
 class HeadlineIn(BaseModel):
     message: str
@@ -3477,7 +3479,9 @@ async def agent_create_recharge(body: RechargeIn, user=Depends(require_approved_
             409,
             "This UTR has already been submitted. If you believe this is an error, please contact the admin.",
         )
-    await manager.send_to_role("admin", {"event": "recharge_created", "data": clean(doc)})
+    s_set = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    req_audio = s_set.get("qr_request_received_audio", "")
+    await manager.send_to_role("admin", {"event": "recharge_created", "data": {**clean(doc), "audio_url": req_audio}})
     return clean(doc)
 
 @api.get("/agent/recharges")
@@ -4038,7 +4042,9 @@ async def agent_bill_payment(body: BillPaymentIn, user=Depends(require_approved_
         user["id"], "debit", total_amount, new_balance, "bill_payment_hold", tx["id"],
         f"Bill: ₹{body.amount:.2f} + Charge: ₹{service_charge:.2f} — {body.operator} ****{body.card_last4}"
     )
-    await manager.send_to_role("admin", {"event": "cc_bill_created", "data": clean(tx)})
+    s_set = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    req_audio = s_set.get("cc_bill_request_received_audio", "")
+    await manager.send_to_role("admin", {"event": "cc_bill_created", "data": {**clean(tx), "audio_url": req_audio}})
     return clean(tx)
 
 @api.get("/agent/transactions")
@@ -5917,7 +5923,9 @@ async def get_admin_recharge_limits(response: Response, user=Depends(require_rol
         "qr_approved_audio": s.get("qr_approved_audio", ""),
         "qr_rejected_audio": s.get("qr_rejected_audio", ""),
         "cc_bill_approved_audio": s.get("cc_bill_approved_audio", ""),
-        "cc_bill_rejected_audio": s.get("cc_bill_rejected_audio", "")
+        "cc_bill_rejected_audio": s.get("cc_bill_rejected_audio", ""),
+        "qr_request_received_audio": s.get("qr_request_received_audio", ""),
+        "cc_bill_request_received_audio": s.get("cc_bill_request_received_audio", "")
     }
 
 @api.put("/admin/settings/recharge-limits")
@@ -5973,6 +5981,10 @@ async def update_admin_recharge_toggles(body: RechargeTogglesIn, request: Reques
         doc["cc_bill_approved_audio"] = body.cc_bill_approved_audio
     if body.cc_bill_rejected_audio is not None:
         doc["cc_bill_rejected_audio"] = body.cc_bill_rejected_audio
+    if body.qr_request_received_audio is not None:
+        doc["qr_request_received_audio"] = body.qr_request_received_audio
+    if body.cc_bill_request_received_audio is not None:
+        doc["cc_bill_request_received_audio"] = body.cc_bill_request_received_audio
 
     await db.settings.update_one({"id": "commission"}, {"$set": doc})
     await write_audit(user["id"], "recharge_toggles_changed", target="settings", meta=doc, request=request)
