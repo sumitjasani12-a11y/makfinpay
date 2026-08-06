@@ -77,10 +77,39 @@ function RoleHome() {
   return <Navigate to="/agent" replace />;
 }
 
+function GlobalRealtimeListener() {
+  const { user } = useAuth();
+
+  React.useEffect(() => {
+    const handleSettingsUpdated = (e) => {
+      const data = e.detail || {};
+      if (data.maintenance_mode !== undefined) {
+        if (data.maintenance_mode) {
+          if (user && user.role !== "admin") {
+            if (window.location.pathname !== "/maintenance") {
+              window.location.href = "/maintenance";
+            }
+          }
+        } else {
+          if (window.location.pathname === "/maintenance") {
+            window.location.href = user ? "/app" : "/login";
+          }
+        }
+      }
+    };
+
+    window.addEventListener("ws:settings_updated", handleSettingsUpdated);
+    return () => window.removeEventListener("ws:settings_updated", handleSettingsUpdated);
+  }, [user]);
+
+  return null;
+}
+
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <GlobalRealtimeListener />
         <PageTitle />
         <Toaster position="top-right" richColors />
         <Routes>
