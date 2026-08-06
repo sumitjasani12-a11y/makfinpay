@@ -1,18 +1,16 @@
 import React from "react";
 import BbpsIcon from "./BbpsIcon";
 
-export default function BharatConnectLogo({ className = "", iconClassName = "h-8 w-8" }) {
+/**
+ * Official Bharat Connect Logo Banner Component
+ */
+export default function BharatConnectLogo({ className = "", iconClassName = "h-7 w-7" }) {
   return (
-    <div className={`inline-flex items-center gap-2.5 bg-white px-3.5 py-1.5 rounded-2xl border border-black/10 shadow-xs select-none ${className}`}>
-      {/* Blue BB Icon Mark */}
-      <div className="shrink-0">
-        <BbpsIcon className={iconClassName} color="#2B65EC" />
-      </div>
-
-      {/* Bharat Connect Text */}
-      <div className="flex flex-col leading-[0.95] tracking-tight font-black">
-        <span className="text-[15px] font-black tracking-tight text-[#0A2540] font-sans">Bharat</span>
-        <span className="text-[15px] font-black tracking-tight text-[#F26522] font-sans">Connect</span>
+    <div className={`inline-flex items-center gap-2.5 bg-white shadow-sm border border-slate-200/90 px-3.5 py-1.5 rounded-2xl select-none shrink-0 ${className}`}>
+      <BbpsIcon className={iconClassName} />
+      <div className="flex flex-col leading-none font-sans font-black">
+        <span className="text-[14px] font-black tracking-tight text-[#0A2540]">Bharat</span>
+        <span className="text-[14px] font-black tracking-tight text-[#FF5500]">Connect</span>
       </div>
     </div>
   );

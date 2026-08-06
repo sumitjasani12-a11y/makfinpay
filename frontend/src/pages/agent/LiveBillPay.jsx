@@ -722,15 +722,14 @@ export default function LiveBillPay() {
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full max-w-none px-4 lg:px-8 mb-8">
       <PageHeader 
         title="Bill Payments" 
         subtitle="Fetch and pay electricity, gas, water bills instantly in real time." 
-        actions={<BharatConnectLogo iconClassName="h-10 w-10" />}
+        actions={<BharatConnectLogo iconClassName="h-8 w-8" />}
       />
 
-      <div className="w-full max-w-none px-4 lg:px-8 mb-8">
-        {selectedCat === "" ? (
+      {selectedCat === "" ? (
           <div className="space-y-8 animate-fadeIn">
 
             {/* Select utility service step header */}
@@ -796,9 +795,12 @@ export default function LiveBillPay() {
                 <ChevronLeft className="h-4 w-4" /> Back to Services
               </button>
 
-              <span className="text-[10px] font-extrabold uppercase tracking-wider bg-[#E8F5E9] text-[#00966B] border border-[#C8E6C9] px-2.5 py-1 rounded-md">
-                Step 2 of 3: Select Provider
-              </span>
+              <div className="flex items-center gap-3">
+                <BharatConnectLogo iconClassName="h-7 w-7" />
+                <span className="text-[10px] font-extrabold uppercase tracking-wider bg-[#E8F5E9] text-[#00966B] border border-[#C8E6C9] px-2.5 py-1 rounded-md">
+                  Step 2 of 3: Select Provider
+                </span>
+              </div>
             </div>
 
             {/* Title & Search bar */}
@@ -883,9 +885,12 @@ export default function LiveBillPay() {
                 <ChevronLeft className="h-4 w-4" /> Back to Operators
               </button>
 
-              <span className="text-[10px] font-extrabold uppercase tracking-wider bg-[#E3F2FD] text-[#1E88E5] border border-[#BBDEFB] px-2.5 py-1 rounded-md">
-                {fetchedBill ? "Step 3 of 3: Settle Bill" : "Step 3 of 3: Enter Details"}
-              </span>
+              <div className="flex items-center gap-3">
+                <BharatConnectLogo iconClassName="h-7 w-7" />
+                <span className="text-[10px] font-extrabold uppercase tracking-wider bg-[#E3F2FD] text-[#1E88E5] border border-[#BBDEFB] px-2.5 py-1 rounded-md">
+                  {fetchedBill ? "Step 3 of 3: Settle Bill" : "Step 3 of 3: Enter Details"}
+                </span>
+              </div>
             </div>
 
             <div className="grid lg:grid-cols-2 gap-10 items-start">
@@ -1229,7 +1234,6 @@ export default function LiveBillPay() {
             </div>
           </div>
         )}
-      </div>
     </div>
   );
 }
