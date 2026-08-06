@@ -28,7 +28,6 @@ export const NAV = {
     { to: "/admin/kyc", label: "KYC Requests", icon: FileCheck2 },
     { to: "/admin/reasons", label: "Reason Entry", icon: ClipboardList },
     { to: "/admin/audit", label: "Audit Logs", icon: ScrollText },
-    { to: "/admin/backups", label: "Backup & Restore", icon: DatabaseBackup },
     { to: "/admin/change-password", label: "Change Password", icon: KeyRound },
     { to: "/admin/admins", label: "Admin Management", icon: Users },
     { to: "/admin/settings", label: "Settings", icon: Settings },

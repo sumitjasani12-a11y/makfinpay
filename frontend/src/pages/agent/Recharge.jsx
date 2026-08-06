@@ -6,7 +6,7 @@ import FileUpload from "@/components/FileUpload";
 import ZoomableImage from "@/components/ZoomableImage";
 
 import { toast } from "sonner";
-import { Loader2, Coins, KeyRound, CreditCard, QrCode, Info, Sparkles, CheckCircle2, History, Check, ShieldAlert, FileDown, FileSpreadsheet, Clock, X, Eye } from "lucide-react";
+import { Loader2, Coins, KeyRound, CreditCard, QrCode, Info, Sparkles, CheckCircle2, History, Check, ShieldAlert, FileDown, FileSpreadsheet, Clock, X, Eye, AlertTriangle } from "lucide-react";
 import { useWebSocketListener } from "@/lib/ws";
 
 export default function AgentRecharge() {
@@ -586,8 +586,49 @@ export default function AgentRecharge() {
                   ) : null}
                 </div>
               ) : (
-                <div className="w-full py-12 flex justify-center">
-                  <EmptyState>No active QR — please contact admin.</EmptyState>
+                <div className="w-full flex flex-col items-center justify-center py-2">
+                  {/* 280px x 280px QR Frame Box with Scanner Brackets */}
+                  <div className="w-[280px] h-[280px] rounded-3xl bg-[#0F172A] border border-slate-800 p-4 shadow-xl flex flex-col items-center justify-center relative overflow-hidden">
+                    {/* Scanner Corner Brackets */}
+                    <div className="absolute top-3 left-3 w-5 h-5 border-t-2 border-l-2 border-amber-500 rounded-tl-md" />
+                    <div className="absolute top-3 right-3 w-5 h-5 border-t-2 border-r-2 border-amber-500 rounded-tr-md" />
+                    <div className="absolute bottom-3 left-3 w-5 h-5 border-b-2 border-l-2 border-amber-500 rounded-bl-md" />
+                    <div className="absolute bottom-3 right-3 w-5 h-5 border-b-2 border-r-2 border-amber-500 rounded-br-md" />
+                    
+                    {/* Scan Grid Pattern Overlay */}
+                    <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff08_1px,transparent_1px),linear-gradient(to_bottom,#ffffff08_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
+
+                    {/* Glowing Aura Icon */}
+                    <div className="relative z-10 mb-2 flex flex-col items-center">
+                      <div className="relative p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 shadow-inner mb-2">
+                        <QrCode className="w-12 h-12 stroke-[1.5]" />
+                        <div className="absolute -bottom-1 -right-1 bg-rose-500 text-white p-1 rounded-full shadow-md">
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                        </div>
+                      </div>
+                      
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+                        No Active QR Code
+                      </span>
+                    </div>
+
+                    {/* Message inside Scanner Box */}
+                    <div className="relative z-10 text-center px-3">
+                      <h4 className="text-xs font-black text-white tracking-wide uppercase mb-1">
+                        QR Service Offline
+                      </h4>
+                      <p className="text-[10px] text-slate-400 leading-relaxed font-medium max-w-[200px] mx-auto">
+                        Active QR Code is currently unavailable or disabled by Admin.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Badge under Scanner Box */}
+                  <div className="mt-4 w-full max-w-[280px] flex items-center justify-center gap-2 bg-amber-50 text-amber-800 border border-amber-200 py-2.5 px-4 rounded-xl text-xs font-extrabold uppercase tracking-wide shadow-xs">
+                    <ShieldAlert className="h-4 w-4 text-amber-600" />
+                    <span>Please Contact Admin to Activate</span>
+                  </div>
                 </div>
               )}
             </div>

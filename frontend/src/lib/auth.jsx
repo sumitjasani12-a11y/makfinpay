@@ -6,8 +6,19 @@ import { toast } from "sonner";
 const AuthCtx = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(() => {
+    try {
+      const v = localStorage.getItem("mfp_user");
+      return v ? JSON.parse(v) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [loading, setLoading] = useState(() => {
+    const t = localStorage.getItem("mfp_token");
+    const u = localStorage.getItem("mfp_user");
+    return Boolean(t && !u);
+  });
   const [branding, setBranding] = useState(() => {
     try {
       const cached = localStorage.getItem("mfp_branding");
@@ -56,24 +67,38 @@ export function AuthProvider({ children }) {
     fetchBranding();
   }, [fetchBranding]);
 
-  const reloadMe = useCallback(() => {
+  const reloadMe = useCallback(async () => {
     const t = localStorage.getItem("mfp_token");
-    if (!t) return;
-    api.get("/auth/me")
-      .then((r) => setUser(r.data))
-      .catch(() => {});
+    if (!t) return null;
+    try {
+      const r = await api.get("/auth/me");
+      setUser(r.data);
+      try { localStorage.setItem("mfp_user", JSON.stringify(r.data)); } catch (e) {}
+      return r.data;
+    } catch (e) {
+      return null;
+    }
   }, []);
 
   useEffect(() => {
     const t = localStorage.getItem("mfp_token");
     if (!t) {
+      setUser(null);
+      try { localStorage.removeItem("mfp_user"); } catch (e) {}
       setLoading(false);
       return;
     }
     api
       .get("/auth/me")
-      .then((r) => setUser(r.data))
-      .catch(() => localStorage.removeItem("mfp_token"))
+      .then((r) => {
+        setUser(r.data);
+        try { localStorage.setItem("mfp_user", JSON.stringify(r.data)); } catch (e) {}
+      })
+      .catch(() => {
+        setUser(null);
+        localStorage.removeItem("mfp_token");
+        localStorage.removeItem("mfp_user");
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -88,72 +113,55 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     window.addEventListener("ws:kyc_updated", reloadMe);
+    window.addEventListener("ws:user_updated", reloadMe);
     window.addEventListener("ws:recharge_updated", reloadMe);
     window.addEventListener("ws:cc_bill_updated", reloadMe);
     return () => {
       window.removeEventListener("ws:kyc_updated", reloadMe);
+      window.removeEventListener("ws:user_updated", reloadMe);
       window.removeEventListener("ws:recharge_updated", reloadMe);
       window.removeEventListener("ws:cc_bill_updated", reloadMe);
     };
   }, [reloadMe]);
 
+  const completeLogin = useCallback((token, userData) => {
+    if (token) {
+      localStorage.setItem("mfp_token", token);
+    }
+    if (userData) {
+      setUser(userData);
+      try { localStorage.setItem("mfp_user", JSON.stringify(userData)); } catch (e) {}
+    }
+    if (token) {
+      initWebSocket(token);
+    }
+  }, []);
+
   const login = useCallback(async (email, password) => {
     const { data } = await api.post("/auth/login", { email, password });
-    if (data.status === "success") {
-      localStorage.setItem("mfp_token", data.token);
-      setUser(data.user);
+    if (data.token) {
+      completeLogin(data.token, data.user);
     }
     return data;
-  }, []);
+  }, [completeLogin]);
 
-  const completeLogin = useCallback((token, user) => {
-    localStorage.setItem("mfp_token", token);
-    setUser(user);
-  }, []);
-
-  const logout = useCallback(async () => {
-    try {
-      await api.post("/auth/logout");
-    } catch (_err) {
-      // logout endpoint is best-effort; ignore network errors and still clear local state
-    }
+  const logout = useCallback(() => {
     localStorage.removeItem("mfp_token");
+    localStorage.removeItem("mfp_user");
     setUser(null);
     closeWebSocket();
   }, []);
 
-  // 10-Minute Inactivity Auto-Logout for Non-Admin Panels (Agent, Distributor, MD)
-  useEffect(() => {
-    if (!user || user.role === "admin") return;
-
-    let timer = null;
-    const INACTIVITY_LIMIT = 10 * 60 * 1000; // 10 minutes in ms
-
-    const resetTimer = () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        toast.warning("૧૦ મિનિટથી કોઈ એક્ટિવિટી ન હોવાથી સેશન ઓટો લૉગઆઉટ થઈ ગયું છે.");
-        logout();
-      }, INACTIVITY_LIMIT);
-    };
-
-    resetTimer();
-
-    const events = ["mousemove", "keydown", "click", "scroll", "touchstart"];
-    events.forEach((evt) => window.addEventListener(evt, resetTimer));
-
-    return () => {
-      if (timer) clearTimeout(timer);
-      events.forEach((evt) => window.removeEventListener(evt, resetTimer));
-    };
-  }, [user, logout]);
-
-  const value = useMemo(
-    () => ({ user, loading, login, logout, setUser, completeLogin, reloadMe, branding, fetchBranding }),
+  const val = useMemo(
+    () => ({ user, loading, login, logout, completeLogin, reloadMe, branding, fetchBranding }),
     [user, loading, login, logout, completeLogin, reloadMe, branding, fetchBranding]
   );
 
-  return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
+  return <AuthCtx.Provider value={val}>{children}</AuthCtx.Provider>;
 }
 
-export const useAuth = () => useContext(AuthCtx);
+export function useAuth() {
+  const c = useContext(AuthCtx);
+  if (!c) throw new Error("useAuth must be used within AuthProvider");
+  return c;
+}

@@ -72,7 +72,7 @@ function PasswordGate({ user, onDone }) {
 }
 
 export default function KycPasswordGate({ children }) {
-  const { user, setUser } = useAuth();
+  const { user, setUser, reloadMe } = useAuth();
   const [kycForm, setKycForm] = useState({
     aadhaar_path: "",
     aadhaar_back_path: "",
@@ -86,8 +86,12 @@ export default function KycPasswordGate({ children }) {
 
   const reloadUser = async () => {
     try {
-      const r = await api.get("/auth/me");
-      setUser(r.data);
+      const updated = await reloadMe();
+      if (!updated) {
+        const r = await api.get("/auth/me");
+        setUser(r.data);
+        try { localStorage.setItem("mfp_user", JSON.stringify(r.data)); } catch (e) {}
+      }
     } catch (e) {
       console.error(e);
     }

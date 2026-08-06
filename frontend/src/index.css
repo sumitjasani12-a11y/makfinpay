@@ -97,10 +97,10 @@
 }
 .mfp-table th {
   background-color: #8eb99a;
-  @apply text-center text-xs uppercase tracking-wider font-black text-neutral-800 px-4 py-3 border-b border-black/5;
+  @apply text-center text-xs uppercase tracking-wider font-black text-neutral-800 px-2 py-3 border-b border-black/5 whitespace-nowrap align-middle;
 }
 .mfp-table td {
-  @apply text-center px-4 py-3 text-sm text-neutral-700 border-b border-black/5;
+  @apply text-center px-2 py-2.5 text-xs font-semibold text-neutral-800 border-b border-black/5 whitespace-nowrap align-middle;
 }
 .mfp-table tr:nth-child(even) td {
   background-color: rgba(0,0,0,0.015);

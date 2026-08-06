@@ -1,6 +1,17 @@
 // craco.config.js
 const path = require("path");
-require("dotenv").config();
+const fs = require("fs");
+const dotenv = require("dotenv");
+
+// Load master root .env configuration first
+const rootEnvPath = path.resolve(__dirname, "../.env");
+if (fs.existsSync(rootEnvPath)) {
+  const rootEnv = dotenv.parse(fs.readFileSync(rootEnvPath));
+  for (const k in rootEnv) {
+    process.env[k] = rootEnv[k];
+  }
+}
+dotenv.config();
 
 // Check if we're in development/preview mode (not production build)
 // Craco sets NODE_ENV=development for start, NODE_ENV=production for build

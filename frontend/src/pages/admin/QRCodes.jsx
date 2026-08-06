@@ -1,11 +1,16 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { api, formatErr, fileUrl, fmtMoney } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { rangeWindowIso, todayStr } from "@/lib/filters";
 import { PageHeader, EmptyState } from "@/components/Shared";
 import { toast } from "sonner";
-import { CheckCircle2, Trash2, Eye, RefreshCw, Upload, Tag, Phone, Link, FileText, Search, Calendar, FileSpreadsheet, FileDown } from "lucide-react";
+import { CheckCircle2, Trash2, Eye, RefreshCw, Upload, Tag, Phone, Link, FileText, Search, Calendar, FileSpreadsheet, FileDown, Pencil, Check, X } from "lucide-react";
 
 export default function AdminQRCodes() {
+  const { user } = useAuth();
+  const [editingHistoryId, setEditingHistoryId] = useState(null);
+  const [editPercentVal, setEditPercentVal] = useState("");
+  const [editLoading, setEditLoading] = useState(false);
   const [items, setItems] = useState(() => {
     try {
       const cached = localStorage.getItem("admin_active_qr");
@@ -115,6 +120,27 @@ export default function AdminQRCodes() {
         }
       });
   }, [customFrom, customTo]);
+
+  const handleSaveHistoryPercent = async (hid, val) => {
+    const targetVal = val !== undefined ? val : editPercentVal;
+    const p = parseFloat(targetVal);
+    if (isNaN(p) || p < 0 || p > 100) {
+      toast.error("Please enter a valid percentage (0 - 100)");
+      setEditingHistoryId(null);
+      return;
+    }
+    setEditLoading(true);
+    try {
+      await api.put(`/admin/qrcodes/history/${hid}/percent`, { qr_percent: p });
+      toast.success("QR % updated successfully!");
+      setEditingHistoryId(null);
+      fetchHistory(dateFilter);
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail) || "Failed to update percentage");
+    } finally {
+      setEditLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (dateFilter !== "custom") {
@@ -950,7 +976,41 @@ export default function AdminQRCodes() {
 
                     {/* QR % */}
                     <td className="py-3 px-4 text-center font-bold text-neutral-500 tabular-nums">
-                      {item.qr_percent}%
+                      {editingHistoryId === item.id ? (
+                        <div className="inline-flex items-center justify-center">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="100"
+                            className="w-16 px-1.5 py-0.5 text-xs font-extrabold border border-indigo-400 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 text-center bg-white shadow-sm"
+                            value={editPercentVal}
+                            onChange={(e) => setEditPercentVal(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleSaveHistoryPercent(item.id, editPercentVal);
+                              if (e.key === "Escape") setEditingHistoryId(null);
+                            }}
+                            onBlur={() => handleSaveHistoryPercent(item.id, editPercentVal)}
+                            autoFocus
+                          />
+                        </div>
+                      ) : (
+                        <div className="inline-flex items-center justify-center gap-1">
+                          <span>{item.qr_percent}%</span>
+                          {user?.role === "admin" && (
+                            <button
+                              onClick={() => {
+                                setEditingHistoryId(item.id);
+                                setEditPercentVal(item.qr_percent?.toString() || "0");
+                              }}
+                              className="p-1 text-neutral-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-all"
+                              title="Edit QR %"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </td>
 
                     {/* QR Profit */}

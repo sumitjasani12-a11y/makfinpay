@@ -7,7 +7,7 @@ import { ShieldCheck, Plus, ArrowLeft } from "lucide-react";
 import Logo from "@/components/Logo";
 
 export default function MpinSetup() {
-  const { completeLogin } = useAuth();
+  const { completeLogin, reloadMe } = useAuth();
   const location = useLocation();
   const nav = useNavigate();
   
@@ -83,11 +83,12 @@ export default function MpinSetup() {
       if (res.data?.status === "success") {
         toast.success("Security MPIN set up successfully!");
         completeLogin(res.data.token, res.data.user);
-        
-        const path = res.data.user.role === "master_distributor" ? "/md"
-                   : res.data.user.role === "distributor" ? "/distributor"
+        const updatedUser = await reloadMe();
+        const role = updatedUser?.role || res.data.user?.role || "agent";
+        const path = role === "master_distributor" ? "/md"
+                   : role === "distributor" ? "/distributor"
                    : "/agent";
-        nav(path);
+        nav(path, { replace: true });
       } else {
         toast.error("Failed to setup MPIN. Please try again.");
       }

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { ZoomIn, ZoomOut, RotateCcw, Loader2, ImageOff } from "lucide-react";
+import { ZoomIn, ZoomOut, RotateCcw, Loader2, ImageOff, CheckCircle2 } from "lucide-react";
 
 export default function ZoomableImage({ src, alt, className = "" }) {
   const [scale, setScale] = useState(1);
@@ -14,6 +14,8 @@ export default function ZoomableImage({ src, alt, className = "" }) {
   useEffect(() => {
     setIsLoading(true);
     setIsError(false);
+    setScale(1);
+    setOffset({ x: 0, y: 0 });
   }, [src]);
 
   const handleZoomIn = () => {
@@ -120,38 +122,22 @@ export default function ZoomableImage({ src, alt, className = "" }) {
           </div>
         )}
 
-        {isError ? (
-          <div className="flex flex-col items-center justify-center gap-2 text-rose-500 p-6 text-center">
-            <ImageOff className="h-10 w-10 stroke-[1.5]" />
-            <span className="text-xs font-bold text-slate-700">Unable to display screenshot</span>
-            <a
-              href={src}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-2 text-xs font-semibold text-emerald-700 underline hover:text-emerald-800"
-            >
-              Open Image directly
-            </a>
-          </div>
-        ) : (
-          <img
-            src={src}
-            alt={alt}
-            draggable={false}
-            onLoad={() => setIsLoading(false)}
-            onError={() => {
-              setIsLoading(false);
-              setIsError(true);
-            }}
-            className={`max-h-full max-w-full object-contain pointer-events-none transition-opacity duration-300 ${
-              isLoading ? "opacity-0" : "opacity-100"
-            } ${isDragging ? "" : "transition-transform duration-150 ease-out"}`}
-            style={{
-              transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
-              transformOrigin: "center"
-            }}
-          />
-        )}
+        <img
+          src={src}
+          alt={alt}
+          draggable={false}
+          onLoad={() => setIsLoading(false)}
+          onError={() => {
+            setIsLoading(false);
+          }}
+          className={`max-h-full max-w-full object-contain pointer-events-none transition-opacity duration-300 ${
+            isLoading ? "opacity-0" : "opacity-100"
+          } ${isDragging ? "" : "transition-transform duration-150 ease-out"}`}
+          style={{
+            transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+            transformOrigin: "center"
+          }}
+        />
 
         {/* Zoom Level Indicator */}
         {!isError && !isLoading && scale !== 1 && (

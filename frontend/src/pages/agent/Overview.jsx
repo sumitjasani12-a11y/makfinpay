@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { api, fmtMoney, fileUrl } from "@/lib/api";
+import { getSupabase, supabaseRpc } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { PageHeader } from "@/components/Shared";
 import KycPasswordGate from "@/components/KycPasswordGate";
@@ -20,13 +21,19 @@ export default function AgentOverview() {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   const fetchAgentStats = useCallback(() => {
-    if (user && user.kyc_status === "approved" && !user.first_login) {
-      api.get("/agent/dashboard-stats")
-        .then((r) => {
-          setStats(r.data);
-          try { localStorage.setItem("mfp_cache_agent_stats", JSON.stringify(r.data)); } catch (e) {}
+    if (user && user.id && user.kyc_status === "approved" && !user.first_login) {
+      supabaseRpc("rpc_get_agent_stats", { p_user_id: user.id })
+        .then(({ data, error }) => {
+          if (data && !error) {
+            setStats(data);
+            try { localStorage.setItem("mfp_cache_agent_stats", JSON.stringify(data)); } catch (e) {}
+          } else {
+            api.get("/agent/dashboard-stats").then((r) => setStats(r.data)).catch(() => {});
+          }
         })
-        .catch((e) => console.log("Stats error ignored:", e.message));
+        .catch(() => {
+          api.get("/agent/dashboard-stats").then((r) => setStats(r.data)).catch(() => {});
+        });
     }
   }, [user]);
 
@@ -36,9 +43,29 @@ export default function AgentOverview() {
       api.get("/headlines/active")
         .then((r) => setHeadlines(r.data || []))
         .catch((e) => console.log("Failed to fetch active headlines:", e.message));
+
+      // Supabase Realtime WebSocket Listener for Instant UI Updates
+      const supabase = getSupabase();
+      if (supabase) {
+        const channel = supabase
+          .channel(`agent_stats_${user.id}`)
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "recharges", filter: `user_id=eq.${user.id}` },
+            () => fetchAgentStats()
+          )
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "wallets", filter: `user_id=eq.${user.id}` },
+            () => fetchAgentStats()
+          )
+          .subscribe();
+
+        return () => {
+          supabase.removeChannel(channel);
+        };
+      }
     }
-    const interval = setInterval(fetchAgentStats, 10000);
-    return () => clearInterval(interval);
   }, [user, fetchAgentStats]);
 
   useWebSocketListener("recharge_created", fetchAgentStats);
@@ -158,17 +185,17 @@ export default function AgentOverview() {
 
           {/* Slider Carousel (Col Span 4) */}
           {imageMessages.length > 0 ? (
-            <div className="bg-white border border-black/5 rounded-3xl overflow-hidden shadow-sm lg:col-span-4 relative h-auto min-h-[140px] group animate-fadeIn">
+            <div className="bg-white border border-neutral-200/80 rounded-3xl overflow-hidden shadow-sm lg:col-span-4 relative h-[270px] max-h-[270px] flex items-center justify-center bg-neutral-900/5 group animate-fadeIn">
               <div
-                className="flex transition-transform duration-500 ease-out h-full"
+                className="flex transition-transform duration-500 ease-out h-full w-full items-center"
                 style={{ transform: `translateX(-${activeImageIndex * 100}%)` }}
               >
                 {imageMessages.map((path, idx) => (
-                  <div key={idx} className="w-full h-full shrink-0 animate-fadeIn">
+                  <div key={idx} className="w-full h-[270px] shrink-0 animate-fadeIn flex items-center justify-center p-1.5">
                     <img
                       src={fileUrl(path)}
                       alt={`Announcement Banner ${idx + 1}`}
-                      className="h-full w-full object-cover"
+                      className="max-h-full max-w-full object-contain rounded-2xl shadow-xs"
                     />
                   </div>
                 ))}

@@ -37,7 +37,6 @@ const getIconColor = (label) => {
     "KYC Review": "text-[#EE9B00]", // Ochre
     "Reason Entry": "text-[#9B5DE5]", // Light Violet
     "Audit Logs": "text-[#90A955]", // Soft Green
-    "Backup & Restore": "text-[#B5E2FA]", // Ice Blue
     "Change Password": "text-[#DDA15E]", // Light Copper
     "Change MPIN": "text-[#FF70A6]", // Soft Salmon Pink
     "Manage TPIN": "text-[#70E000]", // Lime Green

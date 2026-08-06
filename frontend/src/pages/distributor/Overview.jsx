@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { api, fmtMoney } from "@/lib/api";
+import { getSupabase, supabaseRpc } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { PageHeader } from "@/components/Shared";
 import KycPasswordGate from "@/components/KycPasswordGate";
@@ -12,18 +13,35 @@ export default function DistOverview() {
   const [s, setS] = useState({});
 
   const fetchStats = useCallback(() => {
-    if (user && user.kyc_status === "approved" && !user.first_login) {
-      api.get("/distributor/stats")
-        .then((r) => setS(r.data))
-        .catch((e) => console.log("Stats ignored:", e.message));
+    if (user && user.id && user.kyc_status === "approved" && !user.first_login) {
+      supabaseRpc("rpc_get_distributor_stats", { p_dist_id: user.id })
+        .then(({ data, error }) => {
+          if (data && !error) {
+            setS(data);
+          } else {
+            api.get("/distributor/stats").then((r) => setS(r.data)).catch(() => {});
+          }
+        })
+        .catch(() => {
+          api.get("/distributor/stats").then((r) => setS(r.data)).catch(() => {});
+        });
     }
   }, [user]);
 
   useEffect(() => {
     fetchStats();
-    const interval = setInterval(fetchStats, 10000);
-    return () => clearInterval(interval);
-  }, [fetchStats]);
+    const supabase = getSupabase();
+    if (user && user.id && supabase) {
+      const channel = supabase
+        .channel(`dist_stats_${user.id}`)
+        .on("postgres_changes", { event: "*", schema: "public", table: "recharges" }, () => fetchStats())
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [user, fetchStats]);
 
   useWebSocketListener("recharge_created", fetchStats);
   useWebSocketListener("recharge_updated", fetchStats);

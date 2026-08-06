@@ -36,7 +36,18 @@ export default function Login() {
       }
     } catch (e) {
       const status = e.response?.status;
-      const msg = formatErr(e.response?.data?.detail) || e.message;
+      let msg = formatErr(e.response?.data?.detail);
+      if (!msg || msg.includes("404")) {
+        if (status === 401) {
+          msg = "Invalid email or password. Please check your credentials.";
+        } else if (status === 404) {
+          msg = "User account not found. Please check your email address.";
+        } else if (!e.response) {
+          msg = "Unable to connect to backend server. Please refresh and try again.";
+        } else {
+          msg = e.message || "Login failed. Please try again.";
+        }
+      }
       // Surface KYC-block messages inline so the agent sees them clearly on the form
       if (status === 403 && /kyc/i.test(msg)) {
         setKycMessage(msg);

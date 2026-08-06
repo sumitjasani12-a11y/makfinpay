@@ -4,7 +4,7 @@ import { DATE_RANGES, todayStr, rangeWindowIso } from "@/lib/filters";
 import { useDebounced } from "@/lib/hooks";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import { toast } from "sonner";
-import { Check, RotateCcw, Search, X, FileDown, FileSpreadsheet, Loader2 } from "lucide-react";
+import { Check, RotateCcw, Search, X, FileDown, FileSpreadsheet, Loader2, Eye } from "lucide-react";
 import { useWebSocketListener } from "@/lib/ws";
 
 function RejectModal({ onClose, onConfirm, predefined = [] }) {
@@ -66,6 +66,7 @@ export default function AdminTransactions() {
   });
   const [total, setTotal] = useState(() => items.length);
   const [loading, setLoading] = useState(() => items.length === 0);
+  const [detail, setDetail] = useState(null);
   const [agents, setAgents] = useState([]);
   const [banks, setBanks] = useState([]);
   const [billPayEnabled, setBillPayEnabled] = useState(() => {
@@ -106,7 +107,7 @@ export default function AdminTransactions() {
   const [q, setQ] = useState("");
   const debouncedQ = useDebounced(q, 350);
   const [status, setStatus] = useState("all");
-  const [range, setRange] = useState("today");
+  const [range, setRange] = useState("lifetime");
   const [from, setFrom] = useState(todayStr(-7));
   const [to, setTo] = useState(todayStr());
   const [customApplied, setCustomApplied] = useState(false);
@@ -239,52 +240,110 @@ export default function AdminTransactions() {
   }, []);
 
   const columns = useMemo(() => [
-    { key: "created_at", label: "Date", render: (r) => fmtDate(r.created_at) },
-    { key: "user_name", label: "Agent" },
-    { key: "customer_name", label: "Customer" },
-    { key: "customer_phone", label: "Customer Phone", render: (r) => r.customer_phone || "—" },
-    { key: "operator", label: "Bank" },
-    { key: "card_last4", label: "Card", render: (r) => `**** ${r.card_last4}` },
+    { 
+      key: "user_name", 
+      label: "Agent / Created",
+      render: (r) => {
+        const d = r.created_at ? new Date(r.created_at) : null;
+        const dateStr = d ? d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "";
+        const timeStr = d ? d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true }).toLowerCase() : "";
+        return (
+          <div className="flex flex-col items-center justify-center text-center leading-tight py-0.5">
+            <span className="font-extrabold text-neutral-900 text-sm truncate max-w-[160px] block mx-auto" title={r.user_name}>
+              {r.user_name || "—"}
+            </span>
+            {d && (
+              <span className="text-[11px] text-neutral-500 font-semibold whitespace-nowrap mt-0.5">
+                {dateStr}, {timeStr}
+              </span>
+            )}
+          </div>
+        );
+      }
+    },
+    { 
+      key: "customer_name", 
+      label: "Customer / Phone", 
+      render: (r) => (
+        <div className="flex flex-col items-center justify-center text-center leading-tight">
+          <span className="font-semibold text-neutral-800 text-xs truncate max-w-[130px] block mx-auto" title={r.customer_name}>{r.customer_name || "—"}</span>
+          <span className="text-[11px] text-neutral-500 font-mono mt-0.5">{r.customer_phone || "—"}</span>
+        </div>
+      ) 
+    },
+    { key: "operator", label: "Bank", render: (r) => <span className="max-w-[130px] truncate block mx-auto font-semibold text-xs text-center" title={r.operator}>{r.operator || "—"}</span> },
+    { key: "card_last4", label: "Card", render: (r) => <span className="font-mono font-bold text-xs text-center block mx-auto">{r.card_last4 || "—"}</span> },
     { key: "bill_amount", label: "Bill Amount", render: (r) => (
       <div className="text-center">
-        <div className="font-semibold">{fmtMoney(r.bill_amount ?? r.amount)}</div>
+        <div className="font-bold text-xs">{fmtMoney(r.bill_amount ?? r.amount)}</div>
         {r.total_amount != null && (
-          <div className="text-[10px] text-neutral-500">Total: {fmtMoney(r.total_amount)}</div>
+          <div className="text-[10px] text-neutral-500 font-medium">Total: {fmtMoney(r.total_amount)}</div>
         )}
       </div>
     ) },
     { key: "service_charge", label: "Charge", render: (r) => (
-      <span className="font-medium">{fmtMoney(r.service_charge ?? 0)}</span>
+      <span className="font-semibold text-xs text-center block mx-auto">{fmtMoney(r.service_charge ?? 0)}</span>
     ) },
-    { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
-    { key: "actions", label: "Action", render: (r) => {
-      if (r.status === "pending") {
-        return (
-          <div className="flex items-center gap-2">
-            <button
-              className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/80 font-bold text-xs px-3.5 py-1.5 rounded-lg inline-flex items-center gap-1.5 transition-all shrink-0 shadow-xs"
-              onClick={() => approve(r.id)}
-              data-testid={`tx-approve-${r.id}`}
-            ><Check className="h-3.5 w-3.5 stroke-[2.5]" /> Approve</button>
-            <button
-              className="bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/80 font-bold text-xs px-3.5 py-1.5 rounded-lg inline-flex items-center gap-1.5 transition-all shrink-0 shadow-xs"
-              onClick={() => reverse(r.id)}
-              data-testid={`tx-reverse-${r.id}`}
-            ><RotateCcw className="h-3.5 w-3.5 stroke-[2.5]" /> Reverse</button>
-          </div>
-        );
-      }
-      if (r.status === "success") {
-        return (
-          <button
-            className="bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/80 font-bold text-xs px-3.5 py-1.5 rounded-lg inline-flex items-center gap-1.5 transition-all shrink-0 shadow-xs"
-            onClick={() => reverse(r.id)}
-            data-testid={`tx-reverse-${r.id}`}
-          ><RotateCcw className="h-3.5 w-3.5 stroke-[2.5]" /> Reverse</button>
-        );
-      }
-      return <span className="text-xs text-neutral-500">—</span>;
-    } },
+    { key: "status", label: "Status", render: (r) => <div className="flex justify-center"><StatusBadge status={r.status} /></div> },
+    { 
+      key: "view", 
+      label: "View", 
+      render: (r) => (
+        <div className="flex justify-center">
+          <button 
+            className="p-1 border border-neutral-200 text-neutral-600 hover:bg-neutral-100 rounded transition-all inline-flex items-center justify-center bg-white shadow-2xs shrink-0" 
+            onClick={() => setDetail(r)} 
+            title="View Details" 
+            data-testid={`tx-view-${r.id}`}
+          >
+            <Eye className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ) 
+    },
+    { 
+      key: "actions", 
+      label: "Action", 
+      render: (r) => {
+        if (r.status === "pending") {
+          return (
+            <div className="flex items-center justify-center gap-1.5">
+              <button 
+                className="p-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/80 rounded transition-all inline-flex items-center justify-center shadow-2xs shrink-0" 
+                onClick={() => approve(r.id)} 
+                title="Approve Request"
+                data-testid={`tx-approve-${r.id}`}
+              >
+                <Check className="h-3.5 w-3.5 stroke-[2.5]" />
+              </button>
+              <button 
+                className="p-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/80 rounded transition-all inline-flex items-center justify-center shadow-2xs shrink-0" 
+                onClick={() => reverse(r.id)} 
+                title="Reverse Transaction"
+                data-testid={`tx-reverse-${r.id}`}
+              >
+                <RotateCcw className="h-3.5 w-3.5 stroke-[2.5]" />
+              </button>
+            </div>
+          );
+        }
+        if (r.status === "success") {
+          return (
+            <div className="flex justify-center">
+              <button 
+                className="p-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/80 rounded transition-all inline-flex items-center justify-center shadow-2xs shrink-0" 
+                onClick={() => reverse(r.id)} 
+                title="Reverse Transaction"
+                data-testid={`tx-reverse-${r.id}`}
+              >
+                <RotateCcw className="h-3.5 w-3.5 stroke-[2.5]" />
+              </button>
+            </div>
+          );
+        }
+        return "—";
+      } 
+    },
   ], [approve, reverse]);
 
   const [exportingPdf, setExportingPdf] = useState(false);
@@ -575,6 +634,38 @@ export default function AdminTransactions() {
           onConfirm={handleRejectConfirm}
           predefined={predefinedReasons}
         />
+      )}
+      {detail && (
+        <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4" onClick={() => setDetail(null)}>
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl animate-scaleUp" onClick={(e) => e.stopPropagation()} data-testid="tx-detail-modal">
+            <div className="flex items-center justify-between border-b border-black/5 pb-3">
+              <div>
+                <div className="mfp-overline">Bill Payment Details</div>
+                <div className="text-base font-bold text-neutral-800">{detail.user_name}</div>
+              </div>
+              <button onClick={() => setDetail(null)} className="mfp-btn-ghost p-2"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="space-y-2 text-xs">
+              {[
+                ["Agent Name", detail.user_name],
+                ["Customer Name", detail.customer_name],
+                ["Customer Phone", detail.customer_phone || "—"],
+                ["Bank Operator", detail.operator],
+                ["Card Last 4", detail.card_last4],
+                ["Bill Amount", fmtMoney(detail.bill_amount ?? detail.amount)],
+                ["Service Charge", fmtMoney(detail.service_charge ?? 0)],
+                ["Total Amount Paid", fmtMoney(detail.total_amount ?? detail.amount)],
+                ["Created Date", fmtDate(detail.created_at)],
+                ["Current Status", detail.status]
+              ].map(([k, v]) => (
+                <div key={k} className="flex justify-between py-1.5 border-b border-black/5">
+                  <span className="text-neutral-500 font-medium">{k}</span>
+                  <span className="font-bold text-neutral-800">{v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

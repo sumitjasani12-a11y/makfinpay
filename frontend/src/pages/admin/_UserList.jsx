@@ -91,8 +91,14 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
         delete body.t1_commission_percent;
       }
       body.t1_enabled = Boolean(form.t1_enabled);
-      if (!body.selfie_path) {
+      if (!body.selfie_path || body.selfie_path.startsWith("data:")) {
         delete body.selfie_path;
+      }
+      if (!body.aadhaar_path || body.aadhaar_path.startsWith("data:")) {
+        delete body.aadhaar_path;
+      }
+      if (!body.pan_path || body.pan_path.startsWith("data:")) {
+        delete body.pan_path;
       }
       if (!body.password) {
         delete body.password;
@@ -1111,7 +1117,7 @@ export function AdminUserList({ role }) {
   const [q, setQ] = useState("");
   const debouncedQ = useDebounced(q, 350);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(200);
 
   const params = useMemo(() => {
     const p = { role, paginated: true, page, page_size: pageSize };

@@ -4,7 +4,7 @@ import { DATE_RANGES, todayStr, rangeWindowIso } from "@/lib/filters";
 import { useDebounced } from "@/lib/hooks";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import { toast } from "sonner";
-import { RotateCcw, Search, X, Loader2 } from "lucide-react";
+import { Check, Eye, RotateCcw, Search, X, Loader2 } from "lucide-react";
 
 const ROLES = [
   { key: "all", label: "All Roles" },
@@ -22,6 +22,7 @@ export default function AdminWithdrawals() {
   });
   const [total, setTotal] = useState(() => items.length);
   const [loading, setLoading] = useState(() => items.length === 0);
+  const [detail, setDetail] = useState(null);
   const [withdrawalEnabled, setWithdrawalEnabled] = useState(() => {
     try {
       const v = localStorage.getItem("set_withdrawal_enabled");
@@ -161,22 +162,75 @@ export default function AdminWithdrawals() {
   }, [reload]);
 
   const columns = useMemo(() => [
-    { key: "created_at", label: "Requested", render: (r) => fmtDate(r.created_at) },
-    { key: "user_name", label: "Requester" },
-    { key: "role", label: "Role", render: (r) => <span className="capitalize">{r.role?.replace("_", " ")}</span> },
-    { key: "amount", label: "Amount", render: (r) => fmtMoney(r.amount) },
-    { key: "account_holder", label: "Account Holder", render: (r) => r.bank?.account_holder || "—" },
-    { key: "account_number", label: "Account Number", render: (r) => r.bank?.account_number || "—" },
-    { key: "ifsc", label: "IFSC", render: (r) => r.bank?.ifsc || "—" },
-    { key: "bank_name", label: "Bank Name", render: (r) => r.bank?.bank_name || "—" },
-    { key: "phone_number", label: "Phone", render: (r) => r.bank?.phone_number || "—" },
-    { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
-    { key: "actions", label: "Action", render: (r) => r.status === "pending" ? (
-      <div className="flex items-center gap-2">
-        <button className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/80 font-bold text-xs px-3.5 py-1.5 rounded-lg inline-flex items-center gap-1.5 transition-all shrink-0 shadow-xs" onClick={() => act(r.id, "approve")} data-testid={`w-approve-${r.id}`}>Approve</button>
-        <button className="bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/80 font-bold text-xs px-3.5 py-1.5 rounded-lg inline-flex items-center gap-1.5 transition-all shrink-0 shadow-xs" onClick={() => act(r.id, "reject")} data-testid={`w-reject-${r.id}`}>Reject</button>
-      </div>
-    ) : <span className="text-xs text-neutral-500">—</span> },
+    { 
+      key: "user_name", 
+      label: "Requester / Requested",
+      render: (r) => {
+        const d = r.created_at ? new Date(r.created_at) : null;
+        const dateStr = d ? d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "";
+        const timeStr = d ? d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true }).toLowerCase() : "";
+        return (
+          <div className="flex flex-col items-center justify-center text-center leading-tight py-0.5">
+            <span className="font-extrabold text-neutral-900 text-sm truncate max-w-[160px] block mx-auto" title={r.user_name}>
+              {r.user_name || "—"}
+            </span>
+            {d && (
+              <span className="text-[11px] text-neutral-500 font-semibold whitespace-nowrap mt-0.5">
+                {dateStr}, {timeStr}
+              </span>
+            )}
+          </div>
+        );
+      }
+    },
+    { key: "role", label: "Role", render: (r) => <span className="capitalize font-semibold text-xs text-center block mx-auto">{r.role?.replace("_", " ") || "—"}</span> },
+    { key: "amount", label: "Amount", render: (r) => <span className="font-bold text-xs text-center block mx-auto">{fmtMoney(r.amount)}</span> },
+    { key: "account_holder", label: "Account Holder", render: (r) => <span className="font-semibold text-xs max-w-[130px] truncate block mx-auto text-center" title={r.bank?.account_holder}>{r.bank?.account_holder || "—"}</span> },
+    { key: "account_number", label: "Account Number", render: (r) => <span className="font-mono font-bold text-xs text-center block mx-auto">{r.bank?.account_number || "—"}</span> },
+    { key: "ifsc", label: "IFSC", render: (r) => <span className="font-mono font-semibold text-xs text-center block mx-auto">{r.bank?.ifsc || "—"}</span> },
+    { key: "bank_name", label: "Bank Name", render: (r) => <span className="max-w-[130px] truncate block mx-auto font-semibold text-xs text-center" title={r.bank?.bank_name}>{r.bank?.bank_name || "—"}</span> },
+    { key: "phone_number", label: "Phone", render: (r) => <span className="font-mono font-semibold text-xs text-center block mx-auto">{r.bank?.phone_number || "—"}</span> },
+    { key: "status", label: "Status", render: (r) => <div className="flex justify-center"><StatusBadge status={r.status} /></div> },
+    { 
+      key: "view", 
+      label: "View", 
+      render: (r) => (
+        <div className="flex justify-center">
+          <button 
+            className="p-1 border border-neutral-200 text-neutral-600 hover:bg-neutral-100 rounded transition-all inline-flex items-center justify-center bg-white shadow-2xs shrink-0" 
+            onClick={() => setDetail(r)} 
+            title="View Details" 
+            data-testid={`w-view-${r.id}`}
+          >
+            <Eye className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ) 
+    },
+    { 
+      key: "actions", 
+      label: "Action", 
+      render: (r) => r.status === "pending" ? (
+        <div className="flex items-center justify-center gap-1.5">
+          <button 
+            className="p-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/80 rounded transition-all inline-flex items-center justify-center shadow-2xs shrink-0" 
+            onClick={() => act(r.id, "approve")} 
+            title="Approve Request"
+            data-testid={`w-approve-${r.id}`}
+          >
+            <Check className="h-3.5 w-3.5 stroke-[2.5]" />
+          </button>
+          <button 
+            className="p-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/80 rounded transition-all inline-flex items-center justify-center shadow-2xs shrink-0" 
+            onClick={() => act(r.id, "reject")} 
+            title="Reject Request"
+            data-testid={`w-reject-${r.id}`}
+          >
+            <X className="h-3.5 w-3.5 stroke-[2.5]" />
+          </button>
+        </div>
+      ) : "—" 
+    },
   ], [act]);
 
   return (
@@ -357,6 +411,38 @@ export default function AdminWithdrawals() {
           onPageSizeChange: (n) => { setPageSize(n); setPage(1); },
         }}
       />
+      {detail && (
+        <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4" onClick={() => setDetail(null)}>
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl animate-scaleUp" onClick={(e) => e.stopPropagation()} data-testid="w-detail-modal">
+            <div className="flex items-center justify-between border-b border-black/5 pb-3">
+              <div>
+                <div className="mfp-overline">Withdrawal Details</div>
+                <div className="text-base font-bold text-neutral-800">{detail.user_name}</div>
+              </div>
+              <button onClick={() => setDetail(null)} className="mfp-btn-ghost p-2"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="space-y-2 text-xs">
+              {[
+                ["Requester Name", detail.user_name],
+                ["Role", detail.role?.replace("_", " ")],
+                ["Requested Amount", fmtMoney(detail.amount)],
+                ["Account Holder", detail.bank?.account_holder || "—"],
+                ["Account Number", detail.bank?.account_number || "—"],
+                ["IFSC Code", detail.bank?.ifsc || "—"],
+                ["Bank Name", detail.bank?.bank_name || "—"],
+                ["Phone Number", detail.bank?.phone_number || "—"],
+                ["Requested Date", fmtDate(detail.created_at)],
+                ["Status", detail.status]
+              ].map(([k, v]) => (
+                <div key={k} className="flex justify-between py-1.5 border-b border-black/5">
+                  <span className="text-neutral-500 font-medium">{k}</span>
+                  <span className="font-bold text-neutral-800">{v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

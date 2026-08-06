@@ -19,7 +19,6 @@ import AdminQRCodes from "@/pages/admin/QRCodes";
 import AdminCommission from "@/pages/admin/Commission";
 import AdminKyc from "@/pages/admin/Kyc";
 import AdminAudit from "@/pages/admin/Audit";
-import AdminBackups from "@/pages/admin/Backups";
 import AdminQrNameEntry from "@/pages/admin/QrNameEntry";
 import AdminQRGallery from "@/pages/admin/QRGallery";
 import AdminHeadlines from "@/pages/admin/Headlines";
@@ -112,7 +111,6 @@ export default function App() {
             <Route path="kyc" element={<AdminKyc />} />
             <Route path="reasons" element={<AdminReasons />} />
             <Route path="audit" element={<AdminAudit />} />
-            <Route path="backups" element={<AdminBackups />} />
             <Route path="change-password" element={<ChangePassword />} />
             <Route path="settings" element={<AdminSettings />} />
             <Route path="policies" element={<AdminPolicies />} />

@@ -5,7 +5,7 @@ import { useDebounced } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import { toast } from "sonner";
-import { Check, RotateCcw, Search, X, FileDown, FileSpreadsheet, Loader2 } from "lucide-react";
+import { Check, RotateCcw, Search, X, FileDown, FileSpreadsheet, Loader2, Eye, RefreshCw } from "lucide-react";
 
 const getShortTxnId = (id) => {
   if (!id) return "—";
@@ -30,7 +30,7 @@ export default function AdminLiveBillHistory() {
   const [q, setQ] = useState("");
   const debouncedQ = useDebounced(q, 350);
   const [status, setStatus] = useState("all");
-  const [range, setRange] = useState("today");
+  const [range, setRange] = useState("lifetime");
   const [from, setFrom] = useState(todayStr(-7));
   const [to, setTo] = useState(todayStr());
   const [customApplied, setCustomApplied] = useState(false);
@@ -48,6 +48,7 @@ export default function AdminLiveBillHistory() {
   // pagination
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [detail, setDetail] = useState(null);
   const [rejectTargetId, setRejectTargetId] = useState(null);
 
   const [liveBillEnabled, setLiveBillEnabled] = useState(() => {
@@ -105,7 +106,7 @@ export default function AdminLiveBillHistory() {
         let reversed = 0, reversedCount = 0;
         let totalProfit = 0;
 
-        const allMatched = statsRes.data || [];
+        const allMatched = Array.isArray(statsRes.data) ? statsRes.data : (statsRes.data?.items || []);
         allMatched.forEach((item) => {
           const amt = item.bill_amount ?? item.amount ?? 0;
           if (item.status === "success") {
@@ -207,45 +208,80 @@ export default function AdminLiveBillHistory() {
   };
 
   const columns = useMemo(() => [
-    { key: "created_at", label: "Date", render: (r) => fmtDate(r.created_at) },
+    { 
+      key: "user_name", 
+      label: "Agent / Created",
+      render: (r) => {
+        const d = r.created_at ? new Date(r.created_at) : null;
+        const dateStr = d ? d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "";
+        const timeStr = d ? d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true }).toLowerCase() : "";
+        return (
+          <div className="flex flex-col items-center justify-center text-center leading-tight py-0.5">
+            <span className="font-extrabold text-neutral-900 text-sm truncate max-w-[160px] block mx-auto" title={r.user_name}>
+              {r.user_name || "—"}
+            </span>
+            {d && (
+              <span className="text-[11px] text-neutral-500 font-semibold whitespace-nowrap mt-0.5">
+                {dateStr}, {timeStr}
+              </span>
+            )}
+          </div>
+        );
+      }
+    },
     {
       key: "id",
       label: "Tx ID",
       render: (r) => (
         <span 
-          className="bg-neutral-100 text-neutral-800 font-bold font-mono text-[11px] px-2.5 py-1 rounded-md uppercase select-all tracking-wider border border-neutral-200/80 cursor-pointer hover:bg-neutral-200 transition-colors whitespace-nowrap"
+          className="bg-neutral-100 text-neutral-800 font-bold font-mono text-xs px-2 py-0.5 rounded-md uppercase select-all tracking-wider border border-neutral-200/80 cursor-pointer hover:bg-neutral-200 transition-colors whitespace-nowrap block mx-auto text-center"
           title={`Original ID: ${r.id}`}
         >
           {getShortTxnId(r.id)}
         </span>
       )
     },
-    { key: "user_name", label: "Agent" },
-    { key: "customer_phone", label: "Mobile", render: (r) => r.customer_phone || "—" },
-    { key: "operator", label: "Biller / Operator" },
+    { key: "customer_phone", label: "Mobile", render: (r) => <span className="font-mono font-semibold text-xs text-center block mx-auto">{r.customer_phone || "—"}</span> },
+    { key: "operator", label: "Operator", render: (r) => <span className="max-w-[130px] truncate block mx-auto font-semibold text-xs text-center" title={r.operator}>{r.operator || "—"}</span> },
     { key: "operator_txn_id", label: "API TXN ID", render: (r) => (
-      <span className="font-mono text-[10px] text-neutral-600 font-bold whitespace-nowrap bg-neutral-50 px-2 py-0.5 rounded border border-neutral-200/40">
+      <span className="font-mono text-xs text-neutral-800 font-bold whitespace-nowrap bg-neutral-100/80 px-2 py-0.5 rounded border border-neutral-200/60 block mx-auto text-center select-all">
         {r.operator_txn_id || "—"}
       </span>
     ) },
     { key: "bill_amount", label: "Bill Amount", render: (r) => (
-      <div className="font-semibold text-center">{fmtMoney(r.bill_amount ?? r.amount)}</div>
+      <div className="font-bold text-xs text-center">{fmtMoney(r.bill_amount ?? r.amount)}</div>
     ) },
     { key: "service_charge", label: "Charge", render: (r) => (
-      <div className="font-semibold text-center text-rose-600">{fmtMoney(r.service_charge ?? 0)}</div>
+      <div className="font-semibold text-xs text-center text-rose-600">{fmtMoney(r.service_charge ?? 0)}</div>
     ) },
     { key: "api_charge", label: "API Charge", render: (r) => (
-      <div className="font-semibold text-center text-rose-600">{fmtMoney(r.api_charge ?? 0)}</div>
+      <div className="font-semibold text-xs text-center text-rose-600">{fmtMoney(r.api_charge ?? 0)}</div>
     ) },
     { key: "profit_charge", label: "Profit", render: (r) => {
       const profit = (r.service_charge ?? 0) - (r.api_charge ?? 0);
       return (
-        <div className={`font-semibold text-center ${profit >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+        <div className={`font-bold text-xs text-center ${profit >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
           {fmtMoney(profit)}
         </div>
       );
     } },
-    { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
+    { key: "status", label: "Status", render: (r) => <div className="flex justify-center"><StatusBadge status={r.status} /></div> },
+    { 
+      key: "view", 
+      label: "View", 
+      render: (r) => (
+        <div className="flex justify-center">
+          <button 
+            className="p-1 border border-neutral-200 text-neutral-600 hover:bg-neutral-100 rounded transition-all inline-flex items-center justify-center bg-white shadow-2xs shrink-0" 
+            onClick={() => setDetail(r)} 
+            title="View Details" 
+            data-testid={`live-view-${r.id}`}
+          >
+            <Eye className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ) 
+    },
     {
       key: "action",
       label: "Action",
@@ -258,23 +294,26 @@ export default function AdminLiveBillHistory() {
               <button
                 disabled={isBusy}
                 onClick={() => handleApprove(r.id)}
-                className="px-2 py-1 text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Approve Transaction"
+                className="p-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/80 rounded transition-all inline-flex items-center justify-center shadow-2xs shrink-0 disabled:opacity-50"
               >
-                Approve
+                <Check className="h-3.5 w-3.5 stroke-[2.5]" />
               </button>
               <button
                 disabled={isBusy}
                 onClick={() => handleReject(r.id)}
-                className="px-2 py-1 text-[10px] font-bold text-white bg-rose-600 hover:bg-rose-700 rounded transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Reject Transaction"
+                className="p-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/80 rounded transition-all inline-flex items-center justify-center shadow-2xs shrink-0 disabled:opacity-50"
               >
-                Reject
+                <X className="h-3.5 w-3.5 stroke-[2.5]" />
               </button>
               <button
                 disabled={isBusy}
                 onClick={() => handleCheckStatus(r.id)}
-                className="px-2 py-1 text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Check Live Status"
+                className="p-1.5 bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200/80 rounded transition-all inline-flex items-center justify-center shadow-2xs shrink-0 disabled:opacity-50"
               >
-                Check Status
+                <RefreshCw className={`h-3.5 w-3.5 stroke-[2.5] ${isBusy ? "animate-spin" : ""}`} />
               </button>
             </div>
           );
@@ -285,11 +324,10 @@ export default function AdminLiveBillHistory() {
               <button
                 disabled={isBusy}
                 onClick={() => handleReject(r.id)}
-                className="px-2.5 py-1 text-[10px] font-bold text-white bg-rose-600 hover:bg-rose-700 rounded transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                className="p-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/80 rounded transition-all inline-flex items-center justify-center shadow-2xs shrink-0 disabled:opacity-50"
                 title="Reverse transaction and refund agent wallet"
               >
-                <RotateCcw className="w-3 h-3" />
-                Reverse / Refund
+                <RotateCcw className="h-3.5 w-3.5 stroke-[2.5]" />
               </button>
             </div>
           );
@@ -591,6 +629,39 @@ export default function AdminLiveBillHistory() {
           onPageSizeChange: (n) => { setPageSize(n); setPage(1); },
         }}
       />
+      {detail && (
+        <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4" onClick={() => setDetail(null)}>
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl animate-scaleUp" onClick={(e) => e.stopPropagation()} data-testid="live-detail-modal">
+            <div className="flex items-center justify-between border-b border-black/5 pb-3">
+              <div>
+                <div className="mfp-overline">Live Bill Details</div>
+                <div className="text-base font-bold text-neutral-800">{detail.user_name}</div>
+              </div>
+              <button onClick={() => setDetail(null)} className="mfp-btn-ghost p-2"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="space-y-2 text-xs">
+              {[
+                ["Agent Name", detail.user_name],
+                ["Transaction ID", detail.id],
+                ["Customer Mobile", detail.customer_phone || "—"],
+                ["Biller / Operator", detail.operator],
+                ["API Txn ID", detail.operator_txn_id || "—"],
+                ["Bill Amount", fmtMoney(detail.bill_amount ?? detail.amount)],
+                ["Service Charge", fmtMoney(detail.service_charge ?? 0)],
+                ["API Charge", fmtMoney(detail.api_charge ?? 0)],
+                ["Admin Profit", fmtMoney((detail.service_charge ?? 0) - (detail.api_charge ?? 0))],
+                ["Created Date", fmtDate(detail.created_at)],
+                ["Current Status", detail.status]
+              ].map(([k, v]) => (
+                <div key={k} className="flex justify-between py-1.5 border-b border-black/5">
+                  <span className="text-neutral-500 font-medium">{k}</span>
+                  <span className="font-bold text-neutral-800">{v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

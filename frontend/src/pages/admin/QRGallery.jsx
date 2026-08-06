@@ -1,12 +1,23 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { api, formatErr, fileUrl, fmtMoney, API } from "@/lib/api";
 import { PageHeader } from "@/components/Shared";
 import ZoomableImage from "@/components/ZoomableImage";
 import { toast } from "sonner";
 import {
   FolderOpen, Folder, ArrowLeft, Share2, Download, Eye, X, ChevronRight,
-  ChevronLeft, Calendar, FileImage, Loader2, Search
+  ChevronLeft, Calendar, FileImage, Loader2, Search, CheckCircle2, AlertCircle
 } from "lucide-react";
+
+function GalleryItemImage({ src, item }) {
+  return (
+    <img
+      src={src}
+      alt="payment proof"
+      className="h-full w-full object-cover"
+    />
+  );
+}
 
 export default function AdminQRGallery() {
   const [items, setItems] = useState(() => {
@@ -20,7 +31,10 @@ export default function AdminQRGallery() {
   const [activeTab, setActiveTab] = useState("daily"); // "daily" | "archive"
   const [selectedDate, setSelectedDate] = useState(null);
   const [activeFolder, setActiveFolder] = useState(null);
-  const [previewImage, setPreviewImage] = useState(null);
+
+  // Lightbox Modal States
+  const [lightboxList, setLightboxList] = useState([]);
+  const [lightboxIndex, setLightboxIndex] = useState(null);
 
   // Merchant Archive Specific States
   const [searchQuery, setSearchQuery] = useState("");
@@ -147,6 +161,66 @@ export default function AdminQRGallery() {
     return chunks;
   };
 
+  // Flat list of ALL proof items for selected date ordered folder by folder
+  const allDateImages = useMemo(() => {
+    if (!selectedDate || !groupedByQr) return [];
+    const flat = [];
+    let overallIdx = 0;
+    Object.entries(groupedByQr).forEach(([qrLabel, qrItems]) => {
+      const chunks = chunkArray(qrItems, 10);
+      chunks.forEach((chunk, folderIdx) => {
+        const folderName = `${qrLabel} - Folder ${folderIdx + 1}`;
+        chunk.forEach((item, itemIdx) => {
+          flat.push({
+            ...item,
+            overallIndex: overallIdx,
+            qrLabel,
+            folderName,
+            folderNum: folderIdx + 1,
+            itemIndexInFolder: itemIdx + 1,
+            totalInFolder: chunk.length,
+          });
+          overallIdx++;
+        });
+      });
+    });
+    return flat;
+  }, [groupedByQr, selectedDate]);
+
+  const openLightbox = (list, index) => {
+    setLightboxList(list);
+    setLightboxIndex(index);
+  };
+
+  const closeLightbox = () => {
+    setLightboxIndex(null);
+  };
+
+  const handlePrevImage = useCallback(() => {
+    if (lightboxIndex === null || !lightboxList.length) return;
+    setLightboxIndex((prev) => (prev > 0 ? prev - 1 : lightboxList.length - 1));
+  }, [lightboxIndex, lightboxList.length]);
+
+  const handleNextImage = useCallback(() => {
+    if (lightboxIndex === null || !lightboxList.length) return;
+    setLightboxIndex((prev) => (prev < lightboxList.length - 1 ? prev + 1 : 0));
+  }, [lightboxIndex, lightboxList.length]);
+
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    const handleKeyDown = (e) => {
+      if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") {
+        handlePrevImage();
+      } else if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") {
+        handleNextImage();
+      } else if (e.key === "Escape") {
+        setLightboxIndex(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [lightboxIndex, handlePrevImage, handleNextImage]);
+
   const shareFolder = (folderItems) => {
     const text = folderItems
       .map(
@@ -226,6 +300,8 @@ export default function AdminQRGallery() {
     document.body.removeChild(link);
     toast.success(`Exporting approved proofs for ${qrLabel} as ZIP`);
   };
+
+  const currItem = lightboxIndex !== null ? lightboxList[lightboxIndex] : null;
 
   return (
     <div className="w-full min-h-screen pb-12">
@@ -395,32 +471,31 @@ export default function AdminQRGallery() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5">
-                    {activeFolder.items.map((item) => (
-                      <div
-                        key={item.id}
-                        onClick={() => setPreviewImage(item)}
-                        className="bg-white border border-black/5 rounded-3xl p-3 flex flex-col items-center space-y-3 hover:shadow-md cursor-pointer transition-all hover:scale-102 animate-fadeIn"
-                      >
-                        <div className="w-full aspect-[3/4] bg-neutral-50 rounded-2xl overflow-hidden border border-black/5 flex items-center justify-center relative group">
-                          <img
-                            src={fileUrl(item.screenshot_path)}
-                            alt="payment proof"
-                            className="h-full w-full object-cover"
-                          />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all rounded-2xl">
-                            <Eye className="text-white h-5 w-5" />
+                    {activeFolder.items.map((item) => {
+                      const foundIdx = allDateImages.findIndex((x) => x.id === item.id);
+                      return (
+                        <div
+                          key={item.id}
+                          onClick={() => openLightbox(allDateImages, foundIdx !== -1 ? foundIdx : 0)}
+                          className="bg-white border border-black/5 rounded-3xl p-3 flex flex-col items-center space-y-3 hover:shadow-md cursor-pointer transition-all hover:scale-102 animate-fadeIn"
+                        >
+                          <div className="w-full aspect-[3/4] bg-neutral-50 rounded-2xl overflow-hidden border border-black/5 flex items-center justify-center relative group">
+                            <GalleryItemImage src={fileUrl(item.screenshot_path)} item={item} />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all rounded-2xl">
+                              <Eye className="text-white h-5 w-5" />
+                            </div>
+                          </div>
+                          <div className="text-center w-full">
+                            <div className="text-xs font-black text-neutral-800">
+                              {fmtMoney(item.amount)}
+                            </div>
+                            <div className="text-[9px] text-neutral-400 font-semibold mt-0.5">
+                              {formatTime(item.created_at)}
+                            </div>
                           </div>
                         </div>
-                        <div className="text-center w-full">
-                          <div className="text-xs font-black text-neutral-800">
-                            {fmtMoney(item.amount)}
-                          </div>
-                          <div className="text-[9px] text-neutral-400 font-semibold mt-0.5">
-                            {formatTime(item.created_at)}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -430,7 +505,7 @@ export default function AdminQRGallery() {
                 <div className="border-b border-black/5 pb-4 mb-6">
                   <h3 className="text-base font-black text-neutral-800">{selectedDate}</h3>
                   <p className="text-xs text-neutral-400 mt-0.5">
-                    Audits grouped by active merchant/UPI QR configurations
+                    Audits grouped by active merchant/UPI QR configurations ({allDateImages.length} Total Proofs)
                   </p>
                 </div>
 
@@ -450,16 +525,16 @@ export default function AdminQRGallery() {
                               <FolderOpen className="h-4.5 w-4.5" />
                             </div>
                             <div>
-                              <h4 className="text-xs font-bold text-neutral-800 uppercase tracking-wider">
+                              <h4 className="text-xs font-black text-neutral-800 uppercase tracking-wider">
                                 {qrLabel}
                               </h4>
-                              <span className="text-[9px] text-neutral-400 font-extrabold uppercase tracking-wide">
-                                {qrItems.length} Audited Payments
-                              </span>
+                              <p className="text-[10px] text-neutral-400 font-semibold">
+                                {qrItems.length} Payment Proofs ({chunks.length} {chunks.length === 1 ? "Folder" : "Folders"})
+                              </p>
                             </div>
                           </div>
 
-                          <div className="flex flex-wrap gap-5">
+                          <div className="flex flex-wrap gap-4 pt-1">
                             {chunks.map((chunk, idx) => (
                               <button
                                 key={idx}
@@ -518,14 +593,14 @@ export default function AdminQRGallery() {
                       <span>&bull;</span>
                       <span>{activeArchiveMerchant.items.length} Proofs</span>
                     </div>
-                    <h3 className="text-sm font-black text-neutral-800 mt-0.5">
+                    <h3 className="text-base font-black text-neutral-800 uppercase mt-0.5">
                       {activeArchiveMerchant.qrLabel}
                     </h3>
                   </div>
                 </div>
                 <button
                   onClick={() => handleZipDownload(activeArchiveMerchant.qrLabel)}
-                  className="flex items-center gap-1.5 bg-[#4F46E5] hover:bg-[#4338CA] text-white px-5 py-2.5 rounded-2xl text-xs font-bold transition-all shadow-md shadow-[#4F46E5]/10 active:scale-98"
+                  className="flex items-center gap-1.5 bg-[#4F46E5] hover:bg-[#4338CA] text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md shadow-[#4F46E5]/10 active:scale-98"
                 >
                   <Download className="h-3.5 w-3.5" /> Download All as ZIP
                 </button>
@@ -537,64 +612,66 @@ export default function AdminQRGallery() {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5">
-                  {paginatedArchiveItems.map((item) => (
-                    <div
-                      key={item.id}
-                      onClick={() => setPreviewImage(item)}
-                      className="bg-white border border-black/5 rounded-3xl p-3 flex flex-col items-center space-y-3 hover:shadow-md cursor-pointer transition-all hover:scale-102 animate-fadeIn"
-                    >
-                      <div className="w-full aspect-[3/4] bg-neutral-50 rounded-2xl overflow-hidden border border-black/5 flex items-center justify-center relative group">
-                        <img
-                          src={fileUrl(item.screenshot_path)}
-                          alt="payment proof"
-                          className="h-full w-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all rounded-2xl">
-                          <Eye className="text-white h-5 w-5" />
+                  {paginatedArchiveItems.map((item, idx) => {
+                    const overallArchiveIdx = (archivePage - 1) * archivePageSize + idx;
+                    return (
+                      <div
+                        key={item.id}
+                        onClick={() => openLightbox(activeArchiveMerchant.items, overallArchiveIdx)}
+                        className="bg-white border border-black/5 rounded-3xl p-3 flex flex-col items-center space-y-3 hover:shadow-md cursor-pointer transition-all hover:scale-102 animate-fadeIn"
+                      >
+                        <div className="w-full aspect-[3/4] bg-neutral-50 rounded-2xl overflow-hidden border border-black/5 flex items-center justify-center relative group">
+                          <img
+                            src={fileUrl(item.screenshot_path)}
+                            alt="payment proof"
+                            className="h-full w-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all rounded-2xl">
+                            <Eye className="text-white h-5 w-5" />
+                          </div>
+                        </div>
+                        <div className="text-center w-full">
+                          <div className="text-xs font-black text-neutral-800">
+                            {fmtMoney(item.amount)}
+                          </div>
+                          <div className="text-[9px] text-neutral-400 font-semibold mt-0.5">
+                            {formatDateTime(item.created_at)}
+                          </div>
                         </div>
                       </div>
-                      <div className="text-center w-full">
-                        <div className="text-xs font-black text-neutral-800">
-                          {fmtMoney(item.amount)}
-                        </div>
-                        <div className="text-[9px] text-neutral-400 font-semibold mt-0.5">
-                          {formatDateTime(item.created_at)}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
               {/* 20-20 Pagination Controls */}
               {totalArchivePages > 1 && (
-                <div className="flex items-center justify-between border-t border-black/5 pt-6 mt-8">
+                <div className="flex items-center justify-between border-t border-black/5 pt-4 mt-8">
                   <button
                     disabled={archivePage === 1}
                     onClick={() => setArchivePage((p) => Math.max(1, p - 1))}
-                    className="px-4 py-2.5 rounded-xl border border-black/5 hover:bg-neutral-50 text-xs font-bold transition-all disabled:opacity-40"
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-black/5 hover:bg-neutral-50 text-xs font-bold text-neutral-600 disabled:opacity-40 transition-all"
                   >
-                    Previous
+                    <ChevronLeft className="h-4 w-4" /> Previous
                   </button>
-                  <span className="text-xs text-neutral-400 font-bold uppercase tracking-wider">
+                  <span className="text-xs font-extrabold text-neutral-500">
                     Page {archivePage} of {totalArchivePages}
                   </span>
                   <button
                     disabled={archivePage === totalArchivePages}
                     onClick={() => setArchivePage((p) => Math.min(totalArchivePages, p + 1))}
-                    className="px-4 py-2.5 rounded-xl border border-black/5 hover:bg-neutral-50 text-xs font-bold transition-all disabled:opacity-40"
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-black/5 hover:bg-neutral-50 text-xs font-bold text-neutral-600 disabled:opacity-40 transition-all"
                   >
-                    Next
+                    Next <ChevronRight className="h-4 w-4" />
                   </button>
                 </div>
               )}
             </div>
           ) : (
-            /* ALL MERCHANTS GRID VIEW WITH ZIP DOWNLOADS & SEARCH */
+            /* MERCHANTS LIST GRID VIEW */
             <div className="space-y-6">
-              {/* Search Bar and Total Count */}
-              <div className="bg-white border border-black/5 rounded-3xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
-                <div className="relative w-full sm:max-w-md">
+              <div className="bg-white rounded-3xl border border-black/5 p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+                <div className="relative flex-1 max-w-md">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
                   <input
                     type="text"
@@ -665,37 +742,118 @@ export default function AdminQRGallery() {
         </div>
       )}
 
-      {/* FULLSIZE SCREENSHOT VERIFICATION PREVIEW MODAL */}
-      {previewImage && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0" onClick={() => setPreviewImage(null)} />
-          <div className="relative bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl z-10 border border-black/5 animate-scaleUp">
-            <div className="p-5 border-b border-black/5 flex items-center justify-between">
-              <div>
-                <h4 className="text-sm font-bold text-neutral-800">
-                  Payment Proof Verification
-                </h4>
-                <p className="text-[10px] text-neutral-400 font-semibold mt-0.5">
-                  Amount: {fmtMoney(previewImage.amount)} | Time: {formatDateTime(
-                    previewImage.created_at
-                  )}
-                </p>
+      {/* FULL-SCREEN INTERACTIVE PROOF LIGHTBOX WITH SEAMLESS CROSS-FOLDER NAVIGATION */}
+      {currItem && createPortal(
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[99999] flex flex-col justify-between p-4 sm:p-6 animate-fadeIn">
+          {/* Backdrop Click Close */}
+          <div className="fixed inset-0 -z-10" onClick={closeLightbox} />
+
+          {/* Top Bar Header */}
+          <div className="relative z-10 flex items-center justify-between gap-4 bg-white/10 backdrop-blur-md text-white p-4 rounded-2xl border border-white/10 shadow-2xl">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-emerald-400 truncate">
+                <FolderOpen className="h-4 w-4 shrink-0" />
+                <span className="truncate">{currItem.folderName || currItem.qr_code_label || "Proof"}</span>
+                {currItem.itemIndexInFolder && (
+                  <span className="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full text-[10px] font-bold border border-emerald-500/30">
+                    Photo {currItem.itemIndexInFolder} of {currItem.totalInFolder} in Folder
+                  </span>
+                )}
               </div>
-              <button
-                onClick={() => setPreviewImage(null)}
-                className="p-1.5 hover:bg-neutral-100 rounded-xl text-neutral-500 transition-all"
+              <div className="text-[11px] text-neutral-300 font-semibold mt-0.5 flex items-center gap-2 truncate">
+                <span>Total Image {lightboxIndex + 1} of {lightboxList.length}</span>
+                <span>&bull;</span>
+                <span>{formatDateTime(currItem.created_at)}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <a
+                href={fileUrl(currItem.screenshot_path)}
+                download={`proof_${currItem.id}_${currItem.amount}.jpg`}
+                target="_blank"
+                rel="noreferrer"
+                className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all border border-white/10 flex items-center gap-1.5 text-xs font-bold"
+                title="Download Photo"
               >
-                <X className="h-4 w-4" />
+                <Download className="h-4 w-4" />
+                <span className="hidden sm:inline">Download</span>
+              </a>
+              <button
+                onClick={closeLightbox}
+                className="p-2.5 bg-white/10 hover:bg-rose-600/80 text-white rounded-xl transition-all border border-white/10"
+                title="Close (Esc)"
+              >
+                <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="p-6 bg-neutral-50 flex items-center justify-center">
+          </div>
+
+          {/* Center Zoomable Image View with Floating Left/Right Nav Arrows */}
+          <div className="relative flex-1 flex items-center justify-center my-4 overflow-hidden">
+            {/* Left Navigation Arrow */}
+            {lightboxList.length > 1 && (
+              <button
+                onClick={handlePrevImage}
+                className="absolute left-2 sm:left-6 top-1/2 -translate-y-1/2 z-20 bg-black/60 hover:bg-emerald-600 text-white p-3 sm:p-4 rounded-full border border-white/20 shadow-2xl transition-all hover:scale-110 active:scale-95 group"
+                title="Previous Image (Left Arrow / A)"
+              >
+                <ChevronLeft className="h-6 w-6 sm:h-8 sm:w-8 group-hover:-translate-x-0.5 transition-transform" />
+              </button>
+            )}
+
+            {/* Main Proof Zoomable Image */}
+            <div className="max-w-4xl max-h-full w-full flex items-center justify-center p-2">
               <ZoomableImage
-                src={fileUrl(previewImage.screenshot_path)}
+                src={fileUrl(currItem.screenshot_path)}
                 alt="Payment Proof Fullsize"
+                className="max-h-[75vh] object-contain rounded-2xl shadow-2xl"
               />
             </div>
+
+            {/* Right Navigation Arrow */}
+            {lightboxList.length > 1 && (
+              <button
+                onClick={handleNextImage}
+                className="absolute right-2 sm:right-6 top-1/2 -translate-y-1/2 z-20 bg-black/60 hover:bg-emerald-600 text-white p-3 sm:p-4 rounded-full border border-white/20 shadow-2xl transition-all hover:scale-110 active:scale-95 group"
+                title="Next Image (Right Arrow / D)"
+              >
+                <ChevronRight className="h-6 w-6 sm:h-8 sm:w-8 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            )}
           </div>
-        </div>
+
+          {/* Bottom Proof Info Footer Bar */}
+          <div className="relative z-10 bg-white/10 backdrop-blur-md text-white p-4 rounded-2xl border border-white/10 shadow-2xl flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-4">
+              <div>
+                <div className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">Amount</div>
+                <div className="text-lg font-black text-emerald-400">{fmtMoney(currItem.amount)}</div>
+              </div>
+              <div className="h-8 w-px bg-white/15" />
+              <div>
+                <div className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">UTR / Ref</div>
+                <div className="text-sm font-extrabold text-white">{currItem.utr || "—"}</div>
+              </div>
+              <div className="h-8 w-px bg-white/15 hidden sm:block" />
+              <div className="hidden sm:block">
+                <div className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">Status</div>
+                <span className={`inline-flex items-center gap-1 text-xs font-black uppercase px-2.5 py-0.5 rounded-full mt-0.5 ${
+                  currItem.status === "approved" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                }`}>
+                  {currItem.status === "approved" ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+                  {currItem.status || "APPROVED"}
+                </span>
+              </div>
+            </div>
+
+            <div className="text-xs text-neutral-300 font-semibold flex items-center gap-2">
+              <span className="hidden md:inline">Use Left/Right keyboard arrows (&larr; &rarr;) to browse</span>
+              <span className="bg-white/20 px-2.5 py-1 rounded-lg text-white font-bold">{lightboxIndex + 1} / {lightboxList.length}</span>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

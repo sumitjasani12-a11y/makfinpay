@@ -18,9 +18,8 @@ export function initWebSocket(token) {
   }
 
   const proto = window.location.protocol === "https:" ? "wss" : "ws";
-  let host = window.location.host;
-
-  if (process.env.REACT_APP_BACKEND_URL) {
+  let host = `${window.location.hostname}:8000`;
+  if (process.env.REACT_APP_BACKEND_URL && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
     host = process.env.REACT_APP_BACKEND_URL.replace(/^https?:\/\//, "");
   }
 
@@ -28,7 +27,6 @@ export function initWebSocket(token) {
   ws = new WebSocket(wsUrl);
 
   ws.onopen = () => {
-    console.log("WebSocket connected successfully");
     window.isWsConnected = true;
     window.dispatchEvent(new CustomEvent("ws:status_connected"));
   };
@@ -37,7 +35,6 @@ export function initWebSocket(token) {
     try {
       const msg = JSON.parse(event.data);
       if (msg && msg.event) {
-        console.log("WS Event received:", msg.event, msg.data);
         const customEvent = new CustomEvent(`ws:${msg.event}`, { detail: msg.data });
         window.dispatchEvent(customEvent);
       }
@@ -46,11 +43,10 @@ export function initWebSocket(token) {
     }
   };
 
-let retryCount = 0;
-const MAX_RETRIES = 3;
+  let retryCount = 0;
+  const MAX_RETRIES = 3;
 
   ws.onclose = (e) => {
-    console.log("WebSocket connection closed:", e.reason);
     window.isWsConnected = false;
     window.dispatchEvent(new CustomEvent("ws:status_disconnected"));
     if (ws !== null && currentToken && retryCount < MAX_RETRIES) {
@@ -61,7 +57,6 @@ const MAX_RETRIES = 3;
   };
 
   ws.onerror = (err) => {
-    console.error("WebSocket error:", err);
     window.isWsConnected = false;
     window.dispatchEvent(new CustomEvent("ws:status_disconnected"));
     ws.close();
@@ -91,8 +86,6 @@ export function useWebSocketListener(eventName, callback) {
   }, [callback]);
 
   useEffect(() => {
-    let pollingInterval = null;
-
     const handler = (event) => {
       if (callbackRef.current) {
         callbackRef.current(event.detail);
@@ -101,41 +94,8 @@ export function useWebSocketListener(eventName, callback) {
 
     window.addEventListener(`ws:${eventName}`, handler);
 
-    const startPollingIfNeeded = () => {
-      if (!window.isWsConnected && !pollingInterval) {
-        pollingInterval = setInterval(() => {
-          if (callbackRef.current) {
-            callbackRef.current();
-          }
-        }, 5000); // Polling every 5 seconds as a robust backup
-      }
-    };
-
-    const stopPolling = () => {
-      if (pollingInterval) {
-        clearInterval(pollingInterval);
-        pollingInterval = null;
-      }
-    };
-
-    startPollingIfNeeded();
-
-    const onWsConnected = () => {
-      stopPolling();
-    };
-
-    const onWsDisconnected = () => {
-      startPollingIfNeeded();
-    };
-
-    window.addEventListener("ws:status_connected", onWsConnected);
-    window.addEventListener("ws:status_disconnected", onWsDisconnected);
-
     return () => {
       window.removeEventListener(`ws:${eventName}`, handler);
-      window.removeEventListener("ws:status_connected", onWsConnected);
-      window.removeEventListener("ws:status_disconnected", onWsDisconnected);
-      stopPolling();
     };
   }, [eventName]);
 }

@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { api, formatErr, fmtDate, fmtMoney, fileUrl } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { DATE_RANGES, todayStr, rangeWindowIso } from "@/lib/filters";
 import { useDebounced } from "@/lib/hooks";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import ZoomableImage from "@/components/ZoomableImage";
 import { toast } from "sonner";
-import { Eye, Check, X, Search, RotateCcw, FileDown, FileSpreadsheet, Loader2, ShieldAlert, CheckCircle2 } from "lucide-react";
+import { Eye, Check, X, Search, RotateCcw, FileDown, FileSpreadsheet, Loader2, ShieldAlert, CheckCircle2, Pencil } from "lucide-react";
 import { useWebSocketListener } from "@/lib/ws";
 
 const STATUSES = [
@@ -65,6 +66,70 @@ function RejectModal({ onClose, onConfirm, predefined = [] }) {
   );
 }
 
+function CompactQrSearchSelect({ currentLabel, qrEntries, onSelect, onClose }) {
+  const [search, setSearch] = useState("");
+  const popoverRef = React.useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (popoverRef.current && !popoverRef.current.contains(event.target)) {
+        onClose();
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [onClose]);
+
+  const filtered = qrEntries.filter((e) =>
+    (e.name || "").toLowerCase().includes(search.toLowerCase().trim())
+  );
+
+  return (
+    <div ref={popoverRef} className="absolute left-1/2 -translate-x-1/2 top-full mt-1 w-64 bg-white rounded-xl shadow-2xl border border-neutral-200 p-2 z-[999] text-left">
+      <div className="relative mb-1.5">
+        <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-neutral-400" />
+        <input
+          type="text"
+          placeholder="Search QR..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full pl-8 pr-2 py-1.5 text-xs font-semibold border border-neutral-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-neutral-50"
+          autoFocus
+        />
+      </div>
+      <div className="max-h-52 overflow-y-auto space-y-1 custom-scrollbar">
+        {filtered.length === 0 ? (
+          <div className="p-2 text-[11px] text-neutral-400 text-center font-medium">No QR found</div>
+        ) : (
+          filtered.map((e) => (
+            <button
+              key={e.id}
+              onClick={() => onSelect(e.name)}
+              className={`w-full text-left px-2.5 py-1.5 text-xs rounded-lg flex flex-col transition-colors border ${
+                e.name === currentLabel
+                  ? "bg-indigo-50 border-indigo-200 text-indigo-900"
+                  : "bg-white border-neutral-100 hover:bg-neutral-50 text-neutral-800"
+              }`}
+            >
+              <div className="flex items-center justify-between w-full">
+                <span className="font-extrabold truncate pr-1">{e.name}</span>
+                {e.is_t1 && (
+                  <span className="text-[9px] bg-blue-100 text-blue-700 px-1 py-0.5 rounded font-black shrink-0">T+1</span>
+                )}
+              </div>
+              {e.activated_at && (
+                <span className="text-[10px] text-neutral-400 font-medium mt-0.5 block">
+                  🕒 {fmtDate(e.activated_at)}
+                </span>
+              )}
+            </button>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminRecharges() {
   const [items, setItems] = useState(() => {
     try {
@@ -85,11 +150,39 @@ export default function AdminRecharges() {
       .catch((e) => console.log("Failed to fetch recharge rejection reasons:", e));
   }, []);
 
+  const { user } = useAuth();
+  const [qrEntries, setQrEntries] = useState([]);
+  const [editingQrRid, setEditingQrRid] = useState(null);
+  const [selectedQrLabel, setSelectedQrLabel] = useState("");
+  const [qrEditLoading, setQrEditLoading] = useState(false);
+
+  useEffect(() => {
+    api.get("/admin/qr-name-entries").then((r) => {
+      setQrEntries(r.data || []);
+    }).catch(() => {});
+  }, []);
+
+  const handleSaveRechargeQr = async (rid, newLabel) => {
+    const labelToSave = newLabel || selectedQrLabel;
+    if (!labelToSave) return toast.error("Please select a QR code name");
+    setQrEditLoading(true);
+    try {
+      await api.put(`/admin/recharges/${rid}/qr-code`, { qr_code_label: labelToSave });
+      toast.success("QR Code updated! Tracking history refreshed.");
+      setEditingQrRid(null);
+      reload();
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail) || "Failed to update QR code");
+    } finally {
+      setQrEditLoading(false);
+    }
+  };
+
   // filter state
   const [q, setQ] = useState("");
   const debouncedQ = useDebounced(q, 350);
   const [status, setStatus] = useState("all");
-  const [range, setRange] = useState("today");
+  const [range, setRange] = useState("lifetime");
   const [from, setFrom] = useState(todayStr(-7));
   const [to, setTo] = useState(todayStr());
   const [customApplied, setCustomApplied] = useState(false);
@@ -221,29 +314,122 @@ export default function AdminRecharges() {
   }, [reload]);
 
   const columns = useMemo(() => [
-    { key: "created_at", label: "Created", render: (r) => fmtDate(r.created_at) },
-    { key: "user_name", label: "Agent" },
-    { key: "amount", label: "Amount", render: (r) => fmtMoney(r.amount) },
-    { key: "utr", label: "UTR" },
-    { key: "qr_code_label", label: "QR Code", render: (r) => r.qr_code_label || "N/A" },
-    { key: "card_last4", label: "Card / Acc (Last 4)", render: (r) => r.card_last4 ? `XXXX ${r.card_last4}` : "N/A" },
+    { 
+      key: "user_name", 
+      label: "Agent / Created",
+      render: (r) => {
+        const d = r.created_at ? new Date(r.created_at) : null;
+        const dateStr = d ? d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "";
+        const timeStr = d ? d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true }).toLowerCase() : "";
+        return (
+          <div className="flex flex-col items-center justify-center text-center leading-tight py-0.5">
+            <span className="font-extrabold text-neutral-900 text-sm truncate max-w-[160px] block" title={r.user_name}>
+              {r.user_name || "—"}
+            </span>
+            <div className="flex items-center justify-center gap-1.5 mt-0.5 whitespace-nowrap">
+              {d && (
+                <span className="text-[11px] text-neutral-500 font-semibold whitespace-nowrap">
+                  {dateStr}, {timeStr}
+                </span>
+              )}
+              {r.is_t1 && (
+                <span className="inline-flex items-center gap-0.5 bg-[#E3F2FD] text-[#1E88E5] border border-[#BBDEFB] text-[9px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-wider shrink-0">
+                  T+1
+                </span>
+              )}
+            </div>
+          </div>
+        );
+      }
+    },
+    { key: "amount", label: "Amount", render: (r) => <span className="font-bold text-xs">{fmtMoney(r.amount)}</span> },
+    { key: "utr", label: "UTR", render: (r) => <span className="font-mono text-xs font-semibold text-center block mx-auto">{r.utr || "—"}</span> },
+    { 
+      key: "qr_code_label", 
+      label: "QR Code", 
+      render: (r) => {
+        return (
+          <div className="relative inline-flex items-center justify-center gap-1">
+            <span className="max-w-[110px] truncate block font-semibold text-xs text-neutral-800 text-center" title={r.qr_code_label}>
+              {r.qr_code_label || "N/A"}
+            </span>
+            {user?.role === "admin" && (
+              <button
+                onClick={() => {
+                  if (editingQrRid === r.id) {
+                    setEditingQrRid(null);
+                  } else {
+                    setEditingQrRid(r.id);
+                    setSelectedQrLabel(r.qr_code_label || "");
+                  }
+                }}
+                className="p-1 text-neutral-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-all shrink-0"
+                title="Edit QR Code for this request"
+              >
+                <Pencil className="h-3 w-3" />
+              </button>
+            )}
+            {editingQrRid === r.id && (
+              <CompactQrSearchSelect
+                currentLabel={r.qr_code_label}
+                qrEntries={qrEntries}
+                onSelect={(newLabel) => handleSaveRechargeQr(r.id, newLabel)}
+                onClose={() => setEditingQrRid(null)}
+              />
+            )}
+          </div>
+        );
+      }
+    },
+    { key: "card_last4", label: "Acc/Card", render: (r) => r.card_last4 ? r.card_last4 : "N/A" },
     { key: "commission_percent", label: "Comm %", render: (r) => `${r.commission_percent}%` },
-    { key: "commission_charge", label: "Commission Charge", render: (r) => r.status === "approved" ? fmtMoney(r.commission_amount) : fmtMoney(r.amount * r.commission_percent / 100) },
-    { key: "admin_revenue_amount", label: "Admin Comm", render: (r) => r.status === "approved" ? fmtMoney(r.admin_revenue_amount) : "—" },
-    { key: "md_earnings_amount", label: "S.Dist Comm", render: (r) => r.status === "approved" ? fmtMoney(r.md_earnings_amount) : "—" },
-    { key: "distributor_earnings_amount", label: "Dist Comm", render: (r) => r.status === "approved" ? fmtMoney(r.distributor_earnings_amount) : "—" },
+    { key: "commission_charge", label: "Comm Charge", render: (r) => r.status === "approved" ? fmtMoney(r.commission_amount) : fmtMoney(r.amount * r.commission_percent / 100) },
+    { key: "admin_revenue_amount", label: "Admin", render: (r) => r.status === "approved" ? fmtMoney(r.admin_revenue_amount) : "—" },
+    { key: "md_earnings_amount", label: "S.Dist", render: (r) => r.status === "approved" ? fmtMoney(r.md_earnings_amount) : "—" },
+    { key: "distributor_earnings_amount", label: "Dist", render: (r) => r.status === "approved" ? fmtMoney(r.distributor_earnings_amount) : "—" },
     { key: "credit_amount", label: "Net Credit", render: (r) => r.status === "approved" ? fmtMoney(r.credit_amount) : "—" },
-    { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
-    { key: "actions", label: "Action", render: (r) => (
-      <div className="flex items-center gap-2">
-        <button className="p-1.5 border border-neutral-200 text-neutral-600 hover:bg-neutral-100 rounded-lg transition-all inline-flex items-center justify-center bg-white shadow-xs shrink-0" onClick={() => setDetail(r)} title="View Details" data-testid={`view-${r.id}`}><Eye className="h-3.5 w-3.5" /></button>
-        {r.status === "pending" && (<>
-          <button className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/80 font-bold text-xs px-3.5 py-1.5 rounded-lg inline-flex items-center gap-1.5 transition-all shrink-0 shadow-xs" onClick={() => act(r.id, "approve")} data-testid={`approve-${r.id}`}><Check className="h-3.5 w-3.5 stroke-[2.5]" /> Approve</button>
-          <button className="bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/80 font-bold text-xs px-3.5 py-1.5 rounded-lg inline-flex items-center gap-1.5 transition-all shrink-0 shadow-xs" onClick={() => act(r.id, "reject")} data-testid={`reject-${r.id}`}><X className="h-3.5 w-3.5 stroke-[2.5]" /> Reject</button>
-        </>)}
-      </div>
-    ) },
-  ], [act]);
+    { key: "status", label: "Status", render: (r) => <div className="flex justify-center"><StatusBadge status={r.status} /></div> },
+    { 
+      key: "view", 
+      label: "View", 
+      render: (r) => (
+        <div className="flex justify-center">
+          <button 
+            className="p-1 border border-neutral-200 text-neutral-600 hover:bg-neutral-100 rounded transition-all inline-flex items-center justify-center bg-white shadow-2xs shrink-0" 
+            onClick={() => setDetail(r)} 
+            title="View Details" 
+            data-testid={`view-${r.id}`}
+          >
+            <Eye className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ) 
+    },
+    { 
+      key: "actions", 
+      label: "Action", 
+      render: (r) => r.status === "pending" ? (
+        <div className="flex items-center justify-center gap-1.5">
+          <button 
+            className="p-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/80 rounded transition-all inline-flex items-center justify-center shadow-2xs shrink-0" 
+            onClick={() => act(r.id, "approve")} 
+            title="Approve Request" 
+            data-testid={`approve-${r.id}`}
+          >
+            <Check className="h-3.5 w-3.5 stroke-[2.5]" />
+          </button>
+          <button 
+            className="p-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/80 rounded transition-all inline-flex items-center justify-center shadow-2xs shrink-0" 
+            onClick={() => act(r.id, "reject")} 
+            title="Reject Request" 
+            data-testid={`reject-${r.id}`}
+          >
+            <X className="h-3.5 w-3.5 stroke-[2.5]" />
+          </button>
+        </div>
+      ) : "—" 
+    },
+  ], [act, editingQrRid, selectedQrLabel, qrEntries, qrEditLoading, user]);
 
   const [exportingPdf, setExportingPdf] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
@@ -529,6 +715,7 @@ export default function AdminRecharges() {
               <div className="grid md:grid-cols-2 gap-6 p-6">
                 <div className="space-y-3 text-sm">
                   {[
+                    ["Service Type", detail.is_t1 ? "⚡ T+1 Service (Immediate Settlement)" : "Normal Wallet Service"],
                     ["Amount", fmtMoney(detail.amount)],
                     ["UTR / Reference", detail.utr || "—"],
                     ["QR Code Used", detail.qr_code_label || "N/A"],

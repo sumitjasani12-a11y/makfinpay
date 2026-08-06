@@ -1,7 +1,9 @@
 from dotenv import load_dotenv
 from pathlib import Path
-ROOT_DIR = Path(__file__).parent
+BACKEND_DIR = Path(__file__).parent
+ROOT_DIR = BACKEND_DIR.parent
 load_dotenv(ROOT_DIR / ".env")
+load_dotenv(BACKEND_DIR / ".env")
 
 import os
 import uuid
@@ -260,6 +262,27 @@ def get_object(path: str):
     if path in RAM_FILE_CACHE:
         return RAM_FILE_CACHE[path]
 
+    # Local backup folder check
+    backup_file_path = os.path.join("..", "storage_backup", path.replace("/", os.sep))
+    if os.path.exists(backup_file_path):
+        try:
+            with open(backup_file_path, "rb") as f:
+                content = f.read()
+            ext = path.rsplit(".", 1)[-1].lower() if "." in path else "bin"
+            ct_map = {
+                "png": "image/png",
+                "jpg": "image/jpeg",
+                "jpeg": "image/jpeg",
+                "jfif": "image/jpeg",
+                "webp": "image/webp",
+                "pdf": "application/pdf"
+            }
+            res = (content, ct_map.get(ext, "image/jpeg"))
+            RAM_FILE_CACHE[path] = res
+            return res
+        except Exception:
+            pass
+
     # Local cache check
     local_cache_path = os.path.join("cache", path)
     if os.path.exists(local_cache_path):
@@ -271,6 +294,7 @@ def get_object(path: str):
                 "png": "image/png",
                 "jpg": "image/jpeg",
                 "jpeg": "image/jpeg",
+                "jfif": "image/jpeg",
                 "webp": "image/webp",
                 "pdf": "application/pdf"
             }
@@ -289,8 +313,8 @@ def get_object(path: str):
         first_segment = parts[0] if parts else ""
         rest_segment = parts[1] if len(parts) > 1 else path
         
-        buckets_to_try = list(dict.fromkeys([first_segment, supabase_bucket, "makfinpay", "uploads"]).keys())
-        paths_to_try = list(dict.fromkeys([rest_segment, path]).keys())
+        buckets_to_try = list(dict.fromkeys([supabase_bucket, "uploads", "makfinpay", first_segment]).keys())
+        paths_to_try = list(dict.fromkeys([path, rest_segment]).keys())
         
         urls_to_try = []
         for b in buckets_to_try:
@@ -414,6 +438,19 @@ async def get_current_user(request: Request) -> dict:
     except jwt.InvalidTokenError:
         raise HTTPException(401, "Invalid token")
     user = await db.users.find_one({"id": payload["sub"]}, {"_id": 0})
+    if not user:
+        try:
+            admin_cred = await db.admin_credentials.find_one({"id": payload["sub"]}, {"_id": 0})
+            if admin_cred:
+                user = {
+                    "id": admin_cred["id"],
+                    "full_name": admin_cred.get("email", "Admin"),
+                    "email": admin_cred.get("email"),
+                    "role": "admin",
+                    "frozen": admin_cred.get("frozen", False)
+                }
+        except Exception:
+            pass
     if not user:
         raise HTTPException(401, "User not found")
     if user.get("frozen"):
@@ -610,6 +647,10 @@ class HeadlineIn(BaseModel):
 class HeadlineReorderIn(BaseModel):
     ids: List[str]
 
+class UpdateRechargeQrIn(BaseModel):
+    qr_code_label: str
+    qr_code_id: Optional[str] = None
+
 class CommissionUpdateIn(BaseModel):
     commission_percent: float
 
@@ -622,6 +663,9 @@ class QRCodeIn(BaseModel):
     upi_id: Optional[str] = None
     mobile_number: Optional[str] = None
     is_t1: Optional[bool] = False
+
+class UpdateHistoryPercentIn(BaseModel):
+    qr_percent: float
 
 class QRNameEntryIn(BaseModel):
     name: str
@@ -1011,7 +1055,10 @@ async def serve_file(path: str, auth: Optional[str] = Query(None), authorization
     if path and path in branding_paths:
         is_branding = True
 
-    if not is_branding:
+    ext = path.rsplit(".", 1)[-1].lower() if "." in path else ""
+    is_image_file = ext in ["jpg", "jpeg", "png", "webp", "jfif", "gif"]
+
+    if not is_branding and not is_image_file:
         if not token:
             raise HTTPException(401, "Auth required")
         try:
@@ -1573,10 +1620,10 @@ async def _admin_adjustments_sum_batch(user_ids: List[str]) -> dict:
     try:
         in_clause = ", ".join(f"'{u}'" for u in str_uids)
         sql = f"""
-            SELECT user_id::text as user_id,
+            SELECT user_id,
                    SUM(CASE WHEN kind = 'credit' THEN amount WHEN kind = 'debit' THEN -amount ELSE 0 END) as total
             FROM ledger
-            WHERE user_id::text IN ({in_clause}) AND ref_type = 'admin_adjustment'
+            WHERE user_id IN ({in_clause}) AND ref_type = 'admin_adjustment'
             GROUP BY user_id
         """
         rows = await db.execute_query(sql)
@@ -2123,7 +2170,7 @@ def _render_recharges_pdf(items: list) -> bytes:
     FONT_BOLD = "DejaVuSans-Bold"
 
     ist = timezone(timedelta(hours=5, minutes=30))
-    generated = datetime.now(ist).strftime("%-d %b %Y, %-I:%M %p IST")
+    generated = datetime.now(ist).strftime("%d %b %Y, %I:%M %p IST")
 
     styles = getSampleStyleSheet()
     cell_style = ParagraphStyle(
@@ -2504,7 +2551,7 @@ def _fmt_ist(iso_ts: Optional[str]) -> str:
     try:
         dt = datetime.fromisoformat(iso_ts.replace("Z", "+00:00"))
         ist = timezone(timedelta(hours=5, minutes=30))
-        return dt.astimezone(ist).strftime("%-d %b %Y, %-I:%M %p")
+        return dt.astimezone(ist).strftime("%d %b %Y, %I:%M %p")
     except Exception:
         return iso_ts
 
@@ -3024,11 +3071,13 @@ async def md_stats(user=Depends(require_approved_md())):
     ar_task = db.recharges.count_documents({"md_id": md_id, "status": "approved"})
     earn_task = _md_earnings_for(md_id)
     today_task = _md_today_earnings(md_id)
-    avail_task = get_md_available_for_withdrawal(md_id)
+    withdraw_reserved_task = _withdrawals_sum_for(md_id, ["approved", "pending"])
 
-    distributors_count, agents_count, pending_recharges, approved_recharges, earnings, today_earnings, available_for_withdrawal = await asyncio.gather(
-        d_task, a_task, pr_task, ar_task, earn_task, today_task, avail_task
+    distributors_count, agents_count, pending_recharges, approved_recharges, earnings, today_earnings, withdraw_reserved = await asyncio.gather(
+        d_task, a_task, pr_task, ar_task, earn_task, today_task, withdraw_reserved_task
     )
+
+    available_for_withdrawal = round(earnings - withdraw_reserved, 2)
 
     return {
         "distributors": distributors_count,
@@ -3200,7 +3249,10 @@ def _build_transaction_query(*, status=None, agent_id=None, operator=None,
                               agent_search=None, bank_search=None) -> dict:
     query: dict = {}
     if txn_type and txn_type != "all":
-        query["type"] = txn_type
+        if txn_type in ("credit_card", "cc"):
+            query["type"] = {"$in": ["credit_card", "cc"]}
+        else:
+            query["type"] = txn_type
     if status and status != "all":
         query["status"] = status
     if agent_id and agent_id != "all":
@@ -3230,7 +3282,11 @@ def _build_transaction_query(*, status=None, agent_id=None, operator=None,
                 {"card_last4": {"$regex": needle, "$options": "i"}},
             ]
     if amount and amount.strip():
-        query["bill_amount"] = {"$regex": amount.strip()}
+        try:
+            val = float(amount.strip())
+            query["amount"] = val
+        except ValueError:
+            pass
     return query
 
 
@@ -3254,7 +3310,11 @@ def _build_withdrawal_query(*, status=None, role_filter=None,
                 {"bank.phone_number": {"$regex": needle, "$options": "i"}},
             ]
     if amount and amount.strip():
-        query["amount"] = {"$regex": amount.strip()}
+        try:
+            val = float(amount.strip())
+            query["amount"] = val
+        except ValueError:
+            pass
     return query
 
 
@@ -3480,6 +3540,81 @@ async def admin_list_recharges(
         return {"items": items, "total": total, "page": page, "page_size": page_size}
     # Legacy caller (no pagination requested) — full list, no cap.
     return await db.recharges.find(query, proj).sort("created_at", -1).to_list(None)
+
+@api.get("/admin/recharges/export/pdf")
+async def export_recharges_pdf(
+    status: Optional[str] = None,
+    agent_id: Optional[str] = None,
+    qr_code_id: Optional[str] = None,
+    from_ts: Optional[str] = None,
+    to_ts: Optional[str] = None,
+    q: Optional[str] = None,
+    amount: Optional[str] = None,
+    agent_search: Optional[str] = None,
+    qr_search: Optional[str] = None,
+    user=Depends(require_roles("admin")),
+):
+    query = _build_recharge_query(
+        status=status, agent_id=agent_id, qr_code_id=qr_code_id,
+        from_ts=from_ts, to_ts=to_ts, q=q, amount=amount,
+        agent_search=agent_search, qr_search=qr_search
+    )
+    items = await db.recharges.find(query, {"_id": 0}).sort("created_at", -1).to_list(5000)
+    pdf_bytes = await asyncio.to_thread(_render_recharges_pdf, items)
+    fname = f"Recharge_Approvals_{now_iso()[:10]}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'}
+    )
+
+@api.get("/admin/recharges/export/csv")
+async def export_recharges_csv(
+    status: Optional[str] = None,
+    agent_id: Optional[str] = None,
+    qr_code_id: Optional[str] = None,
+    from_ts: Optional[str] = None,
+    to_ts: Optional[str] = None,
+    q: Optional[str] = None,
+    amount: Optional[str] = None,
+    agent_search: Optional[str] = None,
+    qr_search: Optional[str] = None,
+    user=Depends(require_roles("admin")),
+):
+    query = _build_recharge_query(
+        status=status, agent_id=agent_id, qr_code_id=qr_code_id,
+        from_ts=from_ts, to_ts=to_ts, q=q, amount=amount,
+        agent_search=agent_search, qr_search=qr_search
+    )
+    items = await db.recharges.find(query, {"_id": 0}).sort("created_at", -1).to_list(5000)
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Agent Name", "Amount", "UTR", "QR Code Label", "Account/Card", "Comm %", "Comm Charge", "Admin Profit", "Net Credit", "Status", "Created At"])
+    for r in items:
+        comm_charge = r.get("commission_amount", 0.0) if r.get("status") == "approved" else (r.get("amount", 0) * r.get("commission_percent", 0) / 100)
+        net_credit = r.get("credit_amount", 0.0) if r.get("status") == "approved" else 0.0
+        writer.writerow([
+            r.get("user_name", ""),
+            r.get("amount", 0),
+            r.get("utr", ""),
+            r.get("qr_code_label", ""),
+            r.get("card_last4", ""),
+            f"{r.get('commission_percent', 0)}%",
+            comm_charge,
+            r.get("admin_revenue_amount", comm_charge),
+            net_credit,
+            r.get("status", ""),
+            r.get("created_at", "")
+        ])
+    
+    csv_str = "\ufeff" + output.getvalue()
+    fname = f"Recharge_Approvals_{now_iso()[:10]}.csv"
+    return Response(
+        content=csv_str.encode("utf-8-sig"),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'}
+    )
 
 @api.get("/admin/recharge-gallery")
 async def get_recharge_gallery(user=Depends(require_roles("admin"))):
@@ -3747,6 +3882,34 @@ async def admin_reject_recharge(rid: str, body: ApprovalIn, request: Request, us
     await manager.send_to_user(r["user_id"], {"event": "recharge_updated", "data": {"id": rid, "status": "rejected"}})
     await manager.send_to_role("admin", {"event": "recharge_updated", "data": {"id": rid, "status": "rejected"}})
     return {"ok": True}
+
+@api.put("/admin/recharges/{rid}/qr-code")
+async def update_recharge_qr(rid: str, body: UpdateRechargeQrIn, user=Depends(require_roles("admin"))):
+    r = await db.recharges.find_one({"id": rid})
+    if not r:
+        raise HTTPException(404, "Recharge request not found")
+        
+    clean_label = body.qr_code_label.strip()
+    qr_id = body.qr_code_id or ""
+    
+    async with db.pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id FROM qr_codes WHERE TRIM(label) = TRIM($1) AND is_deleted = False ORDER BY created_at DESC LIMIT 1",
+            clean_label
+        )
+        if row:
+            qr_id = str(row["id"])
+            
+    await db.recharges.update_one(
+        {"id": rid},
+        {"$set": {
+            "qr_code_label": clean_label,
+            "qr_code_id": qr_id
+        }}
+    )
+    
+    await manager.broadcast({"event": "recharge_updated", "data": {"id": rid}})
+    return {"ok": True, "id": rid, "qr_code_label": clean_label, "qr_code_id": qr_id}
 
 # ---------- BILL PAYMENTS (Credit Card) ----------
 @api.post("/agent/bill-payments")
@@ -5044,30 +5207,31 @@ async def admin_reject_kyc(uid: str, body: ApprovalIn, request: Request, user=De
     return {"ok": True, "kyc_status": "rejected"}
 
 # ---------- QR CODES ----------
-async def log_qr_deactivation():
+async def log_qr_deactivation(is_t1: bool = False):
     now = now_iso()
     async with db.pool.acquire() as conn:
         await conn.execute(
-            "UPDATE qr_activation_history SET deactivated_at = $1, status = 'ARCHIVED' WHERE status = 'ACTIVE'",
-            convert_val("deactivated_at", now)
+            "UPDATE qr_activation_history SET deactivated_at = $1, status = 'ARCHIVED' WHERE status = 'ACTIVE' AND (is_t1 = $2 OR (is_t1 IS NULL AND $2 = False))",
+            convert_val("deactivated_at", now),
+            is_t1
         )
 
-async def log_qr_activation(qr_code_id: str, label: str, mobile_number: str, upi_id: str):
-    await log_qr_deactivation()
+async def log_qr_activation(qr_code_id: str, label: str, mobile_number: str, upi_id: str, is_t1: bool = False):
+    await log_qr_deactivation(is_t1)
     now = now_iso()
     clean_label = label.strip()
     async with db.pool.acquire() as conn:
         # Fetch matching entry from qr_name_entries to get qr_percent
         qr_entry = await conn.fetchrow(
-            "SELECT qr_percent FROM qr_name_entries WHERE name = $1 AND is_deleted = False LIMIT 1",
+            "SELECT qr_percent FROM qr_name_entries WHERE TRIM(name) = TRIM($1) AND is_deleted = False LIMIT 1",
             clean_label
         )
         qr_percent = float(qr_entry["qr_percent"]) if qr_entry and qr_entry["qr_percent"] is not None else 0.0
         
         await conn.execute(
             """
-            INSERT INTO qr_activation_history (id, qr_code_id, label, mobile_number, upi_id, qr_percent, activated_at, status)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, 'ACTIVE')
+            INSERT INTO qr_activation_history (id, qr_code_id, label, mobile_number, upi_id, qr_percent, activated_at, status, is_t1)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, 'ACTIVE', $8)
             """,
             new_id(),
             qr_code_id,
@@ -5075,7 +5239,8 @@ async def log_qr_activation(qr_code_id: str, label: str, mobile_number: str, upi
             mobile_number or "",
             upi_id or "",
             Decimal(str(qr_percent)),
-            convert_val("activated_at", now)
+            convert_val("activated_at", now),
+            is_t1
         )
 
 @api.get("/admin/qrcodes/history")
@@ -5113,6 +5278,7 @@ async def admin_qr_history(
                         SELECT h.id 
                         FROM qr_activation_history h
                         WHERE (h.qr_code_id::text = r.qr_code_id::text OR TRIM(h.label) = TRIM(r.qr_code_label))
+                          AND (h.is_t1 = r.is_t1 OR (h.is_t1 IS NULL AND r.is_t1 = False))
                           AND h.activated_at <= r.created_at
                         ORDER BY h.activated_at DESC
                         LIMIT 1
@@ -5127,10 +5293,11 @@ async def admin_qr_history(
                 h.label,
                 h.mobile_number,
                 h.upi_id,
-                h.qr_percent,
+                COALESCE(h.qr_percent, 0) as qr_percent,
                 h.activated_at,
                 h.deactivated_at,
                 h.status as session_status,
+                h.is_t1,
                 COUNT(ls.recharge_id) as total_entries,
                 COUNT(CASE WHEN ls.recharge_status = 'pending' THEN 1 END) as pending_count,
                 COUNT(CASE WHEN ls.recharge_status = 'approved' THEN 1 END) as approved_count,
@@ -5145,7 +5312,7 @@ async def admin_qr_history(
                OR ($1::timestamptz IS NULL AND $2::timestamptz IS NULL)
                OR (h.activated_at <= $2::timestamptz AND (h.deactivated_at IS NULL OR h.deactivated_at >= $1::timestamptz))
                OR ls.recharge_id IS NOT NULL
-            GROUP BY h.id, h.qr_code_id, h.label, h.mobile_number, h.upi_id, h.qr_percent, h.activated_at, h.deactivated_at, h.status
+            GROUP BY h.id, h.qr_code_id, h.label, h.mobile_number, h.upi_id, h.qr_percent, h.activated_at, h.deactivated_at, h.status, h.is_t1
             ORDER BY h.activated_at DESC
             LIMIT 200
         """
@@ -5158,7 +5325,8 @@ async def admin_qr_history(
             dist_earnings = float(r["dist_earnings"] or 0)
             total_profit = round(admin_revenue + md_earnings + dist_earnings, 2)
             qr_percent = float(r["qr_percent"]) if r["qr_percent"] is not None else 0.0
-            qr_profit = round(total_profit * (qr_percent / 100.0), 2)
+            approved_amount = round(float(r["approved_amount"] or 0), 2)
+            qr_profit = round(approved_amount * (qr_percent / 100.0), 2)
             final_profit = round(total_profit - qr_profit, 2)
 
             activated_at = r["activated_at"]
@@ -5174,6 +5342,7 @@ async def admin_qr_history(
                 "activated_at": activated_at.isoformat() if activated_at else None,
                 "deactivated_at": deactivated_at.isoformat() if deactivated_at else None,
                 "status": r["session_status"],
+                "is_t1": bool(r["is_t1"]) if r["is_t1"] is not None else False,
                 "entries": r["total_entries"] or 0,
                 "breakdown": {
                     "pending": r["pending_count"] or 0,
@@ -5189,6 +5358,22 @@ async def admin_qr_history(
                 "final_profit": final_profit
             })
         return history
+
+@api.put("/admin/qrcodes/history/{hid}/percent")
+async def update_qr_history_percent(hid: str, body: UpdateHistoryPercentIn, user=Depends(require_roles("admin"))):
+    if body.qr_percent < 0 or body.qr_percent > 100:
+        raise HTTPException(400, "Invalid QR percentage")
+        
+    async with db.pool.acquire() as conn:
+        res = await conn.execute(
+            "UPDATE qr_activation_history SET qr_percent = $1 WHERE id = $2",
+            Decimal(str(body.qr_percent)),
+            hid
+        )
+        if not res or res == "UPDATE 0":
+            raise HTTPException(404, "History record not found")
+            
+    return {"ok": True, "history_id": hid, "qr_percent": body.qr_percent}
 
 @api.post("/admin/qrcodes")
 async def admin_create_qr(body: QRCodeIn, user=Depends(require_roles("admin"))):
@@ -5211,7 +5396,7 @@ async def admin_create_qr(body: QRCodeIn, user=Depends(require_roles("admin"))):
         "is_t1": is_t1,
     }
     await db.qr_codes.insert_one(dict(doc))
-    await log_qr_activation(doc["id"], doc["label"], doc["mobile_number"], doc["upi_id"])
+    await log_qr_activation(doc["id"], doc["label"], doc["mobile_number"], doc["upi_id"], doc["is_t1"])
     await manager.broadcast({"event": "settings_updated", "data": {}})
     return clean(doc)
 
@@ -5382,7 +5567,21 @@ async def list_active_payout_banks(user=Depends(get_current_user)):
 # ---------- QR NAME ENTRIES ----------
 @api.get("/admin/qr-name-entries")
 async def admin_list_qr_name_entries(user=Depends(require_roles("admin"))):
-    return await db.qr_name_entries.find({"is_deleted": False}, {"_id": 0}).sort("position", 1).to_list(100)
+    entries = await db.qr_name_entries.find({"is_deleted": False}, {"_id": 0}).sort("position", 1).to_list(100)
+    try:
+        async with db.pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT DISTINCT ON (TRIM(label)) TRIM(label) as label, activated_at
+                FROM qr_activation_history
+                ORDER BY TRIM(label), activated_at DESC
+            """)
+            act_map = {r["label"]: (r["activated_at"].isoformat() if r["activated_at"] else None) for r in rows}
+            for e in entries:
+                clean_n = (e.get("name") or "").strip()
+                e["activated_at"] = act_map.get(clean_n) or e.get("created_at")
+    except Exception as ex:
+        logger.error(f"Failed to fetch history timestamps for qr_name_entries: {ex}")
+    return entries
 
 @api.post("/admin/qr-name-entries")
 async def admin_create_qr_name_entry(body: QRNameEntryIn, user=Depends(require_roles("admin"))):
@@ -6354,20 +6553,23 @@ async def admin_stats(full: bool = False, user=Depends(require_roles("admin"))):
 
 @api.get("/distributor/stats")
 async def distributor_stats(user=Depends(require_approved_distributor())):
-    agent_ids = [u["id"] async for u in db.users.find({"parent_id": user["id"]}, {"_id": 0, "id": 1})]
+    dist_id = user["id"]
+    agent_ids = [u["id"] async for u in db.users.find({"parent_id": dist_id}, {"_id": 0, "id": 1})]
 
     async def _zero(): return 0
     pr_task = db.recharges.count_documents({"user_id": {"$in": agent_ids}, "status": "pending"}) if agent_ids else _zero()
 
-    a_task = db.users.count_documents({"parent_id": user["id"], "is_deleted": False})
-    earn_task = _distributor_earnings_for(user["id"])
-    today_task = _distributor_today_earnings(user["id"])
-    avail_task = get_distributor_available_for_withdrawal(user["id"])
-    ar_task = db.recharges.count_documents({"distributor_id": user["id"], "status": "approved"})
+    a_task = db.users.count_documents({"parent_id": dist_id, "is_deleted": False})
+    earn_task = _distributor_earnings_for(dist_id)
+    today_task = _distributor_today_earnings(dist_id)
+    withdraw_reserved_task = _withdrawals_sum_for(dist_id, ["approved", "pending"])
+    ar_task = db.recharges.count_documents({"distributor_id": dist_id, "status": "approved"})
 
-    agents, pending_recharges, earnings, today_earnings, available_for_withdrawal, approved_recharges = await asyncio.gather(
-        a_task, pr_task, earn_task, today_task, avail_task, ar_task
+    agents, pending_recharges, earnings, today_earnings, withdraw_reserved, approved_recharges = await asyncio.gather(
+        a_task, pr_task, earn_task, today_task, withdraw_reserved_task, ar_task
     )
+
+    available_for_withdrawal = round(earnings - withdraw_reserved, 2)
 
     return {
         "agents": agents,
@@ -6581,6 +6783,12 @@ async def _ensure_indexes() -> None:
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_withdrawals_user_id ON withdrawals (user_id)')
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_recharges_distributor_id ON recharges (distributor_id)')
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_recharges_md_id ON recharges (md_id)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_recharges_status_distributor_id ON recharges (status, distributor_id)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_recharges_status_md_id ON recharges (status, md_id)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_recharges_status_user_id ON recharges (status, user_id)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_ledger_user_id_ref_type ON ledger (user_id, ref_type)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_transactions_status_user_id ON transactions (status, user_id)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_withdrawals_status_user_id ON withdrawals (status, user_id)')
 
         # Sorting speed indexes
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_users_created_at ON users (created_at DESC)')
@@ -6959,12 +7167,10 @@ async def _migrate_commission_schema() -> None:
 
 @app.on_event("startup")
 async def startup():
-    postgres_uri = (
-        os.environ.get("SUPABASE_POSTGRES_URI") or 
-        os.environ.get("DATABASE_URL") or 
-        "postgresql://postgres.itbtuduqkhgtfkwpamcw:Jigscse%40123@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require"
-    )
-    await db.init_pool(postgres_uri)
+    supabase_url = (os.environ.get("REACT_APP_SUPABASE_URL") or os.environ.get("SUPABASE_URL") or "https://zpynrddggarkltuueqdk.supabase.co").strip().rstrip("/")
+    subdomain = supabase_url.replace("https://", "").replace("http://", "").replace(".supabase.co", "").strip()
+    supabase_db_url = f"postgresql://postgres:Jigscse%40123@db.{subdomain}.supabase.co:5432/postgres?sslmode=require"
+    await db.init_pool(supabase_db_url)
     init_storage()
     await _ensure_indexes()
     await _seed_admin_user()

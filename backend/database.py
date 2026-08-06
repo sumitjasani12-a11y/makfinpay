@@ -61,8 +61,11 @@ def convert_val(key, val):
             return datetime.datetime.fromisoformat(clean_val)
         except Exception:
             pass
-    if isinstance(val, uuid.UUID):
-        return str(val)
+    if isinstance(val, str) and (key == "id" or key.endswith("_id") or len(val) == 36):
+        try:
+            return uuid.UUID(val)
+        except Exception:
+            pass
     if isinstance(val, (bytes, bytearray)):
         return "\\x" + val.hex()
     return val

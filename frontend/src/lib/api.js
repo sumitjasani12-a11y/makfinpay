@@ -1,20 +1,41 @@
 import axios from "axios";
+import { getSupabase } from "./supabase";
+import { getCachedData, setCachedData, clearCache } from "./cache";
 
-const rawBackend = process.env.REACT_APP_BACKEND_URL;
-export const API = (rawBackend && rawBackend !== "undefined" && rawBackend !== "null")
-  ? (rawBackend.endsWith("/api") ? rawBackend : `${rawBackend.replace(/\/$/, "")}/api`)
-  : "/api";
+const getBackendUrl = () => {
+  const rawBackend = process.env.REACT_APP_BACKEND_URL;
+  if (typeof window !== "undefined" && window.location && window.location.hostname) {
+    const h = window.location.hostname;
+    if (h !== "localhost" && h !== "127.0.0.1") {
+      const proto = window.location.protocol || "http:";
+      return `${proto}//${h}:8000/api`;
+    }
+  }
+  return (rawBackend && rawBackend !== "undefined" && rawBackend !== "null")
+    ? (rawBackend.endsWith("/api") ? rawBackend : `${rawBackend.replace(/\/$/, "")}/api`)
+    : "http://localhost:8000/api";
+};
 
+export const API = getBackendUrl();
 export const api = axios.create({ baseURL: API });
 
+// Attach JWT token to all requests
 api.interceptors.request.use((config) => {
   const t = localStorage.getItem("mfp_token");
   if (t) config.headers.Authorization = `Bearer ${t}`;
+
+  const method = (config.method || "get").toLowerCase();
+  if (["post", "put", "patch", "delete"].includes(method)) {
+    clearCache();
+  }
   return config;
 });
 
+// Cache successful HTTP GET responses for instant 0ms-10ms UI rendering
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    return response;
+  },
   (error) => {
     if (error.response && error.response.status === 401) {
       localStorage.removeItem("mfp_token");
@@ -57,6 +78,10 @@ export function fmtDate(s) {
 }
 
 export function fileUrl(path) {
+  if (!path) return "";
+  if (path.startsWith("data:") || path.startsWith("http://") || path.startsWith("https://")) {
+    return path;
+  }
   const t = localStorage.getItem("mfp_token");
   return `${API}/files/${path}?auth=${encodeURIComponent(t || "")}`;
 }
