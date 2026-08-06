@@ -58,7 +58,7 @@ export const NAV = {
     { to: "/agent/recharge", label: "QR Load Wallet", icon: FilePlus2 },
     { to: "/agent/billpay", label: "Credit Card Bill", icon: CreditCard },
     { to: "/agent/cc-bill-history", label: "CC Bill History", icon: History },
-    { to: "/agent/live-billpay", label: "Live Bill Pay", icon: BbpsIcon },
+    { to: "/agent/live-billpay", label: "Live Bill Pay", icon: CreditCard },
     { to: "/agent/live-billpay/history", label: "Live Bill History", icon: History },
     { to: "/agent/ledger", label: "Account Statement", icon: ScrollText },
     { to: "/agent/withdrawal", label: "Pay Withdrawal", icon: ArrowUpFromLine },
