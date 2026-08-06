@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { api, formatErr, fmtMoney, fmtDate } from "@/lib/api";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import { toast } from "sonner";
-import { CreditCard, Search, History, X, Clock, RotateCcw, ShieldCheck, FileDown, FileSpreadsheet } from "lucide-react";
+import { CreditCard, Search, History, X, Clock, RotateCcw, ShieldCheck, FileDown, FileSpreadsheet, HelpCircle } from "lucide-react";
 import { useWebSocketListener } from "@/lib/ws";
 
 export default function AgentCcBillHistory() {
@@ -449,6 +449,31 @@ export default function AgentCcBillHistory() {
                     )}
                   </div>
                 ),
+              },
+              {
+                key: "reason",
+                label: "Reason",
+                render: (r, { isExpanded, toggleExpand }) => {
+                  const isRejected = r.status === "reversed" || r.status === "rejected" || r.status === "failed";
+                  const note = r.note || r.rejection_reason || r.reason;
+                  if (isRejected || note) {
+                    return (
+                      <button
+                        type="button"
+                        onClick={toggleExpand}
+                        className={`px-2 py-1 text-xs font-bold rounded-lg border transition-all inline-flex items-center gap-1 cursor-pointer ${
+                          isExpanded
+                            ? "bg-rose-600 text-white border-rose-600 shadow-xs"
+                            : "bg-rose-50 text-rose-700 border-rose-200/80 hover:bg-rose-100/80 hover:border-rose-300"
+                        }`}
+                      >
+                        <HelpCircle className="h-3.5 w-3.5" />
+                        {isExpanded ? "Hide Reason" : "View Reason"}
+                      </button>
+                    );
+                  }
+                  return <span className="text-neutral-400 font-medium">—</span>;
+                }
               },
             ]}
             rows={paginatedHistory}

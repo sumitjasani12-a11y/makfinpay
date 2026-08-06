@@ -190,6 +190,80 @@ export default function DashboardLayout() {
       .catch((e) => console.log("Failed to fetch pending counts:", e.message));
   }, [user]);
 
+  // Unlock browser audio context on first user click or tap
+  useEffect(() => {
+    const unlockAudio = () => {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+          const ctx = new AudioCtx();
+          if (ctx.state === "suspended") {
+            ctx.resume();
+          }
+        }
+      } catch (e) {}
+      window.removeEventListener("click", unlockAudio);
+      window.removeEventListener("touchstart", unlockAudio);
+    };
+    window.addEventListener("click", unlockAudio);
+    window.addEventListener("touchstart", unlockAudio);
+    return () => {
+      window.removeEventListener("click", unlockAudio);
+      window.removeEventListener("touchstart", unlockAudio);
+    };
+  }, []);
+
+  const playWebAudioChime = (isSuccess) => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      if (isSuccess) {
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(800, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.4);
+      } else {
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(350, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.2);
+        gain.gain.setValueAtTime(0.25, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.5);
+      }
+    } catch (e) {
+      console.error("WebAudio error:", e);
+    }
+  };
+
+  const playNotificationSound = (audioUrl, isSuccess = true) => {
+    if (audioUrl) {
+      try {
+        const sound = new Audio(fileUrl(audioUrl));
+        const playPromise = sound.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((e) => {
+            console.log("Custom audio playback deferred, playing fallback chime:", e);
+            playWebAudioChime(isSuccess);
+          });
+        }
+      } catch (e) {
+        playWebAudioChime(isSuccess);
+      }
+    } else {
+      playWebAudioChime(isSuccess);
+    }
+  };
+
   // Fetch wallet balance and pending counts on mount & every 10 seconds for instant updates
   useEffect(() => {
     fetchWallet();
@@ -206,13 +280,9 @@ export default function DashboardLayout() {
   useWebSocketListener("recharge_updated", (data) => {
     fetchWallet();
     fetchPendingCounts();
-    if (data && data.audio_url && user?.role === "agent") {
-      try {
-        const sound = new Audio(fileUrl(data.audio_url));
-        sound.play().catch((e) => console.log("Audio playback deferred by browser policy:", e));
-      } catch (e) {
-        console.error("Audio playback error:", e);
-      }
+    if (data && user?.role === "agent") {
+      const isSuccess = data.status === "approved";
+      playNotificationSound(data.audio_url, isSuccess);
     }
   });
   useWebSocketListener("kyc_submitted", fetchPendingCounts);
@@ -227,13 +297,9 @@ export default function DashboardLayout() {
   useWebSocketListener("cc_bill_updated", (data) => {
     fetchWallet();
     fetchPendingCounts();
-    if (data && data.audio_url && user?.role === "agent") {
-      try {
-        const sound = new Audio(fileUrl(data.audio_url));
-        sound.play().catch((e) => console.log("Audio playback deferred by browser policy:", e));
-      } catch (e) {
-        console.error("Audio playback error:", e);
-      }
+    if (data && user?.role === "agent") {
+      const isSuccess = data.status === "success";
+      playNotificationSound(data.audio_url, isSuccess);
     }
   });
 
