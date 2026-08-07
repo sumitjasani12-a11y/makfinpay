@@ -559,7 +559,7 @@ export default function DashboardLayout() {
 
           return (
             <div className="p-4 sm:p-6 lg:p-8 relative min-h-[calc(100vh-4rem)]">
-              {branding?.watermark_path && (
+              {user?.role !== "admin" && branding?.watermark_path && (
                 <div
                   className="absolute inset-0 pointer-events-none opacity-[0.14] bg-no-repeat transition-all duration-300"
                   style={{
