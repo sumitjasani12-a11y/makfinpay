@@ -6541,7 +6541,10 @@ async def send_onesignal_notification(
 
 @api.get("/settings/onesignal-public")
 async def get_public_onesignal_app_id():
-    s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    try:
+        s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    except Exception:
+        s = {}
     return {
         "onesignal_app_id": (s.get("onesignal_app_id") or "").strip()
     }
@@ -6550,7 +6553,17 @@ async def get_public_onesignal_app_id():
 async def get_onesignal_settings(user=Depends(require_roles("admin"))):
     if not is_super_admin(user):
         raise HTTPException(403, "Access denied: Only Super Admin (jigs.vanani@gmail.com) can access OneSignal configuration.")
-    s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    try:
+        s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    except Exception as e:
+        logger.warning(f"Error reading OneSignal settings, attempting self-healing migration: {e}")
+        try:
+            async with db.pool.acquire() as conn:
+                await conn.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS onesignal_app_id TEXT DEFAULT ''")
+                await conn.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS onesignal_rest_api_key TEXT DEFAULT ''")
+            s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+        except Exception:
+            s = {}
     return {
         "onesignal_app_id": s.get("onesignal_app_id") or "",
         "onesignal_rest_api_key": s.get("onesignal_rest_api_key") or ""
@@ -6565,7 +6578,19 @@ async def update_onesignal_settings(body: OneSignalSettingsIn, request: Request,
         "onesignal_rest_api_key": body.onesignal_rest_api_key.strip(),
         "updated_at": now_iso()
     }
-    await db.settings.update_one({"id": "commission"}, {"$set": doc}, upsert=True)
+    try:
+        await db.settings.update_one({"id": "commission"}, {"$set": doc}, upsert=True)
+    except Exception as e:
+        logger.warning(f"Error updating OneSignal settings, attempting self-healing migration: {e}")
+        try:
+            async with db.pool.acquire() as conn:
+                await conn.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS onesignal_app_id TEXT DEFAULT ''")
+                await conn.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS onesignal_rest_api_key TEXT DEFAULT ''")
+            await db.settings.update_one({"id": "commission"}, {"$set": doc}, upsert=True)
+        except Exception as retry_err:
+            logger.error(f"Failed to update OneSignal settings after migration retry: {retry_err}")
+            raise HTTPException(500, f"Failed to save OneSignal settings: {str(retry_err)}")
+
     await write_audit(user["id"], "onesignal_settings_changed", target="settings", meta={"onesignal_app_id": doc["onesignal_app_id"]}, request=request)
     return {"ok": True, "message": "OneSignal credentials updated successfully"}
 
