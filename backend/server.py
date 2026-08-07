@@ -21,7 +21,7 @@ import gzip
 import io
 import re
 import asyncio
-import json as _json
+import json
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
