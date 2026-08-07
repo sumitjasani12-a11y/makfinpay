@@ -6200,8 +6200,21 @@ async def update_admin_recharge_toggles(body: RechargeTogglesIn, request: Reques
     try:
         await db.settings.update_one({"id": "commission"}, {"$set": doc}, upsert=True)
     except Exception as e:
-        logger.error(f"Error updating recharge toggles: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to update settings: {str(e)}")
+        if "does not exist" in str(e).lower():
+            logger.warning(f"Settings column missing, running self-healing migration: {e}")
+            try:
+                async with db.pool.acquire() as conn:
+                    for col_name in ["qr_approved_audio", "qr_rejected_audio", "cc_bill_approved_audio", "cc_bill_rejected_audio", "qr_request_received_audio", "cc_bill_request_received_audio"]:
+                        await conn.execute(f"ALTER TABLE settings ADD COLUMN IF NOT EXISTS {col_name} TEXT DEFAULT ''")
+                    for col_name in ["qr_approved_audio_enabled", "qr_rejected_audio_enabled", "cc_bill_approved_audio_enabled", "cc_bill_rejected_audio_enabled", "qr_request_received_audio_enabled", "cc_bill_request_received_audio_enabled"]:
+                        await conn.execute(f"ALTER TABLE settings ADD COLUMN IF NOT EXISTS {col_name} BOOLEAN DEFAULT TRUE")
+                await db.settings.update_one({"id": "commission"}, {"$set": doc}, upsert=True)
+            except Exception as retry_err:
+                logger.error(f"Error updating recharge toggles after column migration retry: {retry_err}")
+                raise HTTPException(status_code=500, detail=f"Failed to update settings: {str(retry_err)}")
+        else:
+            logger.error(f"Error updating recharge toggles: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to update settings: {str(e)}")
 
     await write_audit(user["id"], "recharge_toggles_changed", target="settings", meta=doc, request=request)
     await manager.broadcast({"event": "settings_updated", "data": doc})
