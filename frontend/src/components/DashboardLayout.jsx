@@ -270,13 +270,35 @@ export default function DashboardLayout() {
     return () => clearInterval(interval);
   }, [fetchWallet, fetchPendingCounts]);
 
+  // Request browser notification permission for admins
+  useEffect(() => {
+    if (user?.role === "admin" && typeof Notification !== "undefined" && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, [user]);
+
   // Register WebSocket listeners to update balance & stats counts in real-time
   useWebSocketListener("recharge_created", (data) => {
     fetchPendingCounts();
     if (user?.role === "admin") {
       playNotificationSound(data?.audio_url, true);
+      const amtStr = data?.amount ? `₹${Number(data.amount).toLocaleString()}` : "";
+      const userStr = data?.user_name ? ` from ${data.user_name}` : "";
+      toast.info(`🚨 New QR Request ${amtStr}${userStr}`, {
+        duration: 8000,
+        action: { label: "View", onClick: () => nav("/admin/recharges") }
+      });
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        try {
+          new Notification("🚨 New QR Request Received!", {
+            body: `${amtStr}${userStr}`,
+            icon: "/assets/makfinpay-favicon.png"
+          });
+        } catch (e) {}
+      }
     }
   });
+
   useWebSocketListener("recharge_updated", (data) => {
     fetchWallet();
     fetchPendingCounts();
@@ -285,24 +307,72 @@ export default function DashboardLayout() {
       playNotificationSound(data.audio_url, isSuccess);
     }
   });
-  useWebSocketListener("kyc_submitted", fetchPendingCounts);
+
+  useWebSocketListener("kyc_submitted", () => {
+    fetchPendingCounts();
+    if (user?.role === "admin") {
+      toast.info("📋 New KYC Request submitted!", {
+        duration: 8000,
+        action: { label: "View KYC", onClick: () => nav("/admin/kyc") }
+      });
+    }
+  });
+
   useWebSocketListener("kyc_updated", () => {
     fetchWallet();
     fetchPendingCounts();
   });
+
   useWebSocketListener("cc_bill_created", (data) => {
     fetchWallet();
     fetchPendingCounts();
     if (user?.role === "admin") {
       playNotificationSound(data?.audio_url, true);
+      const amtStr = data?.amount ? `₹${Number(data.amount).toLocaleString()}` : "";
+      const userStr = data?.user_name ? ` from ${data.user_name}` : "";
+      toast.info(`💳 New CC Bill Request ${amtStr}${userStr}`, {
+        duration: 8000,
+        action: { label: "View", onClick: () => nav("/admin/transactions") }
+      });
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        try {
+          new Notification("💳 New CC Bill Request!", {
+            body: `${amtStr}${userStr}`,
+            icon: "/assets/makfinpay-favicon.png"
+          });
+        } catch (e) {}
+      }
     }
   });
+
   useWebSocketListener("cc_bill_updated", (data) => {
     fetchWallet();
     fetchPendingCounts();
     if (data && user?.role === "agent") {
       const isSuccess = data.status === "success";
       playNotificationSound(data.audio_url, isSuccess);
+    }
+  });
+
+  useWebSocketListener("withdrawal_created", (data) => {
+    fetchWallet();
+    fetchPendingCounts();
+    if (user?.role === "admin") {
+      playNotificationSound(data?.audio_url, true);
+      const amtStr = data?.amount ? `₹${Number(data.amount).toLocaleString()}` : "";
+      const userStr = data?.user_name ? ` from ${data.user_name}` : "";
+      toast.info(`💸 New Withdrawal Request ${amtStr}${userStr}`, {
+        duration: 8000,
+        action: { label: "View", onClick: () => nav("/admin/withdrawals") }
+      });
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        try {
+          new Notification("💸 New Withdrawal Request!", {
+            body: `${amtStr}${userStr}`,
+            icon: "/assets/makfinpay-favicon.png"
+          });
+        } catch (e) {}
+      }
     }
   });
 
