@@ -84,6 +84,9 @@ function OneSignalInitializer() {
   const { user } = useAuth();
 
   React.useEffect(() => {
+    // Strictly ONLY initialize OneSignal push notifications for Admin role
+    if (!user || user.role !== "admin") return;
+
     let isMounted = true;
     api.get("/settings/onesignal-public").then((res) => {
       if (!isMounted) return;
