@@ -4575,18 +4575,31 @@ DEFAULT_BILLER_CATEGORIES = [
 
 async def _get_disabled_biller_categories_set() -> set:
     try:
-        sett = await db.settings.find_one({}, {"_id": 0, "disabled_biller_categories": 1})
-        if sett and sett.get("disabled_biller_categories"):
-            val = sett["disabled_biller_categories"]
-            return set(x.strip() for x in val.split(",") if x.strip())
+        async with db.pool.acquire() as conn:
+            await conn.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS disabled_biller_categories TEXT")
+            row = await conn.fetchrow("SELECT disabled_biller_categories FROM settings LIMIT 1")
+            if row and row["disabled_biller_categories"]:
+                val = row["disabled_biller_categories"]
+                try:
+                    parsed = json.loads(val)
+                    if isinstance(parsed, list):
+                        return set(parsed)
+                except Exception:
+                    return set(x.strip() for x in val.split(",") if x.strip())
     except Exception as e:
         logger.error(f"Error fetching disabled_biller_categories: {e}")
     return set()
 
 async def _save_disabled_biller_categories_set(disabled_set: set):
-    val = ",".join(sorted(list(disabled_set)))
+    val = json.dumps(list(disabled_set))
     try:
-        await db.settings.update_one({}, {"$set": {"disabled_biller_categories": val}}, upsert=True)
+        async with db.pool.acquire() as conn:
+            await conn.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS disabled_biller_categories TEXT")
+            row = await conn.fetchrow("SELECT id FROM settings LIMIT 1")
+            if row:
+                await conn.execute("UPDATE settings SET disabled_biller_categories = $1, updated_at = NOW() WHERE id = $2", val, row["id"])
+            else:
+                await conn.execute("INSERT INTO settings (id, disabled_biller_categories, updated_at) VALUES ($1, $2, NOW())", str(uuid.uuid4()), val)
     except Exception as e:
         logger.error(f"Error saving disabled_biller_categories: {e}")
 
@@ -4605,6 +4618,7 @@ async def get_admin_biller_categories(user=Depends(require_roles("admin"))):
         sorted_cats = sorted(list(all_cat_set))
 
         disabled_set = await _get_disabled_biller_categories_set()
+        disabled_lower = {x.strip().lower() for x in disabled_set}
 
         biller_counts = {}
         try:
@@ -4616,7 +4630,7 @@ async def get_admin_biller_categories(user=Depends(require_roles("admin"))):
 
         categories = []
         for cat_name in sorted_cats:
-            is_enabled = cat_name not in disabled_set
+            is_enabled = cat_name.strip().lower() not in disabled_lower
             categories.append({
                 "category_name": cat_name,
                 "enabled": is_enabled,
@@ -4635,12 +4649,16 @@ class CategoryTogglePayload(BaseModel):
 async def toggle_biller_category(payload: CategoryTogglePayload, user=Depends(require_roles("admin"))):
     try:
         disabled_set = await _get_disabled_biller_categories_set()
-        if payload.enabled:
-            disabled_set.discard(payload.category_name)
-        else:
-            disabled_set.add(payload.category_name)
+        target_name = payload.category_name.strip()
+        
+        # Remove any existing case variations
+        disabled_set = {x for x in disabled_set if x.strip().lower() != target_name.lower()}
+        
+        if not payload.enabled:
+            disabled_set.add(target_name)
+
         await _save_disabled_biller_categories_set(disabled_set)
-        return {"status": "success", "message": f"Category '{payload.category_name}' {'enabled' if payload.enabled else 'disabled'}"}
+        return {"status": "success", "message": f"Category '{target_name}' {'enabled' if payload.enabled else 'disabled'}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to toggle category: {str(e)}")
 
@@ -4681,10 +4699,11 @@ async def get_live_billpay_categories(user=Depends(require_approved_agent())):
         sorted_cats = sorted(list(all_cat_set))
 
         disabled_set = await _get_disabled_biller_categories_set()
+        disabled_lower = {x.strip().lower() for x in disabled_set}
 
         categories_list = []
         for cat_name in sorted_cats:
-            if cat_name not in disabled_set:
+            if cat_name.strip().lower() not in disabled_lower:
                 categories_list.append({
                     "id": cat_name,
                     "category_name": cat_name
