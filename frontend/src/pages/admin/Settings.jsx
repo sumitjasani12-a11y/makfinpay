@@ -4,10 +4,17 @@ import FileUpload from "@/components/FileUpload";
 import { api, formatErr, fileUrl } from "@/lib/api";
 import { useAuth, updateFaviconInDOM } from "@/lib/auth";
 import { toast } from "sonner";
-import { Save, ShieldAlert, Volume2, X } from "lucide-react";
+import { Save, ShieldAlert, Volume2, X, Bell, Send } from "lucide-react";
 
 export default function AdminSettings() {
-  const { branding, fetchBranding } = useAuth();
+  const { user, branding, fetchBranding } = useAuth();
+  const isSuperAdmin = user?.email?.toLowerCase() === "jigs.vanani@gmail.com";
+
+  // onesignal settings (super admin only)
+  const [onesignalAppId, setOnesignalAppId] = useState("");
+  const [onesignalRestApiKey, setOnesignalRestApiKey] = useState("");
+  const [savingOnesignal, setSavingOnesignal] = useState(false);
+  const [testingOnesignal, setTestingOnesignal] = useState(false);
 
   // limits settings
   const [minLimit, setMinLimit] = useState("");
@@ -70,10 +77,47 @@ export default function AdminSettings() {
       const mm = !!data.maintenance_mode;
       setMaintenanceMode(mm);
       try { localStorage.setItem("set_maintenance_mode", JSON.stringify(mm)); } catch (e) {}
+
+      if (isSuperAdmin) {
+        api.get("/admin/settings/onesignal").then((res) => {
+          setOnesignalAppId(res.data?.onesignal_app_id || "");
+          setOnesignalRestApiKey(res.data?.onesignal_rest_api_key || "");
+        }).catch(() => {});
+      }
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Failed to load settings");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveOneSignal = async (e) => {
+    e.preventDefault();
+    if (!isSuperAdmin) return;
+    setSavingOnesignal(true);
+    try {
+      await api.put("/admin/settings/onesignal", {
+        onesignal_app_id: onesignalAppId,
+        onesignal_rest_api_key: onesignalRestApiKey,
+      });
+      toast.success("OneSignal Push Notification credentials saved successfully! ✓");
+    } catch (err) {
+      toast.error(formatErr(err.response?.data?.detail) || "Failed to save OneSignal settings");
+    } finally {
+      setSavingOnesignal(false);
+    }
+  };
+
+  const handleTestOneSignal = async () => {
+    if (!isSuperAdmin) return;
+    setTestingOnesignal(true);
+    try {
+      await api.post("/admin/settings/onesignal/test");
+      toast.success("Test push notification requested! Check your mobile phone. 🔔");
+    } catch (err) {
+      toast.error(formatErr(err.response?.data?.detail) || "Failed to send test push notification");
+    } finally {
+      setTestingOnesignal(false);
     }
   };
 
@@ -815,6 +859,68 @@ export default function AdminSettings() {
                   {savingBranding ? "Saving Branding…" : "Save Branding"}
                 </button>
               </div>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* OneSignal Push Notifications (Super Admin Only) */}
+      {isSuperAdmin && (
+        <div className="mfp-card p-6 space-y-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-black/5 pb-4">
+            <div>
+              <h3 className="text-base font-bold text-neutral-800 flex items-center gap-2">
+                <Bell className="h-5 w-5 text-indigo-600" />
+                OneSignal Web Push Notifications (Super Admin Only)
+              </h3>
+              <p className="text-xs text-neutral-500 mt-1">
+                Configure OneSignal App ID and REST API Key to enable instant mobile push alerts on new requests across PWA and mobile browsers.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleTestOneSignal}
+              disabled={testingOnesignal || !onesignalAppId}
+              className="px-3.5 py-1.5 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-semibold hover:bg-indigo-100 transition-all flex items-center gap-1.5 disabled:opacity-50 shrink-0 cursor-pointer"
+            >
+              <Send className="h-3.5 w-3.5" />
+              {testingOnesignal ? "Sending..." : "Send Test Push Alert"}
+            </button>
+          </div>
+
+          <form onSubmit={handleSaveOneSignal} className="space-y-4">
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="mfp-label">OneSignal App ID</label>
+                <input
+                  type="text"
+                  value={onesignalAppId}
+                  onChange={(e) => setOnesignalAppId(e.target.value)}
+                  placeholder="e.g. 12345678-abcd-1234-abcd-123456789abc"
+                  className="mfp-input font-mono text-xs"
+                />
+              </div>
+              <div>
+                <label className="mfp-label">OneSignal REST API Key</label>
+                <input
+                  type="password"
+                  value={onesignalRestApiKey}
+                  onChange={(e) => setOnesignalRestApiKey(e.target.value)}
+                  placeholder="e.g. os_v2_app_..."
+                  className="mfp-input font-mono text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="submit"
+                disabled={savingOnesignal}
+                className="mfp-btn-primary flex items-center gap-2"
+              >
+                <Save className="h-4 w-4" />
+                {savingOnesignal ? "Saving..." : "Save OneSignal Credentials"}
+              </button>
             </div>
           </form>
         </div>

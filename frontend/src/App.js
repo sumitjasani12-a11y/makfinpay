@@ -2,6 +2,7 @@ import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { api } from "@/lib/api";
 import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -79,9 +80,48 @@ function RoleHome() {
   return <Navigate to="/agent" replace />;
 }
 
+function OneSignalInitializer() {
+  const { user } = useAuth();
+
+  React.useEffect(() => {
+    let isMounted = true;
+    api.get("/settings/onesignal-public").then((res) => {
+      if (!isMounted) return;
+      const appId = res.data?.onesignal_app_id;
+      if (!appId) return;
+
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      window.OneSignalDeferred.push(async function(OneSignal) {
+        try {
+          await OneSignal.init({
+            appId: appId,
+            allowLocalhostAsSecureOrigin: true,
+          });
+          if (user?.id) {
+            OneSignal.login(user.id);
+            if (user.role) {
+              OneSignal.User.addTag("role", user.role);
+            }
+            if (user.email) {
+              OneSignal.User.addTag("email", user.email);
+            }
+          }
+        } catch (err) {
+          console.error("OneSignal init error:", err);
+        }
+      });
+    }).catch(() => {});
+
+    return () => { isMounted = false; };
+  }, [user]);
+
+  return null;
+}
+
 export default function App() {
   return (
     <AuthProvider>
+      <OneSignalInitializer />
       <BrowserRouter>
         <PageTitle />
         <Toaster position="top-right" richColors />

@@ -3742,6 +3742,12 @@ async def agent_create_recharge(body: RechargeIn, user=Depends(require_approved_
     req_audio_enabled = bool(s_set.get("qr_request_received_audio_enabled", True))
     req_audio = s_set.get("qr_request_received_audio", "") if req_audio_enabled else ""
     await manager.send_to_role("admin", {"event": "recharge_created", "data": {**clean(doc), "audio_url": req_audio, "audio_enabled": req_audio_enabled}})
+    asyncio.create_task(send_onesignal_notification(
+        title="🚨 New QR Request Received!",
+        message=f"₹{body.amount:,.2f} request from {user.get('full_name', 'Agent')}",
+        target_roles=["admin"],
+        url="https://makfinpay.com/admin/recharges"
+    ))
     return clean(doc)
 
 @api.get("/agent/recharges")
@@ -4189,6 +4195,12 @@ async def admin_approve_recharge(rid: str, body: ApprovalIn, request: Request, u
     approved_audio = s_set.get("qr_approved_audio", "") if app_enabled else ""
     await manager.send_to_user(r["user_id"], {"event": "recharge_updated", "data": {"id": rid, "status": "approved", "audio_url": approved_audio, "audio_enabled": app_enabled}})
     await manager.send_to_role("admin", {"event": "recharge_updated", "data": {"id": rid, "status": "approved"}})
+    asyncio.create_task(send_onesignal_notification(
+        title="✅ QR Request Approved",
+        message=f"Your ₹{gross:,.2f} QR Recharge request was approved!",
+        target_user_ids=[r["user_id"]],
+        url="https://makfinpay.com/agent/cc-bill-history"
+    ))
     return {"ok": True}
 
 @api.post("/admin/recharges/{rid}/reject")
@@ -4216,6 +4228,12 @@ async def admin_reject_recharge(rid: str, body: ApprovalIn, request: Request, us
     rejected_audio = s_set.get("qr_rejected_audio", "") if rej_enabled else ""
     await manager.send_to_user(r["user_id"], {"event": "recharge_updated", "data": {"id": rid, "status": "rejected", "audio_url": rejected_audio, "audio_enabled": rej_enabled}})
     await manager.send_to_role("admin", {"event": "recharge_updated", "data": {"id": rid, "status": "rejected"}})
+    asyncio.create_task(send_onesignal_notification(
+        title="❌ QR Request Rejected",
+        message=f"Your ₹{r.get('amount', 0):,.2f} QR Recharge request was rejected.",
+        target_user_ids=[r["user_id"]],
+        url="https://makfinpay.com/agent/cc-bill-history"
+    ))
     return {"ok": True}
 
 @api.put("/admin/recharges/{rid}/qr-code")
@@ -4308,6 +4326,12 @@ async def agent_bill_payment(body: BillPaymentIn, user=Depends(require_approved_
     req_audio_enabled = bool(s_set.get("cc_bill_request_received_audio_enabled", True))
     req_audio = s_set.get("cc_bill_request_received_audio", "") if req_audio_enabled else ""
     await manager.send_to_role("admin", {"event": "cc_bill_created", "data": {**clean(tx), "audio_url": req_audio, "audio_enabled": req_audio_enabled}})
+    asyncio.create_task(send_onesignal_notification(
+        title="💳 New CC Bill Request!",
+        message=f"₹{body.amount:,.2f} request from {user.get('full_name', 'Agent')}",
+        target_roles=["admin"],
+        url="https://makfinpay.com/admin/transactions"
+    ))
     return clean(tx)
 
 @api.get("/agent/transactions")
@@ -6465,6 +6489,98 @@ async def update_branding_settings(body: BrandingSettingsIn, request: Request, u
     await write_audit(user["id"], "branding_settings_changed", target="settings", meta=doc, request=request)
     return doc
 
+# ---------- ONESIGNAL PUSH NOTIFICATIONS ----------
+class OneSignalSettingsIn(BaseModel):
+    onesignal_app_id: str
+    onesignal_rest_api_key: str
+
+async def send_onesignal_notification(
+    title: str,
+    message: str,
+    target_roles: Optional[List[str]] = None,
+    target_user_ids: Optional[List[str]] = None,
+    url: Optional[str] = None
+):
+    try:
+        s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+        app_id = (s.get("onesignal_app_id") or "").strip()
+        api_key = (s.get("onesignal_rest_api_key") or "").strip()
+        if not app_id or not api_key:
+            return
+        
+        headers = {
+            "Content-Type": "application/json; charset=utf-8",
+            "Authorization": f"Basic {api_key}"
+        }
+        
+        payload = {
+            "app_id": app_id,
+            "headings": {"en": title},
+            "contents": {"en": message},
+            "url": url or "https://makfinpay.com/"
+        }
+        
+        if target_user_ids:
+            payload["include_aliases"] = {"external_id": target_user_ids}
+            payload["target_channel"] = "push"
+        elif target_roles:
+            filters = []
+            for idx, role in enumerate(target_roles):
+                if idx > 0:
+                    filters.append({"operator": "OR"})
+                filters.append({"field": "tag", "key": "role", "relation": "=", "value": role})
+            payload["filters"] = filters
+        else:
+            payload["filters"] = [{"field": "tag", "key": "role", "relation": "=", "value": "admin"}]
+            
+        async with httpx.AsyncClient() as client:
+            res = await client.post("https://onesignal.com/api/v1/notifications", json=payload, headers=headers, timeout=10.0)
+            logger.info(f"OneSignal Push response: {res.status_code} - {res.text}")
+    except Exception as e:
+        logger.error(f"Failed to send OneSignal notification: {e}")
+
+@api.get("/settings/onesignal-public")
+async def get_public_onesignal_app_id():
+    s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    return {
+        "onesignal_app_id": (s.get("onesignal_app_id") or "").strip()
+    }
+
+@api.get("/admin/settings/onesignal")
+async def get_onesignal_settings(user=Depends(require_roles("admin"))):
+    if not is_super_admin(user):
+        raise HTTPException(403, "Access denied: Only Super Admin (jigs.vanani@gmail.com) can access OneSignal configuration.")
+    s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    return {
+        "onesignal_app_id": s.get("onesignal_app_id") or "",
+        "onesignal_rest_api_key": s.get("onesignal_rest_api_key") or ""
+    }
+
+@api.put("/admin/settings/onesignal")
+async def update_onesignal_settings(body: OneSignalSettingsIn, request: Request, user=Depends(require_roles("admin"))):
+    if not is_super_admin(user):
+        raise HTTPException(403, "Access denied: Only Super Admin (jigs.vanani@gmail.com) can update OneSignal configuration.")
+    doc = {
+        "onesignal_app_id": body.onesignal_app_id.strip(),
+        "onesignal_rest_api_key": body.onesignal_rest_api_key.strip(),
+        "updated_at": now_iso()
+    }
+    await db.settings.update_one({"id": "commission"}, {"$set": doc}, upsert=True)
+    await write_audit(user["id"], "onesignal_settings_changed", target="settings", meta={"onesignal_app_id": doc["onesignal_app_id"]}, request=request)
+    return {"ok": True, "message": "OneSignal credentials updated successfully"}
+
+@api.post("/admin/settings/onesignal/test")
+async def test_onesignal_notification(request: Request, user=Depends(require_roles("admin"))):
+    if not is_super_admin(user):
+        raise HTTPException(403, "Access denied: Only Super Admin can send test OneSignal notifications.")
+    await send_onesignal_notification(
+        title="🔔 OneSignal Test Notification",
+        message="Push notifications are working perfectly on MAK FIN PAY!",
+        target_roles=["admin"],
+        url="https://makfinpay.com/admin"
+    )
+    return {"ok": True, "message": "Test push notification requested successfully"}
+
 class AdminAdjustmentIn(BaseModel):
     type: str  # credit | debit
     amount: float
@@ -7366,6 +7482,8 @@ async def _ensure_indexes() -> None:
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS favicon_path TEXT DEFAULT \'\'')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS logo_collapsed_path TEXT DEFAULT \'\'')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS watermark_path TEXT DEFAULT \'\'')
+        await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS onesignal_app_id TEXT DEFAULT \'\'')
+        await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS onesignal_rest_api_key TEXT DEFAULT \'\'')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS qr_approved_audio TEXT DEFAULT \'\'')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS qr_rejected_audio TEXT DEFAULT \'\'')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS cc_bill_approved_audio TEXT DEFAULT \'\'')
