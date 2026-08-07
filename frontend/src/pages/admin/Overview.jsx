@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/Shared";
 import { 
   Loader2, TrendingUp, Activity, ArrowUpRight, Wallet, 
   Coins, FileText, ArrowUpFromLine, Clock, ShieldCheck, 
-  Users, UserCog, Crown, ArrowRight, ClipboardList 
+  Users, UserCog, Crown, ArrowRight, ClipboardList, RefreshCw 
 } from "lucide-react";
 import { toast } from "sonner";
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from "recharts";
@@ -213,11 +213,20 @@ export default function AdminOverview() {
         title="Platform overview"
         subtitle="Real-time fintech operations at a glance."
         actions={
-          <div className="flex items-center gap-3 pr-4 md:pr-6">
+          <div className="flex items-center gap-2 pr-4 md:pr-6">
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              title="Reload Site & Refresh All Data"
+              className="p-2.5 rounded-2xl bg-white border border-black/10 text-neutral-700 hover:text-[#1b4332] hover:bg-neutral-50 active:scale-95 transition-all shadow-sm flex items-center justify-center cursor-pointer group"
+              data-testid="dashboard-reload-btn"
+            >
+              <RefreshCw className="h-4 w-4 group-hover:rotate-180 transition-transform duration-500 text-neutral-600" />
+            </button>
             <select
               value={range}
               onChange={(e) => setRange(e.target.value)}
-              className="bg-white border border-black/10 rounded-2xl px-4 py-2.5 text-xs font-bold text-neutral-700 focus:outline-none focus:ring-1 focus:ring-[#1b4332] transition-all shadow-sm select-none"
+              className="bg-white border border-black/10 rounded-2xl px-4 py-2.5 text-xs font-bold text-neutral-700 focus:outline-none focus:ring-1 focus:ring-[#1b4332] transition-all shadow-sm select-none cursor-pointer"
               data-testid="range-filter-bar"
             >
               {RANGES.map((r) => (
