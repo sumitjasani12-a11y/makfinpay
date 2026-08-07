@@ -302,9 +302,25 @@ export default function DashboardLayout() {
   useWebSocketListener("recharge_updated", (data) => {
     fetchWallet();
     fetchPendingCounts();
-    if (data && user?.role === "agent") {
-      const isSuccess = data.status === "approved";
-      playNotificationSound(data.audio_url, isSuccess);
+    if (data) {
+      const isApproved = data.status === "approved";
+      const statusTitle = isApproved ? "✅ QR Request Approved!" : "❌ QR Request Rejected!";
+      if (data.audio_url) {
+        playNotificationSound(data.audio_url, isApproved);
+      }
+      if (isApproved) {
+        toast.success(statusTitle, { duration: 6000 });
+      } else {
+        toast.error(statusTitle, { duration: 6000 });
+      }
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        try {
+          new Notification(statusTitle, {
+            body: `Request ID: ${data.id}`,
+            icon: "/assets/makfinpay-favicon.png"
+          });
+        } catch (e) {}
+      }
     }
   });
 
@@ -348,9 +364,25 @@ export default function DashboardLayout() {
   useWebSocketListener("cc_bill_updated", (data) => {
     fetchWallet();
     fetchPendingCounts();
-    if (data && user?.role === "agent") {
-      const isSuccess = data.status === "success";
-      playNotificationSound(data.audio_url, isSuccess);
+    if (data) {
+      const isSuccess = data.status === "success" || data.status === "approved";
+      const statusTitle = isSuccess ? "✅ CC Bill Payment Approved!" : "❌ CC Bill Payment Reversed/Rejected!";
+      if (data.audio_url) {
+        playNotificationSound(data.audio_url, isSuccess);
+      }
+      if (isSuccess) {
+        toast.success(statusTitle, { duration: 6000 });
+      } else {
+        toast.error(statusTitle, { duration: 6000 });
+      }
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        try {
+          new Notification(statusTitle, {
+            body: `Transaction ID: ${data.id}`,
+            icon: "/assets/makfinpay-favicon.png"
+          });
+        } catch (e) {}
+      }
     }
   });
 

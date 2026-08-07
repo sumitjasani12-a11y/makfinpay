@@ -4197,9 +4197,9 @@ async def admin_approve_recharge(rid: str, body: ApprovalIn, request: Request, u
     await manager.send_to_role("admin", {"event": "recharge_updated", "data": {"id": rid, "status": "approved"}})
     asyncio.create_task(send_onesignal_notification(
         title="✅ QR Request Approved",
-        message=f"Your ₹{gross:,.2f} QR Recharge request was approved!",
-        target_user_ids=[r["user_id"]],
-        url="https://makfinpay.com/agent/cc-bill-history"
+        message=f"₹{gross:,.2f} QR Recharge for {r.get('user_name', 'Agent')} was approved!",
+        broadcast=True,
+        url="https://makfinpay.com/admin/recharges"
     ))
     return {"ok": True}
 
@@ -4230,9 +4230,9 @@ async def admin_reject_recharge(rid: str, body: ApprovalIn, request: Request, us
     await manager.send_to_role("admin", {"event": "recharge_updated", "data": {"id": rid, "status": "rejected"}})
     asyncio.create_task(send_onesignal_notification(
         title="❌ QR Request Rejected",
-        message=f"Your ₹{r.get('amount', 0):,.2f} QR Recharge request was rejected.",
-        target_user_ids=[r["user_id"]],
-        url="https://makfinpay.com/agent/cc-bill-history"
+        message=f"₹{r.get('amount', 0):,.2f} QR Recharge for {r.get('user_name', 'Agent')} was rejected.",
+        broadcast=True,
+        url="https://makfinpay.com/admin/recharges"
     ))
     return {"ok": True}
 
@@ -5253,6 +5253,12 @@ async def admin_approve_transaction(tid: str, body: ApprovalIn, request: Request
     approved_audio = s_set.get("cc_bill_approved_audio", "")
     await manager.send_to_user(t["user_id"], {"event": "cc_bill_updated", "data": {"id": tid, "status": "success", "audio_url": approved_audio}})
     await manager.send_to_role("admin", {"event": "cc_bill_updated", "data": {"id": tid, "status": "success"}})
+    asyncio.create_task(send_onesignal_notification(
+        title="✅ CC Bill Payment Approved",
+        message=f"₹{t.get('amount', 0):,.2f} CC Bill payment for {t.get('user_name', 'Agent')} was approved!",
+        broadcast=True,
+        url="https://makfinpay.com/admin/transactions"
+    ))
     return {"ok": True}
 
 @api.post("/admin/transactions/{tid}/reject")
@@ -5282,6 +5288,12 @@ async def admin_reject_transaction(tid: str, body: ApprovalIn, request: Request,
     rejected_audio = s_set.get("cc_bill_rejected_audio", "")
     await manager.send_to_user(t["user_id"], {"event": "cc_bill_updated", "data": {"id": tid, "status": "reversed", "audio_url": rejected_audio}})
     await manager.send_to_role("admin", {"event": "cc_bill_updated", "data": {"id": tid, "status": "reversed"}})
+    asyncio.create_task(send_onesignal_notification(
+        title="❌ CC Bill Payment Reversed",
+        message=f"₹{t.get('amount', 0):,.2f} CC Bill payment for {t.get('user_name', 'Agent')} was reversed.",
+        broadcast=True,
+        url="https://makfinpay.com/admin/transactions"
+    ))
     return {"ok": True}
 
 @api.post("/admin/live-billpay/{tid}/approve")
