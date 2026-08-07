@@ -4573,56 +4573,56 @@ DEFAULT_BILLER_CATEGORIES = [
     "Prepaid Meter", "Rental", "Subscription", "Water"
 ]
 
-async def _ensure_biller_categories_table_exists(conn):
+async def _get_disabled_biller_categories_set() -> set:
     try:
-        await conn.execute('''
-            CREATE TABLE IF NOT EXISTS biller_categories (
-                category_name VARCHAR(255) PRIMARY KEY,
-                enabled BOOLEAN DEFAULT TRUE,
-                updated_at TIMESTAMPTZ
-            )
-        ''')
+        sett = await db.settings.find_one({}, {"_id": 0, "disabled_biller_categories": 1})
+        if sett and sett.get("disabled_biller_categories"):
+            val = sett["disabled_biller_categories"]
+            return set(x.strip() for x in val.split(",") if x.strip())
     except Exception as e:
-        logger.error(f"Failed to auto-create biller_categories table: {e}")
+        logger.error(f"Error fetching disabled_biller_categories: {e}")
+    return set()
+
+async def _save_disabled_biller_categories_set(disabled_set: set):
+    val = ",".join(sorted(list(disabled_set)))
+    try:
+        await db.settings.update_one({}, {"$set": {"disabled_biller_categories": val}}, upsert=True)
+    except Exception as e:
+        logger.error(f"Error saving disabled_biller_categories: {e}")
 
 @api.get("/admin/biller-categories")
 async def get_admin_biller_categories(user=Depends(require_roles("admin"))):
     try:
-        async with db.pool.acquire() as conn:
-            await _ensure_biller_categories_table_exists(conn)
+        cat_rows = []
+        try:
+            async with db.pool.acquire() as conn:
+                rows = await conn.fetch("SELECT DISTINCT category FROM billers WHERE category IS NOT NULL AND category != ''")
+                cat_rows = [r["category"] for r in rows]
+        except Exception:
+            pass
 
-            try:
-                cat_rows = await conn.fetch(
-                    "SELECT DISTINCT category FROM billers WHERE category IS NOT NULL AND category != ''"
-                )
-                db_cats = [r["category"] for r in cat_rows]
-            except Exception:
-                db_cats = []
+        all_cat_set = set(DEFAULT_BILLER_CATEGORIES + cat_rows)
+        sorted_cats = sorted(list(all_cat_set))
 
-            all_cat_set = set(DEFAULT_BILLER_CATEGORIES + db_cats)
-            sorted_cats = sorted(list(all_cat_set))
+        disabled_set = await _get_disabled_biller_categories_set()
 
-            try:
-                cat_map_rows = await conn.fetch("SELECT category_name, enabled FROM biller_categories")
-                status_map = {r["category_name"]: r["enabled"] for r in cat_map_rows}
-            except Exception:
-                status_map = {}
-
-            try:
+        biller_counts = {}
+        try:
+            async with db.pool.acquire() as conn:
                 count_rows = await conn.fetch("SELECT category, COUNT(*) as cnt FROM billers GROUP BY category")
                 biller_counts = {r["category"]: r["cnt"] for r in count_rows}
-            except Exception:
-                biller_counts = {}
+        except Exception:
+            pass
 
-            categories = []
-            for cat_name in sorted_cats:
-                is_enabled = status_map.get(cat_name, True)
-                categories.append({
-                    "category_name": cat_name,
-                    "enabled": is_enabled,
-                    "biller_count": biller_counts.get(cat_name, 0)
-                })
-            return {"status": "success", "data": categories}
+        categories = []
+        for cat_name in sorted_cats:
+            is_enabled = cat_name not in disabled_set
+            categories.append({
+                "category_name": cat_name,
+                "enabled": is_enabled,
+                "biller_count": biller_counts.get(cat_name, 0)
+            })
+        return {"status": "success", "data": categories}
     except Exception as e:
         logger.error(f"Failed to fetch biller categories: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch biller categories: {str(e)}")
@@ -4634,14 +4634,12 @@ class CategoryTogglePayload(BaseModel):
 @api.post("/admin/biller-categories/toggle")
 async def toggle_biller_category(payload: CategoryTogglePayload, user=Depends(require_roles("admin"))):
     try:
-        async with db.pool.acquire() as conn:
-            await _ensure_biller_categories_table_exists(conn)
-            await conn.execute('''
-                INSERT INTO biller_categories (category_name, enabled, updated_at)
-                VALUES ($1, $2, NOW())
-                ON CONFLICT (category_name) 
-                DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = NOW()
-            ''', payload.category_name, payload.enabled)
+        disabled_set = await _get_disabled_biller_categories_set()
+        if payload.enabled:
+            disabled_set.discard(payload.category_name)
+        else:
+            disabled_set.add(payload.category_name)
+        await _save_disabled_biller_categories_set(disabled_set)
         return {"status": "success", "message": f"Category '{payload.category_name}' {'enabled' if payload.enabled else 'disabled'}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to toggle category: {str(e)}")
@@ -4652,24 +4650,18 @@ class BulkCategoryTogglePayload(BaseModel):
 @api.post("/admin/biller-categories/toggle-all")
 async def toggle_all_biller_categories(payload: BulkCategoryTogglePayload, user=Depends(require_roles("admin"))):
     try:
-        async with db.pool.acquire() as conn:
-            await _ensure_biller_categories_table_exists(conn)
+        if payload.enabled:
+            await _save_disabled_biller_categories_set(set())
+        else:
+            cat_rows = []
             try:
-                cat_rows = await conn.fetch(
-                    "SELECT DISTINCT category FROM billers WHERE category IS NOT NULL AND category != ''"
-                )
-                db_cats = [r["category"] for r in cat_rows]
+                async with db.pool.acquire() as conn:
+                    rows = await conn.fetch("SELECT DISTINCT category FROM billers WHERE category IS NOT NULL AND category != ''")
+                    cat_rows = [r["category"] for r in rows]
             except Exception:
-                db_cats = []
-            all_cats = list(set(DEFAULT_BILLER_CATEGORIES + db_cats))
-
-            for cat_name in all_cats:
-                await conn.execute('''
-                    INSERT INTO biller_categories (category_name, enabled, updated_at)
-                    VALUES ($1, $2, NOW())
-                    ON CONFLICT (category_name) 
-                    DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = NOW()
-                ''', cat_name, payload.enabled)
+                pass
+            all_cats = set(DEFAULT_BILLER_CATEGORIES + cat_rows)
+            await _save_disabled_biller_categories_set(all_cats)
         return {"status": "success", "message": f"All categories {'enabled' if payload.enabled else 'disabled'}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to bulk toggle categories: {str(e)}")
@@ -4677,33 +4669,27 @@ async def toggle_all_biller_categories(payload: BulkCategoryTogglePayload, user=
 @api.get("/agent/live-billpay/categories")
 async def get_live_billpay_categories(user=Depends(require_approved_agent())):
     try:
-        async with db.pool.acquire() as conn:
-            await _ensure_biller_categories_table_exists(conn)
-            try:
-                rows = await conn.fetch(
-                    "SELECT DISTINCT category FROM billers WHERE category IS NOT NULL AND category != ''"
-                )
+        db_cats = []
+        try:
+            async with db.pool.acquire() as conn:
+                rows = await conn.fetch("SELECT DISTINCT category FROM billers WHERE category IS NOT NULL AND category != ''")
                 db_cats = [r["category"] for r in rows]
-            except Exception:
-                db_cats = []
+        except Exception:
+            pass
 
-            all_cat_set = set(DEFAULT_BILLER_CATEGORIES + db_cats)
-            sorted_cats = sorted(list(all_cat_set))
+        all_cat_set = set(DEFAULT_BILLER_CATEGORIES + db_cats)
+        sorted_cats = sorted(list(all_cat_set))
 
-            try:
-                disabled_rows = await conn.fetch("SELECT category_name FROM biller_categories WHERE enabled = FALSE")
-                disabled_set = {r["category_name"] for r in disabled_rows}
-            except Exception:
-                disabled_set = set()
+        disabled_set = await _get_disabled_biller_categories_set()
 
-            categories_list = []
-            for cat_name in sorted_cats:
-                if cat_name not in disabled_set:
-                    categories_list.append({
-                        "id": cat_name,
-                        "category_name": cat_name
-                    })
-            return {"status": "success", "data": categories_list}
+        categories_list = []
+        for cat_name in sorted_cats:
+            if cat_name not in disabled_set:
+                categories_list.append({
+                    "id": cat_name,
+                    "category_name": cat_name
+                })
+        return {"status": "success", "data": categories_list}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch categories from database: {str(e)}")
 
