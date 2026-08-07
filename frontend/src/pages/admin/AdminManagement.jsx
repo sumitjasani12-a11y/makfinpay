@@ -25,6 +25,8 @@ const PERMISSIONS_LIST = [
   { key: "commission", label: "Set Commission" },
   { key: "service-slabs", label: "Service Slabs" },
   { key: "banks", label: "Bank Entry" },
+  { key: "cc-billers", label: "CC Billers" },
+  { key: "biller-categories", label: "Biller Category" },
   { key: "kyc", label: "KYC Requests" },
   { key: "reasons", label: "Reason Entry" },
   { key: "audit", label: "Audit Logs" },
