@@ -663,10 +663,14 @@ export default function LiveBillPay() {
         reloadHistory();
         window.dispatchEvent(new CustomEvent("ws:wallet_update"));
       } else {
-        toast.error(res.data?.message || "Payment rejected by operator.");
+        const rawMsg = res.data?.message || "Payment rejected by operator.";
+        const displayMsg = /insufficient|balance/i.test(rawMsg) ? "Transaction failed" : rawMsg;
+        toast.error(displayMsg);
       }
     } catch (e) {
-      toast.error(formatErr(e.response?.data?.detail) || "Error processing bill payment");
+      const errDetail = formatErr(e.response?.data?.detail) || "Error processing bill payment";
+      const displayMsg = /insufficient|balance/i.test(errDetail) ? "Transaction failed" : errDetail;
+      toast.error(displayMsg);
     } finally {
       setLoadingPay(false);
     }

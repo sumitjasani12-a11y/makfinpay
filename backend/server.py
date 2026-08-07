@@ -4282,6 +4282,11 @@ async def call_irise_api(method: str, endpoint: str, params: dict = None, json_d
             detail = err_data.get("message") or err_data.get("detail") or str(e)
         except Exception:
             detail = r.text or str(e)
+            
+        detail_str = str(detail).lower()
+        if "insufficient balance" in detail_str or "insufficient" in detail_str or "balance" in detail_str:
+            raise HTTPException(status_code=r.status_code, detail="Transaction failed")
+            
         raise HTTPException(status_code=r.status_code, detail=f"Irise API Error: {detail}")
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Failed to connect to Irise API: {str(e)}")
@@ -4597,23 +4602,27 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
             return {"status": "pending", "transaction_id": tid, "message": "Bill payment is awaited/pending with operator."}
         else:
             new_balance_refund = await adjust_balance(user["id"], total_amount)
-            err_msg = res.get("message") or res.get("msg") or res.get("response_reason") or "Rejected by operator"
+            raw_err = res.get("message") or res.get("msg") or res.get("response_reason") or "Rejected by operator"
+            err_str = str(raw_err).lower()
+            err_msg = "Transaction failed" if ("insufficient" in err_str or "balance" in err_str) else raw_err
             await db.transactions.update_one({"id": tid}, {"$set": {
                 "status": "reversed", 
                 "reviewed_at": now_iso(), 
                 "reviewed_by": None, 
                 "operator_txn_id": usepay_txn_id,
                 "api_charge": 0.0,
-                "note": f"Payment failed: {err_msg}"
+                "note": f"Payment failed: {raw_err}"
             }})
             await ledger_entry(
                 user["id"], "refund", total_amount, new_balance_refund, "live_bill_refund", tid,
-                f"Refund: Failed Live Bill Pay for {body.mobile} ({err_msg})"
+                f"Refund: Failed Live Bill Pay for {body.mobile} ({raw_err})"
             )
             return {"status": "failed", "message": err_msg}
     except HTTPException as e:
         if e.status_code < 500:
             new_balance_refund = await adjust_balance(user["id"], total_amount)
+            detail_str = str(e.detail).lower()
+            out_detail = "Transaction failed" if ("insufficient" in detail_str or "balance" in detail_str) else e.detail
             await db.transactions.update_one({"id": tid}, {"$set": {
                 "status": "reversed",
                 "reviewed_at": now_iso(),
@@ -4625,7 +4634,7 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
                 user["id"], "refund", total_amount, new_balance_refund, "live_bill_refund", tid,
                 f"Refund: Failed Live Bill Pay for {body.mobile} - {e.detail}"
             )
-            raise e
+            raise HTTPException(status_code=e.status_code, detail=out_detail)
         else:
             await db.transactions.update_one({"id": tid}, {"$set": {"note": f"API Connection error: {e.detail}"}})
             return {"status": "pending", "transaction_id": tid, "message": f"Connection check pending: {e.detail}"}
