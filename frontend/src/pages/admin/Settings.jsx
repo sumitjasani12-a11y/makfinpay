@@ -92,14 +92,6 @@ export default function AdminSettings() {
 
   const handleAudioUploaded = async (field, rawPath) => {
     const path = typeof rawPath === "string" ? rawPath : (rawPath?.path || rawPath?.url || "");
-    const updatedState = {
-      qr_approved_audio: field === "qr_approved_audio" ? path : (typeof qrApprovedAudio === "string" ? qrApprovedAudio : ""),
-      qr_rejected_audio: field === "qr_rejected_audio" ? path : (typeof qrRejectedAudio === "string" ? qrRejectedAudio : ""),
-      cc_bill_approved_audio: field === "cc_bill_approved_audio" ? path : (typeof ccBillApprovedAudio === "string" ? ccBillApprovedAudio : ""),
-      cc_bill_rejected_audio: field === "cc_bill_rejected_audio" ? path : (typeof ccBillRejectedAudio === "string" ? ccBillRejectedAudio : ""),
-      qr_request_received_audio: field === "qr_request_received_audio" ? path : (typeof qrRequestReceivedAudio === "string" ? qrRequestReceivedAudio : ""),
-      cc_bill_request_received_audio: field === "cc_bill_request_received_audio" ? path : (typeof ccBillRequestReceivedAudio === "string" ? ccBillRequestReceivedAudio : ""),
-    };
 
     if (field === "qr_approved_audio") setQrApprovedAudio(path);
     if (field === "qr_rejected_audio") setQrRejectedAudio(path);
@@ -109,7 +101,7 @@ export default function AdminSettings() {
     if (field === "cc_bill_request_received_audio") setCcBillRequestReceivedAudio(path);
 
     try {
-      await api.put("/admin/settings/recharge-toggles", updatedState);
+      await api.put("/admin/settings/recharge-toggles", { [field]: path });
       toast.success(path ? "Audio notification saved successfully ✓" : "Audio sound removed ✓");
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Failed to save audio setting");
@@ -125,14 +117,7 @@ export default function AdminSettings() {
     if (field === "cc_bill_request_received_audio_enabled") setCcBillRequestReceivedAudioEnabled(val);
 
     try {
-      await api.put("/admin/settings/recharge-toggles", {
-        qr_approved_audio_enabled: field === "qr_approved_audio_enabled" ? val : qrApprovedAudioEnabled,
-        qr_rejected_audio_enabled: field === "qr_rejected_audio_enabled" ? val : qrRejectedAudioEnabled,
-        cc_bill_approved_audio_enabled: field === "cc_bill_approved_audio_enabled" ? val : ccBillApprovedAudioEnabled,
-        cc_bill_rejected_audio_enabled: field === "cc_bill_rejected_audio_enabled" ? val : ccBillRejectedAudioEnabled,
-        qr_request_received_audio_enabled: field === "qr_request_received_audio_enabled" ? val : qrRequestReceivedAudioEnabled,
-        cc_bill_request_received_audio_enabled: field === "cc_bill_request_received_audio_enabled" ? val : ccBillRequestReceivedAudioEnabled,
-      });
+      await api.put("/admin/settings/recharge-toggles", { [field]: val });
       toast.success(val ? "Audio sound enabled 🟢" : "Audio sound disabled (Muted) 🔴");
     } catch (e) {
       toast.error("Failed to update audio toggle");
@@ -144,12 +129,12 @@ export default function AdminSettings() {
     setSavingAudio(true);
     try {
       await api.put("/admin/settings/recharge-toggles", {
-        qr_approved_audio: qrApprovedAudio,
-        qr_rejected_audio: qrRejectedAudio,
-        cc_bill_approved_audio: ccBillApprovedAudio,
-        cc_bill_rejected_audio: ccBillRejectedAudio,
-        qr_request_received_audio: qrRequestReceivedAudio,
-        cc_bill_request_received_audio: ccBillRequestReceivedAudio,
+        qr_approved_audio: qrApprovedAudio || "",
+        qr_rejected_audio: qrRejectedAudio || "",
+        cc_bill_approved_audio: ccBillApprovedAudio || "",
+        cc_bill_rejected_audio: ccBillRejectedAudio || "",
+        qr_request_received_audio: qrRequestReceivedAudio || "",
+        cc_bill_request_received_audio: ccBillRequestReceivedAudio || "",
         qr_approved_audio_enabled: qrApprovedAudioEnabled,
         qr_rejected_audio_enabled: qrRejectedAudioEnabled,
         cc_bill_approved_audio_enabled: ccBillApprovedAudioEnabled,

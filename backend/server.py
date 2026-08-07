@@ -6149,29 +6149,28 @@ async def update_admin_recharge_limits(body: RechargeLimitsIn, request: Request,
 
 @api.put("/admin/settings/recharge-toggles")
 async def update_admin_recharge_toggles(body: RechargeTogglesIn, request: Request, user=Depends(require_roles("admin"))):
-    settings = await db.settings.find_one({"id": "commission"}) or {}
-    qr_val = body.qr_enabled if body.qr_enabled is not None else settings.get("qr_enabled", True)
-    t1_qr_val = body.t1_qr_enabled if body.t1_qr_enabled is not None else settings.get("t1_qr_enabled", True)
-    recharge_val = body.recharge_enabled if body.recharge_enabled is not None else settings.get("recharge_enabled", True)
-    t1_recharge_val = body.t1_recharge_enabled if body.t1_recharge_enabled is not None else settings.get("t1_recharge_enabled", True)
-    withdrawal_val = body.withdrawal_enabled if body.withdrawal_enabled is not None else settings.get("withdrawal_enabled", True)
-    bill_pay_val = body.bill_pay_enabled if body.bill_pay_enabled is not None else settings.get("bill_pay_enabled", True)
-    live_bill_val = body.live_bill_enabled if body.live_bill_enabled is not None else settings.get("live_bill_enabled", True)
-    live_bill_api_charge_val = body.live_bill_api_charge if body.live_bill_api_charge is not None else float(settings.get("live_bill_api_charge", 0.0))
-    maintenance_mode_val = body.maintenance_mode if body.maintenance_mode is not None else settings.get("maintenance_mode", False)
-    
     doc = {
-        "qr_enabled": qr_val,
-        "t1_qr_enabled": t1_qr_val,
-        "recharge_enabled": recharge_val,
-        "t1_recharge_enabled": t1_recharge_val,
-        "withdrawal_enabled": withdrawal_val,
-        "bill_pay_enabled": bill_pay_val,
-        "live_bill_enabled": live_bill_val,
-        "live_bill_api_charge": live_bill_api_charge_val,
-        "maintenance_mode": maintenance_mode_val,
         "updated_at": now_iso()
     }
+    if body.qr_enabled is not None:
+        doc["qr_enabled"] = body.qr_enabled
+    if body.t1_qr_enabled is not None:
+        doc["t1_qr_enabled"] = body.t1_qr_enabled
+    if body.recharge_enabled is not None:
+        doc["recharge_enabled"] = body.recharge_enabled
+    if body.t1_recharge_enabled is not None:
+        doc["t1_recharge_enabled"] = body.t1_recharge_enabled
+    if body.withdrawal_enabled is not None:
+        doc["withdrawal_enabled"] = body.withdrawal_enabled
+    if body.bill_pay_enabled is not None:
+        doc["bill_pay_enabled"] = body.bill_pay_enabled
+    if body.live_bill_enabled is not None:
+        doc["live_bill_enabled"] = body.live_bill_enabled
+    if body.live_bill_api_charge is not None:
+        doc["live_bill_api_charge"] = body.live_bill_api_charge
+    if body.maintenance_mode is not None:
+        doc["maintenance_mode"] = body.maintenance_mode
+
     if body.qr_approved_audio is not None:
         doc["qr_approved_audio"] = body.qr_approved_audio
     if body.qr_rejected_audio is not None:
