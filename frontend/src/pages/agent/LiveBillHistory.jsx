@@ -2,7 +2,8 @@ import React, { useEffect, useState, useMemo } from "react";
 import { api, fmtMoney, fmtDate } from "@/lib/api";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import BharatConnectLogo from "@/components/BharatConnectLogo";
-import { Search, X, Receipt, Clock, RotateCcw, ShieldCheck, History, HelpCircle } from "lucide-react";
+import { toast } from "sonner";
+import { Search, X, Receipt, Clock, RotateCcw, ShieldCheck, History, HelpCircle, FileDown, FileSpreadsheet } from "lucide-react";
 
 const STATUS_TABS = [
   { key: "all", label: "All Status" },
@@ -150,6 +151,115 @@ export default function LiveBillHistory() {
     };
   }, [filteredItems]);
 
+  const exportHistoryExcel = () => {
+    const csvRows = [
+      ["Tx ID", "Biller Name / ID", "Mobile Number", "Bill Amount", "Charges", "Total Deducted", "Status", "Date & Time"]
+    ];
+    filteredItems.forEach((item) => {
+      const shortId = getShortTxnId(item.id);
+      const billerName = item.biller_name || item.operator || item.biller_id || "—";
+      const mobile = item.customer_phone || item.mobile_number || "—";
+      const billAmt = item.bill_amount ?? item.amount ?? 0;
+      const chargeAmt = item.service_charge ?? item.charges ?? 0;
+      const totalAmt = item.total_amount ?? item.amount ?? 0;
+      csvRows.push([
+        `"${shortId}"`,
+        `"${billerName}"`,
+        `"${mobile}"`,
+        billAmt,
+        chargeAmt,
+        totalAmt,
+        `"${item.status}"`,
+        `"${fmtDate(item.created_at)}"`
+      ].join(","));
+    });
+
+    const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Live_Bill_History_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Excel/CSV downloaded");
+  };
+
+  const exportHistoryPdf = () => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return toast.error("Pop-up blocker is preventing the PDF export. Please allow pop-ups.");
+
+    const rowsHtml = filteredItems.map(item => {
+      const shortId = getShortTxnId(item.id);
+      const billerName = item.biller_name || item.operator || item.biller_id || "—";
+      const mobile = item.customer_phone || item.mobile_number || "—";
+      const billAmt = item.bill_amount ?? item.amount ?? 0;
+      const chargeAmt = item.service_charge ?? item.charges ?? 0;
+      const totalAmt = item.total_amount ?? item.amount ?? 0;
+      return `
+        <tr>
+          <td>${shortId}</td>
+          <td>${billerName}</td>
+          <td>${mobile}</td>
+          <td>${fmtMoney(billAmt)}</td>
+          <td>${fmtMoney(chargeAmt)}</td>
+          <td>${fmtMoney(totalAmt)}</td>
+          <td class="status-${item.status}">${(item.status || "").toUpperCase()}</td>
+          <td>${fmtDate(item.created_at)}</td>
+        </tr>
+      `;
+    }).join("");
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Live Bill History Report</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 20px; color: #333; }
+            h1 { color: #1b4332; font-size: 20px; margin-bottom: 2px; }
+            p { color: #666; font-size: 12px; margin-bottom: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #1b4332; color: white; font-weight: bold; }
+            tr:nth-child(even) { background-color: #f9f9f9; }
+            .status-success { color: #2d6a4f; font-weight: bold; }
+            .status-pending { color: #b7791f; font-weight: bold; }
+            .status-reversed { color: #c53030; font-weight: bold; }
+            .status-failed { color: #c53030; font-weight: bold; }
+            @media print {
+              body { padding: 0; }
+              button { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <h1>MAK FIN PAY</h1>
+          <p>Live Bill History Report · Generated on ${new Date().toLocaleDateString()}</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Tx ID</th>
+                <th>Biller Name / ID</th>
+                <th>Mobile Number</th>
+                <th>Bill Amount</th>
+                <th>Service Charge</th>
+                <th>Total Deducted</th>
+                <th>Status</th>
+                <th>Date & Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+          <br/>
+          <button onclick="window.print()" style="padding: 8px 16px; background: #1b4332; color: white; border: none; border-radius: 4px; cursor: pointer;">Print / Save PDF</button>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   // paginate
   const paginatedItems = useMemo(() => {
     const fromIdx = (page - 1) * pageSize;
@@ -198,7 +308,7 @@ export default function LiveBillHistory() {
         </div>
 
         {/* Reversed */}
-        <div className="bg-gradient-to-br from-[#58181F] to-[#DC3545] text-white border border-red-500/20 rounded-2xl p-3.5 shadow-md flex items-center gap-3.5 h-[84px] relative overflow-hidden transition-all hover:shadow-lg animate-fadeIn">
+        <div className="bg-gradient-to-br from-[#842029] to-[#DC3545] text-white border border-red-500/20 rounded-2xl p-3.5 shadow-md flex items-center gap-3.5 h-[84px] relative overflow-hidden transition-all hover:shadow-lg animate-fadeIn">
           <div className="p-2.5 bg-white/10 text-red-300 border border-white/10 rounded-xl shrink-0">
             <RotateCcw className="h-4.5 w-4.5" />
           </div>
@@ -300,6 +410,22 @@ export default function LiveBillHistory() {
               placeholder="Search Amount"
               className="mfp-input text-xs bg-white border border-black/10 focus:border-[#1b4332] py-2 px-3 rounded-xl w-full sm:w-36 h-[38px]"
             />
+          </div>
+
+          {/* Export PDF & Export Excel Buttons */}
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              onClick={exportHistoryPdf}
+              className="py-2 px-3 flex items-center gap-1.5 text-xs font-semibold rounded-xl border border-black/10 hover:bg-neutral-50 transition-all text-neutral-700 bg-white shadow-xs h-[38px] cursor-pointer"
+            >
+              <FileDown className="h-3.5 w-3.5" /> Export PDF
+            </button>
+            <button
+              onClick={exportHistoryExcel}
+              className="py-2 px-3 flex items-center gap-1.5 text-xs font-semibold rounded-xl border border-black/10 hover:bg-neutral-50 transition-all text-neutral-700 bg-white shadow-xs h-[38px] cursor-pointer"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" /> Export Excel
+            </button>
           </div>
         </div>
 
