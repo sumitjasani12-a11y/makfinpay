@@ -41,6 +41,11 @@ const PERMISSIONS_LIST = [
 export default function AdminManagement() {
   const { user } = useAuth();
   const isSuperAdmin = user?.email?.toLowerCase() === "jigs.vanani@gmail.com";
+  const canManageAdmins = isSuperAdmin || user?.permissions?.includes("admins");
+
+  // A non-super admin can only view and grant permissions that they themselves possess
+  const userPermissions = isSuperAdmin ? PERMISSIONS_LIST.map(p => p.key) : (user?.permissions || []);
+  const availablePermissionItems = isSuperAdmin ? PERMISSIONS_LIST : PERMISSIONS_LIST.filter(p => userPermissions.includes(p.key));
   
   const [admins, setAdmins] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -69,15 +74,17 @@ export default function AdminManagement() {
   };
 
   useEffect(() => {
-    fetchAdmins();
-  }, []);
+    if (canManageAdmins) {
+      fetchAdmins();
+    }
+  }, [canManageAdmins]);
 
   const openCreateModal = () => {
     setEditingAdmin(null);
     setFullName("");
     setEmail("");
     setPassword("");
-    setSelectedPermissions(PERMISSIONS_LIST.map(p => p.key)); // Default full access
+    setSelectedPermissions(availablePermissionItems.map(p => p.key)); // Default access to caller's subset
     setFrozen(false);
     setModalOpen(true);
   };
@@ -99,10 +106,11 @@ export default function AdminManagement() {
   };
 
   const handleSelectAllPermissions = () => {
-    if (selectedPermissions.length === PERMISSIONS_LIST.length) {
+    const allSelected = availablePermissionItems.length > 0 && availablePermissionItems.every(p => selectedPermissions.includes(p.key));
+    if (allSelected) {
       setSelectedPermissions([]);
     } else {
-      setSelectedPermissions(PERMISSIONS_LIST.map(p => p.key));
+      setSelectedPermissions(availablePermissionItems.map(p => p.key));
     }
   };
 
@@ -180,13 +188,13 @@ export default function AdminManagement() {
     }
   };
 
-  if (!isSuperAdmin) {
+  if (!canManageAdmins) {
     return (
       <div className="mfp-card p-12 text-center space-y-3">
         <ShieldAlert className="h-12 w-12 mx-auto text-rose-500" />
         <div className="text-lg font-bold text-neutral-800">Access Denied</div>
         <p className="text-sm text-neutral-500 font-normal">
-          Only the Super Admin (jigs.vanani@gmail.com) can access Administrator Management.
+          You do not have permission to access Administrator Management.
         </p>
       </div>
     );
@@ -406,12 +414,12 @@ export default function AdminManagement() {
                     onClick={handleSelectAllPermissions}
                     className="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 transition-all"
                   >
-                    {selectedPermissions.length === PERMISSIONS_LIST.length ? "Deselect All" : "Select All"}
+                    {availablePermissionItems.length > 0 && availablePermissionItems.every(p => selectedPermissions.includes(p.key)) ? "Deselect All" : "Select All"}
                   </button>
                 </div>
 
                 <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3 p-1 bg-black/20 rounded-xl border border-white/5">
-                  {PERMISSIONS_LIST.map((permission) => {
+                  {availablePermissionItems.map((permission) => {
                     const isChecked = selectedPermissions.includes(permission.key);
                     return (
                       <button

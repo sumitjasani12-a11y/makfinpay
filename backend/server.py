@@ -1259,8 +1259,6 @@ def check_admin_permission(user: dict, permission_key: str) -> bool:
         return False
     if is_super_admin(user):
         return True
-    if permission_key == "admins":
-        return False
     
     permissions = user.get("permissions")
     # By default, if permissions are None/uninitialized, grant full access
@@ -1269,10 +1267,13 @@ def check_admin_permission(user: dict, permission_key: str) -> bool:
         
     return permission_key in permissions
 
+def can_manage_admins(user: dict) -> bool:
+    return is_super_admin(user) or check_admin_permission(user, "admins")
+
 @api.get("/admin/admins")
 async def list_admins(user=Depends(require_roles("admin"))):
-    if not is_super_admin(user):
-        raise HTTPException(403, "Access denied: Only Super Admin (jigs.vanani@gmail.com) can manage administrators.")
+    if not can_manage_admins(user):
+        raise HTTPException(403, "Access denied: You do not have permission to manage administrators.")
         
     SUPER_EMAIL = "jigs.vanani@gmail.com"
     creds = await db.admin_credentials.find({"email": {"$ne": SUPER_EMAIL}}).to_list(100)
@@ -1300,8 +1301,15 @@ async def list_admins(user=Depends(require_roles("admin"))):
 
 @api.post("/admin/admins")
 async def create_admin(body: CreateAdminIn, user=Depends(require_roles("admin"))):
+    if not can_manage_admins(user):
+        raise HTTPException(403, "Access denied: You do not have permission to manage administrators.")
+
+    # Enforce permission subset rule: A sub-admin can only grant permissions that they themselves possess
     if not is_super_admin(user):
-        raise HTTPException(403, "Access denied: Only Super Admin (jigs.vanani@gmail.com) can manage administrators.")
+        caller_perms = set(user.get("permissions") or [])
+        invalid_perms = [p for p in body.permissions if p not in caller_perms]
+        if invalid_perms:
+            raise HTTPException(400, f"Cannot grant permissions you do not possess: {', '.join(invalid_perms)}")
 
     email = body.email.lower().strip()
     SUPER_EMAIL = "jigs.vanani@gmail.com"
@@ -1355,8 +1363,15 @@ async def create_admin(body: CreateAdminIn, user=Depends(require_roles("admin"))
 
 @api.put("/admin/admins/{admin_id}")
 async def update_admin(admin_id: str, body: UpdateAdminIn, user=Depends(require_roles("admin"))):
-    if not is_super_admin(user):
-        raise HTTPException(403, "Access denied: Only Super Admin (jigs.vanani@gmail.com) can manage administrators.")
+    if not can_manage_admins(user):
+        raise HTTPException(403, "Access denied: You do not have permission to manage administrators.")
+
+    # Enforce permission subset rule: A sub-admin can only grant permissions that they themselves possess
+    if not is_super_admin(user) and body.permissions is not None:
+        caller_perms = set(user.get("permissions") or [])
+        invalid_perms = [p for p in body.permissions if p not in caller_perms]
+        if invalid_perms:
+            raise HTTPException(400, f"Cannot grant permissions you do not possess: {', '.join(invalid_perms)}")
         
     SUPER_EMAIL = "jigs.vanani@gmail.com"
     cred = await db.admin_credentials.find_one({"id": admin_id})
