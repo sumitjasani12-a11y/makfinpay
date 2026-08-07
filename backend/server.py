@@ -6521,20 +6521,12 @@ async def send_onesignal_notification(
             "url": url or "https://makfinpay.com/"
         }
         
-        if broadcast:
+        if broadcast or target_roles or (not target_user_ids and not target_roles):
             payload["included_segments"] = ["Subscribed Users", "Total Subscriptions"]
         elif target_user_ids:
             payload["include_aliases"] = {"external_id": target_user_ids}
+            payload["include_external_user_ids"] = target_user_ids
             payload["target_channel"] = "push"
-        elif target_roles:
-            filters = []
-            for idx, role in enumerate(target_roles):
-                if idx > 0:
-                    filters.append({"operator": "OR"})
-                filters.append({"field": "tag", "key": "role", "relation": "=", "value": role})
-            payload["filters"] = filters
-        else:
-            payload["included_segments"] = ["Subscribed Users", "Total Subscriptions"]
             
         async with httpx.AsyncClient() as client:
             res = await client.post("https://onesignal.com/api/v1/notifications", json=payload, headers=headers, timeout=10.0)
