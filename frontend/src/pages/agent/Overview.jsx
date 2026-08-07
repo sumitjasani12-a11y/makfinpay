@@ -1,14 +1,18 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { api, fmtMoney, fileUrl } from "@/lib/api";
-import { getSupabase, supabaseRpc } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { PageHeader } from "@/components/Shared";
 import KycPasswordGate from "@/components/KycPasswordGate";
 import { useWebSocketListener } from "@/lib/ws";
-import { Wallet, QrCode, CreditCard, Clock, ChevronLeft, ChevronRight } from "lucide-react";
+import { Wallet, QrCode, CreditCard, Clock, ChevronLeft, ChevronRight, Filter } from "lucide-react";
 
 export default function AgentOverview() {
   const { user } = useAuth();
+  const [rangeType, setRangeType] = useState("today");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+
   const [stats, setStats] = useState(() => {
     try {
       const v = localStorage.getItem("mfp_cache_agent_stats");
@@ -22,20 +26,19 @@ export default function AgentOverview() {
 
   const fetchAgentStats = useCallback(() => {
     if (user && user.id && user.kyc_status === "approved" && !user.first_login) {
-      supabaseRpc("rpc_get_agent_stats", { p_user_id: user.id })
-        .then(({ data, error }) => {
-          if (data && !error) {
-            setStats(data);
-            try { localStorage.setItem("mfp_cache_agent_stats", JSON.stringify(data)); } catch (e) {}
-          } else {
-            api.get("/agent/dashboard-stats").then((r) => setStats(r.data)).catch(() => {});
-          }
+      let url = `/agent/dashboard-stats?range_type=${rangeType}`;
+      if (rangeType === "custom") {
+        if (fromDate) url += `&from_date=${fromDate}`;
+        if (toDate) url += `&to_date=${toDate}`;
+      }
+      api.get(url)
+        .then((r) => {
+          setStats(r.data);
+          try { localStorage.setItem("mfp_cache_agent_stats", JSON.stringify(r.data)); } catch (e) {}
         })
-        .catch(() => {
-          api.get("/agent/dashboard-stats").then((r) => setStats(r.data)).catch(() => {});
-        });
+        .catch(() => {});
     }
-  }, [user]);
+  }, [user, rangeType, fromDate, toDate]);
 
   useEffect(() => {
     fetchAgentStats();
@@ -102,20 +105,62 @@ export default function AgentOverview() {
   return (
     <KycPasswordGate>
       <div className="overflow-x-hidden relative">
-        {/* Premium Dashboard Header */}
-        <div className="mb-10 mt-2 animate-fadeIn">
-          <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-[#7209b7]/10 via-[#3f37c9]/10 to-[#4cc9f0]/10 border border-[#7209b7]/10 rounded-full shadow-[0_2px_10px_rgba(114,9,183,0.05)]">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#7209b7] animate-pulse" />
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#7209b7]">
-              {getGreeting()}
-            </span>
+        {/* Premium Dashboard Header with Date Filter */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 mt-2 animate-fadeIn">
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-[#7209b7]/10 via-[#3f37c9]/10 to-[#4cc9f0]/10 border border-[#7209b7]/10 rounded-full shadow-[0_2px_10px_rgba(114,9,183,0.05)]">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#7209b7] animate-pulse" />
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#7209b7]">
+                {getGreeting()}
+              </span>
+            </div>
+            <h1 className="text-3xl sm:text-4xl font-black text-slate-800 tracking-tight leading-none mt-3">
+              Agent Dashboard
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-400 mt-2 font-bold tracking-wide">
+              Manage recharges, ledger history and wallet balance.
+            </p>
           </div>
-          <h1 className="text-3xl sm:text-4xl font-black text-slate-800 tracking-tight leading-none mt-4">
-            Agent Dashboard
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-400 mt-2.5 font-bold tracking-wide">
-            Manage recharges, ledger history and wallet balance.
-          </p>
+
+          {/* Date Range Filter Dropdown */}
+          <div className="flex flex-wrap items-center gap-2 bg-white p-2.5 rounded-2xl border border-slate-200 shadow-xs">
+            <div className="flex items-center gap-1.5 text-slate-700 font-extrabold text-xs px-2">
+              <Filter className="h-4 w-4 text-[#7209b7]" />
+              <span>Filter:</span>
+            </div>
+
+            <select
+              value={rangeType}
+              onChange={(e) => setRangeType(e.target.value)}
+              className="bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#7209b7]/20 cursor-pointer"
+            >
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="last_7_days">Last 7 Days</option>
+              <option value="last_30_days">Last 30 Days</option>
+              <option value="this_month">This Month</option>
+              <option value="all_time">All Time</option>
+              <option value="custom">Custom Date</option>
+            </select>
+
+            {rangeType === "custom" && (
+              <div className="flex items-center gap-2 animate-fadeIn">
+                <input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#7209b7]/20"
+                />
+                <span className="text-xs text-slate-400 font-bold">to</span>
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#7209b7]/20"
+                />
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Hero Section: Grid of 4 Cards + Slider Carousel */}
@@ -233,10 +278,26 @@ export default function AgentOverview() {
               )}
             </div>
           ) : (
-            <div className="mfp-card p-6 lg:col-span-3 flex flex-col justify-center animate-fadeIn" data-testid="datetime-card">
-              <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">Today</div>
-              <div className="mt-3 text-2xl sm:text-3xl font-medium tracking-tight text-[#1B4332]" data-testid="now-date">{dateStr}</div>
-              <div className="mt-3 text-xs text-neutral-500">Live data updates instantly</div>
+            <div className="mfp-card p-6 lg:col-span-4 flex flex-col justify-center animate-fadeIn" data-testid="datetime-card">
+              <div className="text-xs uppercase tracking-[0.2em] font-extrabold text-[#7209b7]">
+                {rangeType === "today" && "Today"}
+                {rangeType === "yesterday" && "Yesterday"}
+                {rangeType === "last_7_days" && "Last 7 Days"}
+                {rangeType === "last_30_days" && "Last 30 Days"}
+                {rangeType === "this_month" && "This Month"}
+                {rangeType === "all_time" && "All Time"}
+                {rangeType === "custom" && "Custom Range"}
+              </div>
+              <div className="mt-3 text-xl sm:text-2xl font-black tracking-tight text-[#1B4332]" data-testid="now-date">
+                {rangeType === "today" && dateStr}
+                {rangeType === "yesterday" && new Date(Date.now() - 86400000).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                {rangeType === "last_7_days" && "Last 7 Days Summary"}
+                {rangeType === "last_30_days" && "Last 30 Days Summary"}
+                {rangeType === "this_month" && new Date().toLocaleDateString("en-IN", { month: "long", year: "numeric" })}
+                {rangeType === "all_time" && "All Time Summary"}
+                {rangeType === "custom" && (fromDate && toDate ? `${fromDate} to ${toDate}` : "Select Custom Dates")}
+              </div>
+              <div className="mt-3 text-xs text-neutral-500 font-medium">Filtered data updates instantly</div>
             </div>
           )}
         </div>

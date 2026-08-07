@@ -3355,20 +3355,81 @@ async def my_ledger(user=Depends(get_current_user)):
     items = await db.ledger.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(500)
     return items
 
+def get_dashboard_range_dates(range_type: str, from_date_str: Optional[str] = None, to_date_str: Optional[str] = None):
+    ist_offset = timezone(timedelta(hours=5, minutes=30))
+    now_ist = datetime.now(ist_offset)
+    today_start = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end = now_ist.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+    if range_type == "today":
+        return today_start.isoformat(), today_end.isoformat()
+    elif range_type == "yesterday":
+        yest_start = today_start - timedelta(days=1)
+        yest_end = yest_start.replace(hour=23, minute=59, second=59, microsecond=999999)
+        return yest_start.isoformat(), yest_end.isoformat()
+    elif range_type == "last_7_days":
+        start_7 = today_start - timedelta(days=6)
+        return start_7.isoformat(), today_end.isoformat()
+    elif range_type == "last_30_days":
+        start_30 = today_start - timedelta(days=29)
+        return start_30.isoformat(), today_end.isoformat()
+    elif range_type == "this_month":
+        start_month = today_start.replace(day=1)
+        return start_month.isoformat(), today_end.isoformat()
+    elif range_type == "custom" and from_date_str and to_date_str:
+        try:
+            f_dt = datetime.strptime(from_date_str, "%Y-%m-%d").replace(tzinfo=ist_offset, hour=0, minute=0, second=0)
+            t_dt = datetime.strptime(to_date_str, "%Y-%m-%d").replace(tzinfo=ist_offset, hour=23, minute=59, second=59)
+            return f_dt.isoformat(), t_dt.isoformat()
+        except Exception:
+            return None, None
+    elif range_type == "all_time":
+        return None, None
+
+    return today_start.isoformat(), today_end.isoformat()
+
 @api.get("/agent/dashboard-stats")
-async def get_agent_dashboard_stats(user=Depends(require_roles("agent"))):
+async def get_agent_dashboard_stats(
+    range_type: Optional[str] = Query("today"),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    user=Depends(require_roles("agent"))
+):
+    from_iso, to_iso = get_dashboard_range_dates(range_type, from_date, to_date)
+
     wallet_task = get_or_create_wallet(user["id"])
+
+    qr_match = {"user_id": user["id"], "status": "approved"}
+    bill_match = {"user_id": user["id"], "status": "success"}
+    pr_match = {"user_id": user["id"], "status": "pending"}
+    pb_match = {"user_id": user["id"], "status": "pending", "type": "credit_card"}
+    pw_match = {"user_id": user["id"], "status": "pending"}
+
+    if from_iso or to_iso:
+        rng = {}
+        if from_iso:
+            rng["$gte"] = from_iso
+        if to_iso:
+            rng["$lte"] = to_iso
+        qr_match["created_at"] = rng
+        bill_match["created_at"] = rng
+        pr_match["created_at"] = rng
+        pb_match["created_at"] = rng
+        pw_match["created_at"] = rng
+
     qr_task = db.recharges.aggregate([
-        {"$match": {"user_id": user["id"], "status": "approved"}},
+        {"$match": qr_match},
         {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
     ]).to_list(1)
+
     bill_task = db.transactions.aggregate([
-        {"$match": {"user_id": user["id"], "status": "success"}},
+        {"$match": bill_match},
         {"$group": {"_id": None, "total": {"$sum": "$bill_amount"}}}
     ]).to_list(1)
-    pr_task = db.recharges.count_documents({"user_id": user["id"], "status": "pending"})
-    pb_task = db.transactions.count_documents({"user_id": user["id"], "status": "pending"})
-    pw_task = db.withdrawals.count_documents({"user_id": user["id"], "status": "pending"})
+
+    pr_task = db.recharges.count_documents(pr_match)
+    pb_task = db.transactions.count_documents(pb_match)
+    pw_task = db.withdrawals.count_documents(pw_match)
 
     wallet, qr_list, bill_list, pending_recharges, pending_bills, pending_withdrawals = await asyncio.gather(
         wallet_task, qr_task, bill_task, pr_task, pb_task, pw_task
@@ -3382,7 +3443,10 @@ async def get_agent_dashboard_stats(user=Depends(require_roles("agent"))):
         "wallet_balance": balance,
         "qr_payment": qr_sum,
         "live_bill_payment": bill_sum,
-        "pending_requests": pending_recharges + pending_bills + pending_withdrawals
+        "pending_requests": pending_recharges + pending_bills + pending_withdrawals,
+        "range_type": range_type,
+        "from_date": from_iso,
+        "to_date": to_iso
     }
 
 # ---------- LIST FILTER HELPERS (server-side pagination) ----------
