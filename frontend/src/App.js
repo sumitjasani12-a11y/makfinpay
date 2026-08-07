@@ -96,15 +96,26 @@ function OneSignalInitializer() {
           await OneSignal.init({
             appId: appId,
             allowLocalhostAsSecureOrigin: true,
+            serviceWorkerParam: { scope: "/" },
+            serviceWorkerPath: "OneSignalSDKWorker.js",
           });
+          
+          if (OneSignal.Notifications && OneSignal.Notifications.permission !== true) {
+            try {
+              await OneSignal.Notifications.requestPermission();
+            } catch (e) {}
+          }
+
           if (user?.id) {
-            OneSignal.login(user.id);
-            if (user.role) {
-              OneSignal.User.addTag("role", user.role);
-            }
-            if (user.email) {
-              OneSignal.User.addTag("email", user.email);
-            }
+            try {
+              await OneSignal.login(user.id);
+              if (user.role) {
+                await OneSignal.User.addTag("role", user.role);
+              }
+              if (user.email) {
+                await OneSignal.User.addTag("email", user.email);
+              }
+            } catch (e) {}
           }
         } catch (err) {
           console.error("OneSignal init error:", err);

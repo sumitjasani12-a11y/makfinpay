@@ -6499,14 +6499,15 @@ async def send_onesignal_notification(
     message: str,
     target_roles: Optional[List[str]] = None,
     target_user_ids: Optional[List[str]] = None,
-    url: Optional[str] = None
-):
+    url: Optional[str] = None,
+    broadcast: bool = False
+) -> dict:
     try:
         s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
         app_id = (s.get("onesignal_app_id") or "").strip()
         api_key = (s.get("onesignal_rest_api_key") or "").strip()
         if not app_id or not api_key:
-            return
+            return {"status": "error", "message": "OneSignal credentials not configured"}
         
         headers = {
             "Content-Type": "application/json; charset=utf-8",
@@ -6520,7 +6521,9 @@ async def send_onesignal_notification(
             "url": url or "https://makfinpay.com/"
         }
         
-        if target_user_ids:
+        if broadcast:
+            payload["included_segments"] = ["Subscribed Users", "Total Subscriptions"]
+        elif target_user_ids:
             payload["include_aliases"] = {"external_id": target_user_ids}
             payload["target_channel"] = "push"
         elif target_roles:
@@ -6531,13 +6534,16 @@ async def send_onesignal_notification(
                 filters.append({"field": "tag", "key": "role", "relation": "=", "value": role})
             payload["filters"] = filters
         else:
-            payload["filters"] = [{"field": "tag", "key": "role", "relation": "=", "value": "admin"}]
+            payload["included_segments"] = ["Subscribed Users", "Total Subscriptions"]
             
         async with httpx.AsyncClient() as client:
             res = await client.post("https://onesignal.com/api/v1/notifications", json=payload, headers=headers, timeout=10.0)
+            data = res.json() if res.headers.get("content-type", "").startswith("application/json") else {}
             logger.info(f"OneSignal Push response: {res.status_code} - {res.text}")
+            return {"status_code": res.status_code, "data": data, "recipients": data.get("recipients", 0), "id": data.get("id")}
     except Exception as e:
         logger.error(f"Failed to send OneSignal notification: {e}")
+        return {"status": "error", "message": str(e)}
 
 @api.get("/settings/onesignal-public")
 async def get_public_onesignal_app_id():
@@ -6598,13 +6604,25 @@ async def update_onesignal_settings(body: OneSignalSettingsIn, request: Request,
 async def test_onesignal_notification(request: Request, user=Depends(require_roles("admin"))):
     if not is_super_admin(user):
         raise HTTPException(403, "Access denied: Only Super Admin can send test OneSignal notifications.")
-    await send_onesignal_notification(
+    res = await send_onesignal_notification(
         title="🔔 OneSignal Test Notification",
         message="Push notifications are working perfectly on MAK FIN PAY!",
-        target_roles=["admin"],
+        broadcast=True,
         url="https://makfinpay.com/admin"
     )
-    return {"ok": True, "message": "Test push notification requested successfully"}
+    data = res.get("data", {})
+    recipients = res.get("recipients", 0)
+    errors = data.get("errors")
+    if errors:
+        err_msg = ", ".join(errors) if isinstance(errors, list) else str(errors)
+        raise HTTPException(400, f"OneSignal returned error: {err_msg}")
+    if recipients == 0:
+        return {
+            "ok": True,
+            "message": "Test push request sent to OneSignal, but 0 subscribers were found. Make sure you opened the app on your mobile and allowed push notifications!",
+            "details": res
+        }
+    return {"ok": True, "message": f"Test push notification sent successfully to {recipients} subscriber(s)! 🔔", "details": res}
 
 class AdminAdjustmentIn(BaseModel):
     type: str  # credit | debit
