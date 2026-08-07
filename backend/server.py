@@ -4561,27 +4561,37 @@ async def post_sync_billers(user=Depends(require_roles("admin"))):
     count = await sync_billers_from_usepay()
     return {"status": "success", "message": f"Successfully synced {count} billers from Usepay API"}
 
+DEFAULT_BILLER_CATEGORIES = [
+    "Agent Collection", "Broadband Postpaid", "Cable TV",
+    "Clubs and Associations", "Credit Card", "Donation", "DTH",
+    "eChallan", "Education Fees", "Electricity",
+    "EV Recharge", "Fastag", "Fleet Card Recharge", "Forex",
+    "Gas", "Housing Society", "Insurance",
+    "Landline Postpaid", "Loan Repayment", "LPG Gas",
+    "Mobile Postpaid", "Mobile Prepaid", "Municipal Services",
+    "Municipal Taxes", "National Pension System", "NCMC Recharge",
+    "Prepaid Meter", "Rental", "Subscription", "Water"
+]
+
 @api.get("/admin/biller-categories")
 async def get_admin_biller_categories(user=Depends(require_roles("admin"))):
-    count = await db.billers.count_documents({})
-    if count == 0:
-        await sync_billers_from_usepay()
-
     try:
         async with db.pool.acquire() as conn:
             cat_rows = await conn.fetch(
-                "SELECT DISTINCT category FROM billers WHERE category IS NOT NULL AND category != '' ORDER BY category ASC"
+                "SELECT DISTINCT category FROM billers WHERE category IS NOT NULL AND category != ''"
             )
+            db_cats = [r["category"] for r in cat_rows]
+            all_cat_set = set(DEFAULT_BILLER_CATEGORIES + db_cats)
+            sorted_cats = sorted(list(all_cat_set))
+
             cat_map_rows = await conn.fetch("SELECT category_name, enabled FROM biller_categories")
             status_map = {r["category_name"]: r["enabled"] for r in cat_map_rows}
 
-            # Get biller count per category for summary info
             count_rows = await conn.fetch("SELECT category, COUNT(*) as cnt FROM billers GROUP BY category")
             biller_counts = {r["category"]: r["cnt"] for r in count_rows}
 
             categories = []
-            for r in cat_rows:
-                cat_name = r["category"]
+            for cat_name in sorted_cats:
                 is_enabled = status_map.get(cat_name, True)
                 categories.append({
                     "category_name": cat_name,
@@ -4620,8 +4630,10 @@ async def toggle_all_biller_categories(payload: BulkCategoryTogglePayload, user=
             cat_rows = await conn.fetch(
                 "SELECT DISTINCT category FROM billers WHERE category IS NOT NULL AND category != ''"
             )
-            for r in cat_rows:
-                cat_name = r["category"]
+            db_cats = [r["category"] for r in cat_rows]
+            all_cats = list(set(DEFAULT_BILLER_CATEGORIES + db_cats))
+
+            for cat_name in all_cats:
                 await conn.execute('''
                     INSERT INTO biller_categories (category_name, enabled, updated_at)
                     VALUES ($1, $2, NOW())
@@ -4634,21 +4646,20 @@ async def toggle_all_biller_categories(payload: BulkCategoryTogglePayload, user=
 
 @api.get("/agent/live-billpay/categories")
 async def get_live_billpay_categories(user=Depends(require_approved_agent())):
-    count = await db.billers.count_documents({})
-    if count == 0:
-        await sync_billers_from_usepay()
-        
     try:
         async with db.pool.acquire() as conn:
             rows = await conn.fetch(
-                "SELECT DISTINCT category FROM billers WHERE category IS NOT NULL AND category != '' ORDER BY category ASC"
+                "SELECT DISTINCT category FROM billers WHERE category IS NOT NULL AND category != ''"
             )
+            db_cats = [r["category"] for r in rows]
+            all_cat_set = set(DEFAULT_BILLER_CATEGORIES + db_cats)
+            sorted_cats = sorted(list(all_cat_set))
+
             disabled_rows = await conn.fetch("SELECT category_name FROM biller_categories WHERE enabled = FALSE")
             disabled_set = {r["category_name"] for r in disabled_rows}
 
             categories_list = []
-            for r in rows:
-                cat_name = r["category"]
+            for cat_name in sorted_cats:
                 if cat_name not in disabled_set:
                     categories_list.append({
                         "id": cat_name,
