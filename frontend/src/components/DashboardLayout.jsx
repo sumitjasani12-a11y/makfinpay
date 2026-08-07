@@ -559,12 +559,13 @@ export default function DashboardLayout() {
 
           return (
             <div className="p-4 sm:p-6 lg:p-8 relative min-h-[calc(100vh-4rem)]">
-              {["master_distributor", "distributor", "agent"].includes(user.role) && branding?.watermark_path && (
+              {branding?.watermark_path && (
                 <div
-                  className="absolute inset-0 pointer-events-none opacity-[0.04] bg-center bg-no-repeat"
+                  className="absolute inset-0 pointer-events-none opacity-[0.08] bg-center bg-no-repeat"
                   style={{
                     backgroundImage: `url(${fileUrl(branding.watermark_path)})`,
-                    backgroundSize: "360px",
+                    backgroundSize: "680px",
+                    backgroundPosition: "center 45%",
                   }}
                 />
               )}
