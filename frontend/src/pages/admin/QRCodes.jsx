@@ -9,6 +9,7 @@ import { CheckCircle2, Trash2, Eye, RefreshCw, Upload, Tag, Phone, Link, FileTex
 export default function AdminQRCodes() {
   const { user } = useAuth();
   const isSuperAdmin = user?.email?.toLowerCase() === "jigs.vanani@gmail.com";
+  const canEditHistoryPercent = isSuperAdmin || user?.permissions?.includes("edit-history-qr-percent");
   const [editingHistoryId, setEditingHistoryId] = useState(null);
   const [editPercentVal, setEditPercentVal] = useState("");
   const [editLoading, setEditLoading] = useState(false);
@@ -984,7 +985,7 @@ export default function AdminQRCodes() {
                       ) : (
                         <div className="inline-flex items-center justify-center gap-1">
                           <span>{item.qr_percent}%</span>
-                          {isSuperAdmin && (
+                          {canEditHistoryPercent && (
                             <button
                               onClick={() => {
                                 setEditingHistoryId(item.id);

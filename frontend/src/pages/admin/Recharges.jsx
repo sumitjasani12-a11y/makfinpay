@@ -152,6 +152,7 @@ export default function AdminRecharges() {
 
   const { user } = useAuth();
   const isSuperAdmin = user?.email?.toLowerCase() === "jigs.vanani@gmail.com";
+  const canEditApprovalQr = isSuperAdmin || user?.permissions?.includes("edit-approval-qr");
   const [qrEntries, setQrEntries] = useState([]);
   const [editingQrRid, setEditingQrRid] = useState(null);
   const [selectedQrLabel, setSelectedQrLabel] = useState("");
@@ -362,7 +363,7 @@ export default function AdminRecharges() {
             <span className="max-w-[110px] truncate block font-semibold text-xs text-neutral-800 text-center" title={r.qr_code_label}>
               {r.qr_code_label || "N/A"}
             </span>
-            {isSuperAdmin && (
+            {canEditApprovalQr && (
               <button
                 onClick={() => {
                   if (editingQrRid === r.id) {
