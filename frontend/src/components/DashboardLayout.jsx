@@ -561,11 +561,11 @@ export default function DashboardLayout() {
             <div className="p-4 sm:p-6 lg:p-8 relative min-h-[calc(100vh-4rem)]">
               {branding?.watermark_path && (
                 <div
-                  className="absolute inset-0 pointer-events-none opacity-[0.16] bg-center bg-no-repeat transition-all duration-300"
+                  className="absolute inset-0 pointer-events-none opacity-[0.14] bg-no-repeat transition-all duration-300"
                   style={{
                     backgroundImage: `url(${fileUrl(branding.watermark_path)})`,
-                    backgroundSize: "min(90vw, 1050px)",
-                    backgroundPosition: "center 42%",
+                    backgroundSize: "min(60vw, 540px)",
+                    backgroundPosition: "62% 45%",
                   }}
                 />
               )}
