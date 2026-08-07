@@ -6197,7 +6197,12 @@ async def update_admin_recharge_toggles(body: RechargeTogglesIn, request: Reques
     if body.cc_bill_request_received_audio_enabled is not None:
         doc["cc_bill_request_received_audio_enabled"] = body.cc_bill_request_received_audio_enabled
 
-    await db.settings.update_one({"id": "commission"}, {"$set": doc}, upsert=True)
+    try:
+        await db.settings.update_one({"id": "commission"}, {"$set": doc}, upsert=True)
+    except Exception as e:
+        logger.error(f"Error updating recharge toggles: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update settings: {str(e)}")
+
     await write_audit(user["id"], "recharge_toggles_changed", target="settings", meta=doc, request=request)
     await manager.broadcast({"event": "settings_updated", "data": doc})
     return doc
