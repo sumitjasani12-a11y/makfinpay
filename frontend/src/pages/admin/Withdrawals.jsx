@@ -262,6 +262,9 @@ export default function AdminWithdrawals() {
         const d = r.created_at ? new Date(r.created_at) : null;
         const dateStr = d ? d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "";
         const timeStr = d ? d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true }).toLowerCase() : "";
+        let procName = r.reviewed_by_name || "Admin";
+        if (procName === "Super Admin") procName = "Jignesh Vanani";
+
         return (
           <div className="flex flex-col items-center justify-center text-center leading-tight py-0.5">
             <span className="font-extrabold text-neutral-900 text-sm truncate max-w-[160px] block mx-auto" title={r.user_name}>
@@ -270,6 +273,11 @@ export default function AdminWithdrawals() {
             {d && (
               <span className="text-[11px] text-neutral-500 font-semibold whitespace-nowrap mt-0.5">
                 {dateStr}, {timeStr}
+              </span>
+            )}
+            {r.status !== "pending" && (
+              <span className="text-[10px] font-bold text-slate-500 mt-0.5 block truncate max-w-[160px]" title={`Processed By: ${procName}`}>
+                By: {procName}
               </span>
             )}
           </div>
@@ -311,21 +319,7 @@ export default function AdminWithdrawals() {
         return <span className="text-neutral-400 font-medium">—</span>;
       } 
     },
-    {
-      key: "processed_by",
-      label: "Processed By",
-      render: (r) => {
-        let name = r.reviewed_by_name || "Admin";
-        if (name === "Super Admin") name = "Jignesh Vanani";
-        return r.status !== "pending" ? (
-          <span className="text-[11px] font-bold text-neutral-700 bg-neutral-100 border border-black/5 px-2 py-0.5 rounded-md inline-block max-w-[120px] truncate" title={name}>
-            {name}
-          </span>
-        ) : (
-          <span className="text-neutral-400 font-medium">—</span>
-        );
-      }
-    },
+
     { 
       key: "view", 
       label: "View", 
