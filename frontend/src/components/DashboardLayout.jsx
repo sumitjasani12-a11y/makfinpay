@@ -565,7 +565,7 @@ export default function DashboardLayout() {
                   style={{
                     backgroundImage: `url(${fileUrl(branding.watermark_path)})`,
                     backgroundSize: "min(60vw, 540px)",
-                    backgroundPosition: "62% 45%",
+                    backgroundPosition: "38% 45%",
                   }}
                 />
               )}
