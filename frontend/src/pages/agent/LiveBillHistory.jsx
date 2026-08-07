@@ -22,12 +22,56 @@ const getShortTxnId = (id) => {
   return `Txn${padded}`;
 };
 
+function isItemInRange(createdAtIso, rangeType, customStart, customEnd) {
+  if (!createdAtIso) return false;
+  if (rangeType === "all") return true;
+
+  const itemDate = new Date(createdAtIso);
+  const now = new Date();
+  
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+  if (rangeType === "today") {
+    return itemDate >= todayStart && itemDate <= todayEnd;
+  }
+  if (rangeType === "yesterday") {
+    const yestStart = new Date(todayStart);
+    yestStart.setDate(yestStart.getDate() - 1);
+    const yestEnd = new Date(todayEnd);
+    yestEnd.setDate(yestEnd.getDate() - 1);
+    return itemDate >= yestStart && itemDate <= yestEnd;
+  }
+  if (rangeType === "last_7_days") {
+    const start7 = new Date(todayStart);
+    start7.setDate(start7.getDate() - 6);
+    return itemDate >= start7 && itemDate <= todayEnd;
+  }
+  if (rangeType === "last_30_days") {
+    const start30 = new Date(todayStart);
+    start30.setDate(start30.getDate() - 29);
+    return itemDate >= start30 && itemDate <= todayEnd;
+  }
+  if (rangeType === "this_month") {
+    const startMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    return itemDate >= startMonth && itemDate <= todayEnd;
+  }
+  if (rangeType === "custom") {
+    const itemDateYmd = createdAtIso.substring(0, 10);
+    const matchesStart = !customStart || itemDateYmd >= customStart;
+    const matchesEnd = !customEnd || itemDateYmd <= customEnd;
+    return matchesStart && matchesEnd;
+  }
+  return true;
+}
+
 export default function LiveBillHistory() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [amtQuery, setAmtQuery] = useState("");
+  const [rangeType, setRangeType] = useState("today");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
@@ -49,7 +93,29 @@ export default function LiveBillHistory() {
 
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, q, amtQuery, startDate, endDate]);
+  }, [statusFilter, q, amtQuery, rangeType, startDate, endDate]);
+
+  // filter
+  const filteredItems = useMemo(() => {
+    return items.filter((item) => {
+      const matchesStatus = statusFilter === "all" || 
+        (statusFilter === "reversed" ? (item.status === "reversed" || item.status === "failed" || item.status === "rejected") : item.status === statusFilter);
+      
+      const term = q.toLowerCase().trim();
+      const matchesSearch =
+        !term ||
+        (item.customer_name || "").toLowerCase().includes(term) ||
+        (item.operator || "").toLowerCase().includes(term) ||
+        (item.customer_phone || "").toLowerCase().includes(term);
+
+      const itemAmt = item.amount ?? 0;
+      const matchesAmount = !amtQuery.trim() || String(itemAmt).includes(amtQuery.trim());
+
+      const matchesDate = isItemInRange(item.created_at, rangeType, startDate, endDate);
+
+      return matchesStatus && matchesSearch && matchesAmount && matchesDate;
+    });
+  }, [items, statusFilter, q, amtQuery, rangeType, startDate, endDate]);
 
   // stats
   const stats = useMemo(() => {
@@ -60,7 +126,7 @@ export default function LiveBillHistory() {
     let reversedAmt = 0;
     let reversedCount = 0;
 
-    items.forEach((item) => {
+    filteredItems.forEach((item) => {
       const amt = item.amount ?? 0;
       if (item.status === "success") {
         successAmt += amt;
@@ -82,31 +148,7 @@ export default function LiveBillHistory() {
       reversedAmt,
       reversedCount,
     };
-  }, [items]);
-
-  // filter
-  const filteredItems = useMemo(() => {
-    return items.filter((item) => {
-      const matchesStatus = statusFilter === "all" || 
-        (statusFilter === "reversed" ? (item.status === "reversed" || item.status === "failed" || item.status === "rejected") : item.status === statusFilter);
-      
-      const term = q.toLowerCase().trim();
-      const matchesSearch =
-        !term ||
-        (item.customer_name || "").toLowerCase().includes(term) ||
-        (item.operator || "").toLowerCase().includes(term) ||
-        (item.customer_phone || "").toLowerCase().includes(term);
-
-      const itemAmt = item.amount ?? 0;
-      const matchesAmount = !amtQuery.trim() || String(itemAmt).includes(amtQuery.trim());
-
-      const itemDate = item.created_at ? item.created_at.substring(0, 10) : "";
-      const matchesStart = !startDate || itemDate >= startDate;
-      const matchesEnd = !endDate || itemDate <= endDate;
-
-      return matchesStatus && matchesSearch && matchesAmount && matchesStart && matchesEnd;
-    });
-  }, [items, statusFilter, q, amtQuery, startDate, endDate]);
+  }, [filteredItems]);
 
   // paginate
   const paginatedItems = useMemo(() => {
@@ -185,10 +227,10 @@ export default function LiveBillHistory() {
               placeholder="Search by Customer, Biller ID, Phone..."
               className="mfp-input !pl-11 !pr-10 bg-neutral-50/50"
             />
-            {(q || statusFilter !== "all" || amtQuery !== "" || startDate || endDate) && (
+            {(q || statusFilter !== "all" || amtQuery !== "" || rangeType !== "today" || startDate || endDate) && (
               <button
                 type="button"
-                onClick={() => { setQ(""); setStatusFilter("all"); setAmtQuery(""); setStartDate(""); setEndDate(""); }}
+                onClick={() => { setQ(""); setStatusFilter("all"); setAmtQuery(""); setRangeType("today"); setStartDate(""); setEndDate(""); }}
                 className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-indigo-600"
                 title="Clear all filters"
               >
@@ -197,27 +239,43 @@ export default function LiveBillHistory() {
             )}
           </div>
 
-          {/* Start Date */}
+          {/* Date Range Dropdown */}
           <div className="w-full sm:w-auto">
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              placeholder="Start Date"
-              className="mfp-input text-xs bg-white border border-black/10 focus:border-[#1b4332] py-2 px-3 rounded-xl cursor-pointer w-full sm:w-36 h-[38px]"
-            />
+            <select
+              value={rangeType}
+              onChange={(e) => setRangeType(e.target.value)}
+              className="mfp-input bg-white text-xs font-bold rounded-xl py-2 px-3 outline-none cursor-pointer border border-black/10 focus:border-[#1b4332] w-full sm:w-36 h-[38px]"
+            >
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="last_7_days">Last 7 Days</option>
+              <option value="last_30_days">Last 30 Days</option>
+              <option value="this_month">This Month</option>
+              <option value="all">All Time</option>
+              <option value="custom">Custom Date</option>
+            </select>
           </div>
 
-          {/* End Date */}
-          <div className="w-full sm:w-auto">
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              placeholder="End Date"
-              className="mfp-input text-xs bg-white border border-black/10 focus:border-[#1b4332] py-2 px-3 rounded-xl cursor-pointer w-full sm:w-36 h-[38px]"
-            />
-          </div>
+          {/* Custom Date Inputs */}
+          {rangeType === "custom" && (
+            <div className="flex items-center gap-2 w-full sm:w-auto animate-fadeIn">
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                placeholder="Start Date"
+                className="mfp-input text-xs bg-white border border-black/10 focus:border-[#1b4332] py-2 px-3 rounded-xl cursor-pointer w-full sm:w-36 h-[38px]"
+              />
+              <span className="text-xs text-neutral-400 font-bold">to</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                placeholder="End Date"
+                className="mfp-input text-xs bg-white border border-black/10 focus:border-[#1b4332] py-2 px-3 rounded-xl cursor-pointer w-full sm:w-36 h-[38px]"
+              />
+            </div>
+          )}
 
           {/* Status Dropdown */}
           <div className="w-full sm:w-auto">
