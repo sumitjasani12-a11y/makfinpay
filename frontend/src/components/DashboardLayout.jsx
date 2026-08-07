@@ -468,7 +468,7 @@ export default function DashboardLayout() {
               <div className="text-sm font-medium capitalize truncate">{roleLabel(user.role)} Dashboard</div>
             </div>
           </div>
-          <div className="flex items-center gap-3 text-sm text-neutral-600 animate-fadeIn">
+          <div className="hidden md:flex items-center gap-3 text-sm text-neutral-600 animate-fadeIn">
             <span className="font-extrabold text-neutral-600 bg-neutral-100/70 border border-neutral-200/50 px-3.5 py-1 rounded-full text-xs shadow-sm select-none">
               {headerDateStr}
             </span>
@@ -532,6 +532,54 @@ export default function DashboardLayout() {
                   </marquee>
                 </div>
               )}
+
+              {/* MOBILE ONLY TOP WALLET BALANCE BAR */}
+              <div className="md:hidden px-4 py-3 bg-white/95 backdrop-blur-md border-b border-black/5 flex flex-wrap items-center justify-between gap-2.5 shadow-xs select-none animate-fadeIn">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {balance !== null && (
+                    <span className="font-extrabold text-neutral-800 bg-[#E8F5E9] text-[#00966B] px-3 py-1 rounded-full text-xs flex items-center gap-1.5 border border-[#C8E6C9]" data-testid="mobile-header-balance">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#00966B] animate-pulse" />
+                      Wallet: {fmtMoney(balance)}
+                    </span>
+                  )}
+                  {user.role === "agent" && t1Balance !== null && (
+                    <span className="font-extrabold text-neutral-800 bg-[#E3F2FD] text-[#1E88E5] px-3 py-1 rounded-full text-xs flex items-center gap-1.5 border border-[#BBDEFB]" data-testid="mobile-header-t1-balance">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#1E88E5] animate-pulse" />
+                      T+1 Wallet: {fmtMoney(t1Balance)}
+                    </span>
+                  )}
+                  {user.role === "agent" && holdBalance !== null && holdActive && (
+                    <span className="font-extrabold text-neutral-800 bg-[#FFEBEE] text-[#C81D11] px-3 py-1 rounded-full text-xs flex items-center gap-1.5 border border-[#FFCDD2] animate-pulse" data-testid="mobile-header-hold-balance">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#C81D11]" />
+                      Hold Wallet: {fmtMoney(holdBalance)}
+                    </span>
+                  )}
+                  {user.role === "admin" && t1Total !== null && (
+                    <span className="font-extrabold text-neutral-800 bg-[#FFF3E0] text-[#E65100] px-3 py-1 rounded-full text-xs flex items-center gap-1.5 border border-[#FFE0B2]" data-testid="mobile-admin-header-t1-total">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#E65100] animate-pulse" />
+                      T+1 Total: {fmtMoney(t1Total)}
+                    </span>
+                  )}
+                  {user.role === "admin" && bbpsBalance !== null && (
+                    <span className="font-extrabold text-neutral-800 bg-[#E8F5E9] text-[#00966B] px-3 py-1 rounded-full text-xs flex items-center gap-1.5 border border-[#C8E6C9]" data-testid="mobile-admin-header-bbps-balance">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#00966B] animate-pulse" />
+                      Live BBPS Wallet: {fmtMoney(bbpsBalance)}
+                    </span>
+                  )}
+                  {user.role === "admin" && holdTotal !== null && holdTotal > 0 && (
+                    <span className="font-extrabold text-neutral-800 bg-[#FFEBEE] text-[#C81D11] px-3 py-1 rounded-full text-xs flex items-center gap-1.5 border border-[#FFCDD2]" data-testid="mobile-admin-header-hold-total">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#C81D11] animate-pulse" />
+                      Hold Total: {fmtMoney(holdTotal)}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0 ml-auto">
+                  <span className="font-extrabold text-neutral-600 bg-neutral-100 border border-neutral-200/80 px-2.5 py-0.5 rounded-full text-[11px]">
+                    {headerDateStr}
+                  </span>
+                  <span className="mfp-pill bg-[#E8E5D7] text-[#1B4332] capitalize text-[11px] px-2.5 py-0.5">{roleLabel(user.role)}</span>
+                </div>
+              </div>
             </>
           );
         })()}
