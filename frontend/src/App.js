@@ -25,6 +25,7 @@ import AdminHeadlines from "@/pages/admin/Headlines";
 import AdminServiceSlabs from "@/pages/admin/ServiceSlabs";
 import AdminBanks from "@/pages/admin/Banks";
 import AdminCcBillers from "@/pages/admin/CcBillers";
+import AdminBillerCategories from "@/pages/admin/BillerCategories";
 import AdminSettings from "@/pages/admin/Settings";
 import AdminReasons from "@/pages/admin/Reasons";
 import AdminPolicies from "@/pages/admin/Policies";
@@ -109,6 +110,7 @@ export default function App() {
             <Route path="service-slabs" element={<AdminServiceSlabs />} />
             <Route path="banks" element={<AdminBanks />} />
             <Route path="cc-billers" element={<AdminCcBillers />} />
+            <Route path="biller-categories" element={<AdminBillerCategories />} />
             <Route path="kyc" element={<AdminKyc />} />
             <Route path="reasons" element={<AdminReasons />} />
             <Route path="audit" element={<AdminAudit />} />

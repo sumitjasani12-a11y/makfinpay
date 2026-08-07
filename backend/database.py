@@ -43,7 +43,8 @@ TABLE_COLUMNS = {
     "billers": ["biller_id", "biller_name", "category", "metadata", "created_at"],
     "admin_profit_ledger": ["id", "type", "amount", "balance_after", "ref_type", "ref_id", "note", "created_at"],
     "admin_cashbook": ["id", "type", "amount", "balance_after", "ref_type", "ref_id", "note", "created_at"],
-    "admin_credentials": ["id", "email", "password", "password_hash", "permissions", "frozen", "created_at"]
+    "admin_credentials": ["id", "email", "password", "password_hash", "permissions", "frozen", "created_at"],
+    "biller_categories": ["category_name", "enabled", "updated_at"]
 }
 
 DATETIME_COLUMNS = {

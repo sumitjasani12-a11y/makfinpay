@@ -4561,6 +4561,77 @@ async def post_sync_billers(user=Depends(require_roles("admin"))):
     count = await sync_billers_from_usepay()
     return {"status": "success", "message": f"Successfully synced {count} billers from Usepay API"}
 
+@api.get("/admin/biller-categories")
+async def get_admin_biller_categories(user=Depends(require_roles("admin"))):
+    count = await db.billers.count_documents({})
+    if count == 0:
+        await sync_billers_from_usepay()
+
+    try:
+        async with db.pool.acquire() as conn:
+            cat_rows = await conn.fetch(
+                "SELECT DISTINCT category FROM billers WHERE category IS NOT NULL AND category != '' ORDER BY category ASC"
+            )
+            cat_map_rows = await conn.fetch("SELECT category_name, enabled FROM biller_categories")
+            status_map = {r["category_name"]: r["enabled"] for r in cat_map_rows}
+
+            # Get biller count per category for summary info
+            count_rows = await conn.fetch("SELECT category, COUNT(*) as cnt FROM billers GROUP BY category")
+            biller_counts = {r["category"]: r["cnt"] for r in count_rows}
+
+            categories = []
+            for r in cat_rows:
+                cat_name = r["category"]
+                is_enabled = status_map.get(cat_name, True)
+                categories.append({
+                    "category_name": cat_name,
+                    "enabled": is_enabled,
+                    "biller_count": biller_counts.get(cat_name, 0)
+                })
+            return {"status": "success", "data": categories}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch biller categories: {str(e)}")
+
+class CategoryTogglePayload(BaseModel):
+    category_name: str
+    enabled: bool
+
+@api.post("/admin/biller-categories/toggle")
+async def toggle_biller_category(payload: CategoryTogglePayload, user=Depends(require_roles("admin"))):
+    try:
+        async with db.pool.acquire() as conn:
+            await conn.execute('''
+                INSERT INTO biller_categories (category_name, enabled, updated_at)
+                VALUES ($1, $2, NOW())
+                ON CONFLICT (category_name) 
+                DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = NOW()
+            ''', payload.category_name, payload.enabled)
+        return {"status": "success", "message": f"Category '{payload.category_name}' {'enabled' if payload.enabled else 'disabled'}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to toggle category: {str(e)}")
+
+class BulkCategoryTogglePayload(BaseModel):
+    enabled: bool
+
+@api.post("/admin/biller-categories/toggle-all")
+async def toggle_all_biller_categories(payload: BulkCategoryTogglePayload, user=Depends(require_roles("admin"))):
+    try:
+        async with db.pool.acquire() as conn:
+            cat_rows = await conn.fetch(
+                "SELECT DISTINCT category FROM billers WHERE category IS NOT NULL AND category != ''"
+            )
+            for r in cat_rows:
+                cat_name = r["category"]
+                await conn.execute('''
+                    INSERT INTO biller_categories (category_name, enabled, updated_at)
+                    VALUES ($1, $2, NOW())
+                    ON CONFLICT (category_name) 
+                    DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = NOW()
+                ''', cat_name, payload.enabled)
+        return {"status": "success", "message": f"All categories {'enabled' if payload.enabled else 'disabled'}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to bulk toggle categories: {str(e)}")
+
 @api.get("/agent/live-billpay/categories")
 async def get_live_billpay_categories(user=Depends(require_approved_agent())):
     count = await db.billers.count_documents({})
@@ -4572,13 +4643,17 @@ async def get_live_billpay_categories(user=Depends(require_approved_agent())):
             rows = await conn.fetch(
                 "SELECT DISTINCT category FROM billers WHERE category IS NOT NULL AND category != '' ORDER BY category ASC"
             )
+            disabled_rows = await conn.fetch("SELECT category_name FROM biller_categories WHERE enabled = FALSE")
+            disabled_set = {r["category_name"] for r in disabled_rows}
+
             categories_list = []
             for r in rows:
                 cat_name = r["category"]
-                categories_list.append({
-                    "id": cat_name,
-                    "category_name": cat_name
-                })
+                if cat_name not in disabled_set:
+                    categories_list.append({
+                        "id": cat_name,
+                        "category_name": cat_name
+                    })
             return {"status": "success", "data": categories_list}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch categories from database: {str(e)}")
@@ -7140,6 +7215,13 @@ async def _ensure_indexes() -> None:
                 active BOOLEAN DEFAULT TRUE,
                 is_deleted BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMPTZ
+            )
+        ''')
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS biller_categories (
+                category_name VARCHAR(255) PRIMARY KEY,
+                enabled BOOLEAN DEFAULT TRUE,
+                updated_at TIMESTAMPTZ
             )
         ''')
         await conn.execute('''
