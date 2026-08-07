@@ -168,12 +168,12 @@ export default function AgentOverview() {
           {/* Grid of 4 Cards (Col Span 6) */}
           <div className="lg:col-span-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5">
             {/* Card 1: Total Balance */}
-            <div className="bg-gradient-to-br from-[#0F5132] to-[#198754] text-white border border-emerald-500/20 rounded-2xl p-3.5 shadow-md flex items-center gap-3.5 h-[84px] relative overflow-hidden transition-all hover:shadow-lg animate-fadeIn">
-              <div className="p-2.5 bg-white/10 text-emerald-300 border border-white/10 rounded-xl shrink-0">
+            <div className="bg-gradient-to-br from-[#0F5132]/90 to-[#198754]/90 backdrop-blur-md text-white border border-emerald-400/30 rounded-2xl p-3.5 shadow-lg flex items-center gap-3.5 h-[84px] relative overflow-hidden transition-all hover:shadow-xl hover:scale-[1.02] animate-fadeIn">
+              <div className="p-2.5 bg-white/15 text-emerald-200 border border-white/20 rounded-xl shrink-0 backdrop-blur-sm">
                 <Wallet className="h-4.5 w-4.5" />
               </div>
               <div className="min-w-0">
-                <span className="text-[9px] text-emerald-100/80 font-bold tracking-wider uppercase block truncate">
+                <span className="text-[9px] text-emerald-100/90 font-bold tracking-wider uppercase block truncate">
                   Total Balance
                 </span>
                 <span className="text-base font-black text-white mt-0.5 block truncate">
@@ -183,12 +183,12 @@ export default function AgentOverview() {
             </div>
 
             {/* Card 2: QR Payment */}
-            <div className="bg-gradient-to-br from-[#0A3641] to-[#0D6EFD] text-white border border-blue-500/20 rounded-2xl p-3.5 shadow-md flex items-center gap-3.5 h-[84px] relative overflow-hidden transition-all hover:shadow-lg animate-fadeIn">
-              <div className="p-2.5 bg-white/10 text-blue-300 border border-white/10 rounded-xl shrink-0">
+            <div className="bg-gradient-to-br from-[#0A3641]/90 to-[#0D6EFD]/90 backdrop-blur-md text-white border border-blue-400/30 rounded-2xl p-3.5 shadow-lg flex items-center gap-3.5 h-[84px] relative overflow-hidden transition-all hover:shadow-xl hover:scale-[1.02] animate-fadeIn">
+              <div className="p-2.5 bg-white/15 text-blue-200 border border-white/20 rounded-xl shrink-0 backdrop-blur-sm">
                 <QrCode className="h-4.5 w-4.5" />
               </div>
               <div className="min-w-0">
-                <span className="text-[9px] text-blue-100/80 font-bold tracking-wider uppercase block truncate">
+                <span className="text-[9px] text-blue-100/90 font-bold tracking-wider uppercase block truncate">
                   QR Payment
                 </span>
                 <span className="text-base font-black text-white mt-0.5 block truncate">
@@ -198,12 +198,12 @@ export default function AgentOverview() {
             </div>
 
             {/* Card 3: Live Bill Payment */}
-            <div className="bg-gradient-to-br from-[#3B0066] to-[#6F42C1] text-white border border-purple-500/20 rounded-2xl p-3.5 shadow-md flex items-center gap-3.5 h-[84px] relative overflow-hidden transition-all hover:shadow-lg animate-fadeIn">
-              <div className="p-2.5 bg-white/10 text-purple-300 border border-white/10 rounded-xl shrink-0">
+            <div className="bg-gradient-to-br from-[#3B0066]/90 to-[#6F42C1]/90 backdrop-blur-md text-white border border-purple-400/30 rounded-2xl p-3.5 shadow-lg flex items-center gap-3.5 h-[84px] relative overflow-hidden transition-all hover:shadow-xl hover:scale-[1.02] animate-fadeIn">
+              <div className="p-2.5 bg-white/15 text-purple-200 border border-white/20 rounded-xl shrink-0 backdrop-blur-sm">
                 <CreditCard className="h-4.5 w-4.5" />
               </div>
               <div className="min-w-0">
-                <span className="text-[9px] text-purple-100/80 font-bold tracking-wider uppercase block truncate">
+                <span className="text-[9px] text-purple-100/90 font-bold tracking-wider uppercase block truncate">
                   Live Bill Payment
                 </span>
                 <span className="text-base font-black text-white mt-0.5 block truncate">
@@ -213,12 +213,12 @@ export default function AgentOverview() {
             </div>
 
             {/* Card 4: Pending Requests */}
-            <div className="bg-gradient-to-br from-[#664D03] to-[#FD7E14] text-white border border-orange-500/20 rounded-2xl p-3.5 shadow-md flex items-center gap-3.5 h-[84px] relative overflow-hidden transition-all hover:shadow-lg animate-fadeIn">
-              <div className="p-2.5 bg-white/10 text-orange-300 border border-white/10 rounded-xl shrink-0">
+            <div className="bg-gradient-to-br from-[#664D03]/90 to-[#FD7E14]/90 backdrop-blur-md text-white border border-orange-400/30 rounded-2xl p-3.5 shadow-lg flex items-center gap-3.5 h-[84px] relative overflow-hidden transition-all hover:shadow-xl hover:scale-[1.02] animate-fadeIn">
+              <div className="p-2.5 bg-white/15 text-orange-200 border border-white/20 rounded-xl shrink-0 backdrop-blur-sm">
                 <Clock className="h-4.5 w-4.5" />
               </div>
               <div className="min-w-0">
-                <span className="text-[9px] text-orange-100/80 font-bold tracking-wider uppercase block truncate">
+                <span className="text-[9px] text-orange-100/90 font-bold tracking-wider uppercase block truncate">
                   Pending Requests
                 </span>
                 <span className="text-base font-black text-white mt-0.5 block truncate">
@@ -230,7 +230,7 @@ export default function AgentOverview() {
 
           {/* Slider Carousel (Col Span 4) */}
           {imageMessages.length > 0 ? (
-            <div className="bg-white border border-neutral-200/80 rounded-3xl overflow-hidden shadow-sm lg:col-span-4 relative h-[270px] max-h-[270px] flex items-center justify-center bg-neutral-900/5 group animate-fadeIn">
+            <div className="bg-white/75 backdrop-blur-md border border-white/80 rounded-3xl overflow-hidden shadow-lg lg:col-span-4 relative h-[270px] max-h-[270px] flex items-center justify-center group animate-fadeIn">
               <div
                 className="flex transition-transform duration-500 ease-out h-full w-full items-center"
                 style={{ transform: `translateX(-${activeImageIndex * 100}%)` }}
