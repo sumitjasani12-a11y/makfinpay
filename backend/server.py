@@ -1824,6 +1824,150 @@ async def run_daily_commission_settlement():
         logger.error(f"run_daily_commission_settlement failed: {e}")
 
 
+async def run_t1_daily_settlement(cutoff_dt: Optional[datetime] = None):
+    """At 11:30 AM IST daily (or startup): settle all eligible T+1 balance to main wallet for all agents.
+    T+1 recharges approved prior to 11:30 AM IST today (or prior days) will have their net credit amount
+    transferred from `t1_balance` to `balance` (main wallet) and recorded in the ledger.
+    """
+    try:
+        now_utc = datetime.now(timezone.utc)
+        if not cutoff_dt:
+            # Default cutoff is today's 06:00:00 UTC (11:30 AM IST)
+            cutoff_dt = now_utc.replace(hour=6, minute=0, second=0, microsecond=0)
+            if now_utc < cutoff_dt:
+                # If running before 11:30 AM IST today, use yesterday's 11:30 AM IST cutoff
+                cutoff_dt = cutoff_dt - timedelta(days=1)
+                
+        cutoff_iso = cutoff_dt.isoformat()
+        today_str = cutoff_dt.strftime("%Y-%m-%d")
+        
+        # Fetch all approved T+1 recharges that are not yet settled
+        cursor = db.recharges.find(
+            {"status": "approved", "is_t1": True, "settled_t1": {"$ne": True}},
+            {"_id": 0}
+        )
+        unsettled_recharges = await cursor.to_list(None)
+        
+        eligible_recharges = []
+        for r in unsettled_recharges:
+            c_at = r.get("reviewed_at") or r.get("created_at")
+            c_dt = None
+            if isinstance(c_at, str):
+                try:
+                    c_dt = datetime.fromisoformat(c_at.replace("Z", "+00:00"))
+                except Exception:
+                    c_dt = None
+            elif isinstance(c_at, datetime):
+                c_dt = c_at
+                
+            if c_dt is None or c_dt <= cutoff_dt:
+                eligible_recharges.append(r)
+                
+        if not eligible_recharges:
+            logger.info(f"[T+1 Settlement] No eligible unsettled T+1 recharges found for cutoff {cutoff_iso}")
+            return {"settled_count": 0, "total_settled_amount": 0.0, "cutoff": cutoff_iso}
+            
+        # Group eligible recharges by agent user_id
+        agent_group = {}
+        for r in eligible_recharges:
+            uid = r.get("user_id")
+            if not uid:
+                continue
+            amt = float(r.get("credit_amount") if r.get("credit_amount") is not None else (r.get("net_credit_amount") if r.get("net_credit_amount") is not None else (float(r.get("amount", 0)) - float(r.get("commission_amount", 0)))))
+            if uid not in agent_group:
+                agent_group[uid] = {"amount": 0.0, "recharge_ids": []}
+            agent_group[uid]["amount"] += amt
+            agent_group[uid]["recharge_ids"].append(r["id"])
+            
+        total_settled_amount = 0.0
+        settled_agents_count = 0
+        
+        for uid, data in agent_group.items():
+            tot_amt = round(data["amount"], 2)
+            r_ids = data["recharge_ids"]
+            if tot_amt <= 0:
+                continue
+                
+            w = await get_or_create_wallet(uid)
+            cur_t1 = float(w.get("t1_balance") or 0.0)
+            
+            # Settle amount is bounded by actual t1_balance available
+            settle_amt = round(min(tot_amt, cur_t1), 2)
+            if settle_amt <= 0:
+                # Mark recharges settled to prevent sticking
+                await db.recharges.update_many(
+                    {"id": {"$in": r_ids}},
+                    {"$set": {"settled_t1": True, "settled_t1_at": now_iso()}}
+                )
+                continue
+                
+            # Perform atomic wallet transfer: balance += settle_amt, t1_balance = GREATEST(t1_balance - settle_amt, 0.0)
+            res = await db.execute_query(
+                "UPDATE wallets SET balance = balance + $1, t1_balance = GREATEST(t1_balance - $1, 0.0), updated_at = $2 WHERE user_id = $3 RETURNING balance, t1_balance",
+                [settle_amt, now_iso(), uid]
+            )
+            
+            new_main_bal = float(res[0]["balance"]) if res else round(float(w.get("balance", 0.0)) + settle_amt, 2)
+            
+            # Record in ledger
+            await db.ledger.insert_one({
+                "id": new_id(),
+                "user_id": uid,
+                "kind": "credit",
+                "amount": settle_amt,
+                "balance_after": new_main_bal,
+                "ref_type": "t1_settlement",
+                "ref_id": f"t1_settle_{today_str}_{uid[:8]}",
+                "note": f"T+1 Wallet Settlement credited to Main Wallet (₹{settle_amt:,.2f})",
+                "created_at": now_iso()
+            })
+            
+            # Mark recharges as settled_t1
+            await db.recharges.update_many(
+                {"id": {"$in": r_ids}},
+                {"$set": {"settled_t1": True, "settled_t1_at": now_iso()}}
+            )
+            
+            total_settled_amount += settle_amt
+            settled_agents_count += 1
+            logger.info(f"[T+1 Settlement] Settled ₹{settle_amt} for agent {uid} -> Main Balance: ₹{new_main_bal}")
+            
+        return {
+            "settled_count": settled_agents_count,
+            "total_settled_amount": round(total_settled_amount, 2),
+            "cutoff": cutoff_iso
+        }
+    except Exception as e:
+        logger.error(f"[T+1 Settlement] Error in run_t1_daily_settlement: {e}")
+        return {"error": str(e)}
+
+
+_t1_scheduler: Optional[AsyncIOScheduler] = None
+
+def _start_t1_scheduler():
+    global _t1_scheduler
+    if _t1_scheduler is not None and _t1_scheduler.running:
+        return
+    _t1_scheduler = AsyncIOScheduler()
+    # Schedule daily at 06:00 UTC = 11:30 AM IST
+    _t1_scheduler.add_job(
+        run_t1_daily_settlement,
+        CronTrigger(hour=6, minute=0, timezone=timezone.utc),
+        id="t1_daily_settlement",
+        replace_existing=True
+    )
+    # Schedule daily distributor/MD commission settlement at 00:05 UTC (05:35 AM IST)
+    _t1_scheduler.add_job(
+        run_daily_commission_settlement,
+        CronTrigger(hour=0, minute=5, timezone=timezone.utc),
+        id="daily_commission_settlement",
+        replace_existing=True
+    )
+    _t1_scheduler.start()
+    logger.info("[T+1 Scheduler] APScheduler started successfully for Daily T+1 Settlement at 11:30 AM IST (06:00 UTC)")
+
+
+
 async def get_md_available_for_withdrawal(md_id: str) -> float:
     """Amount an MD can request to withdraw RIGHT NOW = lifetime − approved − pending − hold_balance.
     Pending requests are reserved so an MD cannot double-spend earnings while one request
@@ -3151,6 +3295,31 @@ async def admin_t1_total(user=Depends(require_roles("admin"))):
         row = await conn.fetchrow("SELECT COALESCE(SUM(t1_balance), 0) as total FROM wallets")
         total = float(row["total"])
     return {"total": total}
+
+@api.post("/admin/t1-settlement/run")
+async def admin_trigger_t1_settlement(user=Depends(require_roles("admin"))):
+    """Manually trigger T+1 settlement for all past eligible T+1 recharges right now."""
+    res = await run_t1_daily_settlement()
+    return res
+
+@api.get("/admin/t1-settlement/status")
+async def admin_t1_settlement_status(user=Depends(require_roles("admin"))):
+    """View current T+1 balance total and pending unsettled T+1 recharges count."""
+    async with db.pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT COALESCE(SUM(t1_balance), 0) as total FROM wallets")
+        t1_sum = float(row["total"]) if row else 0.0
+        
+    unsettled_count = await db.recharges.count_documents({
+        "status": "approved",
+        "is_t1": True,
+        "settled_t1": {"$ne": True}
+    })
+    
+    return {
+        "total_t1_balance": t1_sum,
+        "pending_unsettled_recharges": unsettled_count,
+        "next_scheduled_run": "Daily at 11:30 AM IST (06:00 UTC)"
+    }
 
 @api.get("/admin/hold-total")
 async def admin_hold_total(user=Depends(require_roles("admin"))):
@@ -7389,6 +7558,9 @@ async def startup():
         await _migrate_recharge_revenue_snapshot()
         await _ensure_backup_settings()
         _ensure_backup_scheduler()
+        await run_t1_daily_settlement()
+        await run_daily_commission_settlement()
+        _start_t1_scheduler()
     except Exception as e:
         logger.error(f"Startup error occurred: {e}")
 
