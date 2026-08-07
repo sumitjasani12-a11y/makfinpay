@@ -4575,31 +4575,34 @@ DEFAULT_BILLER_CATEGORIES = [
 
 async def _get_disabled_biller_categories_set() -> set:
     try:
-        async with db.pool.acquire() as conn:
-            await conn.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS disabled_biller_categories TEXT")
-            row = await conn.fetchrow("SELECT disabled_biller_categories FROM settings LIMIT 1")
-            if row and row["disabled_biller_categories"]:
-                val = row["disabled_biller_categories"]
+        doc = await db.settings.find_one({"id": "biller_categories"}, {"_id": 0})
+        if doc and doc.get("disabled_biller_categories"):
+            val = doc["disabled_biller_categories"]
+            if isinstance(val, list):
+                return set(val)
+            elif isinstance(val, str):
                 try:
                     parsed = json.loads(val)
                     if isinstance(parsed, list):
                         return set(parsed)
                 except Exception:
-                    return set(x.strip() for x in val.split(",") if x.strip())
+                    return set(x.strip() for x in val.split("||") if x.strip())
     except Exception as e:
         logger.error(f"Error fetching disabled_biller_categories: {e}")
     return set()
 
 async def _save_disabled_biller_categories_set(disabled_set: set):
-    val = json.dumps(list(disabled_set))
+    val_json = json.dumps(sorted(list(disabled_set)))
     try:
-        async with db.pool.acquire() as conn:
-            await conn.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS disabled_biller_categories TEXT")
-            row = await conn.fetchrow("SELECT id FROM settings LIMIT 1")
-            if row:
-                await conn.execute("UPDATE settings SET disabled_biller_categories = $1, updated_at = NOW() WHERE id = $2", val, row["id"])
-            else:
-                await conn.execute("INSERT INTO settings (id, disabled_biller_categories, updated_at) VALUES ($1, $2, NOW())", str(uuid.uuid4()), val)
+        await db.settings.update_one(
+            {"id": "biller_categories"},
+            {"$set": {
+                "id": "biller_categories",
+                "disabled_biller_categories": val_json,
+                "updated_at": now_iso()
+            }},
+            upsert=True
+        )
     except Exception as e:
         logger.error(f"Error saving disabled_biller_categories: {e}")
 
