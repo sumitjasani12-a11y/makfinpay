@@ -42,10 +42,6 @@ export default function DashboardLayout() {
       if (currentPath.startsWith("/admin")) {
         const sub = currentPath === "/admin" || currentPath === "/admin/" ? "dashboard" : currentPath.replace("/admin/", "");
         const baseKey = sub.split("/")[0];
-        if (baseKey === "admins") {
-          nav("/admin");
-          return;
-        }
         const allowed = user.permissions;
         if (allowed !== null && allowed !== undefined) {
           if (!allowed.includes(baseKey)) {
@@ -60,7 +56,6 @@ export default function DashboardLayout() {
   if (user.role === "admin" && user.email?.toLowerCase() !== "jigs.vanani@gmail.com") {
     const allowed = user.permissions;
     items = items.filter(it => {
-      if (it.to === "/admin/admins") return false;
       if (allowed !== null && allowed !== undefined) {
         const key = it.to === "/admin" ? "dashboard" : it.to.replace("/admin/", "");
         return allowed.includes(key);

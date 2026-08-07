@@ -30,6 +30,7 @@ const PERMISSIONS_LIST = [
   { key: "kyc", label: "KYC Requests" },
   { key: "reasons", label: "Reason Entry" },
   { key: "audit", label: "Audit Logs" },
+  { key: "admins", label: "Admin Management" },
   { key: "change-password", label: "Change Password" },
   { key: "settings", label: "Settings" },
   { key: "policies", label: "Rules & Policies" }
