@@ -172,6 +172,7 @@ export default function AdminRecharges() {
       await api.put(`/admin/recharges/${rid}/qr-code`, { qr_code_label: labelToSave });
       toast.success("QR Code updated! Tracking history refreshed.");
       setEditingQrRid(null);
+      setDetail((prev) => (prev && prev.id === rid ? { ...prev, qr_code_label: labelToSave } : prev));
       reload();
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Failed to update QR code");
@@ -752,18 +753,58 @@ export default function AdminRecharges() {
               </div>
               <div className="grid md:grid-cols-2 gap-6 p-6">
                 <div className="space-y-3 text-sm">
-                  {[
-                    ["Service Type", detail.is_t1 ? "⚡ T+1 Service (Immediate Settlement)" : "Normal Wallet Service"],
-                    ["Amount", fmtMoney(detail.amount)],
-                    ["UTR / Reference", detail.utr || "—"],
-                    ["QR Code Used", detail.qr_code_label || "N/A"],
-                    ["Created", fmtDate(detail.created_at)],
-                  ].map(([k, v]) => (
-                    <div key={k} className="flex justify-between border-b border-black/5 pb-2">
-                      <span className="text-neutral-500">{k}</span>
-                      <span className="font-medium text-right">{v}</span>
+                  <div className="flex justify-between border-b border-black/5 pb-2">
+                    <span className="text-neutral-500">Service Type</span>
+                    <span className="font-medium text-right">{detail.is_t1 ? "⚡ T+1 Service (Immediate Settlement)" : "Normal Wallet Service"}</span>
+                  </div>
+
+                  <div className="flex justify-between border-b border-black/5 pb-2">
+                    <span className="text-neutral-500">Amount</span>
+                    <span className="font-medium text-right">{fmtMoney(detail.amount)}</span>
+                  </div>
+
+                  <div className="flex justify-between border-b border-black/5 pb-2">
+                    <span className="text-neutral-500">UTR / Reference</span>
+                    <span className="font-medium text-right">{detail.utr || "—"}</span>
+                  </div>
+
+                  <div className="flex justify-between border-b border-black/5 pb-2 items-center relative">
+                    <span className="text-neutral-500">QR Code Used</span>
+                    <div className="flex items-center gap-1.5 relative">
+                      <span className="font-bold text-neutral-800 text-right">{detail.qr_code_label || "N/A"}</span>
+                      {canEditApprovalQr && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (editingQrRid === detail.id) {
+                              setEditingQrRid(null);
+                            } else {
+                              setEditingQrRid(detail.id);
+                              setSelectedQrLabel(detail.qr_code_label || "");
+                            }
+                          }}
+                          className="p-1 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-all shrink-0 cursor-pointer border border-indigo-200/60 shadow-2xs"
+                          title="Edit QR Code for this request"
+                          data-testid="edit-qr-code-modal-btn"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      {editingQrRid === detail.id && (
+                        <CompactQrSearchSelect
+                          currentLabel={detail.qr_code_label}
+                          qrEntries={qrEntries}
+                          onSelect={(newLabel) => handleSaveRechargeQr(detail.id, newLabel)}
+                          onClose={() => setEditingQrRid(null)}
+                        />
+                      )}
                     </div>
-                  ))}
+                  </div>
+
+                  <div className="flex justify-between border-b border-black/5 pb-2">
+                    <span className="text-neutral-500">Created</span>
+                    <span className="font-medium text-right">{fmtDate(detail.created_at)}</span>
+                  </div>
 
                   {/* OCR Analysis Details Card */}
                   {hasOcr ? (
