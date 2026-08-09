@@ -161,7 +161,7 @@ const renderBillerLogo = (o) => {
       <img 
         src={logoUrl} 
         alt={o.biller_name} 
-        className="h-11 w-auto max-w-[92%] object-contain shrink-0 filter drop-shadow-xs transition-transform duration-300 group-hover:scale-105" 
+        className="h-14 w-auto max-w-[95%] max-h-14 object-contain shrink-0 filter drop-shadow-xs transition-transform duration-300 group-hover:scale-105" 
         onError={(e) => {
           e.target.style.display = 'none';
           const fallback = e.target.parentElement.querySelector('.logo-fallback');
@@ -866,12 +866,12 @@ export default function LiveBillPay() {
                       <button
                         key={o.biller_id}
                         onClick={() => handleOperatorChange(o.biller_id)}
-                        className="flex flex-col items-center justify-center text-center p-5 bg-white border border-slate-100/90 hover:border-indigo-500/25 hover:shadow-[0_16px_24px_-8px_rgba(79,70,229,0.1)] hover:-translate-y-1.5 rounded-2xl transition-all duration-300 group w-full relative min-h-[130px] overflow-hidden"
+                        className="flex flex-col items-center justify-center text-center p-4 bg-white border border-slate-100/90 hover:border-indigo-500/25 hover:shadow-[0_16px_24px_-8px_rgba(79,70,229,0.1)] hover:-translate-y-1.5 rounded-2xl transition-all duration-300 group w-full relative min-h-[140px] overflow-hidden"
                       >
                         <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/[0.015] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
 
                         {/* Centered Logo Container */}
-                        <div className="h-12 w-full flex items-center justify-center mb-3 transition-transform duration-300 group-hover:scale-105">
+                        <div className="h-14 w-full flex items-center justify-center mb-3 transition-transform duration-300 group-hover:scale-105">
                           {renderBillerLogo(o)}
                         </div>
                         
