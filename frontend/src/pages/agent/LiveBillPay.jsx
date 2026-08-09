@@ -161,7 +161,7 @@ const renderBillerLogo = (o) => {
       <img 
         src={logoUrl} 
         alt={o.biller_name} 
-        className="h-14 w-auto max-w-[95%] max-h-14 object-contain shrink-0 filter drop-shadow-xs transition-transform duration-300 group-hover:scale-105" 
+        className="h-full w-full object-contain shrink-0 filter drop-shadow-xs transition-transform duration-300 group-hover:scale-110" 
         onError={(e) => {
           e.target.style.display = 'none';
           const fallback = e.target.parentElement.querySelector('.logo-fallback');
@@ -866,12 +866,12 @@ export default function LiveBillPay() {
                       <button
                         key={o.biller_id}
                         onClick={() => handleOperatorChange(o.biller_id)}
-                        className="flex flex-col items-center justify-center text-center p-4 bg-white border border-slate-100/90 hover:border-indigo-500/25 hover:shadow-[0_16px_24px_-8px_rgba(79,70,229,0.1)] hover:-translate-y-1.5 rounded-2xl transition-all duration-300 group w-full relative min-h-[140px] overflow-hidden"
+                        className="flex flex-col items-center justify-center text-center p-4 bg-white border border-slate-100/90 hover:border-indigo-500/30 hover:shadow-[0_16px_28px_-8px_rgba(79,70,229,0.12)] hover:-translate-y-1.5 rounded-2xl transition-all duration-300 group w-full relative min-h-[145px] overflow-hidden"
                       >
-                        <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/[0.015] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+                        <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
 
-                        {/* Centered Logo Container */}
-                        <div className="h-14 w-full flex items-center justify-center mb-3 transition-transform duration-300 group-hover:scale-105">
+                        {/* Centered Uniform 64px Badge Container */}
+                        <div className="h-16 w-16 bg-slate-50/70 border border-slate-100/80 rounded-2xl flex items-center justify-center p-2 mb-3 shadow-2xs transition-all duration-300 group-hover:bg-white group-hover:border-indigo-500/25 group-hover:shadow-sm">
                           {renderBillerLogo(o)}
                         </div>
                         
