@@ -2845,6 +2845,7 @@ async def admin_list_users(
         fw = wallet_details.get(it["id"], {})
         it["hold_balance"] = float(fw.get("hold_balance") or 0.0)
         it["hold_active"] = bool(fw.get("hold_active") or False)
+        it["t1_balance"] = float(fw.get("t1_balance") or 0.0)
         if it.get("role") == "agent":
             cb = it.get("created_by_role")
             if cb == "distributor":
@@ -2878,9 +2879,16 @@ async def admin_distributor_agents(uid: str, user=Depends(require_roles("admin")
         {"parent_id": uid, "role": "agent", "is_deleted": False},
         {"_id": 0, "password_hash": 0}
     ).sort("created_at", -1).to_list(1000)
-    wallets_map = await _wallet_balances_for([a["id"] for a in agents])
+    agent_ids = [a["id"] for a in agents]
+    wallets_map = await _wallet_balances_for(agent_ids)
+    wallet_details = await db.wallets.find({"user_id": {"$in": agent_ids}}).to_list(None)
+    wallet_details_map = {w["user_id"]: w for w in wallet_details}
     for a in agents:
         a["wallet_balance"] = wallets_map.get(a["id"], 0)
+        fw = wallet_details_map.get(a["id"], {})
+        a["t1_balance"] = float(fw.get("t1_balance") or 0.0)
+        a["hold_balance"] = float(fw.get("hold_balance") or 0.0)
+        a["hold_active"] = bool(fw.get("hold_active") or False)
     return {"distributor": dist, "agents": agents}
 
 
@@ -2910,10 +2918,16 @@ async def admin_md_downline(uid: str, user=Depends(require_roles("admin"))):
     dist_earnings = await _distributor_earnings_batch(dist_ids)
     all_agent_ids = [a["id"] for a in direct_agents + dist_agents]
     wallets_map = await _wallet_balances_for(all_agent_ids)
+    wallet_details = await db.wallets.find({"user_id": {"$in": all_agent_ids}}).to_list(None)
+    wallet_details_map = {w["user_id"]: w for w in wallet_details}
     for d in distributors:
         d["earnings"] = dist_earnings.get(d["id"], 0.0)
     for a in direct_agents + dist_agents:
         a["wallet_balance"] = wallets_map.get(a["id"], 0)
+        fw = wallet_details_map.get(a["id"], {})
+        a["t1_balance"] = float(fw.get("t1_balance") or 0.0)
+        a["hold_balance"] = float(fw.get("hold_balance") or 0.0)
+        a["hold_active"] = bool(fw.get("hold_active") or False)
 
     md["earnings"] = await _md_earnings_for(uid)
     return {

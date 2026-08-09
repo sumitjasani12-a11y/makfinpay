@@ -287,6 +287,7 @@ export default function DistAgents() {
         columns={[
           { key: "full_name", label: "Name" }, { key: "email", label: "Email" }, { key: "phone", label: "Phone" },
           { key: "wallet_balance", label: "Wallet", render: (r) => fmtMoney(r.wallet_balance) },
+          { key: "t1_balance", label: "T+1 Wallet", render: (r) => <span className="font-extrabold text-[#1E88E5]">{fmtMoney(r.t1_balance ?? 0)}</span> },
           { key: "base_commission", label: "Base %", render: (r) => `${r.base_commission ?? base}%` },
           { key: "markup_commission", label: "Markup %", render: (r) => `${r.markup_commission ?? 0}%` },
           { key: "commission_percent", label: "Total %", render: (r) => <span className="font-semibold text-[#1B4332]">{r.commission_percent}%</span> },

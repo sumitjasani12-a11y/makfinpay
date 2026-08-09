@@ -809,6 +809,7 @@ function MdDetailModal({ md, onClose }) {
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Name</th>
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Email</th>
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Wallet</th>
+                          <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">T+1 Wallet</th>
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Total %</th>
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Status</th>
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Created</th>
@@ -820,6 +821,7 @@ function MdDetailModal({ md, onClose }) {
                             <td className="px-6 py-4 text-sm font-bold text-neutral-800">{a.full_name}</td>
                             <td className="px-6 py-4 text-sm text-neutral-600">{a.email}</td>
                             <td className="px-6 py-4 text-sm font-black text-[#1B4332]">{fmtMoney(a.wallet_balance)}</td>
+                            <td className="px-6 py-4 text-sm font-black text-[#1E88E5]">{fmtMoney(a.t1_balance ?? 0)}</td>
                             <td className="px-6 py-4 text-sm"><span className="font-extrabold text-[#1B4332]">{a.commission_percent}%</span></td>
                             <td className="px-6 py-4 text-sm"><StatusBadge status={a.frozen ? "rejected" : (!a.kyc_status || a.kyc_status === "approved" ? "approved" : (a.kyc_status === "rejected" ? "rejected" : "pending"))} /></td>
                             <td className="px-6 py-4 text-sm text-neutral-400 font-semibold">{fmtDate(a.created_at)}</td>
@@ -846,6 +848,7 @@ function MdDetailModal({ md, onClose }) {
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Name</th>
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Email</th>
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Wallet</th>
+                          <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">T+1 Wallet</th>
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Total %</th>
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Status</th>
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Created</th>
@@ -857,6 +860,7 @@ function MdDetailModal({ md, onClose }) {
                             <td className="px-6 py-4 text-sm font-bold text-neutral-800">{a.full_name}</td>
                             <td className="px-6 py-4 text-sm text-neutral-600">{a.email}</td>
                             <td className="px-6 py-4 text-sm font-black text-[#1B4332]">{fmtMoney(a.wallet_balance)}</td>
+                            <td className="px-6 py-4 text-sm font-black text-[#1E88E5]">{fmtMoney(a.t1_balance ?? 0)}</td>
                             <td className="px-6 py-4 text-sm"><span className="font-extrabold text-[#1B4332]">{a.commission_percent}%</span></td>
                             <td className="px-6 py-4 text-sm"><StatusBadge status={a.frozen ? "rejected" : (!a.kyc_status || a.kyc_status === "approved" ? "approved" : (a.kyc_status === "rejected" ? "rejected" : "pending"))} /></td>
                             <td className="px-6 py-4 text-sm text-neutral-400 font-semibold">{fmtDate(a.created_at)}</td>
@@ -952,6 +956,7 @@ function DistributorDetailModal({ distributor, onClose }) {
                       <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Email</th>
                       <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Phone</th>
                       <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Wallet</th>
+                      <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">T+1 Wallet</th>
                       <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Markup %</th>
                       <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Total %</th>
                       <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Status</th>
@@ -965,6 +970,7 @@ function DistributorDetailModal({ distributor, onClose }) {
                         <td className="px-6 py-4 text-sm text-neutral-600">{a.email}</td>
                         <td className="px-6 py-4 text-sm text-neutral-500 font-semibold">{a.phone || "—"}</td>
                         <td className="px-6 py-4 text-sm font-black text-[#1B4332]">{fmtMoney(a.wallet_balance)}</td>
+                        <td className="px-6 py-4 text-sm font-black text-[#1E88E5]">{fmtMoney(a.t1_balance ?? 0)}</td>
                         <td className="px-6 py-4 text-sm font-semibold text-neutral-500">{a.markup_commission ?? 0}%</td>
                         <td className="px-6 py-4 text-sm"><span className="font-extrabold text-[#1B4332]">{a.commission_percent}%</span></td>
                         <td className="px-6 py-4 text-sm"><StatusBadge status={a.frozen ? "rejected" : "approved"} /></td>
@@ -1338,6 +1344,11 @@ export function AdminUserList({ role }) {
                 render: (r) => r.hold_active 
                   ? <span className="font-black text-[#C81D11] bg-[#FFEBEE] px-2.5 py-0.5 rounded-full text-[10px] border border-[#FFCDD2] inline-flex items-center shadow-sm select-none">{fmtMoney(r.hold_balance)}</span>
                   : <span className="text-neutral-400 font-bold">—</span>
+              },
+              { 
+                key: "t1_balance", 
+                label: "T+1 Balance", 
+                render: (r) => <span className="font-extrabold text-[#1E88E5]">{fmtMoney(r.t1_balance ?? 0)}</span>
               }
             ] : []),
             ...(role === "agent" ? [

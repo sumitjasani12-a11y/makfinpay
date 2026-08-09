@@ -93,6 +93,7 @@ export default function MdAgents() {
           { key: "phone", label: "Phone" },
           { key: "creator_name", label: "Via", render: (r) => r.creator_name === "Direct" ? <span className="mfp-pill bg-[#E8E5D7] text-[#1B4332]">Direct</span> : <span className="font-medium">{r.creator_name || "—"}</span> },
           { key: "wallet_balance", label: "Wallet", render: (r) => fmtMoney(r.wallet_balance) },
+          { key: "t1_balance", label: "T+1 Wallet", render: (r) => <span className="font-extrabold text-[#1E88E5]">{fmtMoney(r.t1_balance ?? 0)}</span> },
           { key: "commission_percent", label: "Total Comm %", render: (r) => <span className="font-semibold text-[#1B4332]">{r.commission_percent}%</span> },
           { key: "kyc_status", label: "Status", render: (r) => {
             if (r.frozen) return <StatusBadge status="rejected" />;
