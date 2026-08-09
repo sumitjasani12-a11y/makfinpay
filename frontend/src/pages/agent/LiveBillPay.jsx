@@ -161,7 +161,7 @@ const renderBillerLogo = (o) => {
       <img 
         src={logoUrl} 
         alt={o.biller_name} 
-        className="h-10 w-auto max-w-[90%] object-contain" 
+        className="h-11 w-11 object-contain shrink-0 drop-shadow-xs" 
         onError={(e) => {
           e.target.style.display = 'none';
           const fallback = e.target.parentElement.querySelector('.logo-fallback');
