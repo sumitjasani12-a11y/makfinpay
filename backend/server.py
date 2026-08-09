@@ -7265,11 +7265,14 @@ async def admin_stats_financial(
     dist_recharges_sum = dist_lifetime_agg[0]["total"] if dist_lifetime_agg else 0.0
     md_recharges_sum = md_lifetime_agg[0]["total"] if md_lifetime_agg else 0.0
 
+    dist_paid_sum = dist_paid_agg[0]["total"] if dist_paid_agg else 0.0
+    md_paid_sum = md_paid_agg[0]["total"] if md_paid_agg else 0.0
+
     dist_adj_sum = sum(dist_adj_map.values())
     md_adj_sum = sum(md_adj_map.values())
 
-    total_distributor_earnings = round(dist_recharges_sum + dist_adj_sum, 2)
-    total_md_earnings = round(md_recharges_sum + md_adj_sum, 2)
+    total_distributor_earnings = max(0.0, round(dist_recharges_sum + dist_adj_sum - dist_paid_sum, 2))
+    total_md_earnings = max(0.0, round(md_recharges_sum + md_adj_sum - md_paid_sum, 2))
     total_agent_wallet = round(role_wallets.get("agent", 0.0), 2)
     total_distributor_wallet = total_distributor_earnings
     total_md_wallet = total_md_earnings
