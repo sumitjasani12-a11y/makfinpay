@@ -776,20 +776,23 @@ export default function LiveBillPay() {
                     <button
                       key={c.id}
                       onClick={() => handleCategoryChange(c.id)}
-                      className="flex items-center gap-3.5 text-left p-3.5 bg-white border border-slate-100/90 hover:border-indigo-500/25 rounded-2xl transition-all duration-300 shadow-[0_4px_16px_rgba(0,0,0,0.02)] hover:shadow-[0_16px_24px_-8px_rgba(79,70,229,0.1)] hover:-translate-y-1 group w-full relative overflow-hidden h-[76px]"
+                      className="flex items-center gap-3.5 text-left p-4 bg-white/75 backdrop-blur-xl border border-white/80 hover:border-indigo-400/40 rounded-2xl transition-all duration-300 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9),0_8px_24px_-4px_rgba(0,0,0,0.05)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,1),0_18px_32px_-8px_rgba(79,70,229,0.18)] hover:-translate-y-1.5 hover:scale-[1.02] active:scale-95 group w-full relative overflow-hidden h-[82px]"
                     >
-                      {/* Premium subtle inner gradient glow */}
-                      <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/[0.015] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+                      {/* Glossy Top Specular Highlight */}
+                      <div className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-white/60 via-white/20 to-transparent rounded-t-2xl pointer-events-none"></div>
 
-                      <div className={`p-2.5 rounded-xl border ${colorCls} transition-all duration-300 group-hover:scale-105 shadow-sm shrink-0`}>
+                      {/* Liquid Sheen Flare Sweep */}
+                      <div className="absolute -inset-x-full top-0 bottom-0 bg-gradient-to-r from-transparent via-white/50 to-transparent group-hover:translate-x-full transition-transform duration-1000 ease-out pointer-events-none"></div>
+
+                      <div className={`p-2.5 rounded-xl border ${colorCls} transition-all duration-300 group-hover:scale-110 shadow-sm shrink-0 relative z-10`}>
                         <IconComp className="h-5 w-5 stroke-[1.8]" />
                       </div>
                       
-                      <div className="min-w-0">
-                        <span className="font-bold text-slate-800 text-xs sm:text-sm tracking-tight leading-snug group-hover:text-indigo-600 transition-colors block truncate">
+                      <div className="min-w-0 relative z-10">
+                        <span className="font-extrabold text-slate-800 text-xs sm:text-sm tracking-tight leading-snug group-hover:text-indigo-600 transition-colors block truncate">
                           {c.category_name}
                         </span>
-                        <span className="text-slate-400 text-[10px] leading-normal font-medium block truncate mt-0.5">
+                        <span className="text-slate-500 text-[10px] leading-normal font-medium block truncate mt-0.5">
                           {desc}
                         </span>
                       </div>
@@ -866,16 +869,20 @@ export default function LiveBillPay() {
                       <button
                         key={o.biller_id}
                         onClick={() => handleOperatorChange(o.biller_id)}
-                        className="flex flex-col items-center justify-center text-center p-4 bg-white border border-slate-100/90 hover:border-indigo-500/30 hover:shadow-[0_16px_28px_-8px_rgba(79,70,229,0.12)] hover:-translate-y-1.5 rounded-2xl transition-all duration-300 group w-full relative min-h-[145px] overflow-hidden"
+                        className="flex flex-col items-center justify-center text-center p-4 bg-white/75 backdrop-blur-xl border border-white/80 hover:border-indigo-400/40 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9),0_10px_25px_-5px_rgba(0,0,0,0.05)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,1),0_22px_36px_-10px_rgba(99,102,241,0.22)] hover:-translate-y-2 hover:scale-[1.03] active:scale-95 rounded-2xl transition-all duration-300 group w-full relative min-h-[150px] overflow-hidden"
                       >
-                        <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+                        {/* Glossy Top Specular Highlight */}
+                        <div className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-white/60 via-white/20 to-transparent rounded-t-2xl pointer-events-none"></div>
 
-                        {/* Centered Uniform 64px Badge Container */}
-                        <div className="h-16 w-16 bg-slate-50/70 border border-slate-100/80 rounded-2xl flex items-center justify-center p-2 mb-3 shadow-2xs transition-all duration-300 group-hover:bg-white group-hover:border-indigo-500/25 group-hover:shadow-sm">
+                        {/* Liquid Sheen Flare Sweep */}
+                        <div className="absolute -inset-x-full top-0 bottom-0 bg-gradient-to-r from-transparent via-white/50 to-transparent group-hover:translate-x-full transition-transform duration-1000 ease-out pointer-events-none"></div>
+
+                        {/* Apple Squircle Glass Logo Badge Box */}
+                        <div className="h-16 w-16 bg-white/90 backdrop-blur-md border border-white/90 shadow-[inset_0_1px_1px_rgba(255,255,255,1),0_4px_14px_rgba(0,0,0,0.06)] rounded-2xl flex items-center justify-center p-2.5 mb-3 transition-all duration-300 group-hover:scale-110 group-hover:shadow-[0_8px_20px_rgba(99,102,241,0.18)] shrink-0 relative z-10">
                           {renderBillerLogo(o)}
                         </div>
                         
-                        <span className="font-extrabold text-slate-900 text-xs sm:text-xs leading-tight group-hover:text-indigo-600 transition-colors block w-full px-1 line-clamp-2">
+                        <span className="font-extrabold text-slate-900 text-xs sm:text-xs leading-tight group-hover:text-indigo-600 transition-colors block w-full px-1 line-clamp-2 relative z-10">
                           {o.biller_name}
                         </span>
                       </button>
