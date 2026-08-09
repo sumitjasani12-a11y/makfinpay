@@ -7649,6 +7649,8 @@ async def _ensure_indexes() -> None:
         await conn.execute('ALTER TABLE wallets ADD COLUMN IF NOT EXISTS hold_balance NUMERIC(15, 2) DEFAULT 0')
         await conn.execute('ALTER TABLE wallets ADD COLUMN IF NOT EXISTS hold_active BOOLEAN DEFAULT FALSE')
         await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS is_t1 BOOLEAN DEFAULT FALSE')
+        await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS settled_t1 BOOLEAN DEFAULT FALSE')
+        await conn.execute('ALTER TABLE recharges ADD COLUMN IF NOT EXISTS settled_t1_at TIMESTAMPTZ')
         await conn.execute('ALTER TABLE qr_name_entries ADD COLUMN IF NOT EXISTS is_t1 BOOLEAN DEFAULT FALSE')
         await conn.execute('ALTER TABLE qr_codes ADD COLUMN IF NOT EXISTS is_t1 BOOLEAN DEFAULT FALSE')
         await conn.execute('ALTER TABLE transactions ADD COLUMN IF NOT EXISTS api_charge NUMERIC(15, 2) DEFAULT 0')
