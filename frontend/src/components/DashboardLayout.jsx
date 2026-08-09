@@ -55,13 +55,30 @@ export default function DashboardLayout() {
   let items = NAV[user.role] || [];
   if (user.role === "admin" && user.email?.toLowerCase() !== "jigs.vanani@gmail.com") {
     const allowed = user.permissions;
-    items = items.filter(it => {
-      if (allowed !== null && allowed !== undefined) {
-        const key = it.to === "/admin" ? "dashboard" : it.to.replace("/admin/", "");
-        return allowed.includes(key);
-      }
-      return true;
-    });
+    items = items
+      .map((it) => {
+        if (it.children) {
+          const filteredChildren = it.children.filter((child) => {
+            if (allowed !== null && allowed !== undefined) {
+              const key = child.to === "/admin" ? "dashboard" : child.to.replace("/admin/", "");
+              return allowed.includes(key);
+            }
+            return true;
+          });
+          return { ...it, children: filteredChildren };
+        }
+        return it;
+      })
+      .filter((it) => {
+        if (it.children) {
+          return it.children.length > 0;
+        }
+        if (allowed !== null && allowed !== undefined) {
+          const key = it.to === "/admin" ? "dashboard" : it.to.replace("/admin/", "");
+          return allowed.includes(key);
+        }
+        return true;
+      });
   } else if (!isExcludedRole && (user.first_login || user.kyc_status !== "approved")) {
     items = items.filter(it => it.to === roleBaseRoute);
   } else if (user.role === "agent" && limits) {

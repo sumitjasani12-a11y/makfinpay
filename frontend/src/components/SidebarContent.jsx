@@ -1,10 +1,11 @@
-import React from "react";
-import { Link, NavLink } from "react-router-dom";
-import { LogOut } from "lucide-react";
+import React, { useState } from "react";
+import { Link, NavLink, useLocation } from "react-router-dom";
+import { LogOut, ChevronDown, ChevronRight } from "lucide-react";
 import Logo from "./Logo";
 
 const getIconColor = (label) => {
   const colors = {
+    "User": "text-[#4CC9F0]", // Cyan for User group
     "Overview": "text-[#4CC9F0]", // Cyan
     "Dashboard": "text-[#4CC9F0]",
     "Master Distributors": "text-[#FFB703]", // Amber/Gold
@@ -47,12 +48,35 @@ const getIconColor = (label) => {
 };
 
 export function SidebarContent({ user, items, onLogout, pendingCounts = {}, collapsed = false }) {
+  const location = useLocation();
+  const [expandedGroups, setExpandedGroups] = useState({});
+
   const getBadgeCount = (label) => {
     if (label === "QR Approvals") return pendingCounts.recharges || 0;
     if (label === "CC Bill Request") return pendingCounts.transactions || 0;
     if (label === "KYC Requests") return pendingCounts.kyc || 0;
     if (label === "Pay Withdrawals") return pendingCounts.withdrawals || 0;
     return 0;
+  };
+
+  const isGroupActive = (children = []) => {
+    return children.some(
+      (child) => location.pathname === child.to || location.pathname.startsWith(child.to + "/")
+    );
+  };
+
+  const isGroupExpanded = (it) => {
+    if (expandedGroups[it.label] !== undefined) {
+      return expandedGroups[it.label];
+    }
+    return true; // Default open for user-friendly navigation
+  };
+
+  const toggleGroup = (label) => {
+    setExpandedGroups((prev) => ({
+      ...prev,
+      [label]: !isGroupExpanded({ label }),
+    }));
   };
 
   return (
@@ -76,6 +100,79 @@ export function SidebarContent({ user, items, onLogout, pendingCounts = {}, coll
       
       <nav className={`flex-1 overflow-y-auto no-scrollbar ${collapsed ? "p-2.5 space-y-2" : "p-4 space-y-1.5"}`}>
         {items.map((it) => {
+          if (it.children) {
+            const activeGroup = isGroupActive(it.children);
+            const expanded = isGroupExpanded(it);
+
+            return (
+              <div key={it.label} className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(it.label)}
+                  title={collapsed ? it.label : undefined}
+                  className={
+                    `w-full flex items-center justify-between rounded-xl transition-all font-bold select-none cursor-pointer ` +
+                    `${collapsed ? "justify-center p-2.5 relative " : "gap-3 px-3.5 py-2.5 text-[12.5px] tracking-wide "}` +
+                    `${activeGroup
+                      ? "bg-white/10 text-white shadow-sm border border-white/5"
+                      : "text-white/70 hover:bg-white/5 hover:text-white"
+                    }`
+                  }
+                  data-testid={`nav-${it.label.replace(/\s+/g, "-").toLowerCase()}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <it.icon className={`h-[18px] w-[18px] shrink-0 ${getIconColor(it.label)}`} strokeWidth={2.3} />
+                    {!collapsed && <span>{it.label}</span>}
+                  </div>
+                  {!collapsed && (
+                    expanded ? (
+                      <ChevronDown className="h-4 w-4 text-white/50 shrink-0" strokeWidth={2.3} />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-white/50 shrink-0" strokeWidth={2.3} />
+                    )
+                  )}
+                </button>
+
+                {expanded && (
+                  <div className={collapsed ? "space-y-1.5 pt-1" : "pl-3.5 space-y-1 border-l border-white/10 ml-4 pt-1 pb-0.5"}>
+                    {it.children.map((child) => {
+                      const childBadgeCount = getBadgeCount(child.label);
+                      return (
+                        <NavLink
+                          key={child.to}
+                          to={child.to}
+                          end={child.end}
+                          title={collapsed ? child.label : undefined}
+                          className={({ isActive }) =>
+                            `flex items-center rounded-xl transition-all font-bold ` +
+                            `${collapsed ? "justify-center p-2 relative " : "gap-3 px-3 py-2 text-[12px] tracking-wide "}` +
+                            `${isActive
+                              ? "bg-white/15 text-white shadow-sm border border-white/10"
+                              : "text-white/70 hover:bg-white/5 hover:text-white"
+                            }`
+                          }
+                          data-testid={`nav-${child.label.replace(/\s+/g, "-").toLowerCase()}`}
+                        >
+                          <child.icon className={`h-[17px] w-[17px] shrink-0 ${getIconColor(child.label)}`} strokeWidth={2.3} />
+                          {!collapsed && <span>{child.label}</span>}
+                          {childBadgeCount > 0 && (
+                            collapsed ? (
+                              <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-rose-500 ring-1 ring-[#0F172A] animate-pulse" />
+                            ) : (
+                              <span className="ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-extrabold text-white animate-pulse">
+                                {childBadgeCount}
+                              </span>
+                            )
+                          )}
+                        </NavLink>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
           const badgeCount = getBadgeCount(it.label);
           return (
             <NavLink

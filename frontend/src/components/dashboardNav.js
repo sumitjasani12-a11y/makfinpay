@@ -11,9 +11,15 @@ import BbpsIcon from "./BbpsIcon";
 export const NAV = {
   admin: [
     { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
-    { to: "/admin/master-distributors", label: "Master Distributors", icon: Crown },
-    { to: "/admin/distributors", label: "Distributors", icon: Users },
-    { to: "/admin/agents", label: "Agents", icon: UserCog },
+    {
+      label: "User",
+      icon: Users,
+      children: [
+        { to: "/admin/master-distributors", label: "Master Distributors", icon: Crown },
+        { to: "/admin/distributors", label: "Distributors", icon: Users },
+        { to: "/admin/agents", label: "Agents", icon: UserCog },
+      ],
+    },
     { to: "/admin/recharges", label: "QR Approvals", icon: ArrowDownToLine },
     { to: "/admin/withdrawals", label: "Pay Withdrawals", icon: ArrowUpFromLine },
     { to: "/admin/transactions", label: "CC Bill Request", icon: CreditCard },
