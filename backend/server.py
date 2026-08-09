@@ -1713,7 +1713,7 @@ async def _wallet_balances_for(user_ids: List[str]) -> dict:
 
 
 async def _distributor_earnings_batch(dist_ids: List[str]) -> dict:
-    """Returns total lifetime earnings for each distributor (recharge earnings + admin manual adjustments)."""
+    """Returns net remaining earnings balance for each distributor (recharge earnings + admin manual adjustments - approved withdrawals)."""
     if not dist_ids:
         return {}
     cursor = db.recharges.aggregate([
@@ -1724,7 +1724,8 @@ async def _distributor_earnings_batch(dist_ids: List[str]) -> dict:
     async for row in cursor:
         recharge_map[row["_id"]] = round(row.get("total") or 0.0, 2)
     adj_map = await _admin_adjustments_sum_batch(dist_ids)
-    return {did: round(recharge_map.get(did, 0.0) + adj_map.get(did, 0.0), 2) for did in dist_ids}
+    w_map = await _withdrawals_sum_batch(dist_ids, ["approved"])
+    return {did: max(0.0, round(recharge_map.get(did, 0.0) + adj_map.get(did, 0.0) - w_map.get(did, 0.0), 2)) for did in dist_ids}
 
 
 async def _md_earnings_for(md_id: str) -> float:
@@ -1733,7 +1734,7 @@ async def _md_earnings_for(md_id: str) -> float:
 
 
 async def _md_earnings_batch(md_ids: List[str]) -> dict:
-    """Returns total lifetime earnings for each master distributor (recharge earnings + admin manual adjustments)."""
+    """Returns net remaining earnings balance for each master distributor (recharge earnings + admin manual adjustments - approved withdrawals)."""
     if not md_ids:
         return {}
     cursor = db.recharges.aggregate([
@@ -1744,7 +1745,8 @@ async def _md_earnings_batch(md_ids: List[str]) -> dict:
     async for row in cursor:
         recharge_map[row["_id"]] = round(row.get("total") or 0.0, 2)
     adj_map = await _admin_adjustments_sum_batch(md_ids)
-    return {mid: round(recharge_map.get(mid, 0.0) + adj_map.get(mid, 0.0), 2) for mid in md_ids}
+    w_map = await _withdrawals_sum_batch(md_ids, ["approved"])
+    return {mid: max(0.0, round(recharge_map.get(mid, 0.0) + adj_map.get(mid, 0.0) - w_map.get(mid, 0.0), 2)) for mid in md_ids}
 
 
 async def _md_today_earnings(md_id: str) -> float:
@@ -5555,6 +5557,8 @@ async def admin_approve_withdrawal(wid: str, body: ApprovalIn, request: Request,
         if w["amount"] > live_balance:
             raise HTTPException(400, f"Cannot approve — distributor's live earnings balance is ₹{live_balance:.2f}")
         await db.withdrawals.update_one({"id": wid}, {"$set": {"status": "approved", "note": body.note or "", "reviewed_at": now_iso(), "reviewed_by": user["id"], "reviewed_by_name": user.get("full_name") or user.get("email") or "Admin"}})
+        balance_after = await get_distributor_available_for_withdrawal(w["user_id"])
+        await ledger_entry(w["user_id"], "debit", w["amount"], balance_after, "withdrawal_paid", wid, "Withdrawal approved & paid")
     elif role == "master_distributor":
         lifetime = await _md_earnings_for(w["user_id"])
         already_paid = await _withdrawals_sum_for(w["user_id"], ["approved"])
@@ -5562,6 +5566,8 @@ async def admin_approve_withdrawal(wid: str, body: ApprovalIn, request: Request,
         if w["amount"] > live_balance:
             raise HTTPException(400, f"Cannot approve — master distributor's live earnings balance is ₹{live_balance:.2f}")
         await db.withdrawals.update_one({"id": wid}, {"$set": {"status": "approved", "note": body.note or "", "reviewed_at": now_iso(), "reviewed_by": user["id"], "reviewed_by_name": user.get("full_name") or user.get("email") or "Admin"}})
+        balance_after = await get_md_available_for_withdrawal(w["user_id"])
+        await ledger_entry(w["user_id"], "debit", w["amount"], balance_after, "withdrawal_paid", wid, "Withdrawal approved & paid")
     else:
         await db.withdrawals.update_one({"id": wid}, {"$set": {"status": "approved", "note": body.note or "", "reviewed_at": now_iso(), "reviewed_by": user["id"], "reviewed_by_name": user.get("full_name") or user.get("email") or "Admin"}})
         wallet = await get_or_create_wallet(w["user_id"])
