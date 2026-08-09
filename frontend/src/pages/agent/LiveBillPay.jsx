@@ -491,7 +491,9 @@ export default function LiveBillPay() {
     setLoadingOps(true);
     try {
       const res = await api.get(`/agent/live-billpay/operators?category_id=${catId}&t=${Date.now()}`);
-      setBillers(res.data?.data || []);
+      const list = res.data?.data || [];
+      list.sort((a, b) => a.biller_name.localeCompare(b.biller_name, 'en', { sensitivity: 'base' }));
+      setBillers(list);
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Failed to load billers");
     } finally {
@@ -856,6 +858,7 @@ export default function LiveBillPay() {
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-4">
                 {billers
                   .filter(o => o.biller_name.toLowerCase().includes(opSearch.toLowerCase()))
+                  .sort((a, b) => a.biller_name.localeCompare(b.biller_name, 'en', { sensitivity: 'base' }))
                   .map((o) => {
                     const logoUrl = getBillerLogoUrl(o.biller_name);
 
@@ -872,7 +875,7 @@ export default function LiveBillPay() {
                           {renderBillerLogo(o)}
                         </div>
                         
-                        <span className="font-bold text-slate-700 text-xs sm:text-xs leading-tight group-hover:text-indigo-600 transition-colors block w-full px-1 line-clamp-2">
+                        <span className="font-extrabold text-slate-900 text-xs sm:text-xs leading-tight group-hover:text-indigo-600 transition-colors block w-full px-1 line-clamp-2">
                           {o.biller_name}
                         </span>
                       </button>
