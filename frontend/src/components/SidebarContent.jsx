@@ -66,16 +66,13 @@ export function SidebarContent({ user, items, onLogout, pendingCounts = {}, coll
   };
 
   const isGroupExpanded = (it) => {
-    if (expandedGroups[it.label] !== undefined) {
-      return expandedGroups[it.label];
-    }
-    return true; // Default open for user-friendly navigation
+    return !!expandedGroups[it.label];
   };
 
   const toggleGroup = (label) => {
     setExpandedGroups((prev) => ({
       ...prev,
-      [label]: !isGroupExpanded({ label }),
+      [label]: !prev[label],
     }));
   };
 
@@ -179,6 +176,7 @@ export function SidebarContent({ user, items, onLogout, pendingCounts = {}, coll
               key={it.to}
               to={it.to}
               end={it.end}
+              onClick={() => setExpandedGroups({})}
               title={collapsed ? it.label : undefined}
               className={({ isActive }) =>
                 `flex items-center rounded-xl transition-all font-bold ` +
