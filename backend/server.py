@@ -646,12 +646,14 @@ class RechargeTogglesIn(BaseModel):
     cc_bill_rejected_audio: Optional[str] = None
     qr_request_received_audio: Optional[str] = None
     cc_bill_request_received_audio: Optional[str] = None
+    live_bill_enabled_audio: Optional[str] = None
     qr_approved_audio_enabled: Optional[bool] = None
     qr_rejected_audio_enabled: Optional[bool] = None
     cc_bill_approved_audio_enabled: Optional[bool] = None
     cc_bill_rejected_audio_enabled: Optional[bool] = None
     qr_request_received_audio_enabled: Optional[bool] = None
     cc_bill_request_received_audio_enabled: Optional[bool] = None
+    live_bill_enabled_audio_enabled: Optional[bool] = None
 
 class HeadlineIn(BaseModel):
     message: str
@@ -6380,12 +6382,14 @@ async def get_admin_recharge_limits(response: Response, user=Depends(require_rol
         "cc_bill_rejected_audio": s.get("cc_bill_rejected_audio", ""),
         "qr_request_received_audio": s.get("qr_request_received_audio", ""),
         "cc_bill_request_received_audio": s.get("cc_bill_request_received_audio", ""),
+        "live_bill_enabled_audio": s.get("live_bill_enabled_audio", ""),
         "qr_approved_audio_enabled": bool(s.get("qr_approved_audio_enabled", True)),
         "qr_rejected_audio_enabled": bool(s.get("qr_rejected_audio_enabled", True)),
         "cc_bill_approved_audio_enabled": bool(s.get("cc_bill_approved_audio_enabled", True)),
         "cc_bill_rejected_audio_enabled": bool(s.get("cc_bill_rejected_audio_enabled", True)),
         "qr_request_received_audio_enabled": bool(s.get("qr_request_received_audio_enabled", True)),
-        "cc_bill_request_received_audio_enabled": bool(s.get("cc_bill_request_received_audio_enabled", True))
+        "cc_bill_request_received_audio_enabled": bool(s.get("cc_bill_request_received_audio_enabled", True)),
+        "live_bill_enabled_audio_enabled": bool(s.get("live_bill_enabled_audio_enabled", True))
     }
 
 @api.put("/admin/settings/recharge-limits")
@@ -6410,6 +6414,9 @@ async def update_admin_recharge_limits(body: RechargeLimitsIn, request: Request,
 
 @api.put("/admin/settings/recharge-toggles")
 async def update_admin_recharge_toggles(body: RechargeTogglesIn, request: Request, user=Depends(require_roles("admin"))):
+    old_settings = await db.settings.find_one({"id": "commission"}) or {}
+    old_live_bill_enabled = bool(old_settings.get("live_bill_enabled", True))
+
     doc = {
         "updated_at": now_iso()
     }
@@ -6444,6 +6451,8 @@ async def update_admin_recharge_toggles(body: RechargeTogglesIn, request: Reques
         doc["qr_request_received_audio"] = body.qr_request_received_audio
     if body.cc_bill_request_received_audio is not None:
         doc["cc_bill_request_received_audio"] = body.cc_bill_request_received_audio
+    if body.live_bill_enabled_audio is not None:
+        doc["live_bill_enabled_audio"] = body.live_bill_enabled_audio
 
     if body.qr_approved_audio_enabled is not None:
         doc["qr_approved_audio_enabled"] = body.qr_approved_audio_enabled
@@ -6457,6 +6466,8 @@ async def update_admin_recharge_toggles(body: RechargeTogglesIn, request: Reques
         doc["qr_request_received_audio_enabled"] = body.qr_request_received_audio_enabled
     if body.cc_bill_request_received_audio_enabled is not None:
         doc["cc_bill_request_received_audio_enabled"] = body.cc_bill_request_received_audio_enabled
+    if body.live_bill_enabled_audio_enabled is not None:
+        doc["live_bill_enabled_audio_enabled"] = body.live_bill_enabled_audio_enabled
 
     try:
         await db.settings.update_one({"id": "commission"}, {"$set": doc}, upsert=True)
@@ -6465,9 +6476,9 @@ async def update_admin_recharge_toggles(body: RechargeTogglesIn, request: Reques
             logger.warning(f"Settings column missing, running self-healing migration: {e}")
             try:
                 async with db.pool.acquire() as conn:
-                    for col_name in ["qr_approved_audio", "qr_rejected_audio", "cc_bill_approved_audio", "cc_bill_rejected_audio", "qr_request_received_audio", "cc_bill_request_received_audio"]:
+                    for col_name in ["qr_approved_audio", "qr_rejected_audio", "cc_bill_approved_audio", "cc_bill_rejected_audio", "qr_request_received_audio", "cc_bill_request_received_audio", "live_bill_enabled_audio"]:
                         await conn.execute(f"ALTER TABLE settings ADD COLUMN IF NOT EXISTS {col_name} TEXT DEFAULT ''")
-                    for col_name in ["qr_approved_audio_enabled", "qr_rejected_audio_enabled", "cc_bill_approved_audio_enabled", "cc_bill_rejected_audio_enabled", "qr_request_received_audio_enabled", "cc_bill_request_received_audio_enabled"]:
+                    for col_name in ["qr_approved_audio_enabled", "qr_rejected_audio_enabled", "cc_bill_approved_audio_enabled", "cc_bill_rejected_audio_enabled", "qr_request_received_audio_enabled", "cc_bill_request_received_audio_enabled", "live_bill_enabled_audio_enabled"]:
                         await conn.execute(f"ALTER TABLE settings ADD COLUMN IF NOT EXISTS {col_name} BOOLEAN DEFAULT TRUE")
                 await db.settings.update_one({"id": "commission"}, {"$set": doc}, upsert=True)
             except Exception as retry_err:
@@ -6476,6 +6487,20 @@ async def update_admin_recharge_toggles(body: RechargeTogglesIn, request: Reques
         else:
             logger.error(f"Error updating recharge toggles: {e}")
             raise HTTPException(status_code=500, detail=f"Failed to update settings: {str(e)}")
+
+    # Check if Live Bill Pay was toggled from OFF (False) to ON (True)
+    new_live_bill_enabled = doc.get("live_bill_enabled")
+    if new_live_bill_enabled is True and old_live_bill_enabled is False:
+        audio_path = doc.get("live_bill_enabled_audio") if "live_bill_enabled_audio" in doc else old_settings.get("live_bill_enabled_audio", "")
+        audio_enabled = doc.get("live_bill_enabled_audio_enabled") if "live_bill_enabled_audio_enabled" in doc else old_settings.get("live_bill_enabled_audio_enabled", True)
+        audio_url = audio_path if audio_enabled else ""
+        await manager.broadcast({
+            "event": "live_bill_enabled_turned_on",
+            "data": {
+                "live_bill_enabled": True,
+                "audio_url": audio_url
+            }
+        })
 
     await write_audit(user["id"], "recharge_toggles_changed", target="settings", meta=doc, request=request)
     await manager.broadcast({"event": "settings_updated", "data": doc})
@@ -7551,12 +7576,14 @@ async def _ensure_indexes() -> None:
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS cc_bill_rejected_audio TEXT DEFAULT \'\'')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS qr_request_received_audio TEXT DEFAULT \'\'')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS cc_bill_request_received_audio TEXT DEFAULT \'\'')
+        await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS live_bill_enabled_audio TEXT DEFAULT \'\'')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS qr_approved_audio_enabled BOOLEAN DEFAULT TRUE')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS qr_rejected_audio_enabled BOOLEAN DEFAULT TRUE')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS cc_bill_approved_audio_enabled BOOLEAN DEFAULT TRUE')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS cc_bill_rejected_audio_enabled BOOLEAN DEFAULT TRUE')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS qr_request_received_audio_enabled BOOLEAN DEFAULT TRUE')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS cc_bill_request_received_audio_enabled BOOLEAN DEFAULT TRUE')
+        await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS live_bill_enabled_audio_enabled BOOLEAN DEFAULT TRUE')
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS qr_activation_history (
                 id VARCHAR(255) PRIMARY KEY,

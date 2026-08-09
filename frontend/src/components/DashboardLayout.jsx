@@ -361,6 +361,16 @@ export default function DashboardLayout() {
     }
   });
 
+  useWebSocketListener("live_bill_enabled_turned_on", (data) => {
+    if (user?.role === "agent") {
+      playNotificationSound(data?.audio_url, true);
+      toast.success("⚡ Live Bill Pay service is now LIVE & ACTIVE!", {
+        duration: 8000,
+        action: { label: "Pay Bills", onClick: () => nav("/agent/live-billpay") }
+      });
+    }
+  });
+
   useWebSocketListener("cc_bill_updated", (data) => {
     fetchWallet();
     fetchPendingCounts();

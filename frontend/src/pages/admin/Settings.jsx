@@ -44,6 +44,7 @@ export default function AdminSettings() {
   const [ccBillRejectedAudio, setCcBillRejectedAudio] = useState("");
   const [qrRequestReceivedAudio, setQrRequestReceivedAudio] = useState("");
   const [ccBillRequestReceivedAudio, setCcBillRequestReceivedAudio] = useState("");
+  const [liveBillEnabledAudio, setLiveBillEnabledAudio] = useState("");
 
   const [qrApprovedAudioEnabled, setQrApprovedAudioEnabled] = useState(true);
   const [qrRejectedAudioEnabled, setQrRejectedAudioEnabled] = useState(true);
@@ -51,6 +52,7 @@ export default function AdminSettings() {
   const [ccBillRejectedAudioEnabled, setCcBillRejectedAudioEnabled] = useState(true);
   const [qrRequestReceivedAudioEnabled, setQrRequestReceivedAudioEnabled] = useState(true);
   const [ccBillRequestReceivedAudioEnabled, setCcBillRequestReceivedAudioEnabled] = useState(true);
+  const [liveBillEnabledAudioEnabled, setLiveBillEnabledAudioEnabled] = useState(true);
 
   const [savingAudio, setSavingAudio] = useState(false);
 
@@ -67,12 +69,14 @@ export default function AdminSettings() {
       setCcBillRejectedAudio(typeof data.cc_bill_rejected_audio === "string" ? data.cc_bill_rejected_audio : "");
       setQrRequestReceivedAudio(typeof data.qr_request_received_audio === "string" ? data.qr_request_received_audio : "");
       setCcBillRequestReceivedAudio(typeof data.cc_bill_request_received_audio === "string" ? data.cc_bill_request_received_audio : "");
+      setLiveBillEnabledAudio(typeof data.live_bill_enabled_audio === "string" ? data.live_bill_enabled_audio : "");
       setQrApprovedAudioEnabled(data.qr_approved_audio_enabled ?? true);
       setQrRejectedAudioEnabled(data.qr_rejected_audio_enabled ?? true);
       setCcBillApprovedAudioEnabled(data.cc_bill_approved_audio_enabled ?? true);
       setCcBillRejectedAudioEnabled(data.cc_bill_rejected_audio_enabled ?? true);
       setQrRequestReceivedAudioEnabled(data.qr_request_received_audio_enabled ?? true);
       setCcBillRequestReceivedAudioEnabled(data.cc_bill_request_received_audio_enabled ?? true);
+      setLiveBillEnabledAudioEnabled(data.live_bill_enabled_audio_enabled ?? true);
 
       const mm = !!data.maintenance_mode;
       setMaintenanceMode(mm);
@@ -143,6 +147,7 @@ export default function AdminSettings() {
     if (field === "cc_bill_rejected_audio") setCcBillRejectedAudio(path);
     if (field === "qr_request_received_audio") setQrRequestReceivedAudio(path);
     if (field === "cc_bill_request_received_audio") setCcBillRequestReceivedAudio(path);
+    if (field === "live_bill_enabled_audio") setLiveBillEnabledAudio(path);
 
     try {
       await api.put("/admin/settings/recharge-toggles", { [field]: path });
@@ -159,6 +164,7 @@ export default function AdminSettings() {
     if (field === "cc_bill_rejected_audio_enabled") setCcBillRejectedAudioEnabled(val);
     if (field === "qr_request_received_audio_enabled") setQrRequestReceivedAudioEnabled(val);
     if (field === "cc_bill_request_received_audio_enabled") setCcBillRequestReceivedAudioEnabled(val);
+    if (field === "live_bill_enabled_audio_enabled") setLiveBillEnabledAudioEnabled(val);
 
     try {
       await api.put("/admin/settings/recharge-toggles", { [field]: val });
@@ -179,12 +185,14 @@ export default function AdminSettings() {
         cc_bill_rejected_audio: ccBillRejectedAudio || "",
         qr_request_received_audio: qrRequestReceivedAudio || "",
         cc_bill_request_received_audio: ccBillRequestReceivedAudio || "",
+        live_bill_enabled_audio: liveBillEnabledAudio || "",
         qr_approved_audio_enabled: qrApprovedAudioEnabled,
         qr_rejected_audio_enabled: qrRejectedAudioEnabled,
         cc_bill_approved_audio_enabled: ccBillApprovedAudioEnabled,
         cc_bill_rejected_audio_enabled: ccBillRejectedAudioEnabled,
         qr_request_received_audio_enabled: qrRequestReceivedAudioEnabled,
         cc_bill_request_received_audio_enabled: ccBillRequestReceivedAudioEnabled,
+        live_bill_enabled_audio_enabled: liveBillEnabledAudioEnabled,
       });
       toast.success("Audio Notification Settings saved successfully");
     } catch (e) {
@@ -732,6 +740,52 @@ export default function AdminSettings() {
                       onUploaded={(path) => handleAudioUploaded("cc_bill_request_received_audio", path)}
                       accept="audio/*"
                       testid="upload-cc-incoming-audio"
+                    />
+                  </div>
+
+                  {/* Live Bill Pay Enabled Sound (Agents Only) */}
+                  <div className="space-y-2 p-4 bg-emerald-50/40 rounded-2xl border border-emerald-200/60 sm:col-span-2">
+                    <div className="flex items-center justify-between">
+                      <label className="mfp-label font-bold text-emerald-900 block mb-0">
+                        ⚡ Live Bill Pay Service Turned ON Sound (Agents Only)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleAudioToggle("live_bill_enabled_audio_enabled", !liveBillEnabledAudioEnabled)}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            liveBillEnabledAudioEnabled ? "bg-emerald-600" : "bg-neutral-300"
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                              liveBillEnabledAudioEnabled ? "translate-x-4" : "translate-x-0"
+                            }`}
+                          />
+                        </button>
+                        {liveBillEnabledAudio && (
+                          <button
+                            type="button"
+                            onClick={() => handleAudioUploaded("live_bill_enabled_audio", "")}
+                            className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <X className="h-3 w-3" /> Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {liveBillEnabledAudio ? (
+                      <div className="p-2 bg-white/80 rounded-xl border border-emerald-200">
+                        <audio controls src={fileUrl(liveBillEnabledAudio)} className="w-full h-8" />
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-emerald-600/80 italic">No audio set (Default Chime will play to Agents when Live Bill Pay turns ON)</div>
+                    )}
+                    <FileUpload
+                      label="Upload Live Bill Pay Turned ON Sound"
+                      onUploaded={(path) => handleAudioUploaded("live_bill_enabled_audio", path)}
+                      accept="audio/*"
+                      testid="upload-live-bill-enabled-audio"
                     />
                   </div>
                 </div>
