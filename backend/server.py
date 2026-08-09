@@ -4110,16 +4110,18 @@ async def distributor_list_recharges(
 
 @api.post("/admin/recharges/{rid}/approve")
 async def admin_approve_recharge(rid: str, body: ApprovalIn, request: Request, user=Depends(require_roles("admin"))):
+    r = await db.recharges.find_one({"id": rid})
+    if not r:
+        raise HTTPException(404, "Not found")
+    if r.get("status") == "rejected" or (r.get("status") == "approved" and r.get("reviewed_at") is not None and float(r.get("net_credit_amount") or 0) > 0):
+        raise HTTPException(400, "This recharge request has already been processed or does not exist.")
+
     res = await db.execute_query(
-        "UPDATE recharges SET status = 'approved' WHERE id = $1 AND status = 'pending'",
+        "UPDATE recharges SET status = 'approved' WHERE id = $1 AND (status = 'pending' OR (status = 'approved' AND reviewed_at IS NULL))",
         [rid]
     )
     if not res or res.get("row_count", 0) == 0:
         raise HTTPException(400, "This recharge request has already been processed or does not exist.")
-        
-    r = await db.recharges.find_one({"id": rid})
-    if not r:
-        raise HTTPException(404, "Not found")
 
     # ---- Snapshot live commission state into the recharge record (one-way write) ----
     is_t1_request = r.get("is_t1", False)
@@ -4223,16 +4225,18 @@ async def admin_approve_recharge(rid: str, body: ApprovalIn, request: Request, u
 
 @api.post("/admin/recharges/{rid}/reject")
 async def admin_reject_recharge(rid: str, body: ApprovalIn, request: Request, user=Depends(require_roles("admin"))):
+    r = await db.recharges.find_one({"id": rid})
+    if not r:
+        raise HTTPException(404, "Not found")
+    if r.get("status") == "approved" and r.get("reviewed_at") is not None:
+        raise HTTPException(400, "This recharge request has already been approved.")
+
     res = await db.execute_query(
-        "UPDATE recharges SET status = 'rejected' WHERE id = $1 AND status = 'pending'",
+        "UPDATE recharges SET status = 'rejected' WHERE id = $1 AND (status = 'pending' OR status = 'approved')",
         [rid]
     )
     if not res or res.get("row_count", 0) == 0:
         raise HTTPException(400, "This recharge request has already been processed or does not exist.")
-        
-    r = await db.recharges.find_one({"id": rid})
-    if not r:
-        raise HTTPException(404, "Not found")
         
     await db.recharges.update_one({"id": rid}, {"$set": {
         "note": body.note or "", 
