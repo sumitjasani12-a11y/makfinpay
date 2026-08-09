@@ -117,9 +117,23 @@ const getShortTxnId = (id) => {
 };
 
 const getBillerLogoUrl = (billerName) => {
+  if (!billerName) return null;
   const name = billerName.toLowerCase();
   
   // Local Bank Logos copied from local storage folder
+  if (name.includes("onecard") || name.includes("one credit card") || name.includes("one card")) return "/assets/banks/onecard_logo.png";
+  if (name.includes("au bank") || name.includes("au small") || name.includes("au credit")) return "/assets/banks/au_logo.png";
+  if (name.includes("canara")) return "/assets/banks/canara_logo.png";
+  if (name.includes("cub") || name.includes("city union")) return "/assets/banks/cub_logo.png";
+  if (name.includes("dhanlaxmi")) return "/assets/banks/dhanlaxmi_logo.png";
+  if (name.includes("icici")) return "/assets/banks/icici_logo.png";
+  if (name.includes("idbi")) return "/assets/banks/idbi_logo.png";
+  if (name.includes("idfc") || name.includes("first bank")) return "/assets/banks/idfc_logo.png";
+  if (name.includes("indusind")) return "/assets/banks/indusind_logo.png";
+  if (name.includes("iob") || name.includes("overseas")) return "/assets/banks/iob_logo.png";
+  if (name.includes("j and k") || name.includes("j&k") || name.includes("jammu") || name.includes("jk bank")) return "/assets/banks/jk_logo.png";
+  if (name.includes("sbi") || name.includes("state bank of india")) return "/assets/banks/sbi_logo.png";
+  if (name.includes("tmb") || name.includes("tamilnad")) return "/assets/banks/tmb_logo.png";
   if (name.includes("union")) return "/assets/banks/union_logo.png";
   if (name.includes("axis")) return "/assets/banks/axis_logo.png";
   if (name.includes("bandhan")) return "/assets/banks/bandhan_logo.png";
@@ -129,7 +143,7 @@ const getBillerLogoUrl = (billerName) => {
   if (name.includes("dcb")) return "/assets/banks/dcb_logo.png";
   if (name.includes("esaf")) return "/assets/banks/esaf_logo.png";
   if (name.includes("federal")) return "/assets/banks/federal_logo.png";
-  if (name.includes("indian bank")) return "/assets/banks/indian_logo.png";
+  if (name.includes("indian bank") || name.includes("indian")) return "/assets/banks/indian_logo.png";
   if (name.includes("kotak")) return "/assets/banks/kotak_logo.png";
   if (name.includes("punjab national") || name.includes("pnb")) return "/assets/banks/pnb_logo.png";
   if (name.includes("saraswat")) return "/assets/banks/saraswat_logo.png";
