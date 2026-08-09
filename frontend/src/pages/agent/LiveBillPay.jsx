@@ -343,6 +343,102 @@ const renderBillerLogo = (o) => {
   );
 };
 
+const GLASS_THEMES = [
+  {
+    bg: "bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-white/80",
+    border: "border-amber-200/80 hover:border-amber-400/90",
+    shadow: "hover:shadow-[inset_0_1px_2px_rgba(255,255,255,1),0_20px_35px_-10px_rgba(245,158,11,0.25)]",
+    badge: "bg-amber-100/60 border-amber-200/80 shadow-[0_4px_12px_rgba(245,158,11,0.1)]",
+    textHover: "group-hover:text-amber-700"
+  },
+  {
+    bg: "bg-gradient-to-br from-rose-500/10 via-pink-500/5 to-white/80",
+    border: "border-rose-200/80 hover:border-rose-400/90",
+    shadow: "hover:shadow-[inset_0_1px_2px_rgba(255,255,255,1),0_20px_35px_-10px_rgba(244,63,94,0.25)]",
+    badge: "bg-rose-100/60 border-rose-200/80 shadow-[0_4px_12px_rgba(244,63,94,0.1)]",
+    textHover: "group-hover:text-rose-700"
+  },
+  {
+    bg: "bg-gradient-to-br from-indigo-500/10 via-blue-500/5 to-white/80",
+    border: "border-indigo-200/80 hover:border-indigo-400/90",
+    shadow: "hover:shadow-[inset_0_1px_2px_rgba(255,255,255,1),0_20px_35px_-10px_rgba(99,102,241,0.25)]",
+    badge: "bg-indigo-100/60 border-indigo-200/80 shadow-[0_4px_12px_rgba(99,102,241,0.1)]",
+    textHover: "group-hover:text-indigo-700"
+  },
+  {
+    bg: "bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-white/80",
+    border: "border-emerald-200/80 hover:border-emerald-400/90",
+    shadow: "hover:shadow-[inset_0_1px_2px_rgba(255,255,255,1),0_20px_35px_-10px_rgba(16,185,129,0.25)]",
+    badge: "bg-emerald-100/60 border-emerald-200/80 shadow-[0_4px_12px_rgba(16,185,129,0.1)]",
+    textHover: "group-hover:text-emerald-700"
+  },
+  {
+    bg: "bg-gradient-to-br from-purple-500/10 via-violet-500/5 to-white/80",
+    border: "border-purple-200/80 hover:border-purple-400/90",
+    shadow: "hover:shadow-[inset_0_1px_2px_rgba(255,255,255,1),0_20px_35px_-10px_rgba(168,85,247,0.25)]",
+    badge: "bg-purple-100/60 border-purple-200/80 shadow-[0_4px_12px_rgba(168,85,247,0.1)]",
+    textHover: "group-hover:text-purple-700"
+  },
+  {
+    bg: "bg-gradient-to-br from-sky-500/10 via-cyan-500/5 to-white/80",
+    border: "border-sky-200/80 hover:border-sky-400/90",
+    shadow: "hover:shadow-[inset_0_1px_2px_rgba(255,255,255,1),0_20px_35px_-10px_rgba(14,165,233,0.25)]",
+    badge: "bg-sky-100/60 border-sky-200/80 shadow-[0_4px_12px_rgba(14,165,233,0.1)]",
+    textHover: "group-hover:text-sky-700"
+  },
+  {
+    bg: "bg-gradient-to-br from-teal-500/10 via-emerald-500/5 to-white/80",
+    border: "border-teal-200/80 hover:border-teal-400/90",
+    shadow: "hover:shadow-[inset_0_1px_2px_rgba(255,255,255,1),0_20px_35px_-10px_rgba(20,184,166,0.25)]",
+    badge: "bg-teal-100/60 border-teal-200/80 shadow-[0_4px_12px_rgba(20,184,166,0.1)]",
+    textHover: "group-hover:text-teal-700"
+  },
+  {
+    bg: "bg-gradient-to-br from-fuchsia-500/10 via-pink-500/5 to-white/80",
+    border: "border-fuchsia-200/80 hover:border-fuchsia-400/90",
+    shadow: "hover:shadow-[inset_0_1px_2px_rgba(255,255,255,1),0_20px_35px_-10px_rgba(217,70,239,0.25)]",
+    badge: "bg-fuchsia-100/60 border-fuchsia-200/80 shadow-[0_4px_12px_rgba(217,70,239,0.1)]",
+    textHover: "group-hover:text-fuchsia-700"
+  },
+  {
+    bg: "bg-gradient-to-br from-blue-500/10 via-indigo-500/5 to-white/80",
+    border: "border-blue-200/80 hover:border-blue-400/90",
+    shadow: "hover:shadow-[inset_0_1px_2px_rgba(255,255,255,1),0_20px_35px_-10px_rgba(59,130,246,0.25)]",
+    badge: "bg-blue-100/60 border-blue-200/80 shadow-[0_4px_12px_rgba(59,130,246,0.1)]",
+    textHover: "group-hover:text-blue-700"
+  },
+  {
+    bg: "bg-gradient-to-br from-orange-500/10 via-amber-500/5 to-white/80",
+    border: "border-orange-200/80 hover:border-orange-400/90",
+    shadow: "hover:shadow-[inset_0_1px_2px_rgba(255,255,255,1),0_20px_35px_-10px_rgba(249,115,22,0.25)]",
+    badge: "bg-orange-100/60 border-orange-200/80 shadow-[0_4px_12px_rgba(249,115,22,0.1)]",
+    textHover: "group-hover:text-orange-700"
+  },
+  {
+    bg: "bg-gradient-to-br from-lime-500/10 via-emerald-500/5 to-white/80",
+    border: "border-lime-200/80 hover:border-lime-400/90",
+    shadow: "hover:shadow-[inset_0_1px_2px_rgba(255,255,255,1),0_20px_35px_-10px_rgba(132,204,22,0.25)]",
+    badge: "bg-lime-100/60 border-lime-200/80 shadow-[0_4px_12px_rgba(132,204,22,0.1)]",
+    textHover: "group-hover:text-lime-700"
+  },
+  {
+    bg: "bg-gradient-to-br from-violet-500/10 via-purple-500/5 to-white/80",
+    border: "border-violet-200/80 hover:border-violet-400/90",
+    shadow: "hover:shadow-[inset_0_1px_2px_rgba(255,255,255,1),0_20px_35px_-10px_rgba(139,92,246,0.25)]",
+    badge: "bg-violet-100/60 border-violet-200/80 shadow-[0_4px_12px_rgba(139,92,246,0.1)]",
+    textHover: "group-hover:text-violet-700"
+  }
+];
+
+const getOperatorCardTheme = (name, index) => {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const idx = Math.abs(hash + index) % GLASS_THEMES.length;
+  return GLASS_THEMES[idx];
+};
+
 export default function LiveBillPay() {
   const { user } = useAuth();
   const [categories, setCategories] = useState([]);
@@ -862,27 +958,28 @@ export default function LiveBillPay() {
                 {billers
                   .filter(o => o.biller_name.toLowerCase().includes(opSearch.toLowerCase()))
                   .sort((a, b) => a.biller_name.localeCompare(b.biller_name, 'en', { sensitivity: 'base' }))
-                  .map((o) => {
+                  .map((o, idx) => {
                     const logoUrl = getBillerLogoUrl(o.biller_name);
+                    const theme = getOperatorCardTheme(o.biller_name, idx);
 
                     return (
                       <button
                         key={o.biller_id}
                         onClick={() => handleOperatorChange(o.biller_id)}
-                        className="flex flex-col items-center justify-center text-center p-4 bg-white/75 backdrop-blur-xl border border-white/80 hover:border-indigo-400/40 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9),0_10px_25px_-5px_rgba(0,0,0,0.05)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,1),0_22px_36px_-10px_rgba(99,102,241,0.22)] hover:-translate-y-2 hover:scale-[1.03] active:scale-95 rounded-2xl transition-all duration-300 group w-full relative min-h-[150px] overflow-hidden"
+                        className={`flex flex-col items-center justify-center text-center p-4 ${theme.bg} backdrop-blur-xl border ${theme.border} shadow-[inset_0_1px_1px_rgba(255,255,255,0.9),0_8px_20px_-4px_rgba(0,0,0,0.04)] ${theme.shadow} hover:-translate-y-2 hover:scale-[1.03] active:scale-95 rounded-2xl transition-all duration-300 group w-full relative min-h-[150px] overflow-hidden`}
                       >
                         {/* Glossy Top Specular Highlight */}
-                        <div className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-white/60 via-white/20 to-transparent rounded-t-2xl pointer-events-none"></div>
+                        <div className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-white/70 via-white/20 to-transparent rounded-t-2xl pointer-events-none"></div>
 
                         {/* Liquid Sheen Flare Sweep */}
-                        <div className="absolute -inset-x-full top-0 bottom-0 bg-gradient-to-r from-transparent via-white/50 to-transparent group-hover:translate-x-full transition-transform duration-1000 ease-out pointer-events-none"></div>
+                        <div className="absolute -inset-x-full top-0 bottom-0 bg-gradient-to-r from-transparent via-white/60 to-transparent group-hover:translate-x-full transition-transform duration-1000 ease-out pointer-events-none"></div>
 
-                        {/* Apple Squircle Glass Logo Badge Box */}
-                        <div className="h-16 w-16 bg-white/90 backdrop-blur-md border border-white/90 shadow-[inset_0_1px_1px_rgba(255,255,255,1),0_4px_14px_rgba(0,0,0,0.06)] rounded-2xl flex items-center justify-center p-2.5 mb-3 transition-all duration-300 group-hover:scale-110 group-hover:shadow-[0_8px_20px_rgba(99,102,241,0.18)] shrink-0 relative z-10">
+                        {/* Apple Squircle Glass Logo Badge Box with Theme Tint */}
+                        <div className={`h-16 w-16 ${theme.badge} backdrop-blur-md border shadow-xs rounded-2xl flex items-center justify-center p-2.5 mb-3 transition-all duration-300 group-hover:scale-110 group-hover:bg-white group-hover:shadow-md shrink-0 relative z-10`}>
                           {renderBillerLogo(o)}
                         </div>
                         
-                        <span className="font-extrabold text-slate-900 text-xs sm:text-xs leading-tight group-hover:text-indigo-600 transition-colors block w-full px-1 line-clamp-2 relative z-10">
+                        <span className={`font-extrabold text-slate-900 text-xs sm:text-xs leading-tight ${theme.textHover} transition-colors block w-full px-1 line-clamp-2 relative z-10`}>
                           {o.biller_name}
                         </span>
                       </button>
