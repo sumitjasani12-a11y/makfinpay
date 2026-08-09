@@ -42,11 +42,17 @@ export const NAV = {
       ],
     },
     { to: "/admin/kyc", label: "KYC Requests", icon: FileCheck2 },
-    { to: "/admin/audit", label: "Audit Logs", icon: ScrollText },
-    { to: "/admin/change-password", label: "Change Password", icon: KeyRound },
-    { to: "/admin/admins", label: "Admin Management", icon: Users },
-    { to: "/admin/settings", label: "Settings", icon: Settings },
-    { to: "/admin/policies", label: "Rules & Policies", icon: ScrollText },
+    {
+      label: "Settings",
+      icon: Settings,
+      children: [
+        { to: "/admin/settings", label: "Settings", icon: Settings },
+        { to: "/admin/audit", label: "Audit Logs", icon: ScrollText },
+        { to: "/admin/change-password", label: "Change Password", icon: KeyRound },
+        { to: "/admin/admins", label: "Admin Management", icon: Users },
+        { to: "/admin/policies", label: "Rules & Policies", icon: ScrollText },
+      ],
+    },
   ],
   master_distributor: [
     { to: "/md", label: "Dashboard", icon: LayoutDashboard, end: true },
