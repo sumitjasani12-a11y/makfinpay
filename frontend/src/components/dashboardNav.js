@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Users, UserCog, ArrowDownToLine, ArrowUpFromLine, Wallet,
   QrCode, Percent, FileCheck2, ScrollText, CreditCard, History,
   FilePlus2, KeyRound, DatabaseBackup, Crown, FileText, Layers, Landmark,
-  Settings, FolderOpen, ClipboardList,
+  Settings, FolderOpen, ClipboardList, ShieldCheck,
 } from "lucide-react";
 
 import BbpsIcon from "./BbpsIcon";
@@ -81,9 +81,15 @@ export const NAV = {
     { to: "/agent/live-billpay/history", label: "Live Bill History", icon: History },
     { to: "/agent/ledger", label: "Account Statement", icon: ScrollText },
     { to: "/agent/withdrawal", label: "Pay Withdrawal", icon: ArrowUpFromLine },
-    { to: "/agent/change-password", label: "Change Password", icon: KeyRound },
-    { to: "/agent/change-mpin", label: "Change MPIN", icon: KeyRound },
-    { to: "/agent/change-tpin", label: "Manage TPIN", icon: KeyRound },
-    { to: "/agent/policies", label: "Rules & Policies", icon: ScrollText },
+    {
+      label: "Security",
+      icon: ShieldCheck,
+      children: [
+        { to: "/agent/change-password", label: "Change Password", icon: KeyRound },
+        { to: "/agent/change-mpin", label: "Change MPIN", icon: KeyRound },
+        { to: "/agent/change-tpin", label: "Manage TPIN", icon: KeyRound },
+        { to: "/agent/policies", label: "Rules & Policies", icon: ScrollText },
+      ],
+    },
   ],
 };

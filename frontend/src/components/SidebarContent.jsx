@@ -7,6 +7,7 @@ const getIconColor = (label) => {
   const colors = {
     "User": "text-[#4CC9F0]", // Cyan for User group
     "System Management": "text-[#2A9D8F]", // Dark Sage for System Management group
+    "Security": "text-[#70E000]", // Lime Green for Security group
     "Overview": "text-[#4CC9F0]", // Cyan
     "Dashboard": "text-[#4CC9F0]",
     "Master Distributors": "text-[#FFB703]", // Amber/Gold
