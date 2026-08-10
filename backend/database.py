@@ -778,7 +778,7 @@ class PostgresDatabase:
         if self.client is None:
             import asyncpg
             min_size = int(os.environ.get("DB_POOL_MIN_SIZE", "1"))
-            max_size = int(os.environ.get("DB_POOL_MAX_SIZE", "5"))
+            max_size = int(os.environ.get("DB_POOL_MAX_SIZE", "2"))
             
             clean_dsn = dsn
             ssl_val = None
@@ -788,35 +788,41 @@ class PostgresDatabase:
                     clean_dsn = dsn.split("?")[0]
 
             logger.info(f"Connecting to database: {clean_dsn}")
-            try:
-                self.client = await asyncpg.create_pool(
-                    clean_dsn,
-                    ssl=ssl_val,
-                    min_size=min_size,
-                    max_size=max_size,
-                    command_timeout=30,
-                    max_inactive_connection_lifetime=30,
-                    statement_cache_size=0
-                )
-                logger.info("Database pool initialized successfully.")
-            except Exception as e:
-                logger.error(f"Failed to create asyncpg pool with ssl={ssl_val}: {e}")
-                if ssl_val:
-                    try:
-                        self.client = await asyncpg.create_pool(
-                            clean_dsn,
-                            min_size=min_size,
-                            max_size=max_size,
-                            command_timeout=30,
-                            max_inactive_connection_lifetime=30,
-                            statement_cache_size=0
-                        )
-                        logger.info("Database pool initialized successfully without SSL kwarg.")
-                    except Exception as e2:
-                        logger.error(f"Fallback asyncpg pool creation failed: {e2}")
-                        raise e2
-                else:
-                    raise e
+            for attempt in range(5):
+                try:
+                    self.client = await asyncpg.create_pool(
+                        clean_dsn,
+                        ssl=ssl_val,
+                        min_size=min_size,
+                        max_size=max_size,
+                        command_timeout=30,
+                        max_inactive_connection_lifetime=10,
+                        statement_cache_size=0
+                    )
+                    logger.info("Database pool initialized successfully.")
+                    return
+                except Exception as e:
+                    logger.warning(f"Failed to create asyncpg pool (attempt {attempt+1}/5): {e}")
+                    if attempt < 4:
+                        await asyncio.sleep((attempt + 1) * 0.4)
+                    else:
+                        if ssl_val:
+                            try:
+                                self.client = await asyncpg.create_pool(
+                                    clean_dsn,
+                                    min_size=1,
+                                    max_size=2,
+                                    command_timeout=30,
+                                    max_inactive_connection_lifetime=10,
+                                    statement_cache_size=0
+                                )
+                                logger.info("Database pool initialized successfully without SSL kwarg.")
+                                return
+                            except Exception as e2:
+                                logger.error(f"Fallback asyncpg pool creation failed: {e2}")
+                                raise e2
+                        else:
+                            raise e
 
     async def close(self):
         if self.client:
@@ -897,7 +903,7 @@ class PostgresDatabase:
         if self.client is None:
             raise Exception("Database client is not initialized.")
             
-        retries = 3
+        retries = 5
         for attempt in range(retries):
             try:
                 async with self.client.acquire() as conn:
@@ -921,8 +927,8 @@ class PostgresDatabase:
             except Exception as e:
                 err_msg = str(e)
                 if ("EMAXCONNSESSION" in err_msg or "max clients reached" in err_msg or "pool" in err_msg.lower() or "timeout" in err_msg.lower()) and attempt < retries - 1:
-                    logger.warning(f"Database query error (attempt {attempt + 1}/{retries}), retrying in {(attempt + 1) * 0.2}s: {e}")
-                    await asyncio.sleep((attempt + 1) * 0.2)
+                    logger.warning(f"Database query error (attempt {attempt + 1}/{retries}), retrying in {(attempt + 1) * 0.3}s: {e}")
+                    await asyncio.sleep((attempt + 1) * 0.3)
                 else:
                     raise
 
