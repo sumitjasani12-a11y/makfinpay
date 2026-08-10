@@ -1845,22 +1845,32 @@ async def run_daily_commission_settlement():
         logger.error(f"run_daily_commission_settlement failed: {e}")
 
 
+IST = timezone(timedelta(hours=5, minutes=30))
+
 async def run_t1_daily_settlement(cutoff_dt: Optional[datetime] = None):
-    """At 11:30 AM IST daily (or startup): settle all eligible T+1 balance to main wallet for all agents.
-    T+1 recharges approved prior to 11:30 AM IST today (or prior days) will have their net credit amount
-    transferred from `t1_balance` to `balance` (main wallet) and recorded in the ledger.
+    """At 11:30 AM IST daily (or via background scheduler): settle all eligible T+1 balance to main wallet.
+    Rule: Any T+1 request created/approved on Day X (from 12:00 AM to 11:59 PM IST)
+    is settled on Day X + 1 at 11:30 AM IST. Recharges approved on Day X + 1 (even at 7 AM IST)
+    are NOT settled on Day X + 1; they will settle on Day X + 2 at 11:30 AM IST.
     """
     try:
         now_utc = datetime.now(timezone.utc)
+        now_ist = now_utc.astimezone(IST)
+        
         if not cutoff_dt:
-            # Default cutoff is today's 06:00:00 UTC (11:30 AM IST)
-            cutoff_dt = now_utc.replace(hour=6, minute=0, second=0, microsecond=0)
-            if now_utc < cutoff_dt:
-                # If running before 11:30 AM IST today, use yesterday's 11:30 AM IST cutoff
-                cutoff_dt = cutoff_dt - timedelta(days=1)
+            target_1130_ist = now_ist.replace(hour=11, minute=30, second=0, microsecond=0)
+            if now_ist < target_1130_ist:
+                # Running before 11:30 AM IST today: settle recharges approved on or before Day X - 2 (start of yesterday IST)
+                cutoff_date = now_ist.date() - timedelta(days=1)
+            else:
+                # Running at or after 11:30 AM IST today: settle recharges approved on or before Day X - 1 (start of today IST)
+                cutoff_date = now_ist.date()
+
+            cutoff_datetime_ist = datetime.combine(cutoff_date, datetime.min.time(), tzinfo=IST)
+            cutoff_dt = cutoff_datetime_ist.astimezone(timezone.utc)
                 
         cutoff_iso = cutoff_dt.isoformat()
-        today_str = cutoff_dt.strftime("%Y-%m-%d")
+        today_str = now_ist.strftime("%Y-%m-%d")
         
         # Fetch all approved T+1 recharges that are not yet settled
         cursor = db.recharges.find(
