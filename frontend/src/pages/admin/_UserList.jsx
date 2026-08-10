@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { PageHeader, DataTable, StatusBadge, EmptyState } from "@/components/Shared";
 import FileUpload from "@/components/FileUpload";
 import { toast } from "sonner";
-import { Plus, Eye, X, FileDown, Loader2, Search, RotateCcw, Pencil, Trash2, FileSpreadsheet, Users, UserCheck, IndianRupee, Phone, Mail, Building2, Sparkles, ShieldCheck, ArrowLeft, Percent, Camera } from "lucide-react";
+import { Plus, Eye, X, FileDown, Loader2, Search, RotateCcw, Pencil, Trash2, FileSpreadsheet, Users, UserCheck, IndianRupee, Phone, Mail, Building2, Sparkles, ShieldCheck, ArrowLeft, Percent, Camera, KeyRound } from "lucide-react";
 
 const SUPER_ADMIN_EMAIL = "jigs.vanani@gmail.com";
 
@@ -28,9 +28,24 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
     is_tester: editingUser?.is_tester || false
   });
   const [busy, setBusy] = useState(false);
+  const [resettingMpin, setResettingMpin] = useState(false);
   const [activeTab, setActiveTab] = useState("firm");
   const isAgent = role === "agent";
   const isMd = role === "master_distributor";
+
+  const handleResetMpin = async () => {
+    if (!editingUser) return;
+    if (!window.confirm(`Are you sure you want to reset MPIN for ${editingUser.full_name}? They will be required to set up a new 6-digit MPIN on their next login.`)) return;
+    setResettingMpin(true);
+    try {
+      const res = await api.post(`/admin/users/${editingUser.id}/reset-mpin`);
+      toast.success(res.data.message || "MPIN reset successfully");
+    } catch (err) {
+      toast.error(formatErr(err.response?.data?.detail) || "Failed to reset MPIN");
+    } finally {
+      setResettingMpin(false);
+    }
+  };
 
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
@@ -668,6 +683,29 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
                 </div>
               </div>
             )}
+
+            {editingUser && (
+              <div className="pt-4 border-t border-neutral-100 flex items-center justify-between bg-[#F8F7F2] p-4 rounded-2xl border border-black/[0.02]">
+                <div>
+                  <span className="text-xs font-black text-neutral-800 flex items-center gap-1.5">
+                    <KeyRound className="h-3.5 w-3.5 text-amber-700" /> Security & MPIN
+                  </span>
+                  <span className="text-[10px] font-semibold text-neutral-500 block mt-0.5">
+                    Reset user's 6-digit MPIN. They will be prompted to set up a new MPIN on next login.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleResetMpin}
+                  disabled={resettingMpin}
+                  className="px-4 py-2 text-xs font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 border border-amber-300/80 rounded-xl transition-all inline-flex items-center gap-1.5 shrink-0 shadow-sm"
+                  data-testid="reset-mpin-button"
+                >
+                  {resettingMpin ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+                  Reset MPIN
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Action buttons at the bottom */}
@@ -1191,6 +1229,16 @@ export function AdminUserList({ role }) {
     }
   };
 
+  const resetMpinUser = async (id, name) => {
+    if (!window.confirm(`Are you sure you want to reset MPIN for ${name}? User will be asked to create a new 6-digit MPIN on their next login.`)) return;
+    try {
+      const res = await api.post(`/admin/users/${id}/reset-mpin`);
+      toast.success(res.data.message || "MPIN reset successfully");
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail) || "Failed to reset MPIN");
+    }
+  };
+
   const exportPdf = async () => {
     if (exporting) return;
     setExporting(true);
@@ -1398,6 +1446,14 @@ export function AdminUserList({ role }) {
                   <Pencil className="h-4 w-4" />
                 </button>
                 <button 
+                  className="p-1.5 border border-amber-200 text-amber-700 hover:bg-amber-50 rounded-lg transition-colors inline-flex items-center justify-center font-semibold bg-white" 
+                  onClick={() => resetMpinUser(r.id, r.full_name)} 
+                  title="Reset MPIN"
+                  data-testid={`reset-mpin-${r.id}`}
+                >
+                  <KeyRound className="h-4 w-4" />
+                </button>
+                <button 
                   className="p-1.5 border border-rose-200 text-rose-700 hover:bg-rose-50 rounded-lg transition-colors inline-flex items-center justify-center" 
                   onClick={() => delUser(r.id, r.full_name)} 
                   title="Delete"
@@ -1557,6 +1613,14 @@ export function AdminUserList({ role }) {
                           data-testid={`edit-${r.id}`}
                         >
                           <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button 
+                          className="p-1.5 border border-amber-200 text-amber-700 hover:bg-amber-600 hover:text-white hover:border-amber-600 rounded-xl transition-all inline-flex items-center justify-center bg-white shadow-sm hover:shadow-md" 
+                          onClick={() => resetMpinUser(r.id, r.full_name)} 
+                          title="Reset MPIN"
+                          data-testid={`reset-mpin-${r.id}`}
+                        >
+                          <KeyRound className="h-3.5 w-3.5" />
                         </button>
                         <button 
                           className="p-1.5 border border-rose-200 text-rose-700 hover:bg-rose-600 hover:text-white hover:border-rose-600 rounded-xl transition-all inline-flex items-center justify-center bg-white shadow-sm hover:shadow-md" 

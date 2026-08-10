@@ -2964,6 +2964,15 @@ async def admin_freeze(uid: str, request: Request, user=Depends(require_roles("a
     await write_audit(user["id"], "toggle_freeze", target=uid, request=request)
     return {"frozen": not u.get("frozen", False)}
 
+@api.post("/admin/users/{uid}/reset-mpin")
+async def admin_reset_mpin(uid: str, request: Request, user=Depends(require_roles("admin"))):
+    u = await db.users.find_one({"id": uid, "is_deleted": False})
+    if not u:
+        raise HTTPException(404, "User not found")
+    await db.users.update_one({"id": uid}, {"$set": {"mpin_hash": None}})
+    await write_audit(user["id"], "admin_reset_mpin", target=uid, request=request)
+    return {"message": f"MPIN for {u.get('full_name')} reset successfully. User will be prompted to set up a new MPIN on next login."}
+
 @api.put("/admin/users/{uid}")
 async def admin_update_user(uid: str, body: UpdateUserIn, user=Depends(require_roles("admin"))):
     u = await db.users.find_one({"id": uid})
