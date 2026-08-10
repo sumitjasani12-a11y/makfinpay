@@ -1795,17 +1795,6 @@ async def run_daily_commission_settlement():
                 w = await get_or_create_wallet(dist_id)
                 new_bal = round(float(w.get("balance", 0.0)) + total_earnings, 2)
                 await db.wallets.update_one({"user_id": dist_id}, {"$set": {"balance": new_bal}})
-                await db.ledger.insert_one({
-                    "id": new_id(),
-                    "user_id": dist_id,
-                    "kind": "credit",
-                    "amount": total_earnings,
-                    "balance_after": new_bal,
-                    "ref_type": "daily_commission_settlement",
-                    "ref_id": f"settlement_{today_str}",
-                    "note": f"Daily Commission Settlement added to Wallet",
-                    "created_at": now_iso()
-                })
                 await db.recharges.update_many(
                     {"status": "approved", "distributor_id": dist_id, "created_at": {"$lt": today_start_dt}},
                     {"$set": {"settled_distributor": True}}
@@ -1827,17 +1816,6 @@ async def run_daily_commission_settlement():
                 w = await get_or_create_wallet(md_id)
                 new_bal = round(float(w.get("balance", 0.0)) + total_earnings, 2)
                 await db.wallets.update_one({"user_id": md_id}, {"$set": {"balance": new_bal}})
-                await db.ledger.insert_one({
-                    "id": new_id(),
-                    "user_id": md_id,
-                    "kind": "credit",
-                    "amount": total_earnings,
-                    "balance_after": new_bal,
-                    "ref_type": "daily_commission_settlement",
-                    "ref_id": f"settlement_md_{today_str}",
-                    "note": f"Daily Commission Settlement added to Wallet",
-                    "created_at": now_iso()
-                })
                 await db.recharges.update_many(
                     {"status": "approved", "md_id": md_id, "created_at": {"$lt": today_start_dt}},
                     {"$set": {"settled_md": True}}
@@ -6762,7 +6740,7 @@ async def get_admin_system_ledger(
     user=Depends(require_roles("admin"))
 ):
     page = max(1, page); page_size = max(1, min(200, page_size))
-    query = {}
+    query = {"ref_type": {"$ne": "daily_commission_settlement"}}
     if isinstance(kind, str) and kind != "all":
         query["kind"] = kind
 
