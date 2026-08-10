@@ -25,6 +25,7 @@ import json
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 from database import DuplicateKeyError, AsyncIOMotorGridFSBucket, AsyncIOMotorClient, convert_val
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, UploadFile, File, Form, Header, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import Response as FastResponse
@@ -1962,10 +1963,21 @@ async def run_t1_daily_settlement(cutoff_dt: Optional[datetime] = None):
         return {"error": str(e)}
 
 
-_t1_scheduler: Optional[AsyncIOScheduler] = None
+_t1_background_task = None
+
+async def _t1_settlement_periodic_loop():
+    while True:
+        try:
+            await asyncio.sleep(900)  # 15 minutes
+            await run_t1_daily_settlement()
+            await run_daily_commission_settlement()
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"[T+1 Periodic Task] Error in background loop: {e}")
 
 def _start_t1_scheduler():
-    global _t1_scheduler
+    global _t1_scheduler, _t1_background_task
     if _t1_scheduler is not None and _t1_scheduler.running:
         return
     _t1_scheduler = AsyncIOScheduler()
@@ -1976,6 +1988,13 @@ def _start_t1_scheduler():
         id="t1_daily_settlement",
         replace_existing=True
     )
+    # Also check every 15 minutes automatically so no settlement is ever missed
+    _t1_scheduler.add_job(
+        run_t1_daily_settlement,
+        IntervalTrigger(minutes=15),
+        id="t1_interval_check",
+        replace_existing=True
+    )
     # Schedule daily distributor/MD commission settlement at 00:05 UTC (05:35 AM IST)
     _t1_scheduler.add_job(
         run_daily_commission_settlement,
@@ -1984,7 +2003,14 @@ def _start_t1_scheduler():
         replace_existing=True
     )
     _t1_scheduler.start()
-    logger.info("[T+1 Scheduler] APScheduler started successfully for Daily T+1 Settlement at 11:30 AM IST (06:00 UTC)")
+    logger.info("[T+1 Scheduler] APScheduler started with 15-min auto check and 11:30 AM IST daily trigger.")
+    
+    try:
+        loop = asyncio.get_running_loop()
+        if _t1_background_task is None or _t1_background_task.done():
+            _t1_background_task = loop.create_task(_t1_settlement_periodic_loop())
+    except Exception:
+        pass
 
 
 
