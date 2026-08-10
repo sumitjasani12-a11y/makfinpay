@@ -1581,6 +1581,7 @@ async def create_subuser(
         "created_by_id": by,
         "frozen": False,
         "is_deleted": False,
+        "is_tester": bool(body.is_tester) if body.is_tester is not None else False,
         "created_at": now_iso(),
         "created_by": by,
     }

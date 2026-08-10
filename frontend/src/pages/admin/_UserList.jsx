@@ -402,29 +402,27 @@ function UserForm({ role, editingUser, onCreated, onCancel }) {
                         )}
                       </div>
 
-                      {role === "agent" && (
-                        <div className="bg-[#F8F7F2] rounded-2xl p-5 border border-black/[0.02] space-y-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <label className="text-[10px] font-black uppercase tracking-wider text-[#1B4332] block">
-                                Tester User
-                              </label>
-                              <span className="text-[11px] text-neutral-500 font-medium">
-                                Enable service bypass for testing when global toggles are OFF
-                              </span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setForm(prev => ({ ...prev, is_tester: !prev.is_tester }))}
-                              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${form.is_tester ? "bg-[#1B4332]" : "bg-neutral-200"}`}
-                            >
-                              <span
-                                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${form.is_tester ? "translate-x-5" : "translate-x-0"}`}
-                              />
-                            </button>
+                      <div className="bg-[#F8F7F2] rounded-2xl p-5 border border-black/[0.02] space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <label className="text-[10px] font-black uppercase tracking-wider text-[#1B4332] block">
+                              Tester User
+                            </label>
+                            <span className="text-[11px] text-neutral-500 font-medium">
+                              Enable service bypass for testing when global toggles are OFF
+                            </span>
                           </div>
+                          <button
+                            type="button"
+                            onClick={() => setForm(prev => ({ ...prev, is_tester: !prev.is_tester }))}
+                            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${form.is_tester ? "bg-[#1B4332]" : "bg-neutral-200"}`}
+                          >
+                            <span
+                              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${form.is_tester ? "translate-x-5" : "translate-x-0"}`}
+                            />
+                          </button>
                         </div>
-                      )}
+                      </div>
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1379,7 +1377,16 @@ export function AdminUserList({ role }) {
       {!(role === "master_distributor" || role === "distributor") ? (
         <DataTable
           columns={[
-            { key: "full_name", label: "Name" },
+            { key: "full_name", label: "Name", render: (r) => (
+              <div className="flex items-center gap-1.5">
+                <span>{r.full_name}</span>
+                {r.is_tester && (
+                  <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 border border-purple-200 shrink-0">
+                    TESTER
+                  </span>
+                )}
+              </div>
+            ) },
             { key: "firm_name", label: "Firm Name", render: (r) => <span className="font-semibold text-neutral-700">{r.firm_name || "—"}</span> },
             { key: "email", label: "Email" },
             { key: "phone", label: "Phone" },
@@ -1513,8 +1520,13 @@ export function AdminUserList({ role }) {
                         </div>
                         {/* User Details */}
                         <div className="min-w-0 space-y-1">
-                          <h4 className="text-sm font-extrabold text-neutral-800 capitalize leading-tight truncate group-hover:text-[#1B4332] transition-colors" title={r.full_name}>
-                            {r.full_name}
+                          <h4 className="text-sm font-extrabold text-neutral-800 capitalize leading-tight truncate group-hover:text-[#1B4332] transition-colors flex items-center gap-1.5" title={r.full_name}>
+                            <span className="truncate">{r.full_name}</span>
+                            {r.is_tester && (
+                              <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 border border-purple-200 shrink-0">
+                                TESTER
+                              </span>
+                            )}
                           </h4>
                           <div className="flex items-center gap-1.5 text-neutral-400 group-hover:text-neutral-500 transition-colors">
                             <Mail className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
