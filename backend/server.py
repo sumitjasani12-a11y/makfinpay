@@ -2089,10 +2089,11 @@ async def export_users_csv(role: str, user=Depends(require_roles("admin"))):
     writer = csv.writer(output)
     
     if role == "agent":
-        writer.writerow(["Full Name", "Email", "Phone", "Creator", "Wallet Balance", "Commission % (Charges)", "KYC Status", "Created At"])
+        writer.writerow(["Full Name", "Firm Name", "Email", "Phone", "Creator", "Wallet Balance", "Commission % (Charges)", "KYC Status", "Created At"])
         for it in items:
             writer.writerow([
                 it.get("full_name", ""),
+                it.get("firm_name", ""),
                 it.get("email", ""),
                 it.get("phone", ""),
                 it.get("creator_name", ""),
@@ -2249,6 +2250,7 @@ async def export_transactions_pdf(
     api_txn_id: Optional[str] = None,
     agent_search: Optional[str] = None,
     bank_search: Optional[str] = None,
+    card_search: Optional[str] = None,
     user=Depends(require_roles("admin")),
 ):
     matched_ids = None
@@ -2261,7 +2263,7 @@ async def export_transactions_pdf(
         status=status, agent_id=agent_id, operator=operator,
         from_ts=from_ts, to_ts=to_ts, q=q, amount=amount, txn_type=type,
         txn_id=txn_id, api_txn_id=api_txn_id, matched_ids=matched_ids,
-        agent_search=agent_search, bank_search=bank_search
+        agent_search=agent_search, bank_search=bank_search, card_search=card_search
     )
     items = await db.transactions.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
     
@@ -2291,6 +2293,7 @@ async def export_transactions_csv(
     api_txn_id: Optional[str] = None,
     agent_search: Optional[str] = None,
     bank_search: Optional[str] = None,
+    card_search: Optional[str] = None,
     user=Depends(require_roles("admin")),
 ):
     matched_ids = None
@@ -2303,7 +2306,7 @@ async def export_transactions_csv(
         status=status, agent_id=agent_id, operator=operator,
         from_ts=from_ts, to_ts=to_ts, q=q, amount=amount, txn_type=type,
         txn_id=txn_id, api_txn_id=api_txn_id, matched_ids=matched_ids,
-        agent_search=agent_search, bank_search=bank_search
+        agent_search=agent_search, bank_search=bank_search, card_search=card_search
     )
     items = await db.transactions.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
     
@@ -2634,8 +2637,8 @@ def _render_users_pdf(role: str, items: list, status_fn) -> bytes:
         header_row = ["Name", "Email", "Phone", "Created By", "Earnings", "Comm %", "Status", "Created"]
         col_widths = [40*mm, 55*mm, 28*mm, 30*mm, 26*mm, 18*mm, 22*mm, 30*mm]
     else:
-        header_row = ["Name", "Email", "Phone", "Distributor", "Wallet", "Comm %", "Status", "Created"]
-        col_widths = [38*mm, 55*mm, 28*mm, 35*mm, 25*mm, 18*mm, 22*mm, 28*mm]
+        header_row = ["Name", "Firm Name", "Email", "Phone", "Distributor", "Wallet", "Comm %", "Status", "Created"]
+        col_widths = [32*mm, 35*mm, 45*mm, 25*mm, 30*mm, 22*mm, 16*mm, 20*mm, 25*mm]
 
     # Body rows
     data_rows = [[P(h, cell_bold_white) for h in header_row]]
@@ -2666,6 +2669,7 @@ def _render_users_pdf(role: str, items: list, status_fn) -> bytes:
         else:
             row = [
                 P(u.get("full_name")),
+                P(u.get("firm_name") or "—"),
                 P(u.get("email")),
                 P(u.get("phone") or "—"),
                 P(u.get("creator_name") or "Admin"),
@@ -2766,6 +2770,7 @@ async def admin_list_users(
         if needle:
             query["$or"] = [
                 {"full_name": {"$regex": needle, "$options": "i"}},
+                {"firm_name": {"$regex": needle, "$options": "i"}},
                 {"email":     {"$regex": needle, "$options": "i"}},
                 {"phone":     {"$regex": needle, "$options": "i"}},
             ]
@@ -3542,7 +3547,7 @@ def get_short_txn_id(id_str: str) -> str:
 def _build_transaction_query(*, status=None, agent_id=None, operator=None,
                               from_ts=None, to_ts=None, q=None, amount=None, txn_type=None,
                               txn_id=None, api_txn_id=None, matched_ids=None,
-                              agent_search=None, bank_search=None) -> dict:
+                              agent_search=None, bank_search=None, card_search=None) -> dict:
     query: dict = {}
     if txn_type and txn_type != "all":
         if txn_type in ("credit_card", "cc"):
@@ -3559,6 +3564,8 @@ def _build_transaction_query(*, status=None, agent_id=None, operator=None,
         query["user_name"] = {"$regex": agent_search.strip(), "$options": "i"}
     if bank_search and bank_search.strip():
         query["operator"] = {"$regex": bank_search.strip(), "$options": "i"}
+    if card_search and card_search.strip():
+        query["card_last4"] = {"$regex": card_search.strip(), "$options": "i"}
     if txn_id and txn_id.strip():
         if matched_ids is not None:
             query["id"] = {"$in": matched_ids}
@@ -5167,6 +5174,7 @@ async def admin_transactions_stats(
     api_txn_id: Optional[str] = None,
     agent_search: Optional[str] = None,
     bank_search: Optional[str] = None,
+    card_search: Optional[str] = None,
     user=Depends(require_roles("admin")),
 ):
     matched_ids = None
@@ -5179,7 +5187,7 @@ async def admin_transactions_stats(
         status=status, agent_id=agent_id, operator=operator,
         from_ts=from_ts, to_ts=to_ts, q=q, amount=amount, txn_type=type,
         txn_id=txn_id, api_txn_id=api_txn_id, matched_ids=matched_ids,
-        agent_search=agent_search, bank_search=bank_search
+        agent_search=agent_search, bank_search=bank_search, card_search=card_search
     )
     
     pipeline = [
@@ -5216,6 +5224,7 @@ async def admin_transactions(
     api_txn_id: Optional[str] = None,
     agent_search: Optional[str] = None,
     bank_search: Optional[str] = None,
+    card_search: Optional[str] = None,
     page: int = 1,
     page_size: int = 50,
     paginated: bool = False,
@@ -5232,7 +5241,7 @@ async def admin_transactions(
         status=status, agent_id=agent_id, operator=operator,
         from_ts=from_ts, to_ts=to_ts, q=q, amount=amount, txn_type=type,
         txn_id=txn_id, api_txn_id=api_txn_id, matched_ids=matched_ids,
-        agent_search=agent_search, bank_search=bank_search
+        agent_search=agent_search, bank_search=bank_search, card_search=card_search
     )
     proj = {"_id": 0}
     if fields:

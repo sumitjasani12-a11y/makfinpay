@@ -115,6 +115,8 @@ export default function AdminTransactions() {
   const debouncedAgent = useDebounced(agentQuery, 350);
   const [bankQuery, setBankQuery] = useState("");
   const debouncedBank = useDebounced(bankQuery, 350);
+  const [cardQuery, setCardQuery] = useState("");
+  const debouncedCard = useDebounced(cardQuery, 350);
   const [amtQuery, setAmtQuery] = useState("");
   const debouncedAmt = useDebounced(amtQuery, 350);
 
@@ -154,8 +156,9 @@ export default function AdminTransactions() {
     if (debouncedAmt.trim()) p.amount = debouncedAmt.trim();
     if (debouncedAgent.trim()) p.agent_search = debouncedAgent.trim();
     if (debouncedBank.trim()) p.bank_search = debouncedBank.trim();
+    if (debouncedCard.trim()) p.card_search = debouncedCard.trim();
     return p;
-  }, [status, range, from, to, customApplied, debouncedQ, debouncedAmt, debouncedAgent, debouncedBank, page, pageSize]);
+  }, [status, range, from, to, customApplied, debouncedQ, debouncedAmt, debouncedAgent, debouncedBank, debouncedCard, page, pageSize]);
 
   const reload = useCallback((silent = false) => {
     if (!silent && items.length === 0) setLoading(true);
@@ -186,7 +189,7 @@ export default function AdminTransactions() {
         };
         setStats(parsedStats);
 
-        if (page === 1 && status === "all" && range === "today" && !debouncedQ && !debouncedAgent && !debouncedBank && !debouncedAmt) {
+        if (page === 1 && status === "all" && range === "today" && !debouncedQ && !debouncedAgent && !debouncedBank && !debouncedAmt && !debouncedCard) {
           try {
             localStorage.setItem("mfp_cache_admin_transactions", JSON.stringify(fetchedItems));
             localStorage.setItem("mfp_cache_admin_transactions_stats", JSON.stringify(parsedStats));
@@ -195,7 +198,7 @@ export default function AdminTransactions() {
       })
       .catch((e) => toast.error(formatErr(e.response?.data?.detail) || "Failed to load transactions"))
       .finally(() => setLoading(false));
-  }, [params, items.length, page, status, range, debouncedQ, debouncedAgent, debouncedBank, debouncedAmt]);
+  }, [params, items.length, page, status, range, debouncedQ, debouncedAgent, debouncedBank, debouncedAmt, debouncedCard]);
 
   useEffect(() => { reload(); }, [reload]);
 
@@ -206,10 +209,10 @@ export default function AdminTransactions() {
   useWebSocketListener("cc_bill_updated", () => {
     reload(true);
   });
-  useEffect(() => { setPage(1); }, [status, debouncedAgent, debouncedBank, range, from, to, customApplied, debouncedQ, debouncedAmt, pageSize]);
+  useEffect(() => { setPage(1); }, [status, debouncedAgent, debouncedBank, debouncedCard, range, from, to, customApplied, debouncedQ, debouncedAmt, pageSize]);
 
   const clearAll = () => {
-    setQ(""); setStatus("all"); setRange("today"); setAgentQuery(""); setBankQuery(""); setAmtQuery("");
+    setQ(""); setStatus("all"); setRange("today"); setAgentQuery(""); setBankQuery(""); setCardQuery(""); setAmtQuery("");
     setFrom(todayStr(-7)); setTo(todayStr()); setCustomApplied(false); setPage(1);
   };
 
@@ -523,8 +526,8 @@ export default function AdminTransactions() {
 
       {/* Filter / Search bar */}
       <div className="mfp-card p-5 mb-6 space-y-4" data-testid="tx-filter-bar">
-        {/* Filter Row: Consolidated 6 filters in 1 row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
+        {/* Filter Row: Consolidated 7 filters in 1 row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
           <div className="relative">
             <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
               <Search className="h-4 w-4 text-neutral-400" />
@@ -579,6 +582,26 @@ export default function AdminTransactions() {
               <button
                 type="button"
                 onClick={() => setBankQuery("")}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-[#1B4332]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          <div className="relative">
+            <input
+              type="text"
+              value={cardQuery}
+              onChange={(e) => setCardQuery(e.target.value)}
+              placeholder="Search Card Number"
+              className="mfp-input !pr-10"
+              data-testid="tx-card-search"
+            />
+            {cardQuery && (
+              <button
+                type="button"
+                onClick={() => setCardQuery("")}
                 className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-[#1B4332]"
               >
                 <X className="h-4 w-4" />

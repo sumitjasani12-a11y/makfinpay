@@ -41,6 +41,8 @@ export default function AdminLiveBillHistory() {
   const debouncedTxnId = useDebounced(txnIdQuery, 350);
   const [apiTxnIdQuery, setApiTxnIdQuery] = useState("");
   const debouncedApiTxnId = useDebounced(apiTxnIdQuery, 350);
+  const [cardQuery, setCardQuery] = useState("");
+  const debouncedCard = useDebounced(cardQuery, 350);
 
   // Stats calculation
   const [stats, setStats] = useState({ success: 0, successCount: 0, pending: 0, pendingCount: 0, reversed: 0, reversedCount: 0, totalProfit: 0 });
@@ -83,8 +85,9 @@ export default function AdminLiveBillHistory() {
     if (debouncedAmt.trim()) p.amount = debouncedAmt.trim();
     if (debouncedTxnId.trim()) p.txn_id = debouncedTxnId.trim();
     if (debouncedApiTxnId.trim()) p.api_txn_id = debouncedApiTxnId.trim();
+    if (debouncedCard.trim()) p.card_search = debouncedCard.trim();
     return p;
-  }, [status, agentFilter, range, from, to, customApplied, debouncedQ, debouncedAmt, debouncedTxnId, debouncedApiTxnId, page, pageSize]);
+  }, [status, agentFilter, range, from, to, customApplied, debouncedQ, debouncedAmt, debouncedTxnId, debouncedApiTxnId, debouncedCard, page, pageSize]);
 
   const reload = useCallback(() => {
     setLoading(true);
@@ -203,6 +206,7 @@ export default function AdminLiveBillHistory() {
     setAmtQuery("");
     setTxnIdQuery("");
     setApiTxnIdQuery("");
+    setCardQuery("");
     setCustomApplied(false);
     setPage(1);
   };
@@ -515,8 +519,8 @@ export default function AdminLiveBillHistory() {
 
       {/* Filter / Search bar */}
       <div className="mfp-card p-5 mb-6 space-y-4" data-testid="tx-filter-bar">
-        {/* Filter Row: Consolidated 6 filters in 1 row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
+        {/* Filter Row: Consolidated 7 filters in 1 row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
           <div className="relative">
             <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
               <Search className="h-4 w-4 text-neutral-400" />
@@ -571,6 +575,26 @@ export default function AdminLiveBillHistory() {
               <button
                 type="button"
                 onClick={() => setApiTxnIdQuery("")}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-[#1B4332]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          <div className="relative">
+            <input
+              type="text"
+              value={cardQuery}
+              onChange={(e) => setCardQuery(e.target.value)}
+              placeholder="Search Card Number"
+              className="mfp-input !pr-10"
+              data-testid="tx-card-search"
+            />
+            {cardQuery && (
+              <button
+                type="button"
+                onClick={() => setCardQuery("")}
                 className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-[#1B4332]"
               >
                 <X className="h-4 w-4" />

@@ -807,6 +807,7 @@ function MdDetailModal({ md, onClose }) {
                       <thead>
                         <tr className="bg-[#F8F7F2] border-b border-neutral-100">
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Name</th>
+                          <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Firm Name</th>
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Email</th>
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Wallet</th>
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">T+1 Wallet</th>
@@ -819,6 +820,7 @@ function MdDetailModal({ md, onClose }) {
                         {directAgents.map((a) => (
                           <tr key={a.id} className="hover:bg-neutral-50/50 transition-colors">
                             <td className="px-6 py-4 text-sm font-bold text-neutral-800">{a.full_name}</td>
+                            <td className="px-6 py-4 text-sm text-neutral-600 font-medium">{a.firm_name || "—"}</td>
                             <td className="px-6 py-4 text-sm text-neutral-600">{a.email}</td>
                             <td className="px-6 py-4 text-sm font-black text-[#1B4332]">{fmtMoney(a.wallet_balance)}</td>
                             <td className="px-6 py-4 text-sm font-black text-[#1E88E5]">{fmtMoney(a.t1_balance ?? 0)}</td>
@@ -846,6 +848,7 @@ function MdDetailModal({ md, onClose }) {
                       <thead>
                         <tr className="bg-[#F8F7F2] border-b border-neutral-100">
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Name</th>
+                          <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Firm Name</th>
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Email</th>
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Wallet</th>
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">T+1 Wallet</th>
@@ -858,6 +861,7 @@ function MdDetailModal({ md, onClose }) {
                         {distributorAgents.map((a) => (
                           <tr key={a.id} className="hover:bg-neutral-50/50 transition-colors">
                             <td className="px-6 py-4 text-sm font-bold text-neutral-800">{a.full_name}</td>
+                            <td className="px-6 py-4 text-sm text-neutral-600 font-medium">{a.firm_name || "—"}</td>
                             <td className="px-6 py-4 text-sm text-neutral-600">{a.email}</td>
                             <td className="px-6 py-4 text-sm font-black text-[#1B4332]">{fmtMoney(a.wallet_balance)}</td>
                             <td className="px-6 py-4 text-sm font-black text-[#1E88E5]">{fmtMoney(a.t1_balance ?? 0)}</td>
@@ -953,6 +957,7 @@ function DistributorDetailModal({ distributor, onClose }) {
                   <thead>
                     <tr className="bg-[#F8F7F2] border-b border-neutral-100">
                       <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Name</th>
+                      <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Firm Name</th>
                       <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Email</th>
                       <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Phone</th>
                       <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-neutral-400">Wallet</th>
@@ -967,6 +972,7 @@ function DistributorDetailModal({ distributor, onClose }) {
                     {agents.map((a) => (
                       <tr key={a.id} className="hover:bg-neutral-50/50 transition-colors">
                         <td className="px-6 py-4 text-sm font-bold text-neutral-800">{a.full_name}</td>
+                        <td className="px-6 py-4 text-sm text-neutral-600 font-medium">{a.firm_name || "—"}</td>
                         <td className="px-6 py-4 text-sm text-neutral-600">{a.email}</td>
                         <td className="px-6 py-4 text-sm text-neutral-500 font-semibold">{a.phone || "—"}</td>
                         <td className="px-6 py-4 text-sm font-black text-[#1B4332]">{fmtMoney(a.wallet_balance)}</td>
@@ -1326,6 +1332,7 @@ export function AdminUserList({ role }) {
         <DataTable
           columns={[
             { key: "full_name", label: "Name" },
+            { key: "firm_name", label: "Firm Name", render: (r) => <span className="font-semibold text-neutral-700">{r.firm_name || "—"}</span> },
             { key: "email", label: "Email" },
             { key: "phone", label: "Phone" },
             // Agents: show direct parent (Distributor / MD / Admin).
