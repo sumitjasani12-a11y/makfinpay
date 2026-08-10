@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { api, formatErr, fmtDate, fmtMoney } from "@/lib/api";
+import { useDebounced } from "@/lib/hooks";
 import { PageHeader, DataTable } from "@/components/Shared";
 import { toast } from "sonner";
-import { Plus, Loader2, ArrowUpRight, ArrowDownLeft, Landmark, Coins, TrendingUp } from "lucide-react";
+import { Plus, Loader2, ArrowUpRight, ArrowDownLeft, Landmark, TrendingUp, Search, RotateCcw, X } from "lucide-react";
 
 export default function AdminStatement() {
   const [activeTab, setActiveTab] = useState("system"); // system | profit | cashbook
@@ -27,6 +28,17 @@ export default function AdminStatement() {
   const [profitBalance, setProfitBalance] = useState(0);
   const [cashbookBalance, setCashbookBalance] = useState(0);
 
+  // Filter states
+  const [searchQuery, setSearchQuery] = useState("");
+  const [minAmount, setMinAmount] = useState("");
+  const [maxAmount, setMaxAmount] = useState("");
+  const [kindFilter, setKindFilter] = useState("all");
+  const [roleFilter, setRoleFilter] = useState("all");
+
+  const debouncedSearch = useDebounced(searchQuery, 350);
+  const debouncedMinAmt = useDebounced(minAmount, 350);
+  const debouncedMaxAmt = useDebounced(maxAmount, 350);
+
   // Modal states
   const [showAdjustModal, setShowAdjustModal] = useState(false);
   const [adjustType, setAdjustType] = useState("credit"); // credit | debit
@@ -34,20 +46,45 @@ export default function AdminStatement() {
   const [adjustNote, setAdjustNote] = useState("");
   const [submittingAdjust, setSubmittingAdjust] = useState(false);
 
+  // Reset pagination on filter change
+  useEffect(() => {
+    setSystemPage(1);
+  }, [debouncedSearch, debouncedMinAmt, debouncedMaxAmt, kindFilter, roleFilter]);
+
+  const isFiltered = Boolean(searchQuery || minAmount || maxAmount || kindFilter !== "all" || roleFilter !== "all");
+
+  const clearAllFilters = () => {
+    setSearchQuery("");
+    setMinAmount("");
+    setMaxAmount("");
+    setKindFilter("all");
+    setRoleFilter("all");
+  };
+
   const fetchSystemLedger = useCallback(() => {
     if (systemItems.length === 0) setLoading(true);
-    api.get("/admin/system-ledger", { params: { page: systemPage, page_size: systemPageSize } })
+    const params = {
+      page: systemPage,
+      page_size: systemPageSize,
+    };
+    if (debouncedSearch) params.search = debouncedSearch;
+    if (debouncedMinAmt !== "") params.min_amount = parseFloat(debouncedMinAmt);
+    if (debouncedMaxAmt !== "") params.max_amount = parseFloat(debouncedMaxAmt);
+    if (kindFilter !== "all") params.kind = kindFilter;
+    if (roleFilter !== "all") params.role = roleFilter;
+
+    api.get("/admin/system-ledger", { params })
       .then((res) => {
         const fetched = res.data.items || [];
         setSystemItems(fetched);
         setSystemTotal(res.data.total || 0);
-        if (systemPage === 1) {
+        if (systemPage === 1 && !debouncedSearch && !debouncedMinAmt && !debouncedMaxAmt && kindFilter === "all" && roleFilter === "all") {
           try { localStorage.setItem("mfp_cache_system_ledger", JSON.stringify(fetched)); } catch (e) {}
         }
       })
       .catch((e) => toast.error(formatErr(e.response?.data?.detail) || "Failed to load system ledger"))
       .finally(() => setLoading(false));
-  }, [systemPage, systemPageSize, systemItems.length]);
+  }, [systemPage, systemPageSize, debouncedSearch, debouncedMinAmt, debouncedMaxAmt, kindFilter, roleFilter, systemItems.length]);
 
   const fetchProfitLedger = useCallback(() => {
     setLoading(true);
@@ -90,6 +127,39 @@ export default function AdminStatement() {
   useEffect(() => {
     reloadActive();
   }, [reloadActive]);
+
+  // Client-side filtering for Profit & Cashbook tabs
+  const filteredProfitItems = useMemo(() => {
+    return profitItems.filter((item) => {
+      const amt = item.amount || 0;
+      if (debouncedMinAmt !== "" && amt < parseFloat(debouncedMinAmt)) return false;
+      if (debouncedMaxAmt !== "" && amt > parseFloat(debouncedMaxAmt)) return false;
+      if (kindFilter !== "all" && item.type !== kindFilter) return false;
+      if (debouncedSearch) {
+        const q = debouncedSearch.toLowerCase();
+        const noteMatch = (item.note || "").toLowerCase().includes(q);
+        const refMatch = (item.ref_type || "").toLowerCase().includes(q) || (item.ref_id || "").toLowerCase().includes(q);
+        if (!noteMatch && !refMatch) return false;
+      }
+      return true;
+    });
+  }, [profitItems, debouncedMinAmt, debouncedMaxAmt, kindFilter, debouncedSearch]);
+
+  const filteredCashbookItems = useMemo(() => {
+    return cashbookItems.filter((item) => {
+      const amt = item.amount || 0;
+      if (debouncedMinAmt !== "" && amt < parseFloat(debouncedMinAmt)) return false;
+      if (debouncedMaxAmt !== "" && amt > parseFloat(debouncedMaxAmt)) return false;
+      if (kindFilter !== "all" && item.type !== kindFilter) return false;
+      if (debouncedSearch) {
+        const q = debouncedSearch.toLowerCase();
+        const noteMatch = (item.note || "").toLowerCase().includes(q);
+        const refMatch = (item.ref_type || "").toLowerCase().includes(q) || (item.ref_id || "").toLowerCase().includes(q);
+        if (!noteMatch && !refMatch) return false;
+      }
+      return true;
+    });
+  }, [cashbookItems, debouncedMinAmt, debouncedMaxAmt, kindFilter, debouncedSearch]);
 
   const handleAdjustSubmit = async (e) => {
     e.preventDefault();
@@ -397,6 +467,159 @@ export default function AdminStatement() {
         </div>
       )}
 
+      {/* Amount & General Filter Bar */}
+      <div className="mfp-card p-5 space-y-4" data-testid="statement-filter-bar">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          {/* Member / Note Search */}
+          <div className="relative">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
+              <Search className="h-4 w-4 text-neutral-400" />
+            </span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search Member, Note..."
+              className="mfp-input !pl-11 !pr-9 w-full"
+              data-testid="statement-search-input"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-[#1B4332]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Min Amount */}
+          <div className="relative">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-neutral-400 font-bold text-xs">
+              Min ₹
+            </span>
+            <input
+              type="number"
+              step="any"
+              min="0"
+              value={minAmount}
+              onChange={(e) => setMinAmount(e.target.value)}
+              placeholder="Min Amount"
+              className="mfp-input !pl-14 !pr-9 w-full"
+              data-testid="statement-min-amount-input"
+            />
+            {minAmount && (
+              <button
+                type="button"
+                onClick={() => setMinAmount("")}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-[#1B4332]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Max Amount */}
+          <div className="relative">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-neutral-400 font-bold text-xs">
+              Max ₹
+            </span>
+            <input
+              type="number"
+              step="any"
+              min="0"
+              value={maxAmount}
+              onChange={(e) => setMaxAmount(e.target.value)}
+              placeholder="Max Amount"
+              className="mfp-input !pl-14 !pr-9 w-full"
+              data-testid="statement-max-amount-input"
+            />
+            {maxAmount && (
+              <button
+                type="button"
+                onClick={() => setMaxAmount("")}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-[#1B4332]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Type Filter */}
+          <div>
+            <select
+              value={kindFilter}
+              onChange={(e) => setKindFilter(e.target.value)}
+              className="mfp-input w-full"
+              data-testid="statement-type-filter"
+            >
+              <option value="all">All Types</option>
+              <option value="credit">Credit (+)</option>
+              <option value="debit">Debit (-)</option>
+              <option value="refund">Refund</option>
+              <option value="adjustment">Adjustment</option>
+            </select>
+          </div>
+
+          {/* Role Filter (System Ledger tab) or Clear button */}
+          <div>
+            {activeTab === "system" ? (
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="mfp-input w-full"
+                data-testid="statement-role-filter"
+              >
+                <option value="all">All Roles</option>
+                <option value="master_distributor">Master Distributor</option>
+                <option value="distributor">Distributor</option>
+                <option value="agent">Agent</option>
+              </select>
+            ) : (
+              <div className="flex items-center justify-end h-full">
+                <button
+                  type="button"
+                  onClick={clearAllFilters}
+                  disabled={!isFiltered}
+                  className="mfp-btn-ghost w-full flex items-center justify-center gap-1.5 disabled:opacity-40"
+                  data-testid="statement-clear-filters"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" /> Clear Filters
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Filter Count & Reset Footer Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-black/5">
+          <div className="text-xs text-neutral-600" data-testid="statement-results-count">
+            {loading ? (
+              <span className="inline-flex items-center gap-1.5 text-neutral-400 font-medium">
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-[#1B4332]" /> Loading entries…
+              </span>
+            ) : activeTab === "system" ? (
+              <>Matched <span className="font-bold text-neutral-800">{systemTotal.toLocaleString("en-IN")}</span> ledger entries</>
+            ) : activeTab === "profit" ? (
+              <>Showing <span className="font-bold text-neutral-800">{filteredProfitItems.length}</span> profit entries</>
+            ) : (
+              <>Showing <span className="font-bold text-neutral-800">{filteredCashbookItems.length}</span> bank cashbook entries</>
+            )}
+          </div>
+          {isFiltered && (
+            <button
+              type="button"
+              onClick={clearAllFilters}
+              className="mfp-btn-ghost text-xs inline-flex items-center gap-1.5"
+              data-testid="statement-clear-all"
+            >
+              <RotateCcw className="h-3.5 w-3.5" /> Clear All Filters
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Table Data list */}
       <div className="mfp-card">
         {loading ? (
@@ -420,9 +643,9 @@ export default function AdminStatement() {
             }}
           />
         ) : activeTab === "profit" ? (
-          <DataTable rows={profitItems} columns={getProfitColumns()} />
+          <DataTable rows={filteredProfitItems} columns={getProfitColumns()} />
         ) : (
-          <DataTable rows={cashbookItems} columns={getCashbookColumns()} />
+          <DataTable rows={filteredCashbookItems} columns={getCashbookColumns()} />
         )}
       </div>
 

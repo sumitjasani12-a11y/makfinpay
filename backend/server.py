@@ -6750,11 +6750,56 @@ async def get_admin_cashbook(user=Depends(require_roles("admin"))):
 async def get_admin_system_ledger(
     page: int = 1,
     page_size: int = 50,
+    search: Optional[str] = Query(None),
+    kind: Optional[str] = Query(None),
+    role: Optional[str] = Query(None),
+    min_amount: Optional[float] = Query(None),
+    max_amount: Optional[float] = Query(None),
+    amount: Optional[float] = Query(None),
     user=Depends(require_roles("admin"))
 ):
     page = max(1, page); page_size = max(1, min(200, page_size))
-    total_task = db.ledger.count_documents({})
-    items_task = db.ledger.find({}, {"_id": 0}).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
+    query = {}
+    if isinstance(kind, str) and kind != "all":
+        query["kind"] = kind
+
+    amt_conditions = {}
+    if isinstance(min_amount, (int, float)):
+        amt_conditions["$gte"] = min_amount
+    if isinstance(max_amount, (int, float)):
+        amt_conditions["$lte"] = max_amount
+    if isinstance(amount, (int, float)):
+        amt_conditions["$gte"] = round(amount - 0.01, 2)
+        amt_conditions["$lte"] = round(amount + 0.01, 2)
+    if amt_conditions:
+        query["amount"] = amt_conditions
+
+    if isinstance(role, str) and role != "all":
+        role_users = await db.users.find({"role": role}, {"_id": 0, "id": 1}).to_list(None)
+        role_uids = [u["id"] for u in role_users]
+        query["user_id"] = {"$in": role_uids}
+
+    if isinstance(search, str) and search.strip():
+        s = search.strip()
+        matched_users = await db.users.find({
+            "$or": [
+                {"full_name": {"$regex": s, "$options": "i"}},
+                {"email": {"$regex": s, "$options": "i"}}
+            ]
+        }, {"_id": 0, "id": 1}).to_list(None)
+        
+        s_query = [
+            {"note": {"$regex": s, "$options": "i"}},
+            {"ref_type": {"$regex": s, "$options": "i"}},
+            {"ref_id": {"$regex": s, "$options": "i"}}
+        ]
+        if matched_users:
+            s_query.append({"user_id": {"$in": [u["id"] for u in matched_users]}})
+
+        query["$or"] = s_query
+
+    total_task = db.ledger.count_documents(query)
+    items_task = db.ledger.find(query, {"_id": 0}).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
     total, items = await asyncio.gather(total_task, items_task)
 
     user_ids = list({item.get("user_id") for item in items if item.get("user_id")})
