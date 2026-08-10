@@ -538,6 +538,7 @@ class CreateUserIn(BaseModel):
     commission_percent: Optional[float] = None  # for agent (markup) or MD (rate override)
     t1_commission_percent: Optional[float] = None # T+1 commission percent (only for Agent)
     t1_enabled: Optional[bool] = False
+    is_tester: Optional[bool] = False
 
 class UpdateUserIn(BaseModel):
     full_name: str
@@ -1582,7 +1583,7 @@ async def create_subuser(
         "created_by_id": by,
         "frozen": False,
         "is_deleted": False,
-        "is_tester": bool(body.is_tester) if body.is_tester is not None else False,
+        "is_tester": bool(getattr(body, "is_tester", False)) if getattr(body, "is_tester", None) is not None else False,
         "created_at": now_iso(),
         "created_by": by,
     }
