@@ -283,7 +283,7 @@ export default function AdminTransactions() {
       ) 
     },
     { key: "operator", label: "Bank", render: (r) => <span className="max-w-[130px] truncate block mx-auto font-semibold text-xs text-center" title={r.operator}>{r.operator || "—"}</span> },
-    { key: "card_last4", label: "Card", render: (r) => <span className="font-mono font-bold text-xs text-center block mx-auto">{r.card_last4 || "—"}</span> },
+    { key: "card_last4", label: "Card Number", render: (r) => <span className="font-mono font-bold text-xs text-center block mx-auto">{r.card_last4 || "—"}</span> },
     { key: "bill_amount", label: "Bill Amount", render: (r) => (
       <div className="text-center">
         <div className="font-bold text-xs">{fmtMoney(r.bill_amount ?? r.amount)}</div>

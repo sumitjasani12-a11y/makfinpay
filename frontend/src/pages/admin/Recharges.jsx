@@ -6,7 +6,7 @@ import { useDebounced } from "@/lib/hooks";
 import { PageHeader, DataTable, StatusBadge } from "@/components/Shared";
 import ZoomableImage from "@/components/ZoomableImage";
 import { toast } from "sonner";
-import { Eye, Check, X, Search, RotateCcw, FileDown, FileSpreadsheet, Loader2, ShieldAlert, CheckCircle2, Pencil, HelpCircle } from "lucide-react";
+import { Eye, Check, X, Search, RotateCcw, FileDown, FileSpreadsheet, Loader2, ShieldAlert, CheckCircle2, Pencil, HelpCircle, RefreshCw } from "lucide-react";
 import { useWebSocketListener } from "@/lib/ws";
 
 const STATUSES = [
@@ -525,6 +525,28 @@ export default function AdminRecharges() {
     }
   };
 
+  const [settlingT1, setSettlingT1] = useState(false);
+
+  const handleRunT1Settlement = async () => {
+    if (settlingT1) return;
+    setSettlingT1(true);
+    try {
+      const res = await api.post("/admin/t1-settlement/run");
+      const count = res.data?.settled_count ?? 0;
+      const amount = res.data?.total_settled_amount ?? 0;
+      if (count > 0) {
+        toast.success(`Successfully settled ₹${amount.toLocaleString('en-IN')} for ${count} agent(s) into Main Wallet!`);
+      } else {
+        toast.info("No eligible pending T+1 recharges to settle at this time.");
+      }
+      reload();
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail) || "Failed to run T+1 settlement");
+    } finally {
+      setSettlingT1(false);
+    }
+  };
+
   return (
     <div>
       <PageHeader
@@ -532,6 +554,18 @@ export default function AdminRecharges() {
         subtitle="Verify UPI payments, approve to credit agent wallet (after commission)."
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={handleRunT1Settlement}
+              disabled={settlingT1}
+              className="mfp-btn-outline border-blue-200 text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+              data-testid="recharges-run-t1-settlement"
+              title="Settle all eligible T+1 balances into agent main wallets right now"
+            >
+              {settlingT1
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> Settling T+1…</>
+                : <><RefreshCw className="h-4 w-4 text-blue-600" /> Run T+1 Settlement</>
+              }
+            </button>
             <button
               onClick={handleExportPdf}
               disabled={exportingPdf}

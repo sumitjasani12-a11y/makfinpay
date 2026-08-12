@@ -247,6 +247,11 @@ export default function AdminLiveBillHistory() {
     },
     { key: "customer_phone", label: "Mobile", render: (r) => <span className="font-mono font-semibold text-xs text-center block mx-auto">{r.customer_phone || "—"}</span> },
     { key: "operator", label: "Operator", render: (r) => <span className="max-w-[130px] truncate block mx-auto font-semibold text-xs text-center" title={r.operator}>{r.operator || "—"}</span> },
+    { key: "card_last4", label: "Card Number", render: (r) => (
+      <span className="font-mono text-xs text-neutral-800 font-bold whitespace-nowrap bg-neutral-100/80 px-2 py-0.5 rounded border border-neutral-200/60 block mx-auto text-center select-all">
+        {r.card_last4 || "—"}
+      </span>
+    ) },
     { key: "operator_txn_id", label: "API TXN ID", render: (r) => (
       <span className="font-mono text-xs text-neutral-800 font-bold whitespace-nowrap bg-neutral-100/80 px-2 py-0.5 rounded border border-neutral-200/60 block mx-auto text-center select-all">
         {r.operator_txn_id || "—"}
@@ -695,6 +700,7 @@ export default function AdminLiveBillHistory() {
                 ["Agent Name", detail.user_name],
                 ["Transaction ID", detail.id],
                 ["Customer Mobile", detail.customer_phone || "—"],
+                ["Card Number", detail.card_last4 || "—"],
                 ["Biller / Operator", detail.operator],
                 ["API Txn ID", detail.operator_txn_id || "—"],
                 ["Bill Amount", fmtMoney(detail.bill_amount ?? detail.amount)],

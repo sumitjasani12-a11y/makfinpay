@@ -1969,11 +1969,11 @@ def _start_t1_scheduler():
     global _t1_scheduler, _t1_background_task
     if _t1_scheduler is not None and _t1_scheduler.running:
         return
-    _t1_scheduler = AsyncIOScheduler()
-    # Schedule daily at 06:00 UTC = 11:30 AM IST
+    _t1_scheduler = AsyncIOScheduler(timezone=IST)
+    # Schedule daily at 11:30 AM IST sharp
     _t1_scheduler.add_job(
         run_t1_daily_settlement,
-        CronTrigger(hour=6, minute=0, timezone=timezone.utc),
+        CronTrigger(hour=11, minute=30, timezone=IST),
         id="t1_daily_settlement",
         replace_existing=True
     )
@@ -3368,6 +3368,7 @@ async def admin_trigger_t1_settlement(user=Depends(require_roles("admin"))):
 @api.get("/admin/t1-settlement/status")
 async def admin_t1_settlement_status(user=Depends(require_roles("admin"))):
     """View current T+1 balance total and pending unsettled T+1 recharges count."""
+    await run_t1_daily_settlement()
     async with db.pool.acquire() as conn:
         row = await conn.fetchrow("SELECT COALESCE(SUM(t1_balance), 0) as total FROM wallets")
         t1_sum = float(row["total"]) if row else 0.0
@@ -4145,11 +4146,11 @@ async def admin_approve_recharge(rid: str, body: ApprovalIn, request: Request, u
     r = await db.recharges.find_one({"id": rid})
     if not r:
         raise HTTPException(404, "Not found")
-    if r.get("status") == "rejected" or (r.get("status") == "approved" and r.get("reviewed_at") is not None and float(r.get("net_credit_amount") or 0) > 0):
+    if r.get("status") != "pending":
         raise HTTPException(400, "This recharge request has already been processed or does not exist.")
 
     res = await db.execute_query(
-        "UPDATE recharges SET status = 'approved' WHERE id = $1 AND (status = 'pending' OR (status = 'approved' AND reviewed_at IS NULL))",
+        "UPDATE recharges SET status = 'approved' WHERE id = $1 AND status = 'pending'",
         [rid]
     )
     if not res or res.get("row_count", 0) == 0:

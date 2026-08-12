@@ -470,6 +470,15 @@ export default function LiveBillHistory() {
               )
             },
             {
+              key: "card_last4",
+              label: "Card Number",
+              render: (r) => (
+                <span className="font-mono font-semibold text-neutral-700">
+                  {r.card_last4 || "—"}
+                </span>
+              )
+            },
+            {
               key: "bill_amount",
               label: "Bill Amt",
               render: (r) => <span className="font-semibold text-neutral-800 tabular-nums">{fmtMoney(r.bill_amount)}</span>
