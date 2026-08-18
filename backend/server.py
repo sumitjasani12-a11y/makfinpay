@@ -6896,7 +6896,7 @@ async def get_admin_statement_report(
     user=Depends(require_roles("admin"))
 ):
     page = max(1, page); page_size = max(1, min(200, page_size))
-    query = {"ref_type": {"$ne": "daily_commission_settlement"}}
+    query = {}
 
     if isinstance(kind, str) and kind != "all":
         query["kind"] = kind
@@ -7010,7 +7010,6 @@ async def get_admin_statement_report(
     if items:
         top_item_time = items[0].get("created_at")
         newer_ledger = await db.ledger.find({
-            "ref_type": {"$ne": "daily_commission_settlement"},
             "created_at": {"$gt": top_item_time}
         }, {"_id": 0, "kind": 1, "amount": 1}).to_list(None)
         
