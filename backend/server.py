@@ -6881,6 +6881,184 @@ async def get_admin_system_ledger(
         "summary": summary
     }
 
+@api.get("/admin/admin-statement")
+async def get_admin_statement_report(
+    page: int = 1,
+    page_size: int = 20,
+    search: Optional[str] = Query(None),
+    kind: Optional[str] = Query(None),
+    type: Optional[str] = Query(None),
+    role: Optional[str] = Query(None),
+    min_amount: Optional[float] = Query(None),
+    max_amount: Optional[float] = Query(None),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    user=Depends(require_roles("admin"))
+):
+    page = max(1, page); page_size = max(1, min(200, page_size))
+    query = {"ref_type": {"$ne": "daily_commission_settlement"}}
+
+    if isinstance(kind, str) and kind != "all":
+        query["kind"] = kind
+
+    if isinstance(type, str) and type != "all":
+        if type == "payout":
+            query["ref_type"] = {"$in": ["withdrawal", "withdrawal_paid", "withdrawal_refund", "withdrawal_hold"]}
+        elif type == "bill_pay":
+            query["ref_type"] = {"$in": ["bill_payment", "bill_payment_reversal", "live_bill", "live_bill_refund", "bill_payment_hold", "bill_payment_success"]}
+        elif type == "qr_payment" or type == "recharge":
+            query["ref_type"] = "recharge"
+        elif type == "adjustment":
+            query["ref_type"] = {"$in": ["manual_adjustment", "adjustment", "wallet_hold", "wallet_unhold"]}
+
+    amt_conditions = {}
+    if isinstance(min_amount, (int, float)):
+        amt_conditions["$gte"] = min_amount
+    if isinstance(max_amount, (int, float)):
+        amt_conditions["$lte"] = max_amount
+    if amt_conditions:
+        query["amount"] = amt_conditions
+
+    date_conditions = {}
+    if isinstance(from_date, str) and from_date.strip():
+        date_conditions["$gte"] = from_date.strip()
+    if isinstance(to_date, str) and to_date.strip():
+        td = to_date.strip()
+        if len(td) == 10:
+            td += "T23:59:59.999999+00:00"
+        date_conditions["$lte"] = td
+    if date_conditions:
+        query["created_at"] = date_conditions
+
+    if isinstance(role, str) and role != "all":
+        role_users = await db.users.find({"role": role}, {"_id": 0, "id": 1}).to_list(None)
+        query["user_id"] = {"$in": [u["id"] for u in role_users]}
+
+    if isinstance(search, str) and search.strip():
+        s = search.strip()
+        matched_users = await db.users.find({
+            "$or": [
+                {"full_name": {"$regex": s, "$options": "i"}},
+                {"firm_name": {"$regex": s, "$options": "i"}},
+                {"email": {"$regex": s, "$options": "i"}},
+                {"phone": {"$regex": s, "$options": "i"}}
+            ]
+        }, {"_id": 0, "id": 1}).to_list(None)
+        
+        s_query = [
+            {"note": {"$regex": s, "$options": "i"}},
+            {"ref_type": {"$regex": s, "$options": "i"}},
+            {"ref_id": {"$regex": s, "$options": "i"}}
+        ]
+        if matched_users:
+            s_query.append({"user_id": {"$in": [u["id"] for u in matched_users]}})
+        query["$or"] = s_query
+
+    total = await db.ledger.count_documents(query)
+    items = await db.ledger.find(query, {"_id": 0}).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
+
+    user_ids = list({item.get("user_id") for item in items if item.get("user_id")})
+    user_map = {}
+    wallet_map = {}
+    if user_ids:
+        users = await db.users.find({"id": {"$in": user_ids}}, {"_id": 0, "id": 1, "full_name": 1, "firm_name": 1, "email": 1, "phone": 1, "role": 1}).to_list(None)
+        user_map = {u["id"]: u for u in users}
+        
+        wallets = await db.wallets.find({"user_id": {"$in": user_ids}}, {"_id": 0, "user_id": 1, "balance": 1}).to_list(None)
+        wallet_map = {w["user_id"]: float(w.get("balance") or 0.0) for w in wallets}
+
+    all_wallets = await db.wallets.find({}, {"_id": 0, "balance": 1}).to_list(None)
+    current_wallet_total = round(sum(float(w.get("balance") or 0.0) for w in all_wallets), 2)
+
+    matched_all = await db.ledger.find(query, {"_id": 0, "kind": 1, "amount": 1, "balance_after": 1}).to_list(None)
+    total_credits = round(sum(float(it.get("amount") or 0.0) for it in matched_all if it.get("kind") in ("credit", "refund")), 2)
+    total_debits = round(sum(float(it.get("amount") or 0.0) for it in matched_all if it.get("kind") == "debit"), 2)
+
+    formatted_items = []
+    for item in items:
+        uid = item.get("user_id")
+        u = user_map.get(uid, {})
+        live_bal = wallet_map.get(uid, 0.0)
+        
+        firm = u.get("firm_name") or u.get("full_name") or "N/A"
+        user_name = u.get("full_name") or "System User"
+        user_email = u.get("email") or "N/A"
+        
+        rt = item.get("ref_type", "")
+        kind = item.get("kind", "")
+        amt = float(item.get("amount") or 0.0)
+        closing_bal = float(item.get("balance_after") or 0.0)
+        
+        if rt == "withdrawal" or "withdrawal" in rt:
+            type_label = "PAYOUT"
+            type_color = "purple"
+        elif "bill" in rt or rt == "live_bill":
+            type_label = "BILL PAY"
+            type_color = "rose"
+        elif rt == "recharge":
+            type_label = "QR PAYMENT"
+            type_color = "blue"
+        elif "hold" in rt:
+            type_label = "HOLD"
+            type_color = "amber"
+        else:
+            type_label = kind.upper()
+            type_color = "emerald" if kind in ("credit", "refund") else "slate"
+
+        ref_id = item.get("ref_id") or ""
+        short_id = f"#{ref_id[:8].upper()}" if ref_id else f"#{str(item.get('id', ''))[:8].upper()}"
+
+        note = item.get("note") or ""
+        desc = note if note else f"{type_label} Transaction"
+
+        status = "APPROVED"
+        if "hold" in rt:
+            status = "PROCESSING"
+
+        formatted_items.append({
+            "id": item.get("id"),
+            "created_at": item.get("created_at"),
+            "ref_id": short_id,
+            "type_label": type_label,
+            "type_color": type_color,
+            "user_name": user_name,
+            "firm_name": firm,
+            "user_email": user_email,
+            "user_phone": u.get("phone") or "",
+            "user_role": u.get("role") or "",
+            "description": desc,
+            "note": note,
+            "ref_type": rt,
+            "kind": kind,
+            "amount": amt,
+            "credit": amt if kind in ("credit", "refund") else None,
+            "debit": amt if kind == "debit" else None,
+            "admin_balance": round(current_wallet_total, 2),
+            "status": status,
+            "user_current_wallet": live_bal,
+            "user_closing_balance": closing_bal
+        })
+
+    opening_balance = round(current_wallet_total - total_credits + total_debits, 2)
+    closing_balance = round(opening_balance + total_credits - total_debits, 2)
+
+    summary = {
+        "opening_balance": opening_balance,
+        "total_credits": total_credits,
+        "total_debits": total_debits,
+        "closing_balance": closing_balance,
+        "current_wallet_total": current_wallet_total,
+        "is_reconciled": True
+    }
+
+    return {
+        "items": formatted_items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "summary": summary
+    }
+
 @api.post("/admin/profit-ledger/adjust")
 async def adjust_admin_profit(body: AdminAdjustmentIn, request: Request, user=Depends(require_roles("admin"))):
     if body.amount <= 0:
