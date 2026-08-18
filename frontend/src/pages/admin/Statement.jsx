@@ -336,8 +336,15 @@ export default function AdminStatement() {
       key: "description",
       label: "DESCRIPTION",
       render: (r) => (
-        <div className="leading-tight max-w-xs min-w-[200px]">
-          <div className="font-semibold text-neutral-700 text-xs">{r.description}</div>
+        <div className="min-w-[240px] max-w-[340px] py-1 space-y-0.5">
+          <div className="font-bold text-neutral-800 text-xs leading-snug break-words">
+            {r.description_line1 || r.description}
+          </div>
+          {r.description_line2 && (
+            <div className="text-[11px] font-semibold text-neutral-500 leading-snug break-words">
+              {r.description_line2}
+            </div>
+          )}
         </div>
       ),
     },

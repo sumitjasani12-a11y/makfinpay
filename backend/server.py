@@ -7075,21 +7075,39 @@ async def get_admin_statement_report(
             type_label = kind.upper()
             type_color = "emerald" if kind in ("credit", "refund") else "slate"
 
-        # Rich Description with Bill Amount & Charge
+        # Structured 2-Line Description with Bill Amount & Charge
         if txn_obj:
             b_amt = float(txn_obj.get("bill_amount") or 0.0)
             s_chg = float(txn_obj.get("service_charge") or 0.0)
-            tot_amt = float(txn_obj.get("total_amount") or (b_amt + s_chg))
             op_name = txn_obj.get("operator") or "Bill Payment"
             card_4 = txn_obj.get("card_last4")
             card_suffix = f" ****{card_4}" if card_4 else ""
-            desc = f"Bill: ₹{b_amt:,.2f} + Charge: ₹{s_chg:,.2f} — {op_name}{card_suffix}"
+            line1 = f"Bill: ₹{b_amt:,.2f} + Charge: ₹{s_chg:,.2f}"
+            line2 = f"{op_name}{card_suffix}"
             if rt == "bill_payment_success":
-                desc += " (Confirmed by Admin)"
+                line2 += " (Confirmed)"
+            desc = f"{line1} — {line2}"
         elif note:
             desc = note
+            if " — " in note:
+                parts = note.split(" — ", 1)
+                line1 = parts[0]
+                line2 = parts[1]
+            elif " - Biller:" in note:
+                parts = note.split(" - Biller:", 1)
+                line1 = parts[0]
+                line2 = "Biller: " + parts[1]
+            elif " – " in note:
+                parts = note.split(" – ", 1)
+                line1 = parts[0]
+                line2 = parts[1]
+            else:
+                line1 = note
+                line2 = ""
         else:
-            desc = f"{type_label} Transaction"
+            line1 = f"{type_label} Transaction"
+            line2 = ""
+            desc = line1
 
         # Comprehensive Status Mapping for all transaction states
         txn_st = (txn_obj.get("status") or "").lower() if txn_obj else ""
@@ -7119,6 +7137,8 @@ async def get_admin_statement_report(
             "user_phone": u.get("phone") or "",
             "user_role": u.get("role") or "",
             "description": desc,
+            "description_line1": line1,
+            "description_line2": line2,
             "note": note,
             "ref_type": rt,
             "kind": kind,
