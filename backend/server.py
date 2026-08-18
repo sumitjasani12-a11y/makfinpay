@@ -6972,11 +6972,36 @@ async def get_admin_statement_report(
     agent_wallets = await db.wallets.find({"user_id": {"$in": agent_uids}}, {"_id": 0, "balance": 1}).to_list(None)
     agent_wallet_total = round(sum(float(w.get("balance") or 0.0) for w in agent_wallets), 2)
 
-    all_wallets = await db.wallets.find({}, {"_id": 0, "balance": 1}).to_list(None)
-    system_wallet_total = round(sum(float(w.get("balance") or 0.0) for w in all_wallets), 2)
+    # By default, primary wallet balance is agent wallet balance (matches dashboard)
+    current_wallet_total = agent_wallet_total
 
-    # Use agent_wallet_total if role filter is agent or default, else system_wallet_total
-    current_wallet_total = agent_wallet_total if role == "agent" else system_wallet_total
+    # Fetch MD & Distributor Earnings matching Dashboard Overview
+    dist_lifetime = await db.recharges.aggregate([
+        {"$match": {"status": "approved"}},
+        {"$group": {"_id": None, "total": {"$sum": "$distributor_earnings_amount"}}}
+    ]).to_list(1)
+    dist_paid = await db.withdrawals.aggregate([
+        {"$match": {"status": "approved", "role": "distributor"}},
+        {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+    ]).to_list(1)
+
+    md_lifetime = await db.recharges.aggregate([
+        {"$match": {"status": "approved"}},
+        {"$group": {"_id": None, "total": {"$sum": "$md_earnings_amount"}}}
+    ]).to_list(1)
+    md_paid = await db.withdrawals.aggregate([
+        {"$match": {"status": "approved", "role": "master_distributor"}},
+        {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+    ]).to_list(1)
+
+    dist_recharges_sum = dist_lifetime[0]["total"] if dist_lifetime else 0.0
+    dist_paid_sum = dist_paid[0]["total"] if dist_paid else 0.0
+    md_recharges_sum = md_lifetime[0]["total"] if md_lifetime else 0.0
+    md_paid_sum = md_paid[0]["total"] if md_paid else 0.0
+
+    distributor_earnings_total = max(0.0, round(dist_recharges_sum - dist_paid_sum, 2))
+    md_earnings_total = max(0.0, round(md_recharges_sum - md_paid_sum, 2))
+    system_funds_total = round(agent_wallet_total + distributor_earnings_total + md_earnings_total, 2)
 
     matched_all = await db.ledger.find(query, {"_id": 0, "kind": 1, "amount": 1, "balance_after": 1}).to_list(None)
     total_credits = round(sum(float(it.get("amount") or 0.0) for it in matched_all if it.get("kind") in ("credit", "refund")), 2)
@@ -7055,9 +7080,11 @@ async def get_admin_statement_report(
         "total_credits": total_credits,
         "total_debits": total_debits,
         "closing_balance": closing_balance,
-        "current_wallet_total": current_wallet_total,
+        "current_wallet_total": agent_wallet_total,
         "agent_wallet_total": agent_wallet_total,
-        "system_wallet_total": system_wallet_total,
+        "distributor_earnings_total": distributor_earnings_total,
+        "md_earnings_total": md_earnings_total,
+        "system_funds_total": system_funds_total,
         "is_reconciled": True
     }
 

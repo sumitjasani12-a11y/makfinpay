@@ -635,12 +635,13 @@ export default function AdminStatement() {
             <div className="bg-gradient-to-br from-[#1B4332] to-[#2D6A4F] text-white rounded-2xl p-4 shadow-md flex flex-col justify-between">
               <div>
                 <span className="text-[10px] font-extrabold uppercase tracking-wider block opacity-80">
-                  {roleFilter === "agent" ? "Agents Live Wallet (Dashboard)" : "System Users Live Wallet"}
+                  Agents Live Wallet
                 </span>
-                <h3 className="text-xl font-black">{fmtMoney(adminSummary.current_wallet_total)}</h3>
+                <h3 className="text-xl font-black">{fmtMoney(adminSummary.agent_wallet_total || adminSummary.current_wallet_total)}</h3>
               </div>
-              <div className="text-[10px] opacity-75 font-semibold mt-1">
-                {roleFilter === "agent" ? "Matches Admin Dashboard" : `Agents: ${fmtMoney(adminSummary.agent_wallet_total || 0)}`}
+              <div className="text-[10px] opacity-80 font-semibold mt-1 flex flex-col gap-0.5 border-t border-white/10 pt-1">
+                <span>MD Earnings: {fmtMoney(adminSummary.md_earnings_total || 0)}</span>
+                <span>DS Earnings: {fmtMoney(adminSummary.distributor_earnings_total || 0)}</span>
               </div>
             </div>
           </div>
