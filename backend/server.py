@@ -6902,10 +6902,12 @@ async def get_admin_statement_report(
         query["kind"] = kind
 
     if isinstance(type, str) and type != "all":
-        if type == "payout":
+        if type == "cc_bill":
+            query["ref_type"] = {"$in": ["bill_payment", "bill_payment_reversal", "bill_payment_hold", "bill_payment_success"]}
+        elif type == "live_bill" or type == "bill_pay":
+            query["ref_type"] = {"$in": ["live_bill", "live_bill_pay", "live_bill_refund"]}
+        elif type == "payout":
             query["ref_type"] = {"$in": ["withdrawal", "withdrawal_paid", "withdrawal_refund", "withdrawal_hold"]}
-        elif type == "bill_pay":
-            query["ref_type"] = {"$in": ["bill_payment", "bill_payment_reversal", "live_bill", "live_bill_refund", "bill_payment_hold", "bill_payment_success"]}
         elif type == "qr_payment" or type == "recharge":
             query["ref_type"] = "recharge"
         elif type == "adjustment":
@@ -7020,6 +7022,12 @@ async def get_admin_statement_report(
     else:
         running_admin_bal = agent_wallet_total
 
+    ref_ids = list({item.get("ref_id") for item in items if item.get("ref_id")})
+    txn_map = {}
+    if ref_ids:
+        txns = await db.transactions.find({"id": {"$in": ref_ids}}, {"_id": 0}).to_list(None)
+        txn_map = {t["id"]: t for t in txns}
+
     formatted_items = []
     for item in items:
         uid = item.get("user_id")
@@ -7042,15 +7050,24 @@ async def get_admin_statement_report(
         elif kind == "debit":
             running_admin_bal += amt
         
-        if rt == "withdrawal" or "withdrawal" in rt:
-            type_label = "PAYOUT"
-            type_color = "purple"
-        elif "bill" in rt or rt == "live_bill":
-            type_label = "BILL PAY"
+        ref_id = item.get("ref_id") or ""
+        short_id = f"#{ref_id[:8].upper()}" if ref_id else f"#{str(item.get('id', ''))[:8].upper()}"
+        note = item.get("note") or ""
+        txn_obj = txn_map.get(ref_id, {})
+
+        # Category Badge Logic (CC BILL vs LIVE BILL vs QR PAYMENT vs PAYOUT)
+        if txn_obj.get("type") == "credit_card" or "Credit Card" in note or "Bill:" in note or rt in ("bill_payment_hold", "bill_payment_success", "bill_payment_reversal"):
+            type_label = "CC BILL"
             type_color = "rose"
+        elif rt in ("live_bill_pay", "live_bill_refund") or "Live Bill" in note:
+            type_label = "LIVE BILL"
+            type_color = "amber"
         elif rt == "recharge":
             type_label = "QR PAYMENT"
             type_color = "blue"
+        elif rt == "withdrawal" or "withdrawal" in rt:
+            type_label = "PAYOUT"
+            type_color = "purple"
         elif "hold" in rt:
             type_label = "HOLD"
             type_color = "amber"
@@ -7058,11 +7075,21 @@ async def get_admin_statement_report(
             type_label = kind.upper()
             type_color = "emerald" if kind in ("credit", "refund") else "slate"
 
-        ref_id = item.get("ref_id") or ""
-        short_id = f"#{ref_id[:8].upper()}" if ref_id else f"#{str(item.get('id', ''))[:8].upper()}"
-
-        note = item.get("note") or ""
-        desc = note if note else f"{type_label} Transaction"
+        # Rich Description with Bill Amount & Charge
+        if txn_obj:
+            b_amt = float(txn_obj.get("bill_amount") or 0.0)
+            s_chg = float(txn_obj.get("service_charge") or 0.0)
+            tot_amt = float(txn_obj.get("total_amount") or (b_amt + s_chg))
+            op_name = txn_obj.get("operator") or "Bill Payment"
+            card_4 = txn_obj.get("card_last4")
+            card_suffix = f" ****{card_4}" if card_4 else ""
+            desc = f"Bill: ₹{b_amt:,.2f} + Charge: ₹{s_chg:,.2f} — {op_name}{card_suffix}"
+            if rt == "bill_payment_success":
+                desc += " (Confirmed by Admin)"
+        elif note:
+            desc = note
+        else:
+            desc = f"{type_label} Transaction"
 
         status = "APPROVED"
         if "hold" in rt:

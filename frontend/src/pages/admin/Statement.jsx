@@ -304,6 +304,8 @@ export default function AdminStatement() {
       render: (r) => {
         let badgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200";
         if (r.type_label === "PAYOUT") badgeStyle = "bg-purple-50 text-purple-700 border-purple-200";
+        else if (r.type_label === "CC BILL") badgeStyle = "bg-rose-50 text-rose-700 border-rose-200";
+        else if (r.type_label === "LIVE BILL") badgeStyle = "bg-amber-50 text-amber-700 border-amber-200";
         else if (r.type_label === "BILL PAY") badgeStyle = "bg-rose-50 text-rose-700 border-rose-200";
         else if (r.type_label === "QR PAYMENT") badgeStyle = "bg-blue-50 text-blue-700 border-blue-200";
         else if (r.type_label === "HOLD") badgeStyle = "bg-amber-50 text-amber-700 border-amber-200";
@@ -739,8 +741,9 @@ export default function AdminStatement() {
                 className="mfp-input w-full font-bold text-xs"
               >
                 <option value="all">All Txn Types</option>
+                <option value="cc_bill">CC Bill (Credit Card)</option>
+                <option value="live_bill">Live Bill Pay</option>
                 <option value="payout">Payout</option>
-                <option value="bill_pay">Bill Pay</option>
                 <option value="qr_payment">QR Payment / Topup</option>
                 <option value="adjustment">Adjustment / Hold</option>
               </select>
