@@ -7091,16 +7091,19 @@ async def get_admin_statement_report(
         else:
             desc = f"{type_label} Transaction"
 
-        # Dynamic Status Mapping matching database transaction status
-        txn_st = txn_obj.get("status") if txn_obj else None
+        # Comprehensive Status Mapping for all transaction states
+        txn_st = (txn_obj.get("status") or "").lower() if txn_obj else ""
+        
         if txn_st == "success" or rt == "bill_payment_success":
             status = "APPROVED"
-        elif txn_st in ("reversed", "failed", "rejected") or "reversal" in rt or "refund" in rt:
+        elif txn_st == "rejected":
+            status = "REJECTED"
+        elif txn_st == "failed":
             status = "FAILED"
-        elif txn_st == "pending":
-            status = "PROCESSING"
-        elif "hold" in rt and not txn_st:
-            status = "PROCESSING"
+        elif txn_st == "reversed" or "reversal" in rt or "refund" in rt or kind == "refund":
+            status = "REFUNDED"
+        elif txn_st == "pending" or ("hold" in rt and not txn_st):
+            status = "PENDING"
         else:
             status = "APPROVED"
 

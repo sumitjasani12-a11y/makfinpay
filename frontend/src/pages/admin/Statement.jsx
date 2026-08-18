@@ -381,8 +381,10 @@ export default function AdminStatement() {
       label: "STATUS",
       render: (r) => {
         let statusStyle = "bg-emerald-50 text-emerald-700 border-emerald-200";
-        if (r.status === "PROCESSING") statusStyle = "bg-purple-50 text-purple-700 border-purple-200";
-        else if (r.status === "FAILED") statusStyle = "bg-rose-50 text-rose-700 border-rose-200";
+        if (r.status === "PENDING" || r.status === "PROCESSING") statusStyle = "bg-amber-50 text-amber-700 border-amber-200";
+        else if (r.status === "REJECTED") statusStyle = "bg-rose-50 text-rose-700 border-rose-200";
+        else if (r.status === "FAILED") statusStyle = "bg-red-50 text-red-700 border-red-200";
+        else if (r.status === "REFUNDED") statusStyle = "bg-blue-50 text-blue-700 border-blue-200";
 
         return (
           <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border uppercase tracking-wider ${statusStyle}`}>
