@@ -7007,6 +7007,20 @@ async def get_admin_statement_report(
     total_credits = round(sum(float(it.get("amount") or 0.0) for it in matched_all if it.get("kind") in ("credit", "refund")), 2)
     total_debits = round(sum(float(it.get("amount") or 0.0) for it in matched_all if it.get("kind") == "debit"), 2)
 
+    if items:
+        top_item_time = items[0].get("created_at")
+        newer_ledger = await db.ledger.find({
+            "ref_type": {"$ne": "daily_commission_settlement"},
+            "created_at": {"$gt": top_item_time}
+        }, {"_id": 0, "kind": 1, "amount": 1}).to_list(None)
+        
+        newer_credits = sum(float(it.get("amount") or 0.0) for it in newer_ledger if it.get("kind") in ("credit", "refund"))
+        newer_debits = sum(float(it.get("amount") or 0.0) for it in newer_ledger if it.get("kind") == "debit")
+        
+        running_admin_bal = agent_wallet_total - newer_credits + newer_debits
+    else:
+        running_admin_bal = agent_wallet_total
+
     formatted_items = []
     for item in items:
         uid = item.get("user_id")
@@ -7021,6 +7035,13 @@ async def get_admin_statement_report(
         kind = item.get("kind", "")
         amt = float(item.get("amount") or 0.0)
         closing_bal = float(item.get("balance_after") or 0.0)
+
+        # Dynamic Entry-wise Running Admin Balance
+        entry_admin_bal = round(running_admin_bal, 2)
+        if kind in ("credit", "refund"):
+            running_admin_bal -= amt
+        elif kind == "debit":
+            running_admin_bal += amt
         
         if rt == "withdrawal" or "withdrawal" in rt:
             type_label = "PAYOUT"
@@ -7066,7 +7087,7 @@ async def get_admin_statement_report(
             "amount": amt,
             "credit": amt if kind in ("credit", "refund") else None,
             "debit": amt if kind == "debit" else None,
-            "admin_balance": round(current_wallet_total, 2),
+            "admin_balance": entry_admin_bal,
             "status": status,
             "user_current_wallet": live_bal,
             "user_closing_balance": closing_bal
