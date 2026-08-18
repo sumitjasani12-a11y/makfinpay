@@ -633,8 +633,15 @@ export default function AdminStatement() {
               <h3 className="text-xl font-black text-blue-800">{fmtMoney(adminSummary.closing_balance)}</h3>
             </div>
             <div className="bg-gradient-to-br from-[#1B4332] to-[#2D6A4F] text-white rounded-2xl p-4 shadow-md flex flex-col justify-between">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider block opacity-80">All Agents Live Wallet</span>
-              <h3 className="text-xl font-black">{fmtMoney(adminSummary.current_wallet_total)}</h3>
+              <div>
+                <span className="text-[10px] font-extrabold uppercase tracking-wider block opacity-80">
+                  {roleFilter === "agent" ? "Agents Live Wallet (Dashboard)" : "System Users Live Wallet"}
+                </span>
+                <h3 className="text-xl font-black">{fmtMoney(adminSummary.current_wallet_total)}</h3>
+              </div>
+              <div className="text-[10px] opacity-75 font-semibold mt-1">
+                {roleFilter === "agent" ? "Matches Admin Dashboard" : `Agents: ${fmtMoney(adminSummary.agent_wallet_total || 0)}`}
+              </div>
             </div>
           </div>
 

@@ -6967,8 +6967,16 @@ async def get_admin_statement_report(
         wallets = await db.wallets.find({"user_id": {"$in": user_ids}}, {"_id": 0, "user_id": 1, "balance": 1}).to_list(None)
         wallet_map = {w["user_id"]: float(w.get("balance") or 0.0) for w in wallets}
 
+    all_agent_users = await db.users.find({"role": "agent"}, {"_id": 0, "id": 1}).to_list(None)
+    agent_uids = [u["id"] for u in all_agent_users]
+    agent_wallets = await db.wallets.find({"user_id": {"$in": agent_uids}}, {"_id": 0, "balance": 1}).to_list(None)
+    agent_wallet_total = round(sum(float(w.get("balance") or 0.0) for w in agent_wallets), 2)
+
     all_wallets = await db.wallets.find({}, {"_id": 0, "balance": 1}).to_list(None)
-    current_wallet_total = round(sum(float(w.get("balance") or 0.0) for w in all_wallets), 2)
+    system_wallet_total = round(sum(float(w.get("balance") or 0.0) for w in all_wallets), 2)
+
+    # Use agent_wallet_total if role filter is agent or default, else system_wallet_total
+    current_wallet_total = agent_wallet_total if role == "agent" else system_wallet_total
 
     matched_all = await db.ledger.find(query, {"_id": 0, "kind": 1, "amount": 1, "balance_after": 1}).to_list(None)
     total_credits = round(sum(float(it.get("amount") or 0.0) for it in matched_all if it.get("kind") in ("credit", "refund")), 2)
@@ -7048,6 +7056,8 @@ async def get_admin_statement_report(
         "total_debits": total_debits,
         "closing_balance": closing_balance,
         "current_wallet_total": current_wallet_total,
+        "agent_wallet_total": agent_wallet_total,
+        "system_wallet_total": system_wallet_total,
         "is_reconciled": True
     }
 
