@@ -50,8 +50,24 @@ api = APIRouter(prefix="/api")
 
 @app.get("/health")
 @api.get("/health")
+@app.get("/server-time")
+@api.get("/server-time")
 async def health_check():
-    return {"status": "ok", "app": "MAK FIN PAY API"}
+    now_utc = datetime.now(timezone.utc)
+    now_ist = now_utc.astimezone(IST)
+    target_1130_today = now_ist.replace(hour=11, minute=30, second=0, microsecond=0)
+    next_1130 = target_1130_today if now_ist < target_1130_today else (target_1130_today + timedelta(days=1))
+    return {
+        "status": "ok",
+        "app": "MAK FIN PAY API",
+        "server_utc": now_utc.isoformat(),
+        "ist_time": now_ist.strftime("%Y-%m-%d %H:%M:%S IST"),
+        "ist_date": now_ist.strftime("%Y-%m-%d"),
+        "ist_clock": now_ist.strftime("%I:%M:%S %p"),
+        "timezone": "Asia/Kolkata (IST +05:30)",
+        "t1_rule": "Recharges created on Day X settle on Day X + 1 at 11:30 AM IST sharp",
+        "next_1130_am_ist": next_1130.strftime("%Y-%m-%d %H:%M:%S IST")
+    }
 
 
 class ConnectionManager:
