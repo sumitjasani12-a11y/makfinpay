@@ -1958,13 +1958,13 @@ _t1_background_task = None
 async def _t1_settlement_periodic_loop():
     while True:
         try:
-            await asyncio.sleep(900)  # 15 minutes
             await run_t1_daily_settlement()
             await run_daily_commission_settlement()
         except asyncio.CancelledError:
             break
         except Exception as e:
             logger.error(f"[T+1 Periodic Task] Error in background loop: {e}")
+        await asyncio.sleep(60)  # Check every 60 seconds (1 minute)
 
 def _start_t1_scheduler():
     global _t1_scheduler, _t1_background_task
@@ -3348,6 +3348,11 @@ async def my_wallet(user=Depends(get_current_user)):
     if user["role"] == "distributor":
         earnings = await _distributor_earnings_for(user["id"])
         return {"balance": earnings, "t1_balance": 0, "hold_balance": 0, "hold_active": False}
+    if user["role"] == "agent":
+        try:
+            await run_t1_daily_settlement()
+        except Exception as e:
+            logger.error(f"Auto T+1 settlement error in /wallet: {e}")
     w = await get_or_create_wallet(user["id"])
     return w
 
