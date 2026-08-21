@@ -14,7 +14,7 @@ import secrets
 import requests
 import httpx
 from dataclasses import dataclass
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, time as time_obj
 from typing import Optional, List, Literal
 from decimal import Decimal
 import gzip
@@ -1830,26 +1830,12 @@ IST = timezone(timedelta(hours=5, minutes=30))
 async def run_t1_daily_settlement(cutoff_dt: Optional[datetime] = None):
     """At 11:30 AM IST daily (or via background scheduler): settle all eligible T+1 balance to main wallet.
     Rule: Any T+1 request created/approved on Day X (from 12:00 AM to 11:59 PM IST)
-    is settled on Day X + 1 at 11:30 AM IST. Recharges approved on Day X + 1 (even at 7 AM IST)
-    are NOT settled on Day X + 1; they will settle on Day X + 2 at 11:30 AM IST.
+    is settled on Day X + 1 at 11:30 AM IST sharp. Recharges approved on Day X + 1 (even at 7 AM IST)
+    are NOT settled on Day X + 1; they will settle on Day X + 2 at 11:30 AM IST sharp.
     """
     try:
         now_utc = datetime.now(timezone.utc)
         now_ist = now_utc.astimezone(IST)
-        
-        if not cutoff_dt:
-            target_1130_ist = now_ist.replace(hour=11, minute=30, second=0, microsecond=0)
-            if now_ist < target_1130_ist:
-                # Running before 11:30 AM IST today: settle recharges approved on or before Day X - 2 (start of yesterday IST)
-                cutoff_date = now_ist.date() - timedelta(days=1)
-            else:
-                # Running at or after 11:30 AM IST today: settle recharges approved on or before Day X - 1 (start of today IST)
-                cutoff_date = now_ist.date()
-
-            cutoff_datetime_ist = datetime.combine(cutoff_date, datetime.min.time(), tzinfo=IST)
-            cutoff_dt = cutoff_datetime_ist.astimezone(timezone.utc)
-                
-        cutoff_iso = cutoff_dt.isoformat()
         today_str = now_ist.strftime("%Y-%m-%d")
         
         # Fetch all approved T+1 recharges that are not yet settled
@@ -1862,21 +1848,37 @@ async def run_t1_daily_settlement(cutoff_dt: Optional[datetime] = None):
         eligible_recharges = []
         for r in unsettled_recharges:
             c_at = r.get("reviewed_at") or r.get("created_at")
-            c_dt = None
+            c_dt_utc = None
             if isinstance(c_at, str):
                 try:
-                    c_dt = datetime.fromisoformat(c_at.replace("Z", "+00:00"))
+                    c_dt_utc = datetime.fromisoformat(c_at.replace("Z", "+00:00"))
                 except Exception:
-                    c_dt = None
+                    c_dt_utc = None
             elif isinstance(c_at, datetime):
-                c_dt = c_at
+                c_dt_utc = c_at.astimezone(timezone.utc) if c_at.tzinfo else c_at.replace(tzinfo=timezone.utc)
                 
-            if c_dt is None or c_dt <= cutoff_dt:
+            if c_dt_utc is None:
                 eligible_recharges.append(r)
+                continue
+
+            if cutoff_dt:
+                if c_dt_utc <= cutoff_dt:
+                    eligible_recharges.append(r)
+            else:
+                # Strictly enforce: Day X recharge settles on Day X + 1 at 11:30 AM IST sharp
+                c_ist = c_dt_utc.astimezone(IST)
+                recharge_day_ist = c_ist.date()
+                eligible_settlement_time_ist = datetime.combine(
+                    recharge_day_ist + timedelta(days=1),
+                    time_obj(11, 30, 0),
+                    tzinfo=IST
+                )
+                if now_ist >= eligible_settlement_time_ist:
+                    eligible_recharges.append(r)
                 
         if not eligible_recharges:
-            logger.info(f"[T+1 Settlement] No eligible unsettled T+1 recharges found for cutoff {cutoff_iso}")
-            return {"settled_count": 0, "total_settled_amount": 0.0, "cutoff": cutoff_iso}
+            logger.info(f"[T+1 Settlement] No eligible unsettled T+1 recharges found for now {now_ist.isoformat()}")
+            return {"settled_count": 0, "total_settled_amount": 0.0, "cutoff": now_ist.isoformat()}
             
         # Group eligible recharges by agent user_id
         agent_group = {}
