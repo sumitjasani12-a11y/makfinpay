@@ -1689,17 +1689,18 @@ async def _admin_adjustments_sum_for(user_id: str) -> float:
 
 
 async def _distributor_earnings_for(dist_id: str, dist_base_pct: float = 0.0) -> float:
-    """Distributor LIVE earnings balance = lifetime snapshot sum."""
-    return await _distributor_lifetime_earnings(dist_id)
+    """Distributor LIVE net earnings balance = recharge earnings + admin adjustments - approved withdrawals."""
+    res = await _distributor_earnings_batch([dist_id])
+    return res.get(dist_id, 0.0)
 
 
 async def get_distributor_available_for_withdrawal(dist_id: str) -> float:
-    """Amount a distributor can request to withdraw RIGHT NOW = lifetime − approved − pending − hold_balance."""
-    lifetime = await _distributor_lifetime_earnings(dist_id)
-    reserved = await _withdrawals_sum_for(dist_id, ["approved", "pending"])
+    """Amount a distributor can request to withdraw RIGHT NOW = net_earnings − pending − hold_balance."""
+    net_earnings = await _distributor_earnings_for(dist_id)
+    pending_reserved = await _withdrawals_sum_for(dist_id, ["pending"])
     w = await db.wallets.find_one({"user_id": dist_id}, {"_id": 0, "hold_balance": 1}) or {}
     hold = float(w.get("hold_balance") or 0.0)
-    return max(0.0, round(lifetime - reserved - hold, 2))
+    return max(0.0, round(net_earnings - pending_reserved - hold, 2))
 
 
 async def _wallet_balances_for(user_ids: List[str]) -> dict:
@@ -2004,14 +2005,14 @@ def _start_t1_scheduler():
 
 
 async def get_md_available_for_withdrawal(md_id: str) -> float:
-    """Amount an MD can request to withdraw RIGHT NOW = lifetime − approved − pending − hold_balance.
+    """Amount an MD can request to withdraw RIGHT NOW = net_earnings − pending − hold_balance.
     Pending requests are reserved so an MD cannot double-spend earnings while one request
     is still awaiting admin review."""
-    lifetime = await _md_earnings_for(md_id)
-    reserved = await _withdrawals_sum_for(md_id, ["approved", "pending"])
+    net_earnings = await _md_earnings_for(md_id)
+    pending_reserved = await _withdrawals_sum_for(md_id, ["pending"])
     w = await db.wallets.find_one({"user_id": md_id}, {"_id": 0, "hold_balance": 1}) or {}
     hold = float(w.get("hold_balance") or 0.0)
-    return max(0.0, round(lifetime - reserved - hold, 2))
+    return max(0.0, round(net_earnings - pending_reserved - hold, 2))
 
 
 @api.get("/admin/exports/{role}.pdf")
@@ -3308,13 +3309,11 @@ async def md_stats(user=Depends(require_approved_md())):
     ar_task = db.recharges.count_documents({"md_id": md_id, "status": "approved"})
     earn_task = _md_earnings_for(md_id)
     today_task = _md_today_earnings(md_id)
-    withdraw_reserved_task = _withdrawals_sum_for(md_id, ["approved", "pending"])
+    avail_task = get_md_available_for_withdrawal(md_id)
 
-    distributors_count, agents_count, pending_recharges, approved_recharges, earnings, today_earnings, withdraw_reserved = await asyncio.gather(
-        d_task, a_task, pr_task, ar_task, earn_task, today_task, withdraw_reserved_task
+    distributors_count, agents_count, pending_recharges, approved_recharges, earnings, today_earnings, available_for_withdrawal = await asyncio.gather(
+        d_task, a_task, pr_task, ar_task, earn_task, today_task, avail_task
     )
-
-    available_for_withdrawal = round(earnings - withdraw_reserved, 2)
 
     return {
         "distributors": distributors_count,
@@ -5590,18 +5589,14 @@ async def admin_approve_withdrawal(wid: str, body: ApprovalIn, request: Request,
 
     role = w.get("role")
     if role == "distributor":
-        lifetime = await _distributor_lifetime_earnings(w["user_id"])
-        already_paid = await _withdrawals_sum_for(w["user_id"], ["approved"])
-        live_balance = round(lifetime - already_paid, 2)
+        live_balance = await _distributor_earnings_for(w["user_id"])
         if w["amount"] > live_balance:
             raise HTTPException(400, f"Cannot approve — distributor's live earnings balance is ₹{live_balance:.2f}")
         await db.withdrawals.update_one({"id": wid}, {"$set": {"status": "approved", "note": body.note or "", "reviewed_at": now_iso(), "reviewed_by": user["id"], "reviewed_by_name": user.get("full_name") or user.get("email") or "Admin"}})
         balance_after = await get_distributor_available_for_withdrawal(w["user_id"])
         await ledger_entry(w["user_id"], "debit", w["amount"], balance_after, "withdrawal_paid", wid, "Withdrawal approved & paid")
     elif role == "master_distributor":
-        lifetime = await _md_earnings_for(w["user_id"])
-        already_paid = await _withdrawals_sum_for(w["user_id"], ["approved"])
-        live_balance = round(lifetime - already_paid, 2)
+        live_balance = await _md_earnings_for(w["user_id"])
         if w["amount"] > live_balance:
             raise HTTPException(400, f"Cannot approve — master distributor's live earnings balance is ₹{live_balance:.2f}")
         await db.withdrawals.update_one({"id": wid}, {"$set": {"status": "approved", "note": body.note or "", "reviewed_at": now_iso(), "reviewed_by": user["id"], "reviewed_by_name": user.get("full_name") or user.get("email") or "Admin"}})
@@ -7842,14 +7837,12 @@ async def distributor_stats(user=Depends(require_approved_distributor())):
     a_task = db.users.count_documents({"parent_id": dist_id, "is_deleted": False})
     earn_task = _distributor_earnings_for(dist_id)
     today_task = _distributor_today_earnings(dist_id)
-    withdraw_reserved_task = _withdrawals_sum_for(dist_id, ["approved", "pending"])
+    avail_task = get_distributor_available_for_withdrawal(dist_id)
     ar_task = db.recharges.count_documents({"distributor_id": dist_id, "status": "approved"})
 
-    agents, pending_recharges, earnings, today_earnings, withdraw_reserved, approved_recharges = await asyncio.gather(
-        a_task, pr_task, earn_task, today_task, withdraw_reserved_task, ar_task
+    agents, pending_recharges, earnings, today_earnings, available_for_withdrawal, approved_recharges = await asyncio.gather(
+        a_task, pr_task, earn_task, today_task, avail_task, ar_task
     )
-
-    available_for_withdrawal = round(earnings - withdraw_reserved, 2)
 
     return {
         "agents": agents,
