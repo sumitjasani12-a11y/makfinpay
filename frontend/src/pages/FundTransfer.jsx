@@ -19,6 +19,7 @@ export default function FundTransfer() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
+  const [walletBalance, setWalletBalance] = useState(0);
   const [history, setHistory] = useState([]);
 
   const loadData = async () => {
@@ -36,8 +37,9 @@ export default function FundTransfer() {
         setSelectedRecipientId(recipientsRes.data[0].id);
       }
 
-      // 3. Load user ledger/statement for recent fund transfers
+      // 3. Load user wallet/earnings balance & ledger statement
       const statementRes = await api.get("/wallet");
+      setWalletBalance(statementRes.data?.balance || 0);
       const ledger = statementRes.data?.ledger || statementRes.data || [];
       const ftHistory = Array.isArray(ledger)
         ? ledger.filter((item) => item.ref_type === "fund_transfer").slice(0, 20)
@@ -56,7 +58,7 @@ export default function FundTransfer() {
 
   const numAmount = parseFloat(amount) || 0;
   const isBelowMin = numAmount > 0 && numAmount < minLimit;
-  const isExceedingBal = numAmount > (user?.wallet_balance || 0);
+  const isExceedingBal = numAmount > walletBalance;
 
   const handleTransfer = async (e) => {
     e.preventDefault();
@@ -133,7 +135,8 @@ export default function FundTransfer() {
               <div className="bg-[#E8F5E9] border border-[#C8E6C9] rounded-xl px-3 py-1.5 flex items-center gap-2">
                 <Wallet className="h-4 w-4 text-[#1B4332]" />
                 <div className="text-xs font-semibold text-[#1B4332]">
-                  Balance: <span className="font-bold">{fmtMoney(user?.wallet_balance || 0)}</span>
+                  {role === "master_distributor" || role === "distributor" ? "Available Earnings: " : "Balance: "}
+                  <span className="font-bold">{fmtMoney(walletBalance)}</span>
                 </div>
               </div>
             </div>
