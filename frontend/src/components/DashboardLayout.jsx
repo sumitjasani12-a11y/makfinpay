@@ -500,13 +500,7 @@ export default function DashboardLayout() {
             {balance !== null && (
               <span className="font-extrabold text-neutral-800 bg-[#E8F5E9] text-[#00966B] px-3.5 py-1 rounded-full text-xs flex items-center gap-1.5 border border-[#C8E6C9] shadow-sm transition-all" data-testid="header-balance">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#00966B] animate-pulse" />
-                Wallet: {fmtMoney(balance)}
-              </span>
-            )}
-            {(user.role === "master_distributor" || user.role === "distributor") && earningsBalance !== null && (
-              <span className="font-extrabold text-neutral-800 bg-[#FFF3E0] text-[#E65100] px-3.5 py-1 rounded-full text-xs flex items-center gap-1.5 border border-[#FFE0B2] shadow-sm transition-all" data-testid="header-earnings-balance">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#E65100] animate-pulse" />
-                Earnings: {fmtMoney(earningsBalance)}
+                {user.role === "master_distributor" || user.role === "distributor" ? `Available Earnings: ${fmtMoney(balance)}` : `Wallet: ${fmtMoney(balance)}`}
               </span>
             )}
             {user.role === "agent" && t1Balance !== null && (
@@ -570,13 +564,7 @@ export default function DashboardLayout() {
                   {balance !== null && (
                     <span className="font-extrabold text-neutral-800 bg-[#E8F5E9] text-[#00966B] px-2.5 py-0.5 rounded-full text-[11px] flex items-center gap-1 border border-[#C8E6C9] shrink-0 whitespace-nowrap" data-testid="mobile-header-balance">
                       <span className="w-1.5 h-1.5 rounded-full bg-[#00966B] animate-pulse shrink-0" />
-                      Wallet: {fmtMoney(balance)}
-                    </span>
-                  )}
-                  {(user.role === "master_distributor" || user.role === "distributor") && earningsBalance !== null && (
-                    <span className="font-extrabold text-neutral-800 bg-[#FFF3E0] text-[#E65100] px-2.5 py-0.5 rounded-full text-[11px] flex items-center gap-1 border border-[#FFE0B2] shrink-0 whitespace-nowrap" data-testid="mobile-header-earnings-balance">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#E65100] animate-pulse shrink-0" />
-                      Earnings: {fmtMoney(earningsBalance)}
+                      {user.role === "master_distributor" || user.role === "distributor" ? `Earnings: ${fmtMoney(balance)}` : `Wallet: ${fmtMoney(balance)}`}
                     </span>
                   )}
                   {user.role === "agent" && t1Balance !== null && (

@@ -1695,7 +1695,7 @@ async def _admin_adjustments_sum_batch(user_ids: List[str]) -> dict:
             SELECT user_id,
                    SUM(CASE WHEN kind = 'credit' THEN amount WHEN kind = 'debit' THEN -amount ELSE 0 END) as total
             FROM ledger
-            WHERE user_id IN ({in_clause}) AND ref_type = 'admin_adjustment'
+            WHERE user_id IN ({in_clause}) AND ref_type IN ('admin_adjustment', 'fund_transfer')
             GROUP BY user_id
         """
         rows = await db.execute_query(sql)
@@ -3371,15 +3371,18 @@ async def md_freeze(uid: str, request: Request, user=Depends(require_approved_md
 async def my_wallet(user=Depends(get_current_user)):
     if user["role"] == "admin":
         return {"balance": 0, "t1_balance": 0, "hold_balance": 0, "hold_active": False}
+    if user["role"] == "master_distributor":
+        earnings = await _md_earnings_for(user["id"])
+        return {"balance": earnings, "t1_balance": 0, "hold_balance": 0, "hold_active": False}
+    if user["role"] == "distributor":
+        earnings = await _distributor_earnings_for(user["id"])
+        return {"balance": earnings, "t1_balance": 0, "hold_balance": 0, "hold_active": False}
     if user["role"] == "agent":
         try:
             await run_t1_daily_settlement()
         except Exception as e:
             logger.error(f"Auto T+1 settlement error in /wallet: {e}")
     w = await get_or_create_wallet(user["id"])
-    if user["role"] in ("master_distributor", "distributor"):
-        earnings = await _md_earnings_for(user["id"]) if user["role"] == "master_distributor" else await _distributor_earnings_for(user["id"])
-        w["commission_earnings"] = earnings
     return w
 
 @api.get("/admin/t1-total")
@@ -6628,8 +6631,15 @@ async def execute_fund_transfer(body: FundTransferIn, request: Request, user=Dep
     if body.amount < min_limit:
         raise HTTPException(400, f"Minimum fund transfer limit is ₹{min_limit:.2f}")
         
-    sender_wallet = await get_or_create_wallet(user["id"])
-    if sender_wallet.get("balance", 0.0) < body.amount:
+    if role == "master_distributor":
+        sender_avail_bal = await _md_earnings_for(user["id"])
+    elif role == "distributor":
+        sender_avail_bal = await _distributor_earnings_for(user["id"])
+    else:
+        sender_wallet = await get_or_create_wallet(user["id"])
+        sender_avail_bal = float(sender_wallet.get("balance", 0.0))
+        
+    if sender_avail_bal < body.amount:
         raise HTTPException(400, "Insufficient balance for fund transfer")
         
     recipient = await db.users.find_one({"id": body.recipient_id, "is_deleted": False})
