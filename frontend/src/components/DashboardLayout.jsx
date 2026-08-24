@@ -503,6 +503,12 @@ export default function DashboardLayout() {
                 Wallet: {fmtMoney(balance)}
               </span>
             )}
+            {(user.role === "master_distributor" || user.role === "distributor") && earningsBalance !== null && (
+              <span className="font-extrabold text-neutral-800 bg-[#FFF3E0] text-[#E65100] px-3.5 py-1 rounded-full text-xs flex items-center gap-1.5 border border-[#FFE0B2] shadow-sm transition-all" data-testid="header-earnings-balance">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#E65100] animate-pulse" />
+                Earnings: {fmtMoney(earningsBalance)}
+              </span>
+            )}
             {user.role === "agent" && t1Balance !== null && (
               <span className="font-extrabold text-neutral-800 bg-[#E3F2FD] text-[#1E88E5] px-3.5 py-1 rounded-full text-xs flex items-center gap-1.5 border border-[#BBDEFB] shadow-sm transition-all" data-testid="header-t1-balance">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#1E88E5] animate-pulse" />
@@ -565,6 +571,12 @@ export default function DashboardLayout() {
                     <span className="font-extrabold text-neutral-800 bg-[#E8F5E9] text-[#00966B] px-2.5 py-0.5 rounded-full text-[11px] flex items-center gap-1 border border-[#C8E6C9] shrink-0 whitespace-nowrap" data-testid="mobile-header-balance">
                       <span className="w-1.5 h-1.5 rounded-full bg-[#00966B] animate-pulse shrink-0" />
                       Wallet: {fmtMoney(balance)}
+                    </span>
+                  )}
+                  {(user.role === "master_distributor" || user.role === "distributor") && earningsBalance !== null && (
+                    <span className="font-extrabold text-neutral-800 bg-[#FFF3E0] text-[#E65100] px-2.5 py-0.5 rounded-full text-[11px] flex items-center gap-1 border border-[#FFE0B2] shrink-0 whitespace-nowrap" data-testid="mobile-header-earnings-balance">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#E65100] animate-pulse shrink-0" />
+                      Earnings: {fmtMoney(earningsBalance)}
                     </span>
                   )}
                   {user.role === "agent" && t1Balance !== null && (
