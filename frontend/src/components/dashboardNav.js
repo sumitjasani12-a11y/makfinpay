@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Users, UserCog, ArrowDownToLine, ArrowUpFromLine, Wallet,
   QrCode, Percent, FileCheck2, ScrollText, CreditCard, History,
   FilePlus2, KeyRound, DatabaseBackup, Crown, FileText, Layers, Landmark,
-  Settings, FolderOpen, ClipboardList, ShieldCheck,
+  Settings, FolderOpen, ClipboardList, ShieldCheck, Send,
 } from "lucide-react";
 
 import BbpsIcon from "./BbpsIcon";
@@ -57,6 +57,7 @@ export const NAV = {
   master_distributor: [
     { to: "/md", label: "Dashboard", icon: LayoutDashboard, end: true },
     { to: "/md/distributors", label: "My Distributors", icon: Users },
+    { to: "/md/fund-transfer", label: "Fund Transfer", icon: Send },
     { to: "/md/recharges", label: "Agent QR Requests", icon: ArrowDownToLine },
     { to: "/md/withdrawal", label: "Pay Withdrawal", icon: ArrowUpFromLine },
     { to: "/md/change-password", label: "Change Password", icon: KeyRound },
@@ -66,6 +67,7 @@ export const NAV = {
   distributor: [
     { to: "/distributor", label: "Dashboard", icon: LayoutDashboard, end: true },
     { to: "/distributor/agents", label: "My Agents", icon: UserCog },
+    { to: "/distributor/fund-transfer", label: "Fund Transfer", icon: Send },
     { to: "/distributor/recharges", label: "Agent QR Requests", icon: ArrowDownToLine },
     { to: "/distributor/withdrawal", label: "Pay Withdrawal", icon: ArrowUpFromLine },
     { to: "/distributor/change-password", label: "Change Password", icon: KeyRound },

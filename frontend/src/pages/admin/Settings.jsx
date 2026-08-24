@@ -19,6 +19,8 @@ export default function AdminSettings() {
   // limits settings
   const [minLimit, setMinLimit] = useState("");
   const [maxLimit, setMaxLimit] = useState("");
+  const [minFundTransferLimit, setMinFundTransferLimit] = useState("");
+  const [fundTransferEnabled, setFundTransferEnabled] = useState(true);
   const [liveBillMaxLimit, setLiveBillMaxLimit] = useState("");
   const [apiCharge, setApiCharge] = useState("");
   const [maintenanceMode, setMaintenanceMode] = useState(() => {
@@ -61,6 +63,8 @@ export default function AdminSettings() {
       const { data } = await api.get(`/admin/settings/recharge-limits?_t=${Date.now()}`);
       setMinLimit(String(data.min_recharge_limit ?? 100));
       setMaxLimit(String(data.max_recharge_limit ?? 300000));
+      setMinFundTransferLimit(String(data.min_fund_transfer_limit ?? 100));
+      setFundTransferEnabled(data.fund_transfer_enabled ?? true);
       setLiveBillMaxLimit(String(data.live_bill_max_limit ?? 100000));
       setApiCharge(String(data.live_bill_api_charge ?? 0));
       setQrApprovedAudio(typeof data.qr_approved_audio === "string" ? data.qr_approved_audio : "");
@@ -208,6 +212,7 @@ export default function AdminSettings() {
     const maxVal = parseFloat(maxLimit);
     const liveBillMaxVal = parseFloat(liveBillMaxLimit);
     const chargeVal = parseFloat(apiCharge);
+    const minFundVal = parseFloat(minFundTransferLimit);
 
     if (Number.isNaN(minVal) || minVal <= 0) {
       return toast.error("Minimum limit must be a number greater than 0");
@@ -224,6 +229,9 @@ export default function AdminSettings() {
     if (Number.isNaN(chargeVal) || chargeVal < 0) {
       return toast.error("API Charge must be a positive number or zero");
     }
+    if (Number.isNaN(minFundVal) || minFundVal <= 0) {
+      return toast.error("Minimum fund transfer limit must be a number greater than 0");
+    }
 
     setSaving(true);
     try {
@@ -231,6 +239,7 @@ export default function AdminSettings() {
         min_recharge_limit: minVal,
         max_recharge_limit: maxVal,
         live_bill_max_limit: liveBillMaxVal,
+        min_fund_transfer_limit: minFundVal,
       });
       await api.put("/admin/settings/recharge-toggles", {
         live_bill_api_charge: chargeVal,
@@ -253,6 +262,19 @@ export default function AdminSettings() {
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Failed to update maintenance mode");
       setMaintenanceMode(!val);
+    }
+  };
+
+  const handleToggleFundTransfer = async (val) => {
+    setFundTransferEnabled(val);
+    try {
+      await api.put("/admin/settings/recharge-toggles", {
+        fund_transfer_enabled: val,
+      });
+      toast.success(`Fund Transfer Service ${val ? "Enabled" : "Disabled"}`);
+    } catch (e) {
+      toast.error(formatErr(e.response?.data?.detail) || "Failed to update Fund Transfer toggle");
+      setFundTransferEnabled(!val);
     }
   };
 
@@ -360,10 +382,10 @@ export default function AdminSettings() {
 
               <div>
                 <h3 className="text-base font-semibold text-neutral-800 border-b border-black/5 pb-2.5 mb-4 mt-6">
-                  Live Bill API Settings
+                  Fund Transfer Settings
                 </h3>
                 <p className="text-xs text-neutral-500 mb-6 leading-relaxed">
-                  Configure the API charge deducted per transaction for live utility bill payments.
+                  Configure minimum limit required for downline fund transfers (MD to Distributor, Distributor to Agent).
                 </p>
               </div>
 
@@ -409,6 +431,28 @@ export default function AdminSettings() {
                     />
                   </div>
                 </div>
+
+                <div className="space-y-1 md:col-span-2">
+                  <label className="mfp-label font-bold text-neutral-600">
+                    Minimum Fund Transfer Limit (₹) <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-400 font-bold text-xs pointer-events-none">
+                      ₹
+                    </span>
+                    <input
+                      type="number"
+                      min="1"
+                      step="0.01"
+                      required
+                      value={minFundTransferLimit}
+                      onChange={(e) => setMinFundTransferLimit(e.target.value)}
+                      className="mfp-input !pl-9"
+                      placeholder="100.00"
+                      data-testid="settings-min-fund-transfer-limit"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="pt-2 border-t border-black/5 flex justify-end">
@@ -428,11 +472,37 @@ export default function AdminSettings() {
             <div className="mfp-card p-6 space-y-6">
               <div>
                 <h3 className="text-base font-semibold text-neutral-800 border-b border-black/5 pb-2.5 mb-4">
-                  System Status & Maintenance
+                  System Status & Service Control
                 </h3>
                 <p className="text-xs text-neutral-500 mb-6 leading-relaxed">
-                  Put the application under maintenance mode. When active, all non-admin users (agents, distributors, master distributors) will be blocked from accessing services and shown a maintenance screen.
+                  Manage maintenance mode and service level toggles across the application.
                 </p>
+              </div>
+
+              <div className="flex items-center justify-between bg-neutral-50/50 border border-neutral-100 rounded-2xl p-4">
+                <div className="space-y-0.5">
+                  <div className="text-sm font-bold text-neutral-800">Fund Transfer Service</div>
+                  <div className="text-xs text-neutral-400">Allow Master Distributors and Distributors to transfer funds downline.</div>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <span className={`text-[10px] font-extrabold uppercase tracking-wider ${fundTransferEnabled ? "text-emerald-600" : "text-rose-600"}`}>
+                    {fundTransferEnabled ? "ENABLED" : "DISABLED"}
+                  </span>
+                  <button
+                    onClick={() => handleToggleFundTransfer(!fundTransferEnabled)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      fundTransferEnabled ? "bg-emerald-600" : "bg-neutral-200"
+                    }`}
+                    type="button"
+                    data-testid="settings-fund-transfer-toggle"
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        fundTransferEnabled ? "translate-x-5" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </div>
               </div>
               
               <div className="flex items-center justify-between bg-neutral-50/50 border border-neutral-100 rounded-2xl p-4">

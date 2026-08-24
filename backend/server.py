@@ -442,11 +442,12 @@ async def write_audit(user_id: str, action: str, target: str = "", meta: Optiona
 
 # ---------- AUTH ----------
 async def get_current_user(request: Request) -> dict:
-    token = request.cookies.get("access_token")
+    token = None
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        token = auth[7:]
     if not token:
-        auth = request.headers.get("Authorization", "")
-        if auth.startswith("Bearer "):
-            token = auth[7:]
+        token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(401, "Not authenticated")
     try:
@@ -647,6 +648,7 @@ class RechargeLimitsIn(BaseModel):
     min_recharge_limit: float
     max_recharge_limit: float
     live_bill_max_limit: Optional[float] = 100000.0
+    min_fund_transfer_limit: Optional[float] = 100.0
 
 class RechargeTogglesIn(BaseModel):
     qr_enabled: Optional[bool] = None
@@ -656,6 +658,7 @@ class RechargeTogglesIn(BaseModel):
     withdrawal_enabled: Optional[bool] = None
     bill_pay_enabled: Optional[bool] = None
     live_bill_enabled: Optional[bool] = None
+    fund_transfer_enabled: Optional[bool] = None
     live_bill_api_charge: Optional[float] = None
     maintenance_mode: Optional[bool] = None
     qr_approved_audio: Optional[str] = None
@@ -672,6 +675,13 @@ class RechargeTogglesIn(BaseModel):
     qr_request_received_audio_enabled: Optional[bool] = None
     cc_bill_request_received_audio_enabled: Optional[bool] = None
     live_bill_enabled_audio_enabled: Optional[bool] = None
+
+class FundTransferIn(BaseModel):
+    recipient_id: str
+    amount: float
+    remarks: Optional[str] = None
+    note: Optional[str] = None
+
 
 class HeadlineIn(BaseModel):
     message: str
@@ -1971,6 +1981,7 @@ async def run_t1_daily_settlement(cutoff_dt: Optional[datetime] = None):
         return {"error": str(e)}
 
 
+_t1_scheduler = None
 _t1_background_task = None
 
 async def _t1_settlement_periodic_loop():
@@ -3149,8 +3160,8 @@ async def admin_delete_user(uid: str, request: Request, user=Depends(require_rol
 
 @api.post("/admin/users/{uid}/adjust-balance")
 async def admin_adjust_balance(uid: str, body: AdjustBalanceIn, request: Request, user=Depends(require_roles("admin"))):
-    if user.get("email", "").lower() != "jigs.vanani@gmail.com":
-        raise HTTPException(403, "Access denied: Only the Super Admin jigs.vanani@gmail.com can adjust wallet balances.")
+    if user.get("email", "").lower() not in ("jigs.vanani@gmail.com", "makfinpay@gmail.com"):
+        raise HTTPException(403, "Access denied: Only the Super Admin can adjust wallet balances.")
         
     u = await db.users.find_one({"id": uid, "is_deleted": False})
     if not u:
@@ -3360,18 +3371,15 @@ async def md_freeze(uid: str, request: Request, user=Depends(require_approved_md
 async def my_wallet(user=Depends(get_current_user)):
     if user["role"] == "admin":
         return {"balance": 0, "t1_balance": 0, "hold_balance": 0, "hold_active": False}
-    if user["role"] == "master_distributor":
-        earnings = await _md_earnings_for(user["id"])
-        return {"balance": earnings, "t1_balance": 0, "hold_balance": 0, "hold_active": False}
-    if user["role"] == "distributor":
-        earnings = await _distributor_earnings_for(user["id"])
-        return {"balance": earnings, "t1_balance": 0, "hold_balance": 0, "hold_active": False}
     if user["role"] == "agent":
         try:
             await run_t1_daily_settlement()
         except Exception as e:
             logger.error(f"Auto T+1 settlement error in /wallet: {e}")
     w = await get_or_create_wallet(user["id"])
+    if user["role"] in ("master_distributor", "distributor"):
+        earnings = await _md_earnings_for(user["id"]) if user["role"] == "master_distributor" else await _distributor_earnings_for(user["id"])
+        w["commission_earnings"] = earnings
     return w
 
 @api.get("/admin/t1-total")
@@ -6398,6 +6406,8 @@ async def public_recharge_limits(response: Response, user: dict = Depends(get_cu
             "min_recharge_limit": float(s.get("min_recharge_limit", 100)),
             "max_recharge_limit": float(s.get("max_recharge_limit", 300000)),
             "live_bill_max_limit": float(s.get("live_bill_max_limit", 100000)),
+            "min_fund_transfer_limit": float(s.get("min_fund_transfer_limit", 100)),
+            "fund_transfer_enabled": True,
             "qr_enabled": True,
             "t1_qr_enabled": True,
             "recharge_enabled": True,
@@ -6412,6 +6422,8 @@ async def public_recharge_limits(response: Response, user: dict = Depends(get_cu
         "min_recharge_limit": float(s.get("min_recharge_limit", 100)),
         "max_recharge_limit": float(s.get("max_recharge_limit", 300000)),
         "live_bill_max_limit": float(s.get("live_bill_max_limit", 100000)),
+        "min_fund_transfer_limit": float(s.get("min_fund_transfer_limit", 100)),
+        "fund_transfer_enabled": bool(s.get("fund_transfer_enabled", True)),
         "qr_enabled": bool(s.get("qr_enabled", True)),
         "t1_qr_enabled": bool(s.get("t1_qr_enabled", True)),
         "recharge_enabled": bool(s.get("recharge_enabled", True)),
@@ -6430,6 +6442,8 @@ async def get_admin_recharge_limits(response: Response, user=Depends(require_rol
         "min_recharge_limit": float(s.get("min_recharge_limit", 100)),
         "max_recharge_limit": float(s.get("max_recharge_limit", 300000)),
         "live_bill_max_limit": float(s.get("live_bill_max_limit", 100000)),
+        "min_fund_transfer_limit": float(s.get("min_fund_transfer_limit", 100)),
+        "fund_transfer_enabled": bool(s.get("fund_transfer_enabled", True)),
         "qr_enabled": bool(s.get("qr_enabled", True)),
         "t1_qr_enabled": bool(s.get("t1_qr_enabled", True)),
         "recharge_enabled": bool(s.get("recharge_enabled", True)),
@@ -6463,11 +6477,14 @@ async def update_admin_recharge_limits(body: RechargeLimitsIn, request: Request,
         raise HTTPException(status_code=400, detail="Maximum limit cannot be less than minimum limit")
     if body.live_bill_max_limit is not None and body.live_bill_max_limit <= 0:
         raise HTTPException(status_code=400, detail="Live Bill maximum limit must be greater than zero")
+    if body.min_fund_transfer_limit is not None and body.min_fund_transfer_limit <= 0:
+        raise HTTPException(status_code=400, detail="Minimum fund transfer limit must be greater than zero")
     
     doc = {
         "min_recharge_limit": body.min_recharge_limit,
         "max_recharge_limit": body.max_recharge_limit,
         "live_bill_max_limit": body.live_bill_max_limit if body.live_bill_max_limit is not None else 100000.0,
+        "min_fund_transfer_limit": body.min_fund_transfer_limit if body.min_fund_transfer_limit is not None else 100.0,
         "updated_at": now_iso()
     }
     await db.settings.update_one({"id": "commission"}, {"$set": doc}, upsert=True)
@@ -6497,6 +6514,8 @@ async def update_admin_recharge_toggles(body: RechargeTogglesIn, request: Reques
         doc["bill_pay_enabled"] = body.bill_pay_enabled
     if body.live_bill_enabled is not None:
         doc["live_bill_enabled"] = body.live_bill_enabled
+    if body.fund_transfer_enabled is not None:
+        doc["fund_transfer_enabled"] = body.fund_transfer_enabled
     if body.live_bill_api_charge is not None:
         doc["live_bill_api_charge"] = body.live_bill_api_charge
     if body.maintenance_mode is not None:
@@ -6568,6 +6587,88 @@ async def update_admin_recharge_toggles(body: RechargeTogglesIn, request: Reques
     await write_audit(user["id"], "recharge_toggles_changed", target="settings", meta=doc, request=request)
     await manager.broadcast({"event": "settings_updated", "data": doc})
     return doc
+
+# ---------- FUND TRANSFER SYSTEM ----------
+@api.get("/fund-transfer/recipients")
+async def get_fund_transfer_recipients(user=Depends(require_approved_any())):
+    role = user.get("role")
+    if role not in ("master_distributor", "distributor"):
+        raise HTTPException(403, "Only Master Distributors and Distributors can perform fund transfers.")
+    
+    target_role = "distributor" if role == "master_distributor" else "agent"
+    recipients = await db.users.find({
+        "parent_id": user["id"],
+        "role": target_role,
+        "is_deleted": False,
+        "frozen": False
+    }, {"_id": 0, "password_hash": 0, "mpin_hash": 0, "tpin_hash": 0}).to_list(1000)
+    
+    result = []
+    for r in recipients:
+        w = await get_or_create_wallet(r["id"])
+        r["balance"] = w.get("balance", 0.0)
+        result.append(r)
+        
+    return result
+
+@api.post("/fund-transfer/execute")
+async def execute_fund_transfer(body: FundTransferIn, request: Request, user=Depends(require_approved_any())):
+    role = user.get("role")
+    if role not in ("master_distributor", "distributor"):
+        raise HTTPException(403, "Only Master Distributors and Distributors can perform fund transfers.")
+    
+    if body.amount <= 0:
+        raise HTTPException(400, "Amount must be greater than zero")
+        
+    s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    if not s.get("fund_transfer_enabled", True):
+        raise HTTPException(400, "Fund transfer service is currently disabled by Admin.")
+        
+    min_limit = float(s.get("min_fund_transfer_limit", 100.0))
+    if body.amount < min_limit:
+        raise HTTPException(400, f"Minimum fund transfer limit is ₹{min_limit:.2f}")
+        
+    sender_wallet = await get_or_create_wallet(user["id"])
+    if sender_wallet.get("balance", 0.0) < body.amount:
+        raise HTTPException(400, "Insufficient balance for fund transfer")
+        
+    recipient = await db.users.find_one({"id": body.recipient_id, "is_deleted": False})
+    if not recipient:
+        raise HTTPException(404, "Recipient user not found")
+        
+    target_role = "distributor" if role == "master_distributor" else "agent"
+    if recipient.get("parent_id") != user["id"] or recipient.get("role") != target_role:
+        raise HTTPException(403, "Invalid recipient: You can only transfer funds to your direct downline users.")
+        
+    remarks_val = (body.remarks or body.note or "").strip()
+    transfer_id = new_id()
+    sender_note = f"Fund Transfer to {recipient.get('full_name')} ({recipient.get('email')})" + (f": {remarks_val}" if remarks_val else "")
+    recip_note = f"Fund Transfer from {user.get('full_name')} ({user.get('email')})" + (f": {remarks_val}" if remarks_val else "")
+    
+    sender_new_balance = await adjust_balance(user["id"], -body.amount)
+    recip_new_balance = await adjust_balance(body.recipient_id, body.amount)
+    
+    await ledger_entry(user["id"], "debit", body.amount, sender_new_balance, "fund_transfer", transfer_id, sender_note)
+    await ledger_entry(body.recipient_id, "credit", body.amount, recip_new_balance, "fund_transfer", transfer_id, recip_note)
+    
+    await write_audit(user["id"], "fund_transfer", target=body.recipient_id, meta={
+        "amount": body.amount,
+        "recipient_name": recipient.get("full_name"),
+        "recipient_role": recipient.get("role")
+    }, request=request)
+    
+    await manager.send_to_user(user["id"], {"event": "wallet_updated", "data": {"balance": sender_new_balance}})
+    await manager.send_to_user(body.recipient_id, {"event": "wallet_updated", "data": {"balance": recip_new_balance}})
+    
+    return {
+        "ok": True,
+        "transfer_id": transfer_id,
+        "amount": body.amount,
+        "recipient_id": body.recipient_id,
+        "recipient_name": recipient.get("full_name"),
+        "sender_balance": sender_new_balance,
+        "sender_new_balance": sender_new_balance
+    }
 
 class BrandingSettingsIn(BaseModel):
     logo_path: Optional[str] = None

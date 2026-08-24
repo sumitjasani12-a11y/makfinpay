@@ -25,7 +25,7 @@ TABLE_COLUMNS = {
     "qr_codes": ["id", "label", "image_path", "upi_id", "active", "is_deleted", "created_at", "mobile_number", "is_t1"],
     "qr_name_entries": ["id", "name", "color", "mobile_number", "upi_id", "min_amount", "max_amount", "image_path", "position", "active", "is_deleted", "created_at", "qr_percent", "is_t1"],
     "bank_details": ["id", "user_id", "account_holder", "account_number", "ifsc", "bank_name", "phone_number", "updated_at"],
-    "settings": ["id", "default_percent", "updated_at", "min_recharge_limit", "max_recharge_limit", "qr_enabled", "recharge_enabled", "withdrawal_enabled", "bill_pay_enabled", "t1_qr_enabled", "live_bill_enabled", "live_bill_api_charge", "logo_path", "favicon_path", "logo_collapsed_path", "watermark_path", "t1_recharge_enabled", "live_bill_max_limit", "maintenance_mode", "qr_approved_audio", "qr_rejected_audio", "cc_bill_approved_audio", "cc_bill_rejected_audio", "qr_request_received_audio", "cc_bill_request_received_audio", "live_bill_enabled_audio", "qr_approved_audio_enabled", "qr_rejected_audio_enabled", "cc_bill_approved_audio_enabled", "cc_bill_rejected_audio_enabled", "qr_request_received_audio_enabled", "cc_bill_request_received_audio_enabled", "live_bill_enabled_audio_enabled", "disabled_biller_categories", "onesignal_app_id", "onesignal_rest_api_key"],
+    "settings": ["id", "default_percent", "updated_at", "min_recharge_limit", "max_recharge_limit", "qr_enabled", "recharge_enabled", "withdrawal_enabled", "bill_pay_enabled", "t1_qr_enabled", "live_bill_enabled", "live_bill_api_charge", "logo_path", "favicon_path", "logo_collapsed_path", "watermark_path", "t1_recharge_enabled", "live_bill_max_limit", "maintenance_mode", "qr_approved_audio", "qr_rejected_audio", "cc_bill_approved_audio", "cc_bill_rejected_audio", "qr_request_received_audio", "cc_bill_request_received_audio", "live_bill_enabled_audio", "qr_approved_audio_enabled", "qr_rejected_audio_enabled", "cc_bill_approved_audio_enabled", "cc_bill_rejected_audio_enabled", "qr_request_received_audio_enabled", "cc_bill_request_received_audio_enabled", "live_bill_enabled_audio_enabled", "disabled_biller_categories", "onesignal_app_id", "onesignal_rest_api_key", "min_fund_transfer_limit", "fund_transfer_enabled"],
     "files": ["id", "storage_path", "original_filename", "content_type", "size", "uploaded_by", "is_deleted", "created_at"],
     "headlines": ["id", "message", "type", "active", "position", "is_deleted", "created_at"],
     "audit_logs": ["id", "user_id", "action", "target", "meta", "ip", "created_at"],
@@ -817,6 +817,17 @@ class PostgresDatabase:
                         raise e2
                 else:
                     raise e
+            await self._ensure_settings_columns()
+
+    async def _ensure_settings_columns(self):
+        if not self.client:
+            return
+        try:
+            async with self.client.acquire() as conn:
+                await conn.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS min_fund_transfer_limit DOUBLE PRECISION DEFAULT 100.0;")
+                await conn.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS fund_transfer_enabled BOOLEAN DEFAULT true;")
+        except Exception as e:
+            logger.warning(f"Settings table auto-migration note: {e}")
 
     async def close(self):
         if self.client:

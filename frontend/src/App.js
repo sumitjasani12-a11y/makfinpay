@@ -46,6 +46,8 @@ import MdDistributors from "@/pages/md/Distributors";
 import MdRecharges from "@/pages/md/Recharges";
 import MdWithdrawal from "@/pages/md/Withdrawal";
 
+import FundTransfer from "@/pages/FundTransfer";
+
 import AgentOverview from "@/pages/agent/Overview";
 import AgentRecharge from "@/pages/agent/Recharge";
 import AgentBillPay from "@/pages/agent/BillPay";
@@ -179,6 +181,7 @@ export default function App() {
           <Route path="/distributor" element={<Protected roles={["distributor"]}><DashboardLayout /></Protected>}>
             <Route index element={<DistOverview />} />
             <Route path="agents" element={<DistAgents />} />
+            <Route path="fund-transfer" element={<FundTransfer />} />
             <Route path="recharges" element={<DistRecharges />} />
             <Route path="withdrawal" element={<DistWithdrawal />} />
             <Route path="change-password" element={<ChangePassword />} />
@@ -190,6 +193,7 @@ export default function App() {
           <Route path="/md" element={<Protected roles={["master_distributor"]}><DashboardLayout /></Protected>}>
             <Route index element={<MdOverview />} />
             <Route path="distributors" element={<MdDistributors />} />
+            <Route path="fund-transfer" element={<FundTransfer />} />
             <Route path="recharges" element={<MdRecharges />} />
             <Route path="withdrawal" element={<MdWithdrawal />} />
             <Route path="change-password" element={<ChangePassword />} />
