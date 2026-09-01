@@ -540,6 +540,10 @@ class TpinChangeIn(BaseModel):
     current_tpin: str
     new_tpin: str
 
+class TpinResetIn(BaseModel):
+    password: str
+    new_tpin: str
+
 class CreateUserIn(BaseModel):
     role: Literal["master_distributor", "distributor", "agent"]
     full_name: str
@@ -946,6 +950,26 @@ async def change_tpin(body: TpinChangeIn, user=Depends(require_roles("agent", "d
     
     if request:
         await write_audit(user["id"], "change_tpin", request=request)
+    return {"ok": True}
+
+@api.post("/auth/reset-tpin")
+async def reset_tpin(body: TpinResetIn, user=Depends(require_roles("agent", "distributor", "master_distributor", "admin")), request: Request = None):
+    # Verify account password
+    user_db = await db.users.find_one({"id": user["id"]}, {"_id": 0, "password_hash": 1})
+    if not user_db or not user_db.get("password_hash") or not verify_password(body.password, user_db["password_hash"]):
+        raise HTTPException(400, "Incorrect account password")
+
+    if not body.new_tpin.isdigit() or len(body.new_tpin) != 4:
+        raise HTTPException(400, "New TPIN must be exactly 4 digits")
+
+    hashed = hash_password(body.new_tpin)
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"tpin_hash": hashed}}
+    )
+
+    if request:
+        await write_audit(user["id"], "reset_tpin", request=request)
     return {"ok": True}
 
 @api.post("/auth/logout")
