@@ -771,6 +771,15 @@ class ChangePasswordIn(BaseModel):
     new_password: str
     confirm_password: str
 
+class ForgotPasswordRequestIn(BaseModel):
+    email: str
+
+class ForgotPasswordResetIn(BaseModel):
+    email: str
+    otp: str
+    new_password: str
+    confirm_password: str
+
 # ---------- AUTH ROUTES ----------
 @api.post("/auth/login")
 async def login(body: LoginIn, response: Response, request: Request):
@@ -1089,6 +1098,184 @@ async def change_password(body: ChangePasswordIn, request: Request, user: dict =
     await write_audit(user["id"], "password_change", target=user["id"],
                       meta={"status": "SUCCESS", "role": user["role"]}, request=request)
     return {"ok": True, "message": "Password updated successfully"}
+
+
+# ---------- FORGOT PASSWORD (RESEND API & EMAIL OTP) ----------
+RESEND_API_KEY_FALLBACK = "re_LqEavpuG_DBW7jgKMukxiEyePu9C2eYdF"
+
+async def send_otp_email(to_email: str, otp: str):
+    resend_key = os.environ.get("RESEND_API_KEY") or RESEND_API_KEY_FALLBACK
+    if not resend_key:
+        raise HTTPException(500, "Resend API Key is missing")
+
+    url = "https://api.resend.com/emails"
+    headers = {
+        "Authorization": f"Bearer {resend_key}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "from": "onboarding@resend.dev",
+        "to": [to_email],
+        "subject": "Password Reset OTP - MAK FIN PAY",
+        "html": f"""
+        <div style="background-color: #07080a; padding: 40px 10px; font-family: 'Segoe UI', Arial, sans-serif;">
+            <div style="max-width: 500px; margin: 0 auto; background: #0b0d13; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
+                
+                <!-- Header Banner -->
+                <div style="background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #10b981 100%); padding: 30px 20px; text-align: center;">
+                    <h1 style="color: #ffffff; margin: 0; font-size: 26px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">MAK FIN PAY</h1>
+                    <p style="color: rgba(255,255,255,0.85); font-size: 13px; margin: 6px 0 0 0; font-weight: 500;">Secure Financial Payment Network</p>
+                </div>
+
+                <!-- Body Content -->
+                <div style="padding: 32px 24px; text-align: center;">
+                    <div style="display: inline-block; padding: 6px 16px; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 20px; color: #818cf8; font-size: 12px; font-weight: 600; margin-bottom: 16px;">
+                        🔒 PASSWORD RESET REQUEST
+                    </div>
+                    
+                    <h2 style="color: #f8fafc; font-size: 20px; margin: 0 0 10px 0; font-weight: 700;">Verification Code</h2>
+                    <p style="color: #94a3b8; font-size: 14px; margin: 0 0 24px 0; line-height: 1.5;">
+                        Use the following 6-digit One-Time Password (OTP) to reset your account password:
+                    </p>
+
+                    <!-- OTP Display Card -->
+                    <div style="background: #151824; border: 1px dashed #6366f1; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+                        <div style="font-size: 40px; font-weight: 800; letter-spacing: 10px; color: #38bdf8; font-family: 'Courier New', monospace;">
+                            {otp}
+                        </div>
+                        <p style="color: #f59e0b; font-size: 12px; font-weight: 600; margin: 12px 0 0 0;">
+                            ⏱️ Code expires in 10 minutes
+                        </p>
+                    </div>
+
+                    <p style="color: #64748b; font-size: 13px; text-align: left; line-height: 1.6; background: rgba(255,255,255,0.02); padding: 12px 16px; border-radius: 8px; border-left: 3px solid #f59e0b; margin-bottom: 24px;">
+                        <strong style="color: #cbd5e1;">Security Notice:</strong> If you did not request this OTP, please ignore this email or contact support immediately. Never share your OTP with anyone.
+                    </p>
+                </div>
+
+                <!-- Footer -->
+                <div style="background: #07080a; padding: 16px 20px; text-align: center; border-top: 1px solid rgba(255,255,255,0.05);">
+                    <p style="color: #64748b; font-size: 11px; margin: 0; font-weight: 500;">
+                        &copy; 2026 MAK FIN PAY. All Rights Reserved.
+                    </p>
+                </div>
+            </div>
+        </div>
+        """
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            res = await client.post(url, headers=headers, json=payload)
+            if res.status_code not in (200, 201):
+                err_data = res.json() if res.content else {}
+                err_msg = err_data.get("message") or err_data.get("name") or res.text
+                logger.error(f"Resend email API error ({res.status_code}): {err_msg}")
+                raise HTTPException(400, f"Email delivery failed: {err_msg}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Resend email exception: {e}")
+        raise HTTPException(500, f"Email delivery error: {str(e)}")
+
+
+@api.post("/auth/forgot-password/request")
+async def forgot_password_request(body: ForgotPasswordRequestIn, request: Request):
+    email = body.email.strip().lower()
+    if not email:
+        raise HTTPException(400, "Email address is required")
+        
+    user = await db.users.find_one({"email": email})
+    admin_cred = None
+    if not user:
+        admin_cred = await db.admin_credentials.find_one({"email": email})
+        if not admin_cred:
+            raise HTTPException(404, "No account found with this email address")
+
+    # Generate 6-digit OTP
+    otp = f"{secrets.randbelow(900000) + 100000}"
+    expires_at = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
+    
+    reset_doc = {
+        "id": new_id(),
+        "email": email,
+        "otp": otp,
+        "expires_at": expires_at,
+        "used": False,
+        "created_at": now_iso()
+    }
+    await db.password_resets.insert_one(reset_doc)
+    
+    # Direct Resend API Email dispatch
+    await send_otp_email(email, otp)
+    
+    user_id = user["id"] if user else (admin_cred["id"] if admin_cred else email)
+    await write_audit(user_id, "forgot_password_request", target=email, meta={"status": "SUCCESS"}, request=request)
+    return {"status": "success", "message": "OTP has been sent to your registered email address."}
+
+
+@api.post("/auth/forgot-password/reset")
+async def forgot_password_reset(body: ForgotPasswordResetIn, request: Request):
+    email = body.email.strip().lower()
+    otp = body.otp.strip()
+    new_password = body.new_password
+    confirm_password = body.confirm_password
+    
+    if not email or not otp:
+        raise HTTPException(400, "Email and OTP are required")
+        
+    if new_password != confirm_password:
+        raise HTTPException(400, "Passwords do not match")
+        
+    if not new_password or len(new_password) < 6:
+        raise HTTPException(400, "Password must be at least 6 characters long")
+        
+    # Verify active OTP
+    reset_record = await db.password_resets.find_one({
+        "email": email,
+        "otp": otp,
+        "used": False
+    })
+    
+    if not reset_record:
+        raise HTTPException(400, "Invalid or already used OTP. Please request a new code.")
+        
+    exp = reset_record.get("expires_at")
+    if isinstance(exp, str):
+        exp_dt = datetime.fromisoformat(exp.replace("Z", "+00:00"))
+    elif isinstance(exp, datetime):
+        exp_dt = exp
+    else:
+        exp_dt = datetime.now(timezone.utc)
+        
+    if exp_dt.tzinfo is None:
+        exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+        
+    if datetime.now(timezone.utc) > exp_dt:
+        raise HTTPException(400, "OTP has expired. Please request a new code.")
+        
+    new_pw_hash = hash_password(new_password)
+    
+    # Update in db.users
+    user = await db.users.find_one({"email": email})
+    if user:
+        await db.users.update_one({"id": user["id"]}, {"$set": {"password_hash": new_pw_hash, "password_changed_at": now_iso()}})
+        
+    # Sync with db.admin_credentials if admin
+    admin_cred = await db.admin_credentials.find_one({"email": email})
+    if admin_cred:
+        await db.admin_credentials.update_one({"email": email}, {"$set": {"password_hash": new_pw_hash, "password": new_password}})
+        
+    if not user and not admin_cred:
+        raise HTTPException(404, "User account not found")
+        
+    # Mark OTP as used
+    await db.password_resets.update_one({"id": reset_record["id"]}, {"$set": {"used": True}})
+    
+    user_id = user["id"] if user else (admin_cred["id"] if admin_cred else email)
+    await write_audit(user_id, "forgot_password_reset", target=email, meta={"status": "SUCCESS"}, request=request)
+    return {"status": "success", "message": "Password reset successful! You can now log in with your new password."}
+
 
 # ---------- UPLOADS ----------
 @api.post("/uploads")
@@ -8693,10 +8880,18 @@ async def _seed_admin_user() -> None:
                     permissions JSONB DEFAULT '[]'::jsonb,
                     frozen BOOLEAN DEFAULT FALSE,
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                )
+                );
+                CREATE TABLE IF NOT EXISTS "password_resets" (
+                    id VARCHAR(255) PRIMARY KEY,
+                    email VARCHAR(255) NOT NULL,
+                    otp VARCHAR(50) NOT NULL,
+                    expires_at TIMESTAMP WITH TIME ZONE,
+                    used BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                );
             ''')
     except Exception as e:
-        logger.error(f"Failed to create admin_credentials table: {e}")
+        logger.error(f"Failed to create admin_credentials or password_resets table: {e}")
         
     SUPER_EMAIL = "jigs.vanani@gmail.com"
     SUPER_PASS = "Jigscse@3521"
