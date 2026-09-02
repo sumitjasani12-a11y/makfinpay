@@ -18,6 +18,7 @@ const PERMISSIONS_LIST = [
   { key: "withdrawals", label: "Pay Withdrawals" },
   { key: "transactions", label: "CC Bill Request" },
   { key: "live-bill-history", label: "Live Bill History" },
+  { key: "fund-transfers", label: "Fund Transfer Entry" },
   { key: "statement", label: "Admin Statement" },
   { key: "qrcodes", label: "QR Codes" },
   { key: "edit-history-qr-percent", label: "Edit Pencil: QR % in Tracking History" },
