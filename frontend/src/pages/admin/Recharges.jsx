@@ -85,8 +85,13 @@ function CompactQrSearchSelect({ currentLabel, qrEntries, onSelect, onClose }) {
   );
 
   return (
-    <div ref={popoverRef} className="absolute left-1/2 -translate-x-1/2 top-full mt-1 w-64 bg-white rounded-xl shadow-2xl border border-neutral-200 p-2 z-[999] text-left">
-      <div className="relative mb-1.5">
+    <div
+      ref={popoverRef}
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+      className="absolute right-0 top-full mt-1 w-64 sm:w-72 bg-white rounded-xl shadow-2xl border border-neutral-200 p-2 z-[9999] text-left"
+    >
+      <div className="relative mb-1.5" onMouseDown={(e) => e.stopPropagation()}>
         <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-neutral-400" />
         <input
           type="text"
@@ -95,19 +100,29 @@ function CompactQrSearchSelect({ currentLabel, qrEntries, onSelect, onClose }) {
           onChange={(e) => setSearch(e.target.value)}
           className="w-full pl-8 pr-2 py-1.5 text-xs font-semibold border border-neutral-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-neutral-50"
           autoFocus
+          onMouseDown={(e) => e.stopPropagation()}
         />
       </div>
-      <div className="max-h-52 overflow-y-auto space-y-1 custom-scrollbar">
+      <div className="max-h-52 overflow-y-auto space-y-1 custom-scrollbar" onMouseDown={(e) => e.stopPropagation()}>
         {filtered.length === 0 ? (
           <div className="p-2 text-[11px] text-neutral-400 text-center font-medium">No QR found</div>
         ) : (
           filtered.map((e) => (
             <button
               key={e.id}
-              onClick={() => onSelect(e.name)}
-              className={`w-full text-left px-2.5 py-1.5 text-xs rounded-lg flex flex-col transition-colors border ${
+              type="button"
+              onMouseDown={(evt) => {
+                evt.preventDefault();
+                evt.stopPropagation();
+              }}
+              onClick={(evt) => {
+                evt.preventDefault();
+                evt.stopPropagation();
+                onSelect(e.name);
+              }}
+              className={`w-full text-left px-2.5 py-1.5 text-xs rounded-lg flex flex-col transition-colors border cursor-pointer ${
                 e.name === currentLabel
-                  ? "bg-indigo-50 border-indigo-200 text-indigo-900"
+                  ? "bg-indigo-50 border-indigo-200 text-indigo-900 font-bold"
                   : "bg-white border-neutral-100 hover:bg-neutral-50 text-neutral-800"
               }`}
             >
@@ -133,20 +148,30 @@ function CompactQrSearchSelect({ currentLabel, qrEntries, onSelect, onClose }) {
 export default function AdminRecharges() {
   const [items, setItems] = useState(() => {
     try {
-      const v = localStorage.getItem("mfp_cache_admin_recharges");
-      return v ? JSON.parse(v) : [];
-    } catch { return []; }
+      const cached = localStorage.getItem("mfp_cache_admin_recharges");
+      return cached ? JSON.parse(cached) : [];
+    } catch (e) {
+      return [];
+    }
   });
-  const [total, setTotal] = useState(() => items.length);
   const [loading, setLoading] = useState(() => items.length === 0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [total, setTotal] = useState(0);
+
+  // Recharge rejection reasons
+  const [rejectionReasons, setRejectionReasons] = useState([]);
+  const [rejectingId, setRejectingId] = useState(null);
+  const [selectedReason, setSelectedReason] = useState("");
+  const [customReason, setCustomReason] = useState("");
+
+  // Detail / image view modal
   const [detail, setDetail] = useState(null);
   const [adminOcrBypass, setAdminOcrBypass] = useState(false);
-  const [rejectTargetId, setRejectTargetId] = useState(null);
-  const [predefinedReasons, setPredefinedReasons] = useState([]);
 
   useEffect(() => {
-    api.get("/rejection-reasons/active?target=qr")
-      .then((res) => setPredefinedReasons(res.data || []))
+    api.get("/admin/rejection-reasons?type=recharge")
+      .then((r) => setRejectionReasons(r.data || []))
       .catch((e) => console.log("Failed to fetch recharge rejection reasons:", e));
   }, []);
 
@@ -173,7 +198,8 @@ export default function AdminRecharges() {
       toast.success("QR Code updated! Tracking history refreshed.");
       setEditingQrRid(null);
       setDetail((prev) => (prev && prev.id === rid ? { ...prev, qr_code_label: labelToSave } : prev));
-      reload();
+      setItems((prevItems) => prevItems.map((item) => (item.id === rid ? { ...item, qr_code_label: labelToSave } : item)));
+      reload(true);
     } catch (e) {
       toast.error(formatErr(e.response?.data?.detail) || "Failed to update QR code");
     } finally {
@@ -203,10 +229,6 @@ export default function AdminRecharges() {
       return v ? JSON.parse(v) : { approved: 0, approvedCount: 0, pending: 0, pendingCount: 0, rejected: 0, rejectedCount: 0 };
     } catch { return { approved: 0, approvedCount: 0, pending: 0, pendingCount: 0, rejected: 0, rejectedCount: 0 }; }
   });
-
-  // pagination
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
 
   // Build query params (server-side filtering + pagination).
   const params = useMemo(() => {

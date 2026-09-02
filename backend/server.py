@@ -1763,9 +1763,18 @@ async def create_subuser(
     created_by_role: str = "admin",
     md_id: Optional[str] = None,
 ) -> dict:
-    email = body.email.lower()
-    if await db.users.find_one({"email": email}):
+    email = body.email.lower().strip()
+    phone = (body.phone or "").strip()
+    full_name = (body.full_name or "").strip()
+
+    if await db.users.find_one({"email": email, "is_deleted": {"$ne": True}}):
         raise HTTPException(400, "Email already exists")
+    if phone and await db.users.find_one({"phone": phone, "is_deleted": {"$ne": True}}):
+        raise HTTPException(400, "Mobile number already exists")
+    if full_name:
+        existing_name = await db.users.find_one({"full_name": {"$regex": full_name, "$options": "i"}, "is_deleted": {"$ne": True}})
+        if existing_name and existing_name.get("full_name", "").strip().lower() == full_name.lower():
+            raise HTTPException(400, "User with this name already exists")
     if alloc is None:
         default_pct = await _default_commission_pct()
         alloc = CommissionAllocation(
@@ -3236,10 +3245,23 @@ async def admin_update_user(uid: str, body: UpdateUserIn, user=Depends(require_r
     if not u:
         raise HTTPException(404, "User not found")
     
-    email = body.email.lower()
-    existing = await db.users.find_one({"email": email, "is_deleted": False})
-    if existing and existing["id"] != uid:
+    email = body.email.lower().strip()
+    phone = (body.phone or "").strip()
+    full_name = (body.full_name or "").strip()
+
+    existing_email = await db.users.find_one({"email": email, "is_deleted": {"$ne": True}})
+    if existing_email and existing_email["id"] != uid:
         raise HTTPException(400, "Email already exists")
+
+    if phone:
+        existing_phone = await db.users.find_one({"phone": phone, "is_deleted": {"$ne": True}})
+        if existing_phone and existing_phone["id"] != uid:
+            raise HTTPException(400, "Mobile number already exists")
+
+    if full_name:
+        existing_name = await db.users.find_one({"full_name": {"$regex": full_name, "$options": "i"}, "is_deleted": {"$ne": True}})
+        if existing_name and existing_name["id"] != uid and existing_name.get("full_name", "").strip().lower() == full_name.lower():
+            raise HTTPException(400, "User with this name already exists")
         
     upd = {
         "full_name": body.full_name,
