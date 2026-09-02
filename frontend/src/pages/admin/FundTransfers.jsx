@@ -477,15 +477,15 @@ export default function AdminFundTransfers() {
         </div>
 
         {/* Filtered Selection Card */}
-        <div className="rounded-2xl p-4 bg-gradient-to-br from-[#1B4332] via-[#153527] to-[#0F281E] text-white border border-[#1B4332]/60 shadow-md col-span-2 lg:col-span-1">
-          <div className="flex items-center justify-between text-amber-300">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-200">Filtered Total</span>
-            <Send className="h-4 w-4 text-amber-300" />
+        <div className="mfp-card p-4 bg-gradient-to-br from-[#E8F5E9] to-white border-[#1B4332]/20 col-span-2 lg:col-span-1">
+          <div className="flex items-center justify-between text-[#1B4332]">
+            <span className="text-[11px] font-bold uppercase tracking-wider">Filtered Total</span>
+            <Send className="h-4 w-4 text-[#1B4332]" />
           </div>
-          <div className="mt-2 text-xl font-black text-white">
+          <div className="mt-2 text-xl font-black text-[#1B4332]">
             ₹{stats.filtered_amount?.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
           </div>
-          <div className="text-[11px] font-medium text-emerald-200 mt-0.5">
+          <div className="text-[11px] font-medium text-[#1B4332]/75 mt-0.5">
             {stats.filtered_count} matching entries
           </div>
         </div>
