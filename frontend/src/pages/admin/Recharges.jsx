@@ -159,19 +159,17 @@ export default function AdminRecharges() {
   const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
 
-  // Recharge rejection reasons
-  const [rejectionReasons, setRejectionReasons] = useState([]);
-  const [rejectingId, setRejectingId] = useState(null);
-  const [selectedReason, setSelectedReason] = useState("");
-  const [customReason, setCustomReason] = useState("");
-
   // Detail / image view modal
   const [detail, setDetail] = useState(null);
   const [adminOcrBypass, setAdminOcrBypass] = useState(false);
 
+  // Recharge rejection reasons
+  const [predefinedReasons, setPredefinedReasons] = useState([]);
+  const [rejectTargetId, setRejectTargetId] = useState(null);
+
   useEffect(() => {
     api.get("/admin/rejection-reasons?type=recharge")
-      .then((r) => setRejectionReasons(r.data || []))
+      .then((r) => setPredefinedReasons(r.data || []))
       .catch((e) => console.log("Failed to fetch recharge rejection reasons:", e));
   }, []);
 
