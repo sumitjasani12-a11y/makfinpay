@@ -63,7 +63,7 @@ function validateTpinForm({ current, password, next, confirm, isFirstTpin, isRes
 }
 
 export default function ChangeTpin() {
-  const { user, setUser } = useAuth();
+  const { user, setUser, reloadMe } = useAuth();
   const [current, setCurrent] = useState("");
   const [password, setPassword] = useState("");
   const [next, setNext] = useState("");
@@ -114,10 +114,12 @@ export default function ChangeTpin() {
       setConfirm("");
       
       // Update local context user so that frontend knows TPIN is configured
-      setUser({
-        ...user,
-        tpin_hash: "configured"
-      });
+      if (typeof setUser === "function") {
+        setUser((prev) => (prev ? { ...prev, tpin_hash: "configured" } : prev));
+      }
+      if (typeof reloadMe === "function") {
+        reloadMe();
+      }
     } catch (err) {
       const msg = formatErr(err.response?.data?.detail) || err.message;
       setErrors({ form: msg });

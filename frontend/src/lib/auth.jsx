@@ -165,9 +165,21 @@ export function AuthProvider({ children }) {
     closeWebSocket();
   }, []);
 
+  const updateUserData = useCallback((updater) => {
+    setUser((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      if (next) {
+        try { localStorage.setItem("mfp_user", JSON.stringify(next)); } catch (e) {}
+      } else {
+        try { localStorage.removeItem("mfp_user"); } catch (e) {}
+      }
+      return next;
+    });
+  }, []);
+
   const val = useMemo(
-    () => ({ user, loading, login, logout, completeLogin, reloadMe, branding, fetchBranding }),
-    [user, loading, login, logout, completeLogin, reloadMe, branding, fetchBranding]
+    () => ({ user, setUser: updateUserData, loading, login, logout, completeLogin, reloadMe, fetchMe: reloadMe, branding, fetchBranding }),
+    [user, updateUserData, loading, login, logout, completeLogin, reloadMe, branding, fetchBranding]
   );
 
   return <AuthCtx.Provider value={val}>{children}</AuthCtx.Provider>;
