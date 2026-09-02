@@ -1104,9 +1104,86 @@ async def change_password(body: ChangePasswordIn, request: Request, user: dict =
 RESEND_API_KEY_FALLBACK = "re_LqEavpuG_DBW7jgKMukxiEyePu9C2eYdF"
 
 async def send_otp_email(to_email: str, otp: str):
+    html_content = f"""
+    <div style="background-color: #07080a; padding: 40px 10px; font-family: 'Segoe UI', Arial, sans-serif;">
+        <div style="max-width: 500px; margin: 0 auto; background: #0b0d13; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
+            
+            <!-- Header Banner -->
+            <div style="background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #10b981 100%); padding: 30px 20px; text-align: center;">
+                <h1 style="color: #ffffff; margin: 0; font-size: 26px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">MAK FIN PAY</h1>
+                <p style="color: rgba(255,255,255,0.85); font-size: 13px; margin: 6px 0 0 0; font-weight: 500;">Secure Financial Payment Network</p>
+            </div>
+
+            <!-- Body Content -->
+            <div style="padding: 32px 24px; text-align: center;">
+                <div style="display: inline-block; padding: 6px 16px; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 20px; color: #818cf8; font-size: 12px; font-weight: 600; margin-bottom: 16px;">
+                    🔒 PASSWORD RESET REQUEST
+                </div>
+                
+                <h2 style="color: #f8fafc; font-size: 20px; margin: 0 0 10px 0; font-weight: 700;">Verification Code</h2>
+                <p style="color: #94a3b8; font-size: 14px; margin: 0 0 24px 0; line-height: 1.5;">
+                    Use the following 6-digit One-Time Password (OTP) to reset your account password:
+                </p>
+
+                <!-- OTP Display Card -->
+                <div style="background: #151824; border: 1px dashed #6366f1; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+                    <div style="font-size: 40px; font-weight: 800; letter-spacing: 10px; color: #38bdf8; font-family: 'Courier New', monospace;">
+                        {otp}
+                    </div>
+                    <p style="color: #f59e0b; font-size: 12px; font-weight: 600; margin: 12px 0 0 0;">
+                        ⏱️ Code expires in 10 minutes
+                    </p>
+                </div>
+
+                <p style="color: #64748b; font-size: 13px; text-align: left; line-height: 1.6; background: rgba(255,255,255,0.02); padding: 12px 16px; border-radius: 8px; border-left: 3px solid #f59e0b; margin-bottom: 24px;">
+                    <strong style="color: #cbd5e1;">Security Notice:</strong> If you did not request this OTP, please ignore this email or contact support immediately. Never share your OTP with anyone.
+                </p>
+            </div>
+
+            <!-- Footer -->
+            <div style="background: #07080a; padding: 16px 20px; text-align: center; border-top: 1px solid rgba(255,255,255,0.05);">
+                <p style="color: #64748b; font-size: 11px; margin: 0; font-weight: 500;">
+                    &copy; 2026 MAK FIN PAY. All Rights Reserved.
+                </p>
+            </div>
+        </div>
+    </div>
+    """
+
+    # 1. Try SMTP if SMTP credentials are configured in environment
+    smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+    smtp_port = int(os.environ.get("SMTP_PORT", 587))
+    smtp_user = os.environ.get("SMTP_USER", "").strip()
+    smtp_pass = (os.environ.get("SMTP_PASSWORD") or os.environ.get("SMTP_PASS") or "").strip()
+
+    if smtp_user and smtp_pass:
+        try:
+            import smtplib
+            from email.mime.text import MIMEText
+            from email.mime.multipart import MIMEMultipart
+
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = "Password Reset OTP - MAK FIN PAY"
+            msg["From"] = f"MAK FIN PAY <{smtp_user}>"
+            msg["To"] = to_email
+            msg.attach(MIMEText(html_content, "html"))
+
+            def _send_smtp():
+                with smtplib.SMTP(smtp_host, smtp_port) as server:
+                    server.starttls()
+                    server.login(smtp_user, smtp_pass)
+                    server.send_message(msg)
+
+            await asyncio.to_thread(_send_smtp)
+            logger.info(f"OTP email successfully sent via SMTP to {to_email}")
+            return
+        except Exception as smtp_err:
+            logger.error(f"SMTP dispatch failed: {smtp_err}. Trying Resend API fallback.")
+
+    # 2. Try Resend API
     resend_key = os.environ.get("RESEND_API_KEY") or RESEND_API_KEY_FALLBACK
     if not resend_key:
-        raise HTTPException(500, "Resend API Key is missing")
+        raise HTTPException(500, "Email delivery failed: Resend API Key and SMTP credentials are missing")
 
     url = "https://api.resend.com/emails"
     headers = {
@@ -1117,51 +1194,7 @@ async def send_otp_email(to_email: str, otp: str):
         "from": "onboarding@resend.dev",
         "to": [to_email],
         "subject": "Password Reset OTP - MAK FIN PAY",
-        "html": f"""
-        <div style="background-color: #07080a; padding: 40px 10px; font-family: 'Segoe UI', Arial, sans-serif;">
-            <div style="max-width: 500px; margin: 0 auto; background: #0b0d13; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
-                
-                <!-- Header Banner -->
-                <div style="background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #10b981 100%); padding: 30px 20px; text-align: center;">
-                    <h1 style="color: #ffffff; margin: 0; font-size: 26px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">MAK FIN PAY</h1>
-                    <p style="color: rgba(255,255,255,0.85); font-size: 13px; margin: 6px 0 0 0; font-weight: 500;">Secure Financial Payment Network</p>
-                </div>
-
-                <!-- Body Content -->
-                <div style="padding: 32px 24px; text-align: center;">
-                    <div style="display: inline-block; padding: 6px 16px; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 20px; color: #818cf8; font-size: 12px; font-weight: 600; margin-bottom: 16px;">
-                        🔒 PASSWORD RESET REQUEST
-                    </div>
-                    
-                    <h2 style="color: #f8fafc; font-size: 20px; margin: 0 0 10px 0; font-weight: 700;">Verification Code</h2>
-                    <p style="color: #94a3b8; font-size: 14px; margin: 0 0 24px 0; line-height: 1.5;">
-                        Use the following 6-digit One-Time Password (OTP) to reset your account password:
-                    </p>
-
-                    <!-- OTP Display Card -->
-                    <div style="background: #151824; border: 1px dashed #6366f1; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
-                        <div style="font-size: 40px; font-weight: 800; letter-spacing: 10px; color: #38bdf8; font-family: 'Courier New', monospace;">
-                            {otp}
-                        </div>
-                        <p style="color: #f59e0b; font-size: 12px; font-weight: 600; margin: 12px 0 0 0;">
-                            ⏱️ Code expires in 10 minutes
-                        </p>
-                    </div>
-
-                    <p style="color: #64748b; font-size: 13px; text-align: left; line-height: 1.6; background: rgba(255,255,255,0.02); padding: 12px 16px; border-radius: 8px; border-left: 3px solid #f59e0b; margin-bottom: 24px;">
-                        <strong style="color: #cbd5e1;">Security Notice:</strong> If you did not request this OTP, please ignore this email or contact support immediately. Never share your OTP with anyone.
-                    </p>
-                </div>
-
-                <!-- Footer -->
-                <div style="background: #07080a; padding: 16px 20px; text-align: center; border-top: 1px solid rgba(255,255,255,0.05);">
-                    <p style="color: #64748b; font-size: 11px; margin: 0; font-weight: 500;">
-                        &copy; 2026 MAK FIN PAY. All Rights Reserved.
-                    </p>
-                </div>
-            </div>
-        </div>
-        """
+        "html": html_content
     }
 
     try:
@@ -1171,7 +1204,7 @@ async def send_otp_email(to_email: str, otp: str):
                 err_data = res.json() if res.content else {}
                 err_msg = err_data.get("message") or err_data.get("name") or res.text
                 logger.error(f"Resend email API error ({res.status_code}): {err_msg}")
-                raise HTTPException(400, f"Email delivery failed: {err_msg}")
+                raise HTTPException(400, f"Email delivery failed: {err_msg}. Please update RESEND_API_KEY or SMTP configuration.")
     except HTTPException:
         raise
     except Exception as e:
