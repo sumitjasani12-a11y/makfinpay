@@ -1101,7 +1101,7 @@ async def change_password(body: ChangePasswordIn, request: Request, user: dict =
 
 
 # ---------- FORGOT PASSWORD (RESEND API & EMAIL OTP) ----------
-RESEND_API_KEY_FALLBACK = "re_LqEavpuG_DBW7jgKMukxiEyePu9C2eYdF"
+RESEND_API_KEY_FALLBACK = ""
 
 async def send_otp_email(to_email: str, otp: str):
     html_content = f"""
