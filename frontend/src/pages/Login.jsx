@@ -45,6 +45,9 @@ export default function Login() {
       const res = await api.post("/auth/forgot-password/request", { email: forgotEmail.trim() });
       toast.success(res.data?.message || "OTP has been sent to your email!");
       setForgotStep(2);
+      setForgotOtp("");
+      setForgotNewPassword("");
+      setForgotConfirmPassword("");
       setResendTimer(60);
     } catch (err) {
       toast.error(formatErr(err.response?.data?.detail) || "Failed to send OTP.");
@@ -270,6 +273,9 @@ export default function Login() {
                     type="button"
                     onClick={() => {
                       setForgotEmail(email);
+                      setForgotOtp("");
+                      setForgotNewPassword("");
+                      setForgotConfirmPassword("");
                       setShowForgotModal(true);
                       setForgotStep(1);
                     }}
@@ -418,10 +424,11 @@ export default function Login() {
                       type="text"
                       required
                       maxLength={6}
+                      autoComplete="one-time-code"
+                      data-1p-ignore
                       value={forgotOtp}
                       onChange={(e) => setForgotOtp(e.target.value)}
                       className="w-full bg-white/[0.04] border border-white/10 focus:border-indigo-500/50 rounded-xl px-4 py-3 text-center text-lg tracking-widest font-mono font-bold text-indigo-400 placeholder-white/20 outline-none"
-                      placeholder=""
                     />
                     <button
                       type="button"
