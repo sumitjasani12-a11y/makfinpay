@@ -492,7 +492,7 @@ export default function AdminFundTransfers() {
       </div>
 
       {/* Filter Toolbar */}
-      <div className="mfp-card p-4 space-y-4">
+      <div className="mfp-card p-4 space-y-4 relative z-30">
         <div className="flex flex-wrap items-center justify-between gap-3">
           {/* Left Controls: Search Bar & Auto-Searchable MS/DS Dropdown */}
           <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
