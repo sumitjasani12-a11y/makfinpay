@@ -3587,6 +3587,30 @@ def _add_created_at_range(query: dict, from_ts: Optional[str], to_ts: Optional[s
     query["created_at"] = rng
 
 
+def _build_amount_subquery(amount_str: str, fields=("bill_amount", "amount", "total_amount")) -> dict:
+    if not amount_str or not str(amount_str).strip():
+        return {}
+    clean_amt = str(amount_str).strip().replace("₹", "").replace(",", "")
+    if not clean_amt:
+        return {}
+    
+    or_conds = []
+    for f in fields:
+        or_conds.append({f: {"$regex": clean_amt}})
+    
+    try:
+        val = float(clean_amt)
+        for f in fields:
+            or_conds.append({f: val})
+        if "." not in clean_amt:
+            for f in fields:
+                or_conds.append({"$and": [{f: {"$gte": val}}, {f: {"$lt": val + 1.0}}]})
+    except ValueError:
+        pass
+    
+    return {"$or": or_conds}
+
+
 def _build_recharge_query(*, status=None, agent_id=None, qr_code_id=None,
                            from_ts=None, to_ts=None, q=None, amount=None,
                            agent_search=None, qr_search=None) -> dict:
@@ -3602,16 +3626,26 @@ def _build_recharge_query(*, status=None, agent_id=None, qr_code_id=None,
     if qr_search and qr_search.strip():
         query["qr_code_label"] = {"$regex": qr_search.strip(), "$options": "i"}
     _add_created_at_range(query, from_ts, to_ts)
+    
+    q_cond = None
     if q:
         needle = _escape_regex(q.strip())
         if needle:
-            query["$or"] = [
+            q_cond = {"$or": [
                 {"user_name": {"$regex": needle, "$options": "i"}},
                 {"utr": {"$regex": needle, "$options": "i"}},
                 {"card_last4": {"$regex": needle, "$options": "i"}},
-            ]
-    if amount and amount.strip():
-        query["amount"] = {"$regex": amount.strip()}
+            ]}
+    
+    amt_cond = _build_amount_subquery(amount, fields=("amount", "gross_amount", "net_credit_amount")) if amount else None
+    
+    if q_cond and amt_cond:
+        query["$and"] = [q_cond, amt_cond]
+    elif q_cond:
+        query["$or"] = q_cond["$or"]
+    elif amt_cond:
+        query["$or"] = amt_cond["$or"]
+
     return query
 
 
@@ -3657,22 +3691,28 @@ def _build_transaction_query(*, status=None, agent_id=None, operator=None,
     if api_txn_id and api_txn_id.strip():
         query["operator_txn_id"] = {"$regex": api_txn_id.strip(), "$options": "i"}
     _add_created_at_range(query, from_ts, to_ts)
+
+    q_cond = None
     if q:
         needle = _escape_regex(q.strip())
         if needle:
-            query["$or"] = [
+            q_cond = {"$or": [
                 {"user_name": {"$regex": needle, "$options": "i"}},
                 {"customer_name": {"$regex": needle, "$options": "i"}},
                 {"customer_phone": {"$regex": needle, "$options": "i"}},
                 {"operator": {"$regex": needle, "$options": "i"}},
                 {"card_last4": {"$regex": needle, "$options": "i"}},
-            ]
-    if amount and amount.strip():
-        try:
-            val = float(amount.strip())
-            query["amount"] = val
-        except ValueError:
-            pass
+            ]}
+    
+    amt_cond = _build_amount_subquery(amount, fields=("bill_amount", "amount", "total_amount")) if amount else None
+
+    if q_cond and amt_cond:
+        query["$and"] = [q_cond, amt_cond]
+    elif q_cond:
+        query["$or"] = q_cond["$or"]
+    elif amt_cond:
+        query["$or"] = amt_cond["$or"]
+
     return query
 
 
@@ -3684,23 +3724,29 @@ def _build_withdrawal_query(*, status=None, role_filter=None,
     if role_filter and role_filter != "all":
         query["role"] = role_filter
     _add_created_at_range(query, from_ts, to_ts)
+
+    q_cond = None
     if q:
         needle = _escape_regex(q.strip())
         if needle:
-            query["$or"] = [
+            q_cond = {"$or": [
                 {"user_name": {"$regex": needle, "$options": "i"}},
                 {"bank.account_holder": {"$regex": needle, "$options": "i"}},
                 {"bank.account_number": {"$regex": needle, "$options": "i"}},
                 {"bank.ifsc": {"$regex": needle, "$options": "i"}},
                 {"bank.bank_name": {"$regex": needle, "$options": "i"}},
                 {"bank.phone_number": {"$regex": needle, "$options": "i"}},
-            ]
-    if amount and amount.strip():
-        try:
-            val = float(amount.strip())
-            query["amount"] = val
-        except ValueError:
-            pass
+            ]}
+
+    amt_cond = _build_amount_subquery(amount, fields=("amount",)) if amount else None
+
+    if q_cond and amt_cond:
+        query["$and"] = [q_cond, amt_cond]
+    elif q_cond:
+        query["$or"] = q_cond["$or"]
+    elif amt_cond:
+        query["$or"] = amt_cond["$or"]
+
     return query
 
 
@@ -6702,6 +6748,204 @@ async def execute_fund_transfer(body: FundTransferIn, request: Request, user=Dep
         "recipient_name": recipient.get("full_name"),
         "sender_balance": sender_new_balance,
         "sender_new_balance": sender_new_balance
+    }
+
+@api.get("/admin/fund-transfer-senders")
+async def get_fund_transfer_senders(user=Depends(require_roles("admin"))):
+    senders = await db.users.find(
+        {"role": {"$in": ["master_distributor", "distributor"]}, "is_deleted": False},
+        {"_id": 0, "id": 1, "full_name": 1, "email": 1, "phone": 1, "role": 1, "firm_name": 1}
+    ).sort("full_name", 1).to_list(1000)
+    return senders
+
+@api.get("/admin/fund-transfers")
+async def get_admin_fund_transfers(
+    page: int = 1,
+    page_size: int = 20,
+    from_ts: Optional[str] = Query(None),
+    to_ts: Optional[str] = Query(None),
+    role: Optional[str] = Query(None),
+    sender_id: Optional[str] = Query(None),
+    q: Optional[str] = Query(None),
+    user=Depends(require_roles("admin"))
+):
+    page = max(1, page)
+    page_size = max(1, min(200, page_size))
+
+    query = {"ref_type": "fund_transfer", "kind": "debit"}
+
+    if sender_id and sender_id != "all":
+        query["user_id"] = sender_id
+
+    if from_ts or to_ts:
+        dt_query = {}
+        if from_ts:
+            dt_query["$gte"] = from_ts
+        if to_ts:
+            dt_query["$lt"] = to_ts
+        query["created_at"] = dt_query
+
+    debit_items = await db.ledger.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
+
+    all_user_ids = set()
+    for d in debit_items:
+        if d.get("user_id"):
+            all_user_ids.add(d.get("user_id"))
+
+    ref_ids = [d.get("ref_id") for d in debit_items if d.get("ref_id")]
+    recip_ledger_map = {}
+    if ref_ids:
+        recip_entries = await db.ledger.find(
+            {"ref_type": "fund_transfer", "kind": "credit", "ref_id": {"$in": ref_ids}},
+            {"_id": 0}
+        ).to_list(None)
+        for r_entry in recip_entries:
+            recip_ledger_map[r_entry.get("ref_id")] = r_entry
+            if r_entry.get("user_id"):
+                all_user_ids.add(r_entry.get("user_id"))
+
+    audit_map = {}
+    if ref_ids:
+        audits = await db.audit_logs.find(
+            {"action": "fund_transfer"},
+            {"_id": 0}
+        ).to_list(None)
+        for a in audits:
+            meta = a.get("meta") or {}
+            tid = meta.get("transfer_id") or a.get("id")
+            if tid:
+                audit_map[tid] = a
+                if a.get("target"):
+                    all_user_ids.add(a.get("target"))
+
+    users_list = []
+    if all_user_ids:
+        users_list = await db.users.find(
+            {"id": {"$in": list(all_user_ids)}},
+            {"_id": 0, "password_hash": 0, "mpin_hash": 0, "tpin_hash": 0}
+        ).to_list(None)
+    user_map = {u["id"]: u for u in users_list if u.get("id")}
+
+    enriched = []
+    for d in debit_items:
+        s_user = user_map.get(d.get("user_id")) or {}
+        sender_role = s_user.get("role", "")
+
+        if role and role != "all" and sender_role != role:
+            continue
+
+        ref_id = d.get("ref_id")
+        recip_ledger = recip_ledger_map.get(ref_id) or {}
+        audit_entry = audit_map.get(ref_id) or {}
+
+        recip_id = recip_ledger.get("user_id") or audit_entry.get("target") or ""
+        r_user = user_map.get(recip_id) or {}
+
+        if q:
+            needle = q.strip().lower()
+            s_name = (s_user.get("full_name") or "").lower()
+            s_email = (s_user.get("email") or "").lower()
+            s_phone = (s_user.get("phone") or "").lower()
+            s_firm = (s_user.get("firm_name") or "").lower()
+
+            r_name = (r_user.get("full_name") or audit_entry.get("meta", {}).get("recipient_name") or "").lower()
+            r_email = (r_user.get("email") or "").lower()
+            r_phone = (r_user.get("phone") or "").lower()
+            r_firm = (r_user.get("firm_name") or "").lower()
+
+            t_id = (ref_id or "").lower()
+            note = (d.get("note") or "").lower()
+
+            match = (
+                needle in s_name or needle in s_email or needle in s_phone or needle in s_firm or
+                needle in r_name or needle in r_email or needle in r_phone or needle in r_firm or
+                needle in t_id or needle in note
+            )
+            if not match:
+                continue
+
+        enriched.append({
+            "id": ref_id or d.get("id"),
+            "ledger_id": d.get("id"),
+            "created_at": d.get("created_at"),
+            "amount": float(d.get("amount") or 0.0),
+            "sender_id": d.get("user_id"),
+            "sender_name": s_user.get("full_name") or "Unknown",
+            "sender_email": s_user.get("email") or "",
+            "sender_phone": s_user.get("phone") or "",
+            "sender_role": sender_role,
+            "sender_firm": s_user.get("firm_name") or "",
+            "sender_balance_after": float(d.get("balance_after") or 0.0),
+            "recipient_id": recip_id,
+            "recipient_name": r_user.get("full_name") or audit_entry.get("meta", {}).get("recipient_name") or "Unknown",
+            "recipient_email": r_user.get("email") or "",
+            "recipient_phone": r_user.get("phone") or "",
+            "recipient_role": r_user.get("role") or audit_entry.get("meta", {}).get("recipient_role") or "",
+            "recipient_firm": r_user.get("firm_name") or "",
+            "recip_balance_after": float(recip_ledger.get("balance_after") or 0.0) if recip_ledger else None,
+            "note": d.get("note") or ""
+        })
+
+    all_debit_transfers = await db.ledger.find({"ref_type": "fund_transfer", "kind": "debit"}, {"_id": 0, "amount": 1, "created_at": 1}).to_list(None)
+
+    now_utc = datetime.now(timezone.utc)
+    today_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+    yesterday_start = today_start - timedelta(days=1)
+    month_start = now_utc.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    today_amount = 0.0
+    today_count = 0
+    yesterday_amount = 0.0
+    yesterday_count = 0
+    this_month_amount = 0.0
+    this_month_count = 0
+    all_time_amount = 0.0
+    all_time_count = len(all_debit_transfers)
+
+    for item in all_debit_transfers:
+        amt = float(item.get("amount") or 0.0)
+        all_time_amount += amt
+        dt_str = item.get("created_at")
+        if dt_str:
+            try:
+                dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+                if dt >= today_start:
+                    today_amount += amt
+                    today_count += 1
+                elif dt >= yesterday_start and dt < today_start:
+                    yesterday_amount += amt
+                    yesterday_count += 1
+                if dt >= month_start:
+                    this_month_amount += amt
+                    this_month_count += 1
+            except Exception:
+                pass
+
+    filtered_amount = sum(it["amount"] for it in enriched)
+    filtered_count = len(enriched)
+
+    total_items = len(enriched)
+    start_idx = (page - 1) * page_size
+    end_idx = start_idx + page_size
+    paginated_items = enriched[start_idx:end_idx]
+
+    return {
+        "items": paginated_items,
+        "total": total_items,
+        "page": page,
+        "page_size": page_size,
+        "stats": {
+            "today_amount": round(today_amount, 2),
+            "today_count": today_count,
+            "yesterday_amount": round(yesterday_amount, 2),
+            "yesterday_count": yesterday_count,
+            "this_month_amount": round(this_month_amount, 2),
+            "this_month_count": this_month_count,
+            "all_time_amount": round(all_time_amount, 2),
+            "all_time_count": all_time_count,
+            "filtered_amount": round(filtered_amount, 2),
+            "filtered_count": filtered_count
+        }
     }
 
 class BrandingSettingsIn(BaseModel):

@@ -609,15 +609,24 @@ export default function AdminTransactions() {
             )}
           </div>
 
-          <div>
+          <div className="relative">
             <input
               type="text"
               value={amtQuery}
               onChange={(e) => setAmtQuery(e.target.value)}
               placeholder="Search Amount ₹"
-              className="mfp-input"
+              className="mfp-input !pr-10"
               data-testid="tx-amount-search"
             />
+            {amtQuery && (
+              <button
+                type="button"
+                onClick={() => setAmtQuery("")}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-[#1B4332]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
 
           <div>

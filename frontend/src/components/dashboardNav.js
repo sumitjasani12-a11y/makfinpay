@@ -24,6 +24,7 @@ export const NAV = {
     { to: "/admin/transactions", label: "CC Bill Request", icon: CreditCard },
     { to: "/admin/kyc", label: "KYC Requests", icon: FileCheck2 },
     { to: "/admin/live-bill-history", label: "Live Bill History", icon: History },
+    { to: "/admin/fund-transfers", label: "Fund Transfer Entry", icon: Send },
     { to: "/admin/statement", label: "Admin Statement", icon: ScrollText },
     { to: "/admin/qrcodes", label: "QR Codes", icon: QrCode },
     { to: "/admin/withdrawals", label: "Pay Withdrawals", icon: ArrowUpFromLine },
