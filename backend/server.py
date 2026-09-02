@@ -1192,7 +1192,7 @@ async def send_otp_email(to_email: str, otp: str):
         "Content-Type": "application/json"
     }
     payload = {
-        "from": "onboarding@resend.dev",
+        "from": "MAK FIN PAY <noreply@makfinpay.com>",
         "to": [to_email],
         "subject": "Password Reset OTP - MAK FIN PAY",
         "html": html_content
