@@ -6,7 +6,7 @@ import { PageHeader, DataTable } from "@/components/Shared";
 import { toast } from "sonner";
 import {
   RotateCcw, Search, X, Calendar, ChevronDown, Send, Crown, Users, UserCog,
-  TrendingUp, Clock, DollarSign, Filter, Check
+  TrendingUp, Clock, DollarSign, Filter, Check, Loader2
 } from "lucide-react";
 
 // --- Date Range Dropdown Filter Component ---
@@ -328,9 +328,9 @@ export default function AdminFundTransfers() {
 
   const columns = [
     {
-      header: "Date & Time",
-      accessorKey: "created_at",
-      cell: (row) => (
+      key: "created_at",
+      label: "Date & Time",
+      render: (row) => (
         <div>
           <div className="font-semibold text-neutral-800 text-xs">{fmtDate(row.created_at)}</div>
           <div className="text-[10px] text-neutral-400 font-mono mt-0.5">ID: {row.id?.slice(0, 8)}…</div>
@@ -338,8 +338,9 @@ export default function AdminFundTransfers() {
       ),
     },
     {
-      header: "Sender (MS / DS)",
-      cell: (row) => {
+      key: "sender_name",
+      label: "Sender (MS / DS)",
+      render: (row) => {
         const isMS = row.sender_role === "master_distributor";
         return (
           <div className="space-y-0.5">
@@ -361,8 +362,9 @@ export default function AdminFundTransfers() {
       },
     },
     {
-      header: "Recipient (Downline)",
-      cell: (row) => {
+      key: "recipient_name",
+      label: "Recipient (Downline)",
+      render: (row) => {
         const isDS = row.recipient_role === "distributor";
         const isAgent = row.recipient_role === "agent";
         return (
@@ -385,9 +387,9 @@ export default function AdminFundTransfers() {
       },
     },
     {
-      header: "Amount (₹)",
-      accessorKey: "amount",
-      cell: (row) => (
+      key: "amount",
+      label: "Amount (₹)",
+      render: (row) => (
         <div>
           <div className="text-sm font-black text-emerald-700">
             ₹{row.amount?.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
@@ -399,8 +401,9 @@ export default function AdminFundTransfers() {
       ),
     },
     {
-      header: "Remarks / Note",
-      cell: (row) => (
+      key: "note",
+      label: "Remarks / Note",
+      render: (row) => (
         <div className="text-xs text-neutral-600 max-w-xs truncate" title={row.note}>
           {row.note || "Fund Transfer"}
         </div>
@@ -574,14 +577,15 @@ export default function AdminFundTransfers() {
       {/* Main Table Component */}
       <DataTable
         columns={columns}
-        data={items}
-        total={total}
-        page={page}
-        pageSize={pageSize}
-        onPageChange={setPage}
-        onPageSizeChange={setPageSize}
-        loading={loading}
-        emptyMessage="No fund transfer entries found matching the selected filters."
+        rows={items}
+        empty={loading ? <div className="flex items-center justify-center gap-2 py-6 text-neutral-400 font-medium"><Loader2 className="h-5 w-5 animate-spin text-[#1B4332]" /></div> : "No fund transfer entries found matching the selected filters."}
+        pagination={{
+          page,
+          pageSize,
+          total,
+          onPageChange: setPage,
+          onPageSizeChange: (n) => { setPageSize(n); setPage(1); },
+        }}
       />
     </div>
   );
