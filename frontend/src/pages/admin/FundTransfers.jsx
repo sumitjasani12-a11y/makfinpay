@@ -427,7 +427,7 @@ export default function AdminFundTransfers() {
             <Clock className="h-4 w-4" />
           </div>
           <div className="mt-2 text-xl font-black text-emerald-900">
-            ₹{stats.today_amount?.toLocaleString("en-IN")}
+            ₹{stats.today_amount?.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
           </div>
           <div className="text-[11px] font-medium text-emerald-600 mt-0.5">
             {stats.today_count} transfers
@@ -441,7 +441,7 @@ export default function AdminFundTransfers() {
             <RotateCcw className="h-4 w-4" />
           </div>
           <div className="mt-2 text-xl font-black text-blue-900">
-            ₹{stats.yesterday_amount?.toLocaleString("en-IN")}
+            ₹{stats.yesterday_amount?.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
           </div>
           <div className="text-[11px] font-medium text-blue-600 mt-0.5">
             {stats.yesterday_count} transfers
@@ -455,7 +455,7 @@ export default function AdminFundTransfers() {
             <TrendingUp className="h-4 w-4" />
           </div>
           <div className="mt-2 text-xl font-black text-amber-900">
-            ₹{stats.this_month_amount?.toLocaleString("en-IN")}
+            ₹{stats.this_month_amount?.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
           </div>
           <div className="text-[11px] font-medium text-amber-600 mt-0.5">
             {stats.this_month_count} transfers
@@ -469,7 +469,7 @@ export default function AdminFundTransfers() {
             <DollarSign className="h-4 w-4" />
           </div>
           <div className="mt-2 text-xl font-black text-purple-900">
-            ₹{stats.all_time_amount?.toLocaleString("en-IN")}
+            ₹{stats.all_time_amount?.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
           </div>
           <div className="text-[11px] font-medium text-purple-600 mt-0.5">
             {stats.all_time_count} transfers
@@ -477,15 +477,15 @@ export default function AdminFundTransfers() {
         </div>
 
         {/* Filtered Selection Card */}
-        <div className="mfp-card p-4 bg-gradient-to-br from-slate-800 to-[#1B4332] text-white border-0 col-span-2 lg:col-span-1">
-          <div className="flex items-center justify-between text-white/80">
+        <div className="mfp-card p-4 !bg-gradient-to-br !from-slate-900 !to-[#1B4332] !border-[#1B4332]/40 text-white shadow-lg col-span-2 lg:col-span-1">
+          <div className="flex items-center justify-between text-amber-200/90">
             <span className="text-[11px] font-bold uppercase tracking-wider">Filtered Total</span>
             <Send className="h-4 w-4 text-[#FFE4C7]" />
           </div>
           <div className="mt-2 text-xl font-black text-white">
-            ₹{stats.filtered_amount?.toLocaleString("en-IN")}
+            ₹{stats.filtered_amount?.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
           </div>
-          <div className="text-[11px] font-medium text-white/80 mt-0.5">
+          <div className="text-[11px] font-medium text-emerald-200/90 mt-0.5">
             {stats.filtered_count} matching entries
           </div>
         </div>
