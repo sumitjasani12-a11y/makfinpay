@@ -421,7 +421,7 @@ export default function Login() {
                       value={forgotOtp}
                       onChange={(e) => setForgotOtp(e.target.value)}
                       className="w-full bg-white/[0.04] border border-white/10 focus:border-indigo-500/50 rounded-xl px-4 py-3 text-center text-lg tracking-widest font-mono font-bold text-indigo-400 placeholder-white/20 outline-none"
-                      placeholder="123456"
+                      placeholder=""
                     />
                     <button
                       type="button"
