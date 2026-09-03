@@ -168,10 +168,10 @@ export default function AdminRecharges() {
   const [rejectTargetId, setRejectTargetId] = useState(null);
 
   useEffect(() => {
-    api.get("/admin/rejection-reasons?type=recharge")
+    api.get("/rejection-reasons/active?target=qr")
       .then((r) => setPredefinedReasons(r.data || []))
       .catch((e) => console.log("Failed to fetch recharge rejection reasons:", e));
-  }, []);
+  }, [rejectTargetId]);
 
   const { user } = useAuth();
   const isSuperAdmin = user?.email?.toLowerCase() === "jigs.vanani@gmail.com";
