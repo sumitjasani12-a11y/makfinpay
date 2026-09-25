@@ -6541,9 +6541,62 @@ async def list_active_service_slabs(user=Depends(get_current_user)):
     return await db.service_charge_slabs.find({"is_deleted": False, "active": True}, {"_id": 0}).sort("min_amount", 1).to_list(100)
 
 # ---------- PAYOUT & NIXASOFT INTEGRATION ----------
+async def _ensure_payout_tables():
+    try:
+        async with db.pool.acquire() as conn:
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS payout_slabs (
+                    id VARCHAR(255) PRIMARY KEY,
+                    min_amount NUMERIC(15, 2) NOT NULL,
+                    max_amount NUMERIC(15, 2) NOT NULL,
+                    charge_amount NUMERIC(15, 2) NOT NULL,
+                    charge_type VARCHAR(20) DEFAULT 'flat',
+                    active BOOLEAN DEFAULT TRUE,
+                    is_deleted BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMPTZ
+                )
+            ''')
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS payout_transactions (
+                    id VARCHAR(255) PRIMARY KEY,
+                    request_id VARCHAR(255) UNIQUE NOT NULL,
+                    api_txn_id VARCHAR(255),
+                    user_id VARCHAR(255) NOT NULL,
+                    user_name VARCHAR(255),
+                    amount NUMERIC(15, 2) NOT NULL,
+                    charge NUMERIC(15, 2) NOT NULL,
+                    total_deducted NUMERIC(15, 2) NOT NULL,
+                    mobile_number VARCHAR(20),
+                    account_number VARCHAR(100),
+                    ifsc_code VARCHAR(50),
+                    beneficiary_name VARCHAR(255),
+                    bank_name VARCHAR(255),
+                    transfer_mode VARCHAR(20) DEFAULT 'IMPS',
+                    email_id VARCHAR(255),
+                    latitude VARCHAR(50),
+                    longitude VARCHAR(50),
+                    utr VARCHAR(255),
+                    status VARCHAR(50) DEFAULT 'PENDING',
+                    response_message TEXT,
+                    created_at TIMESTAMPTZ,
+                    updated_at TIMESTAMPTZ
+                )
+            ''')
+            await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS payout_enabled BOOLEAN DEFAULT TRUE')
+    except Exception as e:
+        logger.warning(f"Auto-table creation warning: {e}")
+
 @api.get("/admin/payout-slabs")
 async def admin_list_payout_slabs(user=Depends(require_roles("admin"))):
-    return await db.payout_slabs.find({"is_deleted": False}, {"_id": 0}).sort("min_amount", 1).to_list(100)
+    try:
+        return await db.payout_slabs.find({"is_deleted": False}, {"_id": 0}).sort("min_amount", 1).to_list(100)
+    except Exception as e:
+        logger.warning(f"admin_list_payout_slabs failed, self-healing: {e}")
+        await _ensure_payout_tables()
+        try:
+            return await db.payout_slabs.find({"is_deleted": False}, {"_id": 0}).sort("min_amount", 1).to_list(100)
+        except Exception:
+            return []
 
 @api.post("/admin/payout-slabs")
 async def admin_create_payout_slab(body: PayoutSlabIn, user=Depends(require_roles("admin"))):
@@ -6561,12 +6614,21 @@ async def admin_create_payout_slab(body: PayoutSlabIn, user=Depends(require_role
         "is_deleted": False,
         "created_at": now_iso()
     }
-    await db.payout_slabs.insert_one(dict(doc))
+    try:
+        await db.payout_slabs.insert_one(dict(doc))
+    except Exception as e:
+        logger.warning(f"admin_create_payout_slab insert failed, self-healing: {e}")
+        await _ensure_payout_tables()
+        await db.payout_slabs.insert_one(dict(doc))
     return clean(doc)
 
 @api.patch("/admin/payout-slabs/{sid}/toggle")
 async def admin_toggle_payout_slab(sid: str, user=Depends(require_roles("admin"))):
-    slab = await db.payout_slabs.find_one({"id": sid})
+    try:
+        slab = await db.payout_slabs.find_one({"id": sid})
+    except Exception:
+        await _ensure_payout_tables()
+        slab = await db.payout_slabs.find_one({"id": sid})
     if not slab:
         raise HTTPException(404, "Slab not found")
     new_active = not slab.get("active", True)
@@ -6575,28 +6637,50 @@ async def admin_toggle_payout_slab(sid: str, user=Depends(require_roles("admin")
 
 @api.delete("/admin/payout-slabs/{sid}")
 async def admin_delete_payout_slab(sid: str, user=Depends(require_roles("admin"))):
-    await db.payout_slabs.update_one({"id": sid}, {"$set": {"is_deleted": True}})
+    try:
+        await db.payout_slabs.update_one({"id": sid}, {"$set": {"is_deleted": True}})
+    except Exception:
+        await _ensure_payout_tables()
+        await db.payout_slabs.update_one({"id": sid}, {"$set": {"is_deleted": True}})
     return {"ok": True}
 
 @api.get("/admin/payout-settings")
 async def admin_get_payout_settings(user=Depends(require_roles("admin"))):
-    s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
-    return {"payout_enabled": bool(s.get("payout_enabled", True))}
+    try:
+        s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+        return {"payout_enabled": bool(s.get("payout_enabled", True))}
+    except Exception:
+        await _ensure_payout_tables()
+        return {"payout_enabled": True}
 
 @api.put("/admin/payout-settings")
 async def admin_update_payout_settings(body: PayoutToggleIn, user=Depends(require_roles("admin"))):
-    await db.settings.update_one({"id": "commission"}, {"$set": {"payout_enabled": body.payout_enabled, "updated_at": now_iso()}}, upsert=True)
+    try:
+        await db.settings.update_one({"id": "commission"}, {"$set": {"payout_enabled": body.payout_enabled, "updated_at": now_iso()}}, upsert=True)
+    except Exception:
+        await _ensure_payout_tables()
+        await db.settings.update_one({"id": "commission"}, {"$set": {"payout_enabled": body.payout_enabled, "updated_at": now_iso()}}, upsert=True)
     await manager.broadcast({"event": "settings_updated", "data": {"payout_enabled": body.payout_enabled}})
     return {"ok": True, "payout_enabled": body.payout_enabled}
 
 @api.get("/payout/status")
 async def get_payout_status():
-    s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
-    return {"payout_enabled": bool(s.get("payout_enabled", True))}
+    try:
+        s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+        return {"payout_enabled": bool(s.get("payout_enabled", True))}
+    except Exception:
+        return {"payout_enabled": True}
 
 @api.get("/payout/slabs")
 async def list_active_payout_slabs(user=Depends(get_current_user)):
-    return await db.payout_slabs.find({"is_deleted": False, "active": True}, {"_id": 0}).sort("min_amount", 1).to_list(100)
+    try:
+        return await db.payout_slabs.find({"is_deleted": False, "active": True}, {"_id": 0}).sort("min_amount", 1).to_list(100)
+    except Exception:
+        await _ensure_payout_tables()
+        try:
+            return await db.payout_slabs.find({"is_deleted": False, "active": True}, {"_id": 0}).sort("min_amount", 1).to_list(100)
+        except Exception:
+            return []
 
 @api.post("/service/payout")
 async def initiate_payout(body: PayoutRequestIn, user=Depends(require_approved_any())):
