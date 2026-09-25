@@ -150,15 +150,18 @@ export default function AdminPayoutSlabs() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Payout Charge Slabs & Master Status"
-        subtitle="Manage dynamic payout charge fee slabs and master ON/OFF toggle for agents."
-        action={
-          <button onClick={() => { setEditSlab(null); setModalOpen(true); }} className="mfp-btn-primary text-sm flex items-center gap-1.5">
-            <Plus className="h-4 w-4" /> Add Payout Slab
-          </button>
-        }
-      />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-black/5 pb-4">
+        <div>
+          <h2 className="text-2xl font-bold text-neutral-800">Payout Charge Slabs & Master Status</h2>
+          <p className="text-xs text-neutral-500 mt-1">Manage dynamic payout charge fee slabs and master ON/OFF toggle for agents.</p>
+        </div>
+        <button
+          onClick={() => { setEditSlab(null); setModalOpen(true); }}
+          className="mfp-btn-primary py-2.5 px-4 text-sm font-bold flex items-center justify-center gap-2 shrink-0 shadow-md"
+        >
+          <Plus className="h-4 w-4" /> Add Payout Slab
+        </button>
+      </div>
 
       {/* Master Payout ON/OFF Switch */}
       <div className={`mfp-card p-5 border-2 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
@@ -201,10 +204,18 @@ export default function AdminPayoutSlabs() {
       {loading ? (
         <div className="p-8 text-center text-neutral-500 font-medium">Loading payout slabs...</div>
       ) : slabs.length === 0 ? (
-        <div className="mfp-card p-12 text-center text-neutral-500 space-y-3">
-          <Layers className="h-10 w-10 text-neutral-300 mx-auto" />
-          <p className="font-medium text-neutral-700">No payout charge slabs configured yet.</p>
-          <p className="text-sm">Click "Add Payout Slab" above to define slab ranges.</p>
+        <div className="mfp-card p-12 text-center text-neutral-500 space-y-4">
+          <Layers className="h-12 w-12 text-neutral-300 mx-auto" />
+          <div>
+            <p className="font-bold text-neutral-800 text-base">No payout charge slabs configured yet.</p>
+            <p className="text-xs text-neutral-500 mt-1">Click the button below to add your first payout fee slab range.</p>
+          </div>
+          <button
+            onClick={() => { setEditSlab(null); setModalOpen(true); }}
+            className="mfp-btn-primary py-2.5 px-5 text-sm font-bold inline-flex items-center gap-2 shadow-md"
+          >
+            <Plus className="h-4 w-4" /> Add Payout Slab
+          </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
