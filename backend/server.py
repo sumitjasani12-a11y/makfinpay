@@ -6815,14 +6815,18 @@ async def initiate_payout(body: PayoutRequestIn, user=Depends(require_approved_a
     try:
         async with httpx.AsyncClient(timeout=30.0) as http_client:
             res = await http_client.post(f"{NIXASOFT_BASE_URL}/service/payout", headers=headers, json=payload)
-            res_json = res.json() if res.status_code == 200 else {}
-            logger.info(f"Nixasoft Payout API Response for {req_id}: {res_json}")
+            try:
+                res_json = res.json()
+            except Exception:
+                res_json = {}
 
-            status_code = str(res_json.get("statuscode", "")).upper()
-            msg = res_json.get("message") or res_json.get("description") or "Payout Submitted"
-            data = res_json.get("data") or {}
-            api_txn_id = str(data.get("apiTxnId") or "")
-            utr = str(data.get("utr") or "")
+            logger.info(f"Nixasoft Payout API Response ({res.status_code}) for {req_id}: {res_json or res.text}")
+
+            status_code = str(res_json.get("statuscode") or res_json.get("status") or "").upper()
+            msg = res_json.get("message") or res_json.get("description") or res_json.get("msg") or (f"HTTP {res.status_code} Error from API" if res.status_code != 200 else "Transaction Failed")
+            data = res_json.get("data") if isinstance(res_json.get("data"), dict) else {}
+            api_txn_id = str(data.get("apiTxnId") or res_json.get("apiTxnId") or "")
+            utr = str(data.get("utr") or res_json.get("utr") or "")
 
             if status_code == "TXN":
                 # Success
@@ -7000,13 +7004,17 @@ async def check_payout_report_status(body: dict, user=Depends(get_current_user))
     try:
         async with httpx.AsyncClient(timeout=30.0) as http_client:
             res = await http_client.post(f"{NIXASOFT_BASE_URL}/payout/report-status", headers=headers, json=payload)
-            res_json = res.json() if res.status_code == 200 else {}
-            logger.info(f"Nixasoft Report Status Response for {req_id}: {res_json}")
+            try:
+                res_json = res.json()
+            except Exception:
+                res_json = {}
 
-            st = str(res_json.get("statuscode", "")).upper()
-            data = res_json.get("data") or {}
-            utr = str(data.get("utr") or "")
-            msg = res_json.get("message") or data.get("description") or ""
+            logger.info(f"Nixasoft Report Status Response ({res.status_code}) for {req_id}: {res_json or res.text}")
+
+            st = str(res_json.get("statuscode") or res_json.get("status") or "").upper()
+            data = res_json.get("data") if isinstance(res_json.get("data"), dict) else {}
+            utr = str(data.get("utr") or res_json.get("utr") or "")
+            msg = res_json.get("message") or res_json.get("description") or data.get("description") or (f"HTTP {res.status_code} Response" if res.status_code != 200 else "")
 
             if st == "TXN" and tx.get("status") != "SUCCESS":
                 await db.payout_transactions.update_one(
