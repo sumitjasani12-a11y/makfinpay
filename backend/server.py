@@ -1009,6 +1009,13 @@ async def logout(response: Response):
 async def me(user: dict = Depends(get_current_user)):
     return user
 
+@api.get("/wallet/balance")
+async def get_wallet_balance(user: dict = Depends(get_current_user)):
+    db_user = await db.users.find_one({"id": user["id"]})
+    bal = float((db_user or user).get("wallet_balance", 0.0))
+    return {"ok": True, "balance": bal, "wallet_balance": bal}
+
+
 @api.post("/agent/change-first-password")
 async def change_first_password(body: ChangeFirstPasswordIn, user=Depends(require_roles("agent", "distributor", "master_distributor"))):
     if not user.get("first_login", True):

@@ -34,14 +34,15 @@ export default function AgentPayout() {
   const loadData = async () => {
     try {
       const [walletRes, slabRes, bankRes, txRes, statusRes] = await Promise.all([
-        api.get("/wallet/balance"),
-        api.get("/payout/slabs"),
+        api.get("/wallet/balance").catch(() => api.get("/auth/me")),
+        api.get("/payout/slabs").catch(() => ({ data: [] })),
         api.get("/admin/banks").catch(() => ({ data: [] })),
-        api.get("/payout/transactions"),
+        api.get("/payout/transactions").catch(() => ({ data: [] })),
         api.get("/payout/status").catch(() => ({ data: { payout_enabled: true } }))
       ]);
 
-      setWalletBal(walletRes.data?.balance || 0);
+      const bal = walletRes.data?.balance ?? walletRes.data?.wallet_balance ?? 0;
+      setWalletBal(bal);
       setSlabs(slabRes.data || []);
       setBanks((bankRes.data || []).filter((b) => b.payout_enabled && b.active));
       setTransactions(txRes.data || []);
