@@ -1,11 +1,13 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { api, formatErr } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { PageHeader } from "@/components/Shared";
 import { toast } from "sonner";
 import { Send, Building2, CheckCircle2, Clock, XCircle, RefreshCw, Info, Copy, Check } from "lucide-react";
 
 export default function AgentPayout() {
-  const [walletBal, setWalletBal] = useState(0);
+  const { user, fetchMe } = useAuth();
+  const [walletBal, setWalletBal] = useState(user?.wallet_balance || 0);
   const [slabs, setSlabs] = useState([]);
   const [banks, setBanks] = useState([]);
   
@@ -33,6 +35,7 @@ export default function AgentPayout() {
   // Load initial data (wallet, slabs, banks, history, geo, status)
   const loadData = async () => {
     try {
+      if (fetchMe) fetchMe();
       const [walletRes, slabRes, bankRes, txRes, statusRes] = await Promise.all([
         api.get("/wallet/balance").catch(() => api.get("/auth/me")),
         api.get("/payout/slabs").catch(() => ({ data: [] })),
@@ -41,7 +44,7 @@ export default function AgentPayout() {
         api.get("/payout/status").catch(() => ({ data: { payout_enabled: true } }))
       ]);
 
-      const bal = walletRes.data?.balance ?? walletRes.data?.wallet_balance ?? 0;
+      const bal = walletRes.data?.balance ?? walletRes.data?.wallet_balance ?? user?.wallet_balance ?? 0;
       setWalletBal(bal);
       setSlabs(slabRes.data || []);
       setBanks((bankRes.data || []).filter((b) => b.payout_enabled && b.active));
@@ -110,8 +113,9 @@ export default function AgentPayout() {
     if (!bankName.trim()) return toast.error("Bank Name is required");
     if (!mobileNumber.trim() || mobileNumber.trim().length < 10) return toast.error("Valid 10-digit mobile number is required");
 
-    if (chargeInfo.total > walletBal) {
-      return toast.error(`Insufficient Wallet Balance! Required ₹${chargeInfo.total} (Available: ₹${walletBal.toFixed(2)})`);
+    const availBal = walletBal || user?.wallet_balance || 0;
+    if (chargeInfo.total > availBal) {
+      return toast.error(`Insufficient Wallet Balance! Required ₹${chargeInfo.total} (Available: ₹${availBal.toFixed(2)})`);
     }
 
     setSubmitting(true);
@@ -172,6 +176,8 @@ export default function AgentPayout() {
     setTimeout(() => setCopiedUtr(null), 2000);
   };
 
+  const displayBalance = walletBal || user?.wallet_balance || 0;
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       <PageHeader
@@ -179,7 +185,7 @@ export default function AgentPayout() {
         subtitle="Direct bank account payouts with live dynamic charge calculations & instant UTR reporting."
         action={
           <div className="bg-[#1B4332]/10 border border-[#1B4332]/20 px-4 py-2 rounded-xl text-[#1B4332] font-semibold text-sm">
-            Wallet Balance: <span className="text-emerald-700 font-bold">₹{walletBal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+            Wallet Balance: <span className="text-emerald-700 font-bold">₹{displayBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
           </div>
         }
       />

@@ -482,6 +482,11 @@ async def get_current_user(request: Request) -> dict:
         s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
         if s.get("maintenance_mode") and not user.get("is_tester", False):
             raise HTTPException(503, "Site is under maintenance. Please try again later.")
+        w = await db.wallets.find_one({"user_id": user["id"]})
+        if w:
+            user["wallet_balance"] = float(w.get("balance", 0.0))
+        else:
+            user["wallet_balance"] = float(user.get("wallet_balance", 0.0))
     user.pop("password_hash", None)
     return user
 
@@ -2020,6 +2025,14 @@ async def _wallet_balances_for(user_ids: List[str]) -> dict:
     ):
         out[w["user_id"]] = w.get("balance", 0)
     return out
+
+
+async def get_user_wallet(user_id: str) -> dict:
+    w = await db.wallets.find_one({"user_id": user_id})
+    if not w:
+        w = {"user_id": user_id, "balance": 0.0}
+    return w
+
 
 
 async def _distributor_earnings_batch(dist_ids: List[str]) -> dict:
