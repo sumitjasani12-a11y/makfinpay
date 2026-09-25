@@ -27,9 +27,6 @@ export default function AgentPayout() {
   const [transactions, setTransactions] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [transactions, setTransactions] = useState([]);
-  const [submitting, setSubmitting] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [copiedUtr, setCopiedUtr] = useState(null);
   const [payoutEnabled, setPayoutEnabled] = useState(true);
 
