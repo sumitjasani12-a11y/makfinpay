@@ -41,10 +41,12 @@ const ROUTE_META = {
   "/admin/audit": { title: "Audit Logs | MAK FIN PAY" },
   "/admin/change-password": { title: "Change Password | MAK FIN PAY" },
   "/admin/cc-billers": { title: "CC Billers | MAK FIN PAY" },
+  "/admin/payout-slabs": { title: "Payout Slabs | MAK FIN PAY" },
 
   // Distributor
   "/distributor": { title: "Dashboard | MAK FIN PAY" },
   "/distributor/agents": { title: "My Agents | MAK FIN PAY" },
+  "/distributor/payout": { title: "Bank Payout | MAK FIN PAY" },
   "/distributor/recharges": { title: "Recharge Activity | MAK FIN PAY" },
   "/distributor/withdrawal": { title: "Withdrawal | MAK FIN PAY" },
   "/distributor/change-password": { title: "Change Password | MAK FIN PAY" },
@@ -52,6 +54,7 @@ const ROUTE_META = {
 
   // Master Distributor
   "/md/change-mpin": { title: "Change MPIN | MAK FIN PAY" },
+  "/md/payout": { title: "Bank Payout | MAK FIN PAY" },
 
   // Agent
   "/agent": { title: "Dashboard | MAK FIN PAY" },
@@ -59,6 +62,7 @@ const ROUTE_META = {
   "/agent/billpay": { title: "Credit Card Bill | MAK FIN PAY" },
   "/agent/live-billpay": { title: "Live Bill Pay | MAK FIN PAY" },
   "/agent/live-billpay/history": { title: "Live Bill History | MAK FIN PAY" },
+  "/agent/payout": { title: "Bank Payout | MAK FIN PAY" },
   "/agent/ledger": { title: "Wallet Ledger | MAK FIN PAY" },
   "/agent/withdrawal": { title: "Withdrawal | MAK FIN PAY" },
   "/agent/change-password": { title: "Change Password | MAK FIN PAY" },

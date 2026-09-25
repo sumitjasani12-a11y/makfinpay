@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { LogOut, ChevronDown, ChevronRight } from "lucide-react";
+import { api } from "@/lib/api";
 import Logo from "./Logo";
 
 const getIconColor = (label) => {
@@ -22,6 +23,7 @@ const getIconColor = (label) => {
     "Withdrawals": "text-[#FF5A5F]", // Soft Red
     "Withdrawal": "text-[#FF5A5F]",
     "Pay Withdrawal": "text-[#FF5A5F]",
+    "Bank Payout": "text-[#00B4D8]", // Bright Blue
     "Transactions": "text-[#FF9F1C]", // Orange
     "Transaction History": "text-[#FF9F1C]",
     "Live Bill History": "text-[#FFB703]", // Golden Amber
@@ -35,6 +37,7 @@ const getIconColor = (label) => {
     "Add Announcement": "text-[#EF476F]", // Bright Red
     "Commission": "text-[#F15BB5]", // Pink
     "Service Slabs": "text-[#2A9D8F]", // Dark Sage
+    "Payout Slabs": "text-[#00B4D8]", // Bright Blue
     "Bank Entry": "text-[#E9D8A6]", // Soft Yellow
     "CC Billers": "text-[#7209B7]", // Purple
     "KYC Review": "text-[#EE9B00]", // Ochre
@@ -52,6 +55,22 @@ const getIconColor = (label) => {
 export function SidebarContent({ user, items, onLogout, pendingCounts = {}, collapsed = false }) {
   const location = useLocation();
   const [expandedGroups, setExpandedGroups] = useState({});
+  const [payoutEnabled, setPayoutEnabled] = useState(true);
+
+  useEffect(() => {
+    if (user?.role !== "admin") {
+      api.get("/payout/status")
+        .then((r) => setPayoutEnabled(r.data?.payout_enabled ?? true))
+        .catch(() => {});
+    }
+  }, [user]);
+
+  const filteredItems = items.filter((it) => {
+    if (user?.role !== "admin" && !payoutEnabled && (it.label === "Bank Payout" || (it.to && it.to.includes("/payout")))) {
+      return false;
+    }
+    return true;
+  });
 
   const getBadgeCount = (label) => {
     if (label === "QR Approvals") return pendingCounts.recharges || 0;
@@ -98,7 +117,7 @@ export function SidebarContent({ user, items, onLogout, pendingCounts = {}, coll
       </Link>
       
       <nav className={`flex-1 overflow-y-auto no-scrollbar ${collapsed ? "p-2.5 space-y-2" : "p-4 space-y-1.5"}`}>
-        {items.map((it) => {
+        {filteredItems.map((it) => {
           if (it.children) {
             const activeGroup = isGroupActive(it.children);
             const expanded = isGroupExpanded(it);

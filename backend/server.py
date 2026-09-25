@@ -41,6 +41,10 @@ APP_NAME = os.environ.get("APP_NAME", "makfinpay")
 EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
 STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
 
+NIXASOFT_API_TOKEN = os.environ.get("NIXASOFT_API_TOKEN", "ff56e1fee07f73406b2dd29d6554968f")
+NIXASOFT_BASE_URL = os.environ.get("NIXASOFT_BASE_URL", "https://api.nixasoft.in/api")
+
+
 from database import PostgresDatabase
 db = PostgresDatabase()
 client = db
@@ -628,6 +632,28 @@ class LiveBillFetchIn(BaseModel):
 class LiveBillPayIn(BaseModel):
     billerId: str
     amount: float
+
+class PayoutSlabIn(BaseModel):
+    min_amount: float = Field(..., ge=0)
+    max_amount: float = Field(..., gt=0)
+    charge_amount: float = Field(..., ge=0)
+    charge_type: Literal["flat", "percent"] = "flat"
+
+class PayoutRequestIn(BaseModel):
+    amount: float = Field(..., gt=0)
+    mobileNumber: str
+    accountNumber: str
+    ifscCode: str
+    beneficiaryName: str
+    bankName: str
+    transferMode: str = "IMPS"
+    emailId: Optional[str] = "agent@makfinpay.com"
+    latitude: Optional[str] = "23.0225"
+    longitude: Optional[str] = "72.5714"
+
+class PayoutToggleIn(BaseModel):
+    payout_enabled: bool
+
     mobile: str
     fetchRequestId: Optional[str] = None
     additionalInfo: Optional[dict] = None
@@ -5355,7 +5381,8 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
         "reviewed_at": None,
         "reviewed_by": None,
         "note": f"Live Bill Payment - {body.mobile}",
-        "api_charge": 0.0
+        "api_charge": 0.0,
+        "fetch_request_id": body.fetchRequestId
     }
     await db.transactions.insert_one(dict(tx))
     
@@ -5372,7 +5399,9 @@ async def post_live_billpay_pay(body: LiveBillPayIn, request: Request, user=Depe
         "amount": body.amount,
         "mobile": body.mobile,
         "customerParams": [dict(x) for x in body.customerParams],
-        "billerResponseInfo": biller_info
+        "billerResponseInfo": biller_info,
+        "client_transaction_id": tid,
+        "clientTransactionId": tid
     }
     if body.fetchRequestId:
         payload["fetchRequestId"] = body.fetchRequestId
@@ -5777,11 +5806,25 @@ async def admin_check_live_bill_status(tid: str, request: Request, user=Depends(
         raise HTTPException(400, "Transaction is not a live bill payment")
     
     op_txn_id = t.get("operator_txn_id")
-    if not op_txn_id:
-        raise HTTPException(400, "Cannot check status: No operator transaction ID is associated with this transaction.")
+    fetch_req_id = t.get("fetch_request_id")
+    
+    # Priority order for transaction_id parameter:
+    # 1. operator_txn_id (if present, valid, and not "N/A" or empty)
+    # 2. tid (Custom Client Order ID / system transaction id)
+    # 3. fetch_request_id (if present)
+    query_id = None
+    if op_txn_id and str(op_txn_id).strip().upper() not in ("N/A", "NONE", ""):
+        query_id = str(op_txn_id).strip()
+    elif tid:
+        query_id = str(tid).strip()
+    elif fetch_req_id and str(fetch_req_id).strip():
+        query_id = str(fetch_req_id).strip()
+        
+    if not query_id:
+        raise HTTPException(400, "Cannot check status: No valid Transaction ID, Client Order ID, or Fetch Request ID available.")
         
     try:
-        res = await call_irise_api("GET", f"status/{op_txn_id}")
+        res = await call_irise_api("GET", f"status/{query_id}")
     except Exception as e:
         raise HTTPException(502, f"Failed to fetch status from provider: {str(e)}")
         
@@ -5791,45 +5834,59 @@ async def admin_check_live_bill_status(tid: str, request: Request, user=Depends(
     data = res.get("data") or {}
     current_status = str(data.get("current_status") or data.get("status") or data.get("payment_status") or "pending").strip().lower()
     
+    # As requested: Strictly update API Txn ID (data.get("transaction_id")), NOT CC01 / bbps_txn_ref_id
+    api_txn_id_returned = data.get("transaction_id") or data.get("txnid") or data.get("operator_id")
+    
+    update_fields = {}
+    if api_txn_id_returned and str(api_txn_id_returned).strip().upper() not in ("N/A", "NONE", ""):
+        update_fields["operator_txn_id"] = str(api_txn_id_returned).strip()
+    
     if t["status"] == "pending":
         if current_status in ("success", "successful", "00", "ok"):
             s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
             api_charge = float(s.get("live_bill_api_charge", 0.0))
             
-            await db.transactions.update_one({"id": tid}, {"$set": {
+            update_fields.update({
                 "status": "success",
                 "reviewed_by": user["id"],
                 "reviewed_at": now_iso(),
                 "api_charge": api_charge
-            }})
+            })
+            await db.transactions.update_one({"id": tid}, {"$set": update_fields})
             
             await log_admin_cashbook("debit", t["bill_amount"], "bbps_payout", tid, f"Paid Live Bill for {t.get('user_name', 'Agent')} ({t.get('operator', 'Biller')})")
             profit = round(t["service_charge"] - api_charge, 2)
             await log_admin_profit("credit", profit, "live_bill_fee", tid, f"Profit margin from Live Bill ({t.get('user_name', 'Agent')})")
             
-            await write_audit(user["id"], "live_bill_status_success", target=tid, meta={"amount": t["amount"], "op_txn_id": op_txn_id}, request=request)
+            await write_audit(user["id"], "live_bill_status_success", target=tid, meta={"amount": t["amount"], "query_id": query_id, "op_txn_id": update_fields.get("operator_txn_id") or op_txn_id}, request=request)
             await manager.send_to_user(t["user_id"], {"event": "cc_bill_updated", "data": {"id": tid, "status": "success"}})
             await manager.send_to_role("admin", {"event": "cc_bill_updated", "data": {"id": tid, "status": "success"}})
             return {"ok": True, "status": "success", "message": "Transaction marked as SUCCESS based on Usepay API."}
             
         elif current_status in ("failed", "failure", "reversed", "reject", "rejected", "error"):
             new_balance = await adjust_balance(t["user_id"], t["amount"])
-            await db.transactions.update_one({"id": tid}, {"$set": {
+            err_msg = data.get("message") or f"Automatically reversed/refunded based on Usepay API status: {current_status}"
+            update_fields.update({
                 "status": "reversed",
-                "note": f"Automatically reversed/refunded based on Usepay API status: {current_status}",
+                "note": err_msg,
                 "reviewed_by": user["id"],
                 "reviewed_at": now_iso()
-            }})
+            })
+            await db.transactions.update_one({"id": tid}, {"$set": update_fields})
             await ledger_entry(t["user_id"], "refund", t["amount"], new_balance, "live_bill_refund", tid, f"Refund: Auto-reversed based on Usepay API status for {t.get('customer_phone', 'Biller')}")
             
-            await write_audit(user["id"], "live_bill_status_failed", target=tid, meta={"amount": t["amount"], "op_txn_id": op_txn_id}, request=request)
+            await write_audit(user["id"], "live_bill_status_failed", target=tid, meta={"amount": t["amount"], "query_id": query_id, "op_txn_id": update_fields.get("operator_txn_id") or op_txn_id}, request=request)
             await manager.send_to_user(t["user_id"], {"event": "cc_bill_updated", "data": {"id": tid, "status": "reversed"}})
             await manager.send_to_role("admin", {"event": "cc_bill_updated", "data": {"id": tid, "status": "reversed"}})
             return {"ok": True, "status": "reversed", "message": "Transaction marked as FAILED & REFUNDED based on Usepay API."}
             
         else:
+            if update_fields:
+                await db.transactions.update_one({"id": tid}, {"$set": update_fields})
             return {"ok": True, "status": "pending", "message": f"Transaction status at Usepay is: {current_status.upper()} (Awaited/Pending)."}
     else:
+        if update_fields:
+            await db.transactions.update_one({"id": tid}, {"$set": update_fields})
         return {"ok": True, "status": t["status"], "message": f"Transaction is already in status: {t['status']}"}
 
 # ---------- WITHDRAWALS ----------
@@ -6489,6 +6546,432 @@ async def admin_delete_service_slab(sid: str, user=Depends(require_roles("admin"
 @api.get("/billing/service-slabs")
 async def list_active_service_slabs(user=Depends(get_current_user)):
     return await db.service_charge_slabs.find({"is_deleted": False, "active": True}, {"_id": 0}).sort("min_amount", 1).to_list(100)
+
+# ---------- PAYOUT & NIXASOFT INTEGRATION ----------
+@api.get("/admin/payout-slabs")
+async def admin_list_payout_slabs(user=Depends(require_roles("admin"))):
+    return await db.payout_slabs.find({"is_deleted": False}, {"_id": 0}).sort("min_amount", 1).to_list(100)
+
+@api.post("/admin/payout-slabs")
+async def admin_create_payout_slab(body: PayoutSlabIn, user=Depends(require_roles("admin"))):
+    if body.min_amount < 0 or body.max_amount <= body.min_amount or body.charge_amount < 0:
+        raise HTTPException(400, "Invalid amounts configuration")
+    if body.charge_type not in ("flat", "percent"):
+        raise HTTPException(400, "Invalid charge type")
+    doc = {
+        "id": new_id(),
+        "min_amount": body.min_amount,
+        "max_amount": body.max_amount,
+        "charge_amount": body.charge_amount,
+        "charge_type": body.charge_type,
+        "active": True,
+        "is_deleted": False,
+        "created_at": now_iso()
+    }
+    await db.payout_slabs.insert_one(dict(doc))
+    return clean(doc)
+
+@api.patch("/admin/payout-slabs/{sid}/toggle")
+async def admin_toggle_payout_slab(sid: str, user=Depends(require_roles("admin"))):
+    slab = await db.payout_slabs.find_one({"id": sid})
+    if not slab:
+        raise HTTPException(404, "Slab not found")
+    new_active = not slab.get("active", True)
+    await db.payout_slabs.update_one({"id": sid}, {"$set": {"active": new_active}})
+    return {"ok": True, "active": new_active}
+
+@api.delete("/admin/payout-slabs/{sid}")
+async def admin_delete_payout_slab(sid: str, user=Depends(require_roles("admin"))):
+    await db.payout_slabs.update_one({"id": sid}, {"$set": {"is_deleted": True}})
+    return {"ok": True}
+
+@api.get("/admin/payout-settings")
+async def admin_get_payout_settings(user=Depends(require_roles("admin"))):
+    s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    return {"payout_enabled": bool(s.get("payout_enabled", True))}
+
+@api.put("/admin/payout-settings")
+async def admin_update_payout_settings(body: PayoutToggleIn, user=Depends(require_roles("admin"))):
+    await db.settings.update_one({"id": "commission"}, {"$set": {"payout_enabled": body.payout_enabled, "updated_at": now_iso()}}, upsert=True)
+    await manager.broadcast({"event": "settings_updated", "data": {"payout_enabled": body.payout_enabled}})
+    return {"ok": True, "payout_enabled": body.payout_enabled}
+
+@api.get("/payout/status")
+async def get_payout_status():
+    s = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    return {"payout_enabled": bool(s.get("payout_enabled", True))}
+
+@api.get("/payout/slabs")
+async def list_active_payout_slabs(user=Depends(get_current_user)):
+    return await db.payout_slabs.find({"is_deleted": False, "active": True}, {"_id": 0}).sort("min_amount", 1).to_list(100)
+
+@api.post("/service/payout")
+async def initiate_payout(body: PayoutRequestIn, user=Depends(require_approved_any())):
+    s_set = await db.settings.find_one({"id": "commission"}, {"_id": 0}) or {}
+    if not s_set.get("payout_enabled", True):
+        raise HTTPException(403, "Bank Payout service is currently disabled by Admin.")
+
+    amt = round(float(body.amount), 2)
+    if amt <= 0:
+        raise HTTPException(400, "Invalid payout amount")
+    
+    acc = body.accountNumber.strip()
+    ifsc = body.ifscCode.strip().upper()
+    mob = body.mobileNumber.strip()
+    name = body.beneficiaryName.strip()
+    bank = body.bankName.strip()
+    mode = body.transferMode.strip().upper()
+
+    if not acc or not ifsc or not mob or not name or not bank:
+        raise HTTPException(400, "All beneficiary fields are required")
+
+    # 1. Fetch matching dynamic slab from payout_slabs
+    slabs = await db.payout_slabs.find({"is_deleted": False, "active": True}, {"_id": 0}).sort("min_amount", 1).to_list(100)
+    matched_slab = next((s for s in slabs if amt >= float(s["min_amount"]) and amt <= float(s["max_amount"])), None)
+    
+    if matched_slab:
+        if matched_slab.get("charge_type") == "percent":
+            charge = round(amt * (float(matched_slab["charge_amount"]) / 100.0), 2)
+        else:
+            charge = round(float(matched_slab["charge_amount"]), 2)
+    else:
+        # Fallback default charge: <= 50,000 is 25, > 50,000 is 50
+        charge = 25.0 if amt <= 50000.0 else 50.0
+
+    total_deducted = round(amt + charge, 2)
+
+    # 2. Check & debit user wallet
+    w = await get_user_wallet(user["id"])
+    bal = float(w.get("balance", 0.0))
+    if bal < total_deducted:
+        raise HTTPException(400, f"Insufficient wallet balance. Total required: ₹{total_deducted:.2f} (Amount: ₹{amt} + Charge: ₹{charge})")
+
+    new_bal = round(bal - total_deducted, 2)
+    await db.wallets.update_one({"user_id": user["id"]}, {"$set": {"balance": new_bal, "updated_at": now_iso()}})
+
+    # 3. Generate Unique Request ID
+    req_id = f"PO{int(datetime.now(timezone.utc).timestamp()*1000)}{secrets.token_hex(2).upper()}"
+    tx_id = new_id()
+
+    # 4. Insert Ledger & Profit/Cashbook records
+    masked_acc = acc[-4:] if len(acc) >= 4 else acc
+    await ledger_entry(
+        user_id=user["id"],
+        kind="debit",
+        amount=total_deducted,
+        balance_after=new_bal,
+        ref_type="payout",
+        ref_id=req_id,
+        note=f"Payout Request to {name} ({bank} A/C ...{masked_acc}) - Amount: ₹{amt:.2f}, Charge: ₹{charge:.2f}"
+    )
+
+    if charge > 0:
+        await log_admin_profit("credit", charge, "payout_charge", req_id, f"Payout Charge Profit from {user.get('full_name')} for {req_id}")
+        await log_admin_cashbook("credit", charge, "payout_charge", req_id, f"Payout Charge Collected for {req_id}")
+
+    # 5. Create Payout Transaction Record
+    payout_doc = {
+        "id": tx_id,
+        "request_id": req_id,
+        "api_txn_id": "",
+        "user_id": user["id"],
+        "user_name": user.get("full_name", ""),
+        "amount": amt,
+        "charge": charge,
+        "total_deducted": total_deducted,
+        "mobile_number": mob,
+        "account_number": acc,
+        "ifsc_code": ifsc,
+        "beneficiary_name": name,
+        "bank_name": bank,
+        "transfer_mode": mode,
+        "email_id": body.emailId or user.get("email", "agent@makfinpay.com"),
+        "latitude": body.latitude or "23.0225",
+        "longitude": body.longitude or "72.5714",
+        "utr": "",
+        "status": "PENDING",
+        "response_message": "Processing Payout Request",
+        "created_at": now_iso(),
+        "updated_at": now_iso()
+    }
+    await db.payout_transactions.insert_one(dict(payout_doc))
+
+    # 6. Call Nixasoft Fintech Payout API
+    headers = {
+        "apiToken": NIXASOFT_API_TOKEN,
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "amount": str(amt),
+        "mobileNumber": mob,
+        "requestId": req_id,
+        "accountNumber": acc,
+        "ifscCode": ifsc,
+        "beneficiaryName": name,
+        "bankName": bank,
+        "transferMode": mode,
+        "emailId": body.emailId or user.get("email", "agent@makfinpay.com"),
+        "latitude": body.latitude or "23.0225",
+        "longitude": body.longitude or "72.5714"
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as http_client:
+            res = await http_client.post(f"{NIXASOFT_BASE_URL}/service/payout", headers=headers, json=payload)
+            res_json = res.json() if res.status_code == 200 else {}
+            logger.info(f"Nixasoft Payout API Response for {req_id}: {res_json}")
+
+            status_code = str(res_json.get("statuscode", "")).upper()
+            msg = res_json.get("message") or res_json.get("description") or "Payout Submitted"
+            data = res_json.get("data") or {}
+            api_txn_id = str(data.get("apiTxnId") or "")
+            utr = str(data.get("utr") or "")
+
+            if status_code == "TXN":
+                # Success
+                await db.payout_transactions.update_one(
+                    {"request_id": req_id},
+                    {"$set": {
+                        "status": "SUCCESS",
+                        "api_txn_id": api_txn_id,
+                        "utr": utr,
+                        "response_message": msg,
+                        "updated_at": now_iso()
+                    }}
+                )
+                return {
+                    "ok": True,
+                    "status": "SUCCESS",
+                    "request_id": req_id,
+                    "utr": utr,
+                    "message": "Payout completed successfully!"
+                }
+
+            elif status_code == "TXP":
+                # Pending
+                await db.payout_transactions.update_one(
+                    {"request_id": req_id},
+                    {"$set": {
+                        "status": "PENDING",
+                        "api_txn_id": api_txn_id,
+                        "utr": utr,
+                        "response_message": msg,
+                        "updated_at": now_iso()
+                    }}
+                )
+                return {
+                    "ok": True,
+                    "status": "PENDING",
+                    "request_id": req_id,
+                    "message": "Payout request submitted & is processing."
+                }
+
+            else:
+                # Failed - Refund Agent Wallet
+                err_desc = msg or "Transaction Failed & Refunded"
+                await db.payout_transactions.update_one(
+                    {"request_id": req_id},
+                    {"$set": {
+                        "status": "FAILED",
+                        "api_txn_id": api_txn_id,
+                        "response_message": err_desc,
+                        "updated_at": now_iso()
+                    }}
+                )
+
+                # Perform Atomic Refund
+                cur_w = await get_user_wallet(user["id"])
+                refund_bal = round(float(cur_w.get("balance", 0.0)) + total_deducted, 2)
+                await db.wallets.update_one({"user_id": user["id"]}, {"$set": {"balance": refund_bal, "updated_at": now_iso()}})
+
+                await ledger_entry(
+                    user_id=user["id"],
+                    kind="refund",
+                    amount=total_deducted,
+                    balance_after=refund_bal,
+                    ref_type="payout_refund",
+                    ref_id=req_id,
+                    note=f"Payout Refund: ₹{total_deducted:.2f} for Failed Request #{req_id} ({err_desc})"
+                )
+
+                if charge > 0:
+                    await log_admin_cashbook("debit", charge, "payout_refund_charge", req_id, f"Payout Charge Refunded for {req_id}")
+
+                return {
+                    "ok": False,
+                    "status": "FAILED",
+                    "request_id": req_id,
+                    "message": f"Payout Failed & Amount Refunded: {err_desc}"
+                }
+
+    except Exception as e:
+        logger.error(f"Nixasoft Payout API Exception for {req_id}: {e}")
+        # Mark Pending so Webhook / Report Status can reconcile
+        await db.payout_transactions.update_one(
+            {"request_id": req_id},
+            {"$set": {
+                "status": "PENDING",
+                "response_message": f"Submitted (Pending Confirmation: {str(e)})",
+                "updated_at": now_iso()
+            }}
+        )
+        return {
+            "ok": True,
+            "status": "PENDING",
+            "request_id": req_id,
+            "message": "Payout request submitted. Verification in progress."
+        }
+
+@api.post("/payout/callback")
+async def nixasoft_payout_callback(request: Request):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+
+    logger.info(f"Nixasoft Payout Callback Received: {data}")
+    cb_status = str(data.get("status", "")).upper()
+    req_id = str(data.get("requestId") or data.get("orderId") or "")
+    utr = str(data.get("utr") or "")
+    desc = str(data.get("description") or "")
+
+    if not req_id:
+        return {"status": "error", "message": "Missing requestId"}
+
+    tx = await db.payout_transactions.find_one({"request_id": req_id})
+    if not tx:
+        return {"status": "error", "message": "Transaction not found"}
+
+    current_status = tx.get("status", "PENDING")
+
+    if cb_status in ("SUCCESS", "TXN") and current_status != "SUCCESS":
+        await db.payout_transactions.update_one(
+            {"request_id": req_id},
+            {"$set": {"status": "SUCCESS", "utr": utr or tx.get("utr", ""), "response_message": desc or "Success", "updated_at": now_iso()}}
+        )
+        return {"status": "ok", "message": "Transaction updated to SUCCESS"}
+
+    elif cb_status in ("FAILED", "TXF") and current_status != "FAILED":
+        # Refund user wallet if not already refunded
+        total_deducted = float(tx.get("total_deducted") or 0.0)
+        uid = tx["user_id"]
+        
+        await db.payout_transactions.update_one(
+            {"request_id": req_id},
+            {"$set": {"status": "FAILED", "response_message": desc or "Failed via Callback", "updated_at": now_iso()}}
+        )
+
+        cur_w = await get_user_wallet(uid)
+        refund_bal = round(float(cur_w.get("balance", 0.0)) + total_deducted, 2)
+        await db.wallets.update_one({"user_id": uid}, {"$set": {"balance": refund_bal, "updated_at": now_iso()}})
+
+        await ledger_entry(
+            user_id=uid,
+            kind="refund",
+            amount=total_deducted,
+            balance_after=refund_bal,
+            ref_type="payout_refund",
+            ref_id=req_id,
+            note=f"Payout Refund: ₹{total_deducted:.2f} for Failed Callback #{req_id} ({desc})"
+        )
+
+        charge = float(tx.get("charge") or 0.0)
+        if charge > 0:
+            await log_admin_cashbook("debit", charge, "payout_refund_charge", req_id, f"Payout Charge Refunded for {req_id}")
+
+        return {"status": "ok", "message": "Transaction marked FAILED and refunded"}
+
+    return {"status": "ok", "message": "No status change needed"}
+
+@api.post("/payout/report-status")
+async def check_payout_report_status(body: dict, user=Depends(get_current_user)):
+    req_id = body.get("requestId", "").strip()
+    if not req_id:
+        raise HTTPException(400, "requestId is required")
+
+    tx = await db.payout_transactions.find_one({"request_id": req_id})
+    if not tx:
+        raise HTTPException(404, "Payout record not found")
+
+    headers = {
+        "apiToken": NIXASOFT_API_TOKEN,
+        "Authorization": f"Basic {NIXASOFT_API_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    payload = {"requestId": req_id}
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as http_client:
+            res = await http_client.post(f"{NIXASOFT_BASE_URL}/payout/report-status", headers=headers, json=payload)
+            res_json = res.json() if res.status_code == 200 else {}
+            logger.info(f"Nixasoft Report Status Response for {req_id}: {res_json}")
+
+            st = str(res_json.get("statuscode", "")).upper()
+            data = res_json.get("data") or {}
+            utr = str(data.get("utr") or "")
+            msg = res_json.get("message") or data.get("description") or ""
+
+            if st == "TXN" and tx.get("status") != "SUCCESS":
+                await db.payout_transactions.update_one(
+                    {"request_id": req_id},
+                    {"$set": {"status": "SUCCESS", "utr": utr or tx.get("utr", ""), "response_message": msg, "updated_at": now_iso()}}
+                )
+                return {"ok": True, "status": "SUCCESS", "utr": utr, "message": "Payout Status Verified SUCCESS"}
+
+            elif st == "TXF" and tx.get("status") != "FAILED":
+                total_deducted = float(tx.get("total_deducted") or 0.0)
+                uid = tx["user_id"]
+                
+                await db.payout_transactions.update_one(
+                    {"request_id": req_id},
+                    {"$set": {"status": "FAILED", "response_message": msg or "Failed & Refunded", "updated_at": now_iso()}}
+                )
+
+                cur_w = await get_user_wallet(uid)
+                refund_bal = round(float(cur_w.get("balance", 0.0)) + total_deducted, 2)
+                await db.wallets.update_one({"user_id": uid}, {"$set": {"balance": refund_bal, "updated_at": now_iso()}})
+
+                await ledger_entry(
+                    user_id=uid,
+                    kind="refund",
+                    amount=total_deducted,
+                    balance_after=refund_bal,
+                    ref_type="payout_refund",
+                    ref_id=req_id,
+                    note=f"Payout Refund: ₹{total_deducted:.2f} for Failed Status Verification #{req_id}"
+                )
+
+                return {"ok": True, "status": "FAILED", "message": "Payout Status Verified FAILED & Refunded"}
+
+            return {"ok": True, "status": tx.get("status"), "utr": utr or tx.get("utr"), "message": msg or tx.get("response_message")}
+
+    except Exception as e:
+        logger.error(f"Report status query error: {e}")
+        raise HTTPException(500, f"Failed to check status: {str(e)}")
+
+@api.get("/payout/transactions")
+async def list_payout_transactions(
+    status: Optional[str] = None,
+    user=Depends(get_current_user)
+):
+    role = user.get("role")
+    query = {}
+
+    if role in ("agent",):
+        query["user_id"] = user["id"]
+    elif role in ("distributor", "master_distributor"):
+        if role == "distributor":
+            downlines = await db.users.find({"parent_id": user["id"], "is_deleted": False}, {"id": 1}).to_list(1000)
+        else:
+            downlines = await db.users.find({"md_id": user["id"], "is_deleted": False}, {"id": 1}).to_list(1000)
+        downline_ids = [d["id"] for d in downlines] + [user["id"]]
+        query["user_id"] = {"$in": downline_ids}
+
+    if status:
+        query["status"] = status.upper()
+
+    items = await db.payout_transactions.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    return items
 
 # ---------- BANK MANAGEMENT ----------
 @api.get("/admin/banks")
@@ -8638,6 +9121,44 @@ async def _ensure_indexes() -> None:
             )
         ''')
         await conn.execute('''
+            CREATE TABLE IF NOT EXISTS payout_slabs (
+                id VARCHAR(255) PRIMARY KEY,
+                min_amount NUMERIC(15, 2) NOT NULL,
+                max_amount NUMERIC(15, 2) NOT NULL,
+                charge_amount NUMERIC(15, 2) NOT NULL,
+                charge_type VARCHAR(20) DEFAULT 'flat',
+                active BOOLEAN DEFAULT TRUE,
+                is_deleted BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMPTZ
+            )
+        ''')
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS payout_transactions (
+                id VARCHAR(255) PRIMARY KEY,
+                request_id VARCHAR(255) UNIQUE NOT NULL,
+                api_txn_id VARCHAR(255),
+                user_id VARCHAR(255) NOT NULL,
+                user_name VARCHAR(255),
+                amount NUMERIC(15, 2) NOT NULL,
+                charge NUMERIC(15, 2) NOT NULL,
+                total_deducted NUMERIC(15, 2) NOT NULL,
+                mobile_number VARCHAR(20),
+                account_number VARCHAR(100),
+                ifsc_code VARCHAR(50),
+                beneficiary_name VARCHAR(255),
+                bank_name VARCHAR(255),
+                transfer_mode VARCHAR(20) DEFAULT 'IMPS',
+                email_id VARCHAR(255),
+                latitude VARCHAR(50),
+                longitude VARCHAR(50),
+                utr VARCHAR(255),
+                status VARCHAR(50) DEFAULT 'PENDING',
+                response_message TEXT,
+                created_at TIMESTAMPTZ,
+                updated_at TIMESTAMPTZ
+            )
+        ''')
+        await conn.execute('''
             CREATE TABLE IF NOT EXISTS banks (
                 id VARCHAR(255) PRIMARY KEY,
                 name VARCHAR(255) UNIQUE NOT NULL,
@@ -8674,6 +9195,7 @@ async def _ensure_indexes() -> None:
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS withdrawal_enabled BOOLEAN DEFAULT TRUE')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS bill_pay_enabled BOOLEAN DEFAULT TRUE')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS live_bill_enabled BOOLEAN DEFAULT TRUE')
+        await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS payout_enabled BOOLEAN DEFAULT TRUE')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS maintenance_mode BOOLEAN DEFAULT FALSE')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS logo_path TEXT DEFAULT \'\'')
         await conn.execute('ALTER TABLE settings ADD COLUMN IF NOT EXISTS favicon_path TEXT DEFAULT \'\'')
@@ -8893,6 +9415,31 @@ async def _ensure_indexes() -> None:
             "is_deleted": False,
             "created_at": now_iso()
         })
+
+    # Seed default payout charge slabs if table is empty
+    payout_slab_count = await db.payout_slabs.count_documents({"is_deleted": False})
+    if payout_slab_count == 0:
+        await db.payout_slabs.insert_one({
+            "id": new_id(),
+            "min_amount": 100.0,
+            "max_amount": 50000.0,
+            "charge_amount": 25.0,
+            "charge_type": "flat",
+            "active": True,
+            "is_deleted": False,
+            "created_at": now_iso()
+        })
+        await db.payout_slabs.insert_one({
+            "id": new_id(),
+            "min_amount": 50001.0,
+            "max_amount": 100000.0,
+            "charge_amount": 50.0,
+            "charge_type": "flat",
+            "active": True,
+            "is_deleted": False,
+            "created_at": now_iso()
+        })
+
 
     # Seed default banks if table is empty
     bank_count = await db.banks.count_documents({"is_deleted": False})

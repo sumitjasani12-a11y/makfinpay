@@ -25,7 +25,7 @@ TABLE_COLUMNS = {
     "qr_codes": ["id", "label", "image_path", "upi_id", "active", "is_deleted", "created_at", "mobile_number", "is_t1"],
     "qr_name_entries": ["id", "name", "color", "mobile_number", "upi_id", "min_amount", "max_amount", "image_path", "position", "active", "is_deleted", "created_at", "qr_percent", "is_t1"],
     "bank_details": ["id", "user_id", "account_holder", "account_number", "ifsc", "bank_name", "phone_number", "updated_at"],
-    "settings": ["id", "default_percent", "updated_at", "min_recharge_limit", "max_recharge_limit", "qr_enabled", "recharge_enabled", "withdrawal_enabled", "bill_pay_enabled", "t1_qr_enabled", "live_bill_enabled", "live_bill_api_charge", "logo_path", "favicon_path", "logo_collapsed_path", "watermark_path", "t1_recharge_enabled", "live_bill_max_limit", "maintenance_mode", "qr_approved_audio", "qr_rejected_audio", "cc_bill_approved_audio", "cc_bill_rejected_audio", "qr_request_received_audio", "cc_bill_request_received_audio", "live_bill_enabled_audio", "qr_approved_audio_enabled", "qr_rejected_audio_enabled", "cc_bill_approved_audio_enabled", "cc_bill_rejected_audio_enabled", "qr_request_received_audio_enabled", "cc_bill_request_received_audio_enabled", "live_bill_enabled_audio_enabled", "disabled_biller_categories", "onesignal_app_id", "onesignal_rest_api_key", "min_fund_transfer_limit", "fund_transfer_enabled"],
+    "settings": ["id", "default_percent", "updated_at", "min_recharge_limit", "max_recharge_limit", "qr_enabled", "recharge_enabled", "withdrawal_enabled", "bill_pay_enabled", "t1_qr_enabled", "live_bill_enabled", "payout_enabled", "live_bill_api_charge", "logo_path", "favicon_path", "logo_collapsed_path", "watermark_path", "t1_recharge_enabled", "live_bill_max_limit", "maintenance_mode", "qr_approved_audio", "qr_rejected_audio", "cc_bill_approved_audio", "cc_bill_rejected_audio", "qr_request_received_audio", "cc_bill_request_received_audio", "live_bill_enabled_audio", "qr_approved_audio_enabled", "qr_rejected_audio_enabled", "cc_bill_approved_audio_enabled", "cc_bill_rejected_audio_enabled", "qr_request_received_audio_enabled", "cc_bill_request_received_audio_enabled", "live_bill_enabled_audio_enabled", "disabled_biller_categories", "onesignal_app_id", "onesignal_rest_api_key", "min_fund_transfer_limit", "fund_transfer_enabled"],
     "files": ["id", "storage_path", "original_filename", "content_type", "size", "uploaded_by", "is_deleted", "created_at"],
     "headlines": ["id", "message", "type", "active", "position", "is_deleted", "created_at"],
     "audit_logs": ["id", "user_id", "action", "target", "meta", "ip", "created_at"],
@@ -44,7 +44,9 @@ TABLE_COLUMNS = {
     "admin_profit_ledger": ["id", "type", "amount", "balance_after", "ref_type", "ref_id", "note", "created_at"],
     "admin_cashbook": ["id", "type", "amount", "balance_after", "ref_type", "ref_id", "note", "created_at"],
     "admin_credentials": ["id", "email", "password", "password_hash", "permissions", "frozen", "created_at"],
-    "password_resets": ["id", "email", "otp", "expires_at", "used", "created_at"]
+    "password_resets": ["id", "email", "otp", "expires_at", "used", "created_at"],
+    "payout_slabs": ["id", "min_amount", "max_amount", "charge_amount", "charge_type", "active", "is_deleted", "created_at"],
+    "payout_transactions": ["id", "request_id", "api_txn_id", "user_id", "user_name", "amount", "charge", "total_deducted", "mobile_number", "account_number", "ifsc_code", "beneficiary_name", "bank_name", "transfer_mode", "email_id", "latitude", "longitude", "utr", "status", "response_message", "created_at", "updated_at"]
 }
 
 DATETIME_COLUMNS = {

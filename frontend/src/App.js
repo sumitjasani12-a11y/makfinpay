@@ -57,6 +57,8 @@ import AgentLiveBillPay from "@/pages/agent/LiveBillPay";
 import AgentLiveBillHistory from "@/pages/agent/LiveBillHistory";
 import AgentLedger from "@/pages/agent/Ledger";
 import AgentWithdrawal from "@/pages/agent/Withdrawal";
+import AgentPayout from "@/pages/agent/Payout";
+import AdminPayoutSlabs from "@/pages/admin/PayoutSlabs";
 
 import ChangePassword from "@/pages/ChangePassword";
 import ChangeMpin from "@/pages/ChangeMpin";
@@ -166,6 +168,7 @@ export default function App() {
             <Route path="headlines" element={<AdminHeadlines />} />
             <Route path="commission" element={<AdminCommission />} />
             <Route path="service-slabs" element={<AdminServiceSlabs />} />
+            <Route path="payout-slabs" element={<AdminPayoutSlabs />} />
             <Route path="banks" element={<AdminBanks />} />
             <Route path="cc-billers" element={<AdminCcBillers />} />
             <Route path="biller-categories" element={<AdminBillerCategories />} />
@@ -184,6 +187,7 @@ export default function App() {
             <Route index element={<DistOverview />} />
             <Route path="agents" element={<DistAgents />} />
             <Route path="fund-transfer" element={<FundTransfer />} />
+            <Route path="payout" element={<AgentPayout />} />
             <Route path="recharges" element={<DistRecharges />} />
             <Route path="withdrawal" element={<DistWithdrawal />} />
             <Route path="change-password" element={<ChangePassword />} />
@@ -196,6 +200,7 @@ export default function App() {
             <Route index element={<MdOverview />} />
             <Route path="distributors" element={<MdDistributors />} />
             <Route path="fund-transfer" element={<FundTransfer />} />
+            <Route path="payout" element={<AgentPayout />} />
             <Route path="recharges" element={<MdRecharges />} />
             <Route path="withdrawal" element={<MdWithdrawal />} />
             <Route path="change-password" element={<ChangePassword />} />
@@ -211,6 +216,7 @@ export default function App() {
             <Route path="cc-bill-history" element={<AgentCcBillHistory />} />
             <Route path="live-billpay" element={<AgentLiveBillPay />} />
             <Route path="live-billpay/history" element={<AgentLiveBillHistory />} />
+            <Route path="payout" element={<AgentPayout />} />
             <Route path="ledger" element={<AgentLedger />} />
             <Route path="withdrawal" element={<AgentWithdrawal />} />
             <Route path="change-password" element={<ChangePassword />} />
