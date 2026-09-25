@@ -652,14 +652,7 @@ class PayoutRequestIn(BaseModel):
     longitude: Optional[str] = "72.5714"
 
 class PayoutToggleIn(BaseModel):
-    payout_enabled: bool
-
-    mobile: str
-    fetchRequestId: Optional[str] = None
-    additionalInfo: Optional[dict] = None
-    customerParams: List[CustomerParamItem]
-    billerResponseInfo: dict
-    tpin: str
+    payout_enabled: bool = True
 
 class WithdrawalIn(BaseModel):
     amount: float
