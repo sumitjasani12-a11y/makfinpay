@@ -780,7 +780,7 @@ export default function LiveBillPay() {
         toast.error(displayMsg);
       }
     } catch (e) {
-      const errDetail = formatErr(e.response?.data?.detail) || "Error processing bill payment";
+      const errDetail = formatErr(e.response?.data?.detail) || e.response?.data?.message || e.message || "Error processing bill payment";
       const displayMsg = /insufficient|balance/i.test(errDetail) ? "Transaction failed" : errDetail;
       toast.error(displayMsg);
     } finally {

@@ -15,7 +15,7 @@ import requests
 import httpx
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta, time as time_obj
-from typing import Optional, List, Literal
+from typing import Optional, List, Literal, Dict, Any
 from decimal import Decimal
 import gzip
 import io
@@ -637,6 +637,12 @@ class LiveBillFetchIn(BaseModel):
 class LiveBillPayIn(BaseModel):
     billerId: str
     amount: float
+    mobile: str = ""
+    tpin: str = ""
+    fetchRequestId: Optional[str] = None
+    additionalInfo: Optional[Dict[str, Any]] = None
+    customerParams: List[CustomerParamItem] = []
+    billerResponseInfo: Optional[Dict[str, Any]] = None
 
 class PayoutSlabIn(BaseModel):
     min_amount: float = Field(..., ge=0)
